@@ -54,7 +54,11 @@ export const cliEditMessages = {
   },
   'cli.edit.nameEmpty': 'Name cannot be empty',
   'cli.edit.badgeNew': 'new',
-  'cli.edit.badgeUnsaved': '{count} unsaved change(s)',
+  'cli.edit.badgeUnsaved': {
+    $plural: 'count',
+    one: '{count} unsaved change',
+    other: '{count} unsaved changes',
+  },
   'cli.edit.listFileExists': {
     $select: 'type',
     deck: 'A deck already exists at {file}.',
@@ -100,15 +104,25 @@ export const cliEditMessages = {
   },
   'cli.edit.discardCardChangesFirst': {
     $select: 'type',
-    deck: "discard this deck's {count} card change(s) first",
-    collection: "discard this collection's {count} card change(s) first",
-    wanted: "discard this wanted list's {count} card change(s) first",
+    deck: "discard this deck's {changes} first",
+    collection: "discard this collection's {changes} first",
+    wanted: "discard this wanted list's {changes} first",
+  },
+  'cli.edit.cardChangeCount': {
+    $plural: 'count',
+    one: '{count} card change',
+    other: '{count} card changes',
   },
   'cli.edit.discardInboundMovesFirst': {
     $select: 'type',
-    deck: 'discard the {count} pending move(s) into this deck first',
-    collection: 'discard the {count} pending move(s) into this collection first',
-    wanted: 'discard the {count} pending move(s) into this wanted list first',
+    deck: 'discard the {moves} into this deck first',
+    collection: 'discard the {moves} into this collection first',
+    wanted: 'discard the {moves} into this wanted list first',
+  },
+  'cli.edit.pendingMoveCount': {
+    $plural: 'count',
+    one: '{count} pending move',
+    other: '{count} pending moves',
   },
   'cli.edit.discardedList': {
     $select: 'type',
@@ -351,7 +365,11 @@ export const cliEditMessages = {
   'cli.history.timestampInvalid':
     'Must be a valid ISO-8601 timestamp (e.g. 2026-05-29T12:00:00.000Z).',
   'cli.history.timestampUpdated': 'Timestamp updated (in memory).',
-  'cli.history.proseWarning': '{count} hand-written line(s) will be discarded.',
+  'cli.history.proseWarning': {
+    $plural: 'count',
+    one: '{count} hand-written line will be discarded.',
+    other: '{count} hand-written lines will be discarded.',
+  },
   'cli.history.confirmRewrite':
     'Replace ALL change sets with a single set describing the list as it stands now?{warning}',
   'cli.history.rewriteYes': 'Yes, rewrite with defaults',
@@ -359,8 +377,11 @@ export const cliEditMessages = {
   'cli.history.emptyList': 'The list is empty — nothing to rewrite.',
   'cli.history.categoriesUnreadable':
     "⚠️  The rewrite describes no categories — the list's categories sidecar could not be read: {reason}",
-  'cli.history.rewrote':
-    'Rewrote history as a single change set with {count} entr(y/ies) (in memory).',
+  'cli.history.rewrote': {
+    $plural: 'count',
+    one: 'Rewrote history as a single change set with {count} entry (in memory).',
+    other: 'Rewrote history as a single change set with {count} entries (in memory).',
+  },
   'cli.history.nothingToUndo': 'Nothing to undo.',
   'cli.history.reverted': 'Reverted the last change.',
   'cli.history.previewHeading': '── Preview of changes to be saved ──',
@@ -372,7 +393,11 @@ export const cliEditMessages = {
   'cli.history.promptDonePreview': 'Done previewing?',
   'cli.history.backToMenu': 'Back to menu',
   'cli.history.noChangesToSave': 'No changes to save.',
-  'cli.history.saved': 'Saved {count} change set(s) to {file}',
+  'cli.history.saved': {
+    $plural: 'count',
+    one: 'Saved {count} change set to {file}',
+    other: 'Saved {count} change sets to {file}',
+  },
   'cli.history.discardedAll': 'Discarded all changes.',
 
   // ── One-shot line edits (`set-card`, `remove-card`, `note`) ───────────

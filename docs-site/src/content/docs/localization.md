@@ -47,7 +47,7 @@ The flag wins over the environment variable. An empty or whitespace-only `RITUAL
 
 The tiers are validated differently:
 
-- **`--locale`**: an unrecognized tag is a usage error (exit code `2`). You typed it, so a typo is worth reporting.
+- **`--locale`**: an unrecognized tag is a usage error (exit code `2`). You typed it, so a typo is worth reporting. The error itself is worded in the language the tiers below pick, so a valid `RITUAL_LOCALE` still applies to it.
 - **`RITUAL_LOCALE`**: an unusable value warns and falls through to the next tier. An inherited variable should not fail an unrelated command.
 - **`uiLocale`** in `ritual.config.json`: follows the usual [config validation](/configuration/#validation). A malformed value is reported and the default applies for that run.
 

@@ -178,9 +178,9 @@ export const helpCardsMessages = {
   'help.metadata.listName': 'Name of the list (prompted when omitted)',
   'help.metadata.property':
     'Deck: {keys}. Collection: description, labels. Wanted list: description.',
-  'help.metadata.value': 'Value(s) to set',
-  'help.metadata.add': 'Add value(s) to an array property (tags, labels) instead of replacing it',
-  'help.metadata.remove': 'Remove value(s) from an array property',
+  'help.metadata.value': 'One or more values to set',
+  'help.metadata.add': 'Add values to an array property (tags, labels) instead of replacing it',
+  'help.metadata.remove': 'Remove values from an array property',
 
   // ── categories ────────────────────────────────────────────────────────
   'help.categories.description': "Inspect and edit a list's card categories",

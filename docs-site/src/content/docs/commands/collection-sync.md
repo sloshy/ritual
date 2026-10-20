@@ -228,7 +228,7 @@ Every route into the CSV path needs a reasonably fresh card cache. See [Cache fr
 In a terminal (text output, prompts enabled, not `--dry-run`) the run stops and asks:
 
 ```
-? 40 cards would be added — more than 25. How should they reach Archidekt? › - Use arrow-keys
+? 40 cards would be added — more than 25. How should they reach Archidekt? › - Use the arrow keys. Return to submit.
 ❯ Upload them automatically as one CSV import (recommended)
   Save the CSV to a file for a manual upload
   Add them individually (slow; may be rate limited)

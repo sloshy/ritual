@@ -47,7 +47,7 @@ ritual history my-deck --show --limit 3
 ritual history my-deck --show --output json
 ```
 
-Text output starts with a header line, `Change history for Deck 'my-deck' — 4 change set(s).`, where the count is the full history before any `--limit` truncation. Each set follows: its timestamp and line count, then its raw change lines indented two spaces **verbatim** (including the leading `- ` and the `&N` card IDs), then any preserved hand-written lines attached to the set (see [Lossless editing](#lossless-editing)), indented the same way. A list with no history prints `No change history recorded.` and exits `0`.
+Text output starts with a header line, `Change history for Deck 'my-deck' — 4 change sets.`, where the count is the full history before any `--limit` truncation. Each set follows: its timestamp and line count, then its raw change lines indented two spaces **verbatim** (including the leading `- ` and the `&N` card IDs), then any preserved hand-written lines attached to the set (see [Lossless editing](#lossless-editing)), indented the same way. A list with no history prints `No change history recorded.` and exits `0`.
 
 `--limit <n>` keeps only the newest `n` sets.
 
@@ -81,7 +81,7 @@ With `--output json`, the payload is the admin site's `GET /api/history/:type/:s
 
 ## The editor
 
-The main menu lists each change set (newest first) as a collapsed row: its timestamp and how many change lines it holds. Type to filter the list by timestamp (the global actions stay pinned); the list picker shown when no list name is given filters the same way. Selecting a set expands it, prints its lines, and opens a per-set action menu. The global actions sit below the sets.
+The main menu lists each change set (newest first) as a collapsed row: its timestamp and how many change lines it holds. Type to filter the list by timestamp (the global actions stay pinned); the list picker shown when no list name is given filters the same way. In either, the first Esc clears what you typed, and the next one backs out. Selecting a set expands it, prints its lines, and opens a per-set action menu. The global actions sit below the sets.
 
 ### Per-set actions
 

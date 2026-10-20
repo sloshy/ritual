@@ -14,6 +14,7 @@ import {
   resetLocale,
   setLocale,
   type LocaleOverride,
+  registerDictionaryListener,
 } from '../../../src/i18n/runtime'
 import { en } from '../../../src/i18n/messages/en'
 import { localeTag } from '../../../src/i18n/locale-tag-message'
@@ -155,5 +156,38 @@ describe('strict mode', () => {
       if (previous === undefined) delete process.env.RITUAL_I18N_STRICT
       else process.env.RITUAL_I18N_STRICT = previous
     }
+  })
+})
+
+/**
+ * The hook the Solid store re-renders through when a dictionary arrives after
+ * the first paint. It is told only *that* one arrived; the store re-reads the
+ * applied locale itself.
+ */
+describe('registerDictionaryListener', () => {
+  afterEach(() => {
+    resetI18nRuntime()
+  })
+
+  test('fires when a dictionary is registered, and not for English', () => {
+    let calls = 0
+    registerDictionaryListener(() => {
+      calls += 1
+    })
+    loadDictionary(localeTag('en-XA'), {})
+    expect(calls).toBe(1)
+    // English is inline and never registered, so nothing on screen changes.
+    loadDictionary(DEFAULT_LOCALE, {})
+    expect(calls).toBe(1)
+  })
+
+  test('is cleared by a runtime reset', () => {
+    let calls = 0
+    registerDictionaryListener(() => {
+      calls += 1
+    })
+    resetI18nRuntime()
+    loadDictionary(localeTag('en-XA'), {})
+    expect(calls).toBe(0)
   })
 })

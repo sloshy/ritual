@@ -26,6 +26,7 @@ import {
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard, stubTty } from '../test-utils'
 import { captureConsole } from '../helpers/capture'
+import { pseudoCatalog, pseudoString, withSyntheticLocale } from '../helpers/sync-text'
 
 function entry(overrides: Partial<PricedEntry> = {}): PricedEntry {
   return {
@@ -219,6 +220,15 @@ describe('formatEntryChoiceTitle', () => {
     )
     expect(title).toStartWith('2x Sol Ring (C19:221) [foil] — $6.00 · lowest $2.00')
     expect(title).toEndWith('My Deck')
+  })
+
+  test("words the lowest-price note in the CLI's language", () => {
+    withSyntheticLocale('en-XA', pseudoCatalog(), () => {
+      const title = formatEntryChoiceTitle(entry({ price: 3, lowest: 1 }), 'usd', false)
+      expect(title).toEndWith(
+        ` · ${pseudoString('cli.price.rowLowest').replace('{price}', '$1.00')}`,
+      )
+    })
   })
 
   test('renders unpriced entries as N/A', () => {

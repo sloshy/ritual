@@ -77,6 +77,24 @@ export function registerLocaleSource(source: (() => LocaleTag) | null): void {
 }
 
 /**
+ * Told whenever a dictionary is registered. The Solid store installs one so a
+ * dictionary that arrives *after* the first render re-renders the text already
+ * on screen: the applied tag may not change at all (the `__ritualLocale__` seam
+ * names it before its dictionary is fetched), so a locale signal alone would
+ * never fire. `null` everywhere else.
+ *
+ * It is told nothing about *which* dictionary arrived, on purpose: the listener
+ * re-reads the runtime's applied state, so a fetch a later switch superseded
+ * can never push its own tag onto the screen.
+ */
+let dictionaryListener: (() => void) | null = null
+
+/** Install (or, with `null`, remove) the {@link dictionaryListener}. */
+export function registerDictionaryListener(listener: (() => void) | null): void {
+  dictionaryListener = listener
+}
+
+/**
  * The English catalog this process speaks, assembled by {@link registerMessages}
  * from whichever namespaces the surface entry point registered.
  *
@@ -173,6 +191,7 @@ export function currentLocale(): LocaleTag {
 export function loadDictionary(tag: LocaleTag, catalog: LocaleCatalog): void {
   if (tag === DEFAULT_LOCALE) return
   dictionaries.set(tag, catalog)
+  dictionaryListener?.()
 }
 
 /** The dictionary registered for a locale, or `undefined` when none is loaded. */
@@ -215,6 +234,7 @@ export function loadedLocales(): LocaleTag[] {
 export function resetI18nRuntime(): void {
   resetLocale()
   registerLocaleSource(null)
+  registerDictionaryListener(null)
   bakedTags = []
   for (const tag of dictionaries.keys()) {
     if (tag !== DEFAULT_LOCALE) dictionaries.delete(tag)

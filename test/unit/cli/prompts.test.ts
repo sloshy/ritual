@@ -7,18 +7,23 @@ import {
   menuPageSize,
   promptCredentials,
   promptExitMenu,
+  promptLibraryStrings,
   resolveImportPrintings,
+  type AskQuestion,
   suggestByTitleTerms,
   withMenuPageSize,
   type UndeclaredPromptOptions,
 } from '../../../src/cli/prompts'
 import { normalizeScriptingOptions } from '../../../src/cli/output'
 import { setNoInputOverride } from '../../../src/util/no-input'
-import { registerCliMessages } from '../../../src/i18n/register/cli'
 import { stubTty } from '../../test-utils'
-
-// The refusal prose asserted below only exists once the CLI catalog is registered.
-registerCliMessages()
+import {
+  expectLocaleInForce,
+  pseudoCatalog,
+  pseudoString,
+  withSyntheticLocale,
+  withSyntheticLocaleAsync,
+} from '../../helpers/sync-text'
 
 // `ask` refuses to prompt without a terminal; these tests simulate an
 // interactive session via prompts.inject, so pretend stdin is a TTY.
@@ -115,11 +120,37 @@ describe('ask under --no-input', () => {
 /** A stdin the `prompts` library accepts as a terminal. */
 type FakeTtyStdin = PassThrough & { isTTY: boolean; setRawMode: () => void }
 
+/** A fresh {@link FakeTtyStdin}. */
+function fakeTtyStdin(): FakeTtyStdin {
+  const stdin = new PassThrough() as FakeTtyStdin
+  stdin.isTTY = true
+  stdin.setRawMode = () => undefined
+  return stdin
+}
+
+/** What a prompt drew, and what it answered. */
+type DrawnPrompt = { drawn: string; answer: unknown }
+
+/**
+ * Open `question` through {@link ask} on a fake terminal, type `keys`, and
+ * collect everything the library drew until it settled.
+ */
+async function drawPrompt(question: AskQuestion, keys: string): Promise<DrawnPrompt> {
+  const stdin = fakeTtyStdin()
+  const stdout = new PassThrough()
+  let drawn = ''
+  stdout.on('data', (chunk: Buffer) => {
+    drawn += chunk.toString()
+  })
+  const pending = ask<unknown>({ ...question, stdin, stdout })
+  stdin.write(keys)
+  const answer = await pending
+  return { drawn, answer }
+}
+
 describe('ask with an autocomplete', () => {
   test('a first Esc clears the typed text and keeps the prompt open; a second backs out', async () => {
-    const stdin = new PassThrough() as FakeTtyStdin
-    stdin.isTTY = true
-    stdin.setRawMode = () => undefined
+    const stdin = fakeTtyStdin()
     let settled = false
     const answer = ask<string>({
       type: 'autocomplete',
@@ -324,5 +355,139 @@ describe('promptExitMenu', () => {
   test('treats cancelling the prompt as Cancel (keep editing)', async () => {
     prompts.inject([new Error('cancelled')])
     expect(await promptExitMenu(1)).toBe('cancel')
+  })
+})
+
+/**
+ * The library's English strings, as `ask()` replaces them. The English rows pin
+ * the catalog to the library's text and layout — except the select hint ("Use
+ * the arrow keys.") and the text-prompt error ("Please enter a valid value"),
+ * which the catalog rewords on purpose. The pseudo rows prove each string is
+ * the catalog's, with the key names (which stay English) left untouched.
+ */
+describe('promptLibraryStrings', () => {
+  test('every prompt gets the strings shared across types, in English', () => {
+    expect(promptLibraryStrings('confirm')).toStrictEqual({
+      noMatches: 'no matches found',
+      active: 'on',
+      inactive: 'off',
+      yes: 'yes',
+      no: 'no',
+      yesOption: '(Y/n)',
+      noOption: '(y/N)',
+      warn: '- This option is disabled',
+      error: 'Please enter a valid value',
+    })
+  })
+
+  test('only a select gets the select hint', () => {
+    expect(promptLibraryStrings('select').hint).toBe('- Use the arrow keys. Return to submit.')
+    for (const type of ['autocomplete', 'multiselect', 'text', undefined] as const) {
+      expect(promptLibraryStrings(type).hint).toBeUndefined()
+    }
+  })
+
+  test("a multiselect's key list and disabled note keep the library's layout", () => {
+    const multiselect = promptLibraryStrings('multiselect')
+    expect(multiselect.instructions).toBe(
+      '\nInstructions:\n' +
+        '    ↑/↓: Highlight option\n' +
+        '    ←/→/[space]: Toggle selection\n' +
+        '    a: Toggle all\n' +
+        '    enter/return: Complete answer',
+    )
+    // The multiselects' own default closes the note with a dash.
+    expect(multiselect.warn).toBe('- This option is disabled -')
+    // A `max` caps the selection, so there is no toggling every row at once.
+    expect(promptLibraryStrings('multiselect', true).instructions).not.toContain('Toggle all')
+    // The searchable variant lists its filter keys in that slot instead, and
+    // ends on a newline as the library's own block does.
+    expect(promptLibraryStrings('autocompleteMultiselect').instructions).toBe(
+      '\nInstructions:\n' +
+        '    ↑/↓: Highlight option\n' +
+        '    ←/→/[space]: Toggle selection\n' +
+        '    [a,b,c]/delete: Filter choices\n' +
+        '    enter/return: Complete answer\n',
+    )
+    expect(promptLibraryStrings('select').instructions).toBeUndefined()
+  })
+
+  test("under the pseudo-locale every string is the catalog's, key names untouched", () => {
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      const keys = pseudoString('cli.prompt.confirmKeys')
+      expect(promptLibraryStrings('select')).toStrictEqual({
+        noMatches: pseudoString('cli.prompt.noMatches'),
+        active: pseudoString('cli.prompt.toggleOn'),
+        inactive: pseudoString('cli.prompt.toggleOff'),
+        hint: `- ${pseudoString('cli.prompt.selectHint').replace('{key}', 'Return')}`,
+        warn: `- ${pseudoString('cli.prompt.disabledChoice')}`,
+        yes: pseudoString('cli.prompt.confirmYes'),
+        no: pseudoString('cli.prompt.confirmNo'),
+        yesOption: keys.replace('{yesKey}', 'Y').replace('{noKey}', 'n'),
+        noOption: keys.replace('{yesKey}', 'y').replace('{noKey}', 'N'),
+        error: pseudoString('cli.prompt.invalidValue'),
+      })
+      const line = (key: Parameters<typeof pseudoString>[0], keys: string): string =>
+        `    ${pseudoString(key).replace('{keys}', keys)}`
+      expect(promptLibraryStrings('multiselect').instructions).toBe(
+        [
+          '',
+          pseudoString('cli.prompt.instructions.heading'),
+          line('cli.prompt.instructions.highlight', '↑/↓'),
+          line('cli.prompt.instructions.toggle', '←/→/[space]'),
+          line('cli.prompt.instructions.toggleAll', 'a'),
+          line('cli.prompt.instructions.complete', 'enter/return'),
+        ].join('\n'),
+      )
+      expect(promptLibraryStrings('autocompleteMultiselect').instructions).toContain(
+        `${line('cli.prompt.instructions.filter', '[a,b,c]/delete')}\n`,
+      )
+    })
+  })
+})
+
+describe('ask hands the library its strings', () => {
+  test("a confirm draws the catalog's key hint, then its answer", async () => {
+    await withSyntheticLocaleAsync('en-XA', pseudoCatalog(), async () => {
+      const { drawn, answer } = await drawPrompt(
+        { type: 'confirm', message: 'Save?', initial: true },
+        'y',
+      )
+
+      expect(answer).toBe(true)
+      const keys = pseudoString('cli.prompt.confirmKeys')
+      expect(drawn).toContain(keys.replace('{yesKey}', 'Y').replace('{noKey}', 'n'))
+      expect(drawn).toContain(pseudoString('cli.prompt.confirmYes'))
+      // The library's own answer word never appears (the keys stay letters, so
+      // only the answer can tell the two apart).
+      expect(drawn).not.toContain('yes')
+    })
+  })
+
+  test("a caller's own hint wins over the catalog's", async () => {
+    const { drawn } = await drawPrompt(
+      {
+        type: 'select',
+        message: 'Pick?',
+        hint: 'Pick a row',
+        choices: [{ title: 'A', value: 'a' }],
+      },
+      '\r',
+    )
+    expect(drawn).toContain('Pick a row')
+    expect(drawn).not.toContain('Use the arrow keys')
+  })
+
+  test("a multiselect's max drops the toggle-all line from its key list", async () => {
+    const choices = [{ title: 'A', value: 'a' }]
+    const open = await drawPrompt({ type: 'multiselect', message: 'Pick?', choices }, '\r')
+    expect(open.drawn).toContain('a: Toggle all')
+    const capped = await drawPrompt(
+      { type: 'multiselect', message: 'Pick?', choices, max: 1 },
+      '\r',
+    )
+    expect(capped.drawn).toContain('Complete answer')
+    expect(capped.drawn).not.toContain('Toggle all')
   })
 })

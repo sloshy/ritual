@@ -23,6 +23,8 @@
 import { createContext, createSignal, useContext, type Accessor, type JSX } from 'solid-js'
 import {
   appliedLocaleTag,
+  getDictionary,
+  registerDictionaryListener,
   registerLocaleSource,
   setLocale as applyRuntimeLocale,
 } from '../i18n/runtime'
@@ -37,7 +39,7 @@ import {
   type TranslateArgs,
 } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
-import type { LocaleTag, MessageSegment } from '../i18n/types'
+import type { LocaleCatalog, LocaleTag, MessageSegment } from '../i18n/types'
 
 /** The reactive translator handed to components. */
 export type I18nStore = {
@@ -68,8 +70,48 @@ export type I18nStore = {
  */
 let store: I18nStore | undefined
 
-function buildStore(): I18nStore {
-  const [locale, setLocaleSignal] = createSignal<LocaleTag>(appliedLocaleTag())
+/**
+ * Installs {@link store}'s two hooks into the runtime. Kept beside it and run
+ * on every {@link createI18nStore} call, so a runtime reset (which clears both
+ * slots) never leaves the cached store unwired.
+ */
+let wireStore: (() => void) | undefined
+
+/**
+ * What the text on screen was rendered from: the applied locale **and** the
+ * dictionary it had when it rendered. Either changing means every `t()` call
+ * may now answer differently.
+ */
+type RenderedLocale = { tag: LocaleTag; dictionary: LocaleCatalog | undefined }
+
+/** The runtime's current {@link RenderedLocale}. */
+function renderedLocale(): RenderedLocale {
+  const tag = appliedLocaleTag()
+  return { tag, dictionary: getDictionary(tag) }
+}
+
+function sameRendering(a: RenderedLocale, b: RenderedLocale): boolean {
+  return a.tag === b.tag && a.dictionary === b.dictionary
+}
+
+/** A built store and the function that wires it into the runtime. */
+type BuiltStore = { store: I18nStore; wire: () => void }
+
+function buildStore(): BuiltStore {
+  // The signal tracks the dictionary as well as the tag. A tag alone misses the
+  // case where the locale is known before its dictionary is: the
+  // `__ritualLocale__` seam (or any boot that applies a tag ahead of its fetch)
+  // renders the first paint from the English fallback, and when the dictionary
+  // lands the tag is unchanged — so a tag-only signal's equality check would
+  // swallow the update and leave that first paint English for good.
+  const [rendered, setRendered] = createSignal<RenderedLocale>(renderedLocale(), {
+    equals: sameRendering,
+  })
+  // A plain accessor, never a memo: `currentLocale()` reads it through
+  // `registerLocaleSource`, and the module-level renderers it serves must re-run
+  // on a dictionary-only change too. A memo of the tag would compare equal
+  // across that change and swallow it, which is the very bug this guards.
+  const locale: Accessor<LocaleTag> = () => rendered().tag
 
   function setLocale(tag: LocaleTag): void {
     // The module state is updated *before* the signal, and the signal is
@@ -79,14 +121,20 @@ function buildStore(): I18nStore {
     // mid-render, and the `__ritualLocale__` test seam must keep outranking an
     // applied value on both paths.
     applyRuntimeLocale(tag)
-    setLocaleSignal(appliedLocaleTag())
+    setRendered(renderedLocale())
   }
 
-  // Reading `locale()` from inside `currentLocale()` is what makes every
-  // module-level renderer reactive. Registered once, for the life of the app.
-  registerLocaleSource(locale)
+  function wire(): void {
+    // Reading `locale()` from inside `currentLocale()` is what makes every
+    // module-level renderer reactive.
+    registerLocaleSource(locale)
+    // A dictionary arriving for the locale already applied re-renders the text
+    // it now translates; one for any other locale changes nothing on screen,
+    // which the equality check absorbs.
+    registerDictionaryListener(() => setRendered(renderedLocale()))
+  }
 
-  return {
+  const built: I18nStore = {
     locale,
     setLocale,
     t: <K extends MessageKey>(key: K, ...args: TranslateArgs<K>): string =>
@@ -97,6 +145,7 @@ function buildStore(): I18nStore {
     tSegmentsDynamic: (key: MessageKey, params?: RenderParams): MessageSegment[] =>
       tSegmentsDynamic(locale(), key, params),
   }
+  return { store: built, wire }
 }
 
 /**
@@ -107,7 +156,12 @@ function buildStore(): I18nStore {
  * Idempotent — see {@link store} for why there can only be one.
  */
 export function createI18nStore(): I18nStore {
-  store ??= buildStore()
+  if (store === undefined) {
+    const built = buildStore()
+    store = built.store
+    wireStore = built.wire
+  }
+  wireStore?.()
   return store
 }
 

@@ -8,11 +8,19 @@
  * from a test with any subset of commands.
  */
 
-import { Command, CommanderError, InvalidArgumentError } from 'commander'
+import {
+  type Argument,
+  Command,
+  CommanderError,
+  InvalidArgumentError,
+  type Option,
+} from 'commander'
 import { version } from '../config/version'
 import { applyCliLocale } from './locale'
 import { qualifiedCommandName } from './command-name'
 import { t, type ParameterlessKey } from '../i18n/t'
+import { formatUnitList } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
 import { divertConsoleLogToStderr } from '../util/stdout-guard'
 import {
   isCacheServerAddressError,
@@ -95,8 +103,9 @@ const parseLocaleOption = messageArgParser(parseUiLocale)
 // ---------------------------------------------------------------------------
 //
 // Everything below localizes text Commander authors rather than text Ritual
-// authors, through the four hooks the library exposes for it: `.version()`,
-// `.helpOption()`, `.helpCommand()`, `configureHelp({ styleTitle })` and
+// authors, through the hooks the library exposes for it: `.version()`,
+// `.helpOption()`, `.helpCommand()`, `configureHelp({ styleTitle,
+// optionDescription, argumentDescription })` and
 // `configureOutput({ outputError })`. The English in `help.commander.*` is a
 // byte-for-byte copy of the library's literals, so an English run is
 // indistinguishable from an unhooked one and only a translated run diverges.
@@ -138,6 +147,81 @@ export function localizeHelpTitle(title: string): string {
   return key === undefined ? title : t(key)
 }
 
+/**
+ * Join items the way Commander joins them (`a, b, c`), in the reader's
+ * language: a unit list, which English renders with Commander's own `, `.
+ */
+function commanderList(items: readonly string[]): string {
+  return formatUnitList(currentLocale(), items)
+}
+
+/**
+ * A help row's description with its annotations — `(choices: …, default: …)` —
+ * appended, or the bare description when there are none. Commander's own
+ * layout: one space, then the parenthesized list.
+ */
+function annotatedDescription(description: string, annotations: readonly string[]): string {
+  if (annotations.length === 0) return description
+  const suffix = t('help.commander.annotations', { annotations: commanderList(annotations) })
+  return description === '' ? suffix : `${description} ${suffix}`
+}
+
+/** The `choices: "a", "b"` annotation; each value JSON-quoted, as Commander shows it. */
+function choicesAnnotation(choices: readonly string[]): string {
+  return t('help.commander.annotationChoices', {
+    choices: commanderList(choices.map((choice) => JSON.stringify(choice))),
+  })
+}
+
+/**
+ * `Help.optionDescription`, re-rendered from the catalog: the same annotations
+ * under the same conditions as the library's (`lib/help.js`), with only the
+ * words translated. The values — choices, defaults, presets, the environment
+ * variable — are spec data and stay verbatim.
+ */
+export function localizedOptionDescription(option: Option): string {
+  const annotations: string[] = []
+  if (option.argChoices) annotations.push(choicesAnnotation(option.argChoices))
+  if (option.defaultValue !== undefined) {
+    // Commander shows a boolean flag's default only when it is a real boolean,
+    // and a value-taking option's always.
+    const showDefault =
+      option.required ||
+      option.optional ||
+      (option.isBoolean() && typeof option.defaultValue === 'boolean')
+    if (showDefault) {
+      annotations.push(
+        t('help.commander.annotationDefault', {
+          value: option.defaultValueDescription || JSON.stringify(option.defaultValue),
+        }),
+      )
+    }
+  }
+  if (option.presetArg !== undefined && option.optional) {
+    annotations.push(
+      t('help.commander.annotationPreset', { value: JSON.stringify(option.presetArg) }),
+    )
+  }
+  if (option.envVar !== undefined) {
+    annotations.push(t('help.commander.annotationEnv', { name: option.envVar }))
+  }
+  return annotatedDescription(option.description, annotations)
+}
+
+/** `Help.argumentDescription`, re-rendered the same way as {@link localizedOptionDescription}. */
+export function localizedArgumentDescription(argument: Argument): string {
+  const annotations: string[] = []
+  if (argument.argChoices) annotations.push(choicesAnnotation(argument.argChoices))
+  if (argument.defaultValue !== undefined) {
+    annotations.push(
+      t('help.commander.annotationDefault', {
+        value: argument.defaultValueDescription || JSON.stringify(argument.defaultValue),
+      }),
+    )
+  }
+  return annotatedDescription(argument.description, annotations)
+}
+
 /** One recognized Commander diagnostic and how to re-render it from the catalog. */
 type CommanderErrorRule = {
   pattern: RegExp
@@ -158,6 +242,29 @@ function conflictSide(match: RegExpMatchArray, flagsIndex: number, envIndex: num
   return match[flagsIndex] === undefined
     ? t('help.commander.conflictEnv', { name: capture(match, envIndex) })
     : t('help.commander.conflictOption', { flags: capture(match, flagsIndex) })
+}
+
+/**
+ * The reason `.choices()` gives when a value is not one of them, as the tail of
+ * an invalid-value frame: ` Allowed choices are a, b.` (`lib/option.js`,
+ * `lib/argument.js`). Commander has already joined the choices with `, `, so
+ * they are split back on it — sound for every choice list Ritual declares,
+ * none of which holds a comma.
+ */
+const COMMANDER_CHOICES_REASON = /^ Allowed choices are (.*)\.$/s
+
+/**
+ * The reason appended after an invalid-value frame. A validator's own reason
+ * arrives already localized by whoever threw the `InvalidArgumentError` and is
+ * carried through as-is; Commander's `.choices()` reason is its own English and
+ * is re-rendered from the catalog.
+ */
+function invalidValueReason(tail: string): string {
+  const choices = tail.match(COMMANDER_CHOICES_REASON)
+  if (choices === null) return tail
+  return ` ${t('help.commander.allowedChoices', {
+    choices: commanderList(capture(choices, 1).split(', ')),
+  })}`
 }
 
 export const COMMANDER_ERROR_RULES: readonly CommanderErrorRule[] = [
@@ -213,14 +320,13 @@ export const COMMANDER_ERROR_RULES: readonly CommanderErrorRule[] = [
       }),
   },
   {
-    // A validator's own reason is appended after the frame, already localized
-    // by whoever threw the InvalidArgumentError, so it is carried through as-is.
+    // The value's reason follows the frame; see `invalidValueReason`.
     pattern: /^error: option '([^']*)' argument '(.*)' is invalid\.(.*)$/s,
     render: (match) =>
       t('help.commander.invalidOptionArgument', {
         flags: capture(match, 1),
         value: capture(match, 2),
-      }) + capture(match, 3),
+      }) + invalidValueReason(capture(match, 3)),
   },
   {
     pattern: /^error: option '([^']*)' value '(.*)' from env '([^']*)' is invalid\.(.*)$/s,
@@ -229,7 +335,7 @@ export const COMMANDER_ERROR_RULES: readonly CommanderErrorRule[] = [
         flags: capture(match, 1),
         value: capture(match, 2),
         env: capture(match, 3),
-      }) + capture(match, 4),
+      }) + invalidValueReason(capture(match, 4)),
   },
   {
     pattern: /^error: command-argument value '(.*)' is invalid for argument '([^']*)'\.(.*)$/s,
@@ -237,7 +343,7 @@ export const COMMANDER_ERROR_RULES: readonly CommanderErrorRule[] = [
       t('help.commander.invalidCommandArgument', {
         value: capture(match, 1),
         name: capture(match, 2),
-      }) + capture(match, 3),
+      }) + invalidValueReason(capture(match, 3)),
   },
 ]
 
@@ -300,7 +406,11 @@ export function buildProgram(build: BuildProgramOptions): Command {
   // Both configurations are copied by reference into every subcommand created
   // after this point (`copyInheritedSettings`), so they must be installed before
   // the `register` calls in the group loop below rather than after.
-  program.configureHelp({ styleTitle: localizeHelpTitle })
+  program.configureHelp({
+    styleTitle: localizeHelpTitle,
+    optionDescription: localizedOptionDescription,
+    argumentDescription: localizedArgumentDescription,
+  })
   program.configureOutput({
     outputError: (message, write) => write(localizeCommanderError(message)),
   })

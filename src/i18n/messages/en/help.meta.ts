@@ -97,6 +97,26 @@ export const helpMeta = {
     description:
       'Heading over the list of subcommands, for subcommands with no group of their own.',
   },
+  'help.commander.annotations': {
+    description:
+      'The note after a --help row\'s description listing its accepted values and default, e.g. `(choices: "stdio", "http", default: "stdio")`. {annotations} is the list of notes below, already joined.',
+  },
+  'help.commander.annotationChoices': {
+    description:
+      'One --help note: the only values an option or argument accepts. {choices} is the quoted values, already joined; they are typed as shown and never translate.',
+  },
+  'help.commander.annotationDefault': {
+    description:
+      'One --help note: the value an option or argument takes when not given. {value} is that value (quoted when it is a string, or true / false); it never translates.',
+  },
+  'help.commander.annotationPreset': {
+    description:
+      'One --help note: the value an option whose argument is optional takes when the flag is given alone. {value} is that value and never translates.',
+  },
+  'help.commander.annotationEnv': {
+    description:
+      'One --help note: the environment variable that can supply an option. {name} is the variable name and never translates.',
+  },
   'help.commander.unknownOption': {
     description:
       'Parse error: the user passed a flag no command defines. {flag} is the flag exactly as typed and is never translated. The lowercase "error: " prefix is a shell convention shared by every Commander diagnostic — keep the same prefix across all of them.',
@@ -146,6 +166,10 @@ export const helpMeta = {
   'help.commander.invalidCommandArgument': {
     description:
       "Parse error: a positional argument's value failed its validator. {name} is the argument name; a reason may be appended.",
+  },
+  'help.commander.allowedChoices': {
+    description:
+      "Second sentence of an invalid-value error (\"error: option '--transport <type>' argument 'foo' is invalid.\"), for a flag that accepts only a fixed set of values. {choices} is those values, already joined; they are typed as shown and never translate.",
   },
   'help.commander.didYouMean': {
     description:

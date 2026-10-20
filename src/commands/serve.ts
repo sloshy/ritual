@@ -1,12 +1,17 @@
 import path from 'node:path'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import type { Command, Option } from 'commander'
-import { getErrorMessage, ExitCode } from '../util/errors'
+import { ExitCode } from '../util/errors'
 import { startSiteServer } from '../serve/server'
 import { sellModeWarning, warmCardKingdomFeed } from '../cardkingdom'
 import { cardCacheReady, warmSiteCache } from '../serve/warm'
 import { resolveOutDir } from '../site-build/dist-dir'
-import { applyBuildSiteOptions, runBuildSite, type BuildSiteOptions } from './build-site'
+import {
+  applyBuildSiteOptions,
+  buildFailure,
+  runBuildSite,
+  type BuildSiteOptions,
+} from './build-site'
 import {
   applySellModeOverride,
   resolveBuildLocale,
@@ -127,9 +132,9 @@ export function registerServeCommand(program: Command): void {
         // not put here — see `resolveBuildLocale`.
         await runBuildSite({ ...options, locale: resolveBuildLocale(command, options) })
       } catch (err) {
-        console.error(t('cli.serve.buildFailed', { reason: getErrorMessage(err) }))
-        process.exitCode = ExitCode.RuntimeError
-        return
+        // The same report `build-site` gives: a refusal keeps its own exit code,
+        // anything unexpected is framed as "Build failed: …" (exit 1).
+        throw buildFailure(err)
       }
       // The build reports some failures by setting the exit code instead of
       // throwing; don't start the server on a failed build.

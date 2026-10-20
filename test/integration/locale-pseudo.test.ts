@@ -264,6 +264,29 @@ describe('pseudo-locale (Integration)', () => {
     })
   })
 
+  test('a malformed --locale is refused in RITUAL_LOCALE’s language, not English', async () => {
+    await withTempDir(async (dir) => {
+      // The pre-scan reads the bad flag before Commander rejects it; it must
+      // fall through to the variable rather than shadow it, or the refusal
+      // below comes out in English.
+      const result = await runCli(['--locale', 'de_DE', 'lists'], dir, PSEUDO_ENV)
+
+      expect(result.exitCode).toBe(2)
+      // The frame, then the flag parser's own reason (its nested tag-parser
+      // reason included) — every part in the variable's language.
+      const frame = (await pseudoText('help.commander.invalidOptionArgument'))
+        .replace('{flags}', '--locale <tag>')
+        .replace('{value}', 'de_DE')
+      const reason = (await pseudoText('domain.config.uiLocaleMalformed')).replace(
+        '{reason}',
+        (await pseudoText('errors.i18n.localeTag.invalid')).replace('{value}', 'de_DE'),
+      )
+      expect(unwrap(result.stderr)).toContain(`${frame} ${reason}`)
+      expect(result.stderr).not.toContain('is invalid')
+      expect(result.stderr).not.toContain('invalid locale tag')
+    })
+  })
+
   test('subcommand help is pseudo-localized as well', async () => {
     await withTempDir(async (dir) => {
       const result = await runCli(['locale', '--help'], dir, PSEUDO_ENV)

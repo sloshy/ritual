@@ -267,7 +267,7 @@ export function formatEntryChoiceTitle(
   const price = formatEntryPrice(entry, entry.price * entry.quantity, currency)
   const lowest =
     entry.lowest > 0 && entry.lowest !== entry.price
-      ? ` · lowest ${formatPrice(entry.lowest * entry.quantity, currency)}`
+      ? ` · ${t('cli.price.rowLowest', { price: formatPrice(entry.lowest * entry.quantity, currency) })}`
       : ''
   const source = showSource ? ` · ${LIST_TYPE_DISPLAY[entry.listType].icon} ${entry.listName}` : ''
   return `${qty}${entry.name}${printing}${finish} — ${price}${lowest}${source}`

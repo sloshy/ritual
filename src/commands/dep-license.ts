@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import prompts, { type Choice } from 'prompts'
+import type { Choice } from 'prompts'
 import { depLicenses, type DepLicenseEntry } from '../generated/dep-licenses'
 import { displayWithPager, resolvePagerMode } from '../util/pager'
 import { promptsUnavailable, promptsUnavailableReason } from '../util/no-input'
@@ -7,14 +7,12 @@ import { t } from '../i18n/t'
 import { addOutputOption } from '../cli/options'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import { fail } from '../cli/action'
-import { withMenuPageSize } from '../cli/prompts'
+import { ask } from '../cli/prompts'
 
 type DepLicenseOptions = {
   plain: boolean
   list?: boolean
 } & Partial<ScriptingOptions>
-
-type PromptStateChange = { aborted: boolean; exited: boolean }
 
 /**
  * One row of `dep-license --list --output json|ndjson`. Deliberately excludes
@@ -28,6 +26,11 @@ export type DepLicenseListEntry = {
 }
 
 const SEPARATOR = '__SEPARATOR__'
+
+/** One package's picker row: its name, version and license; it answers with the name. */
+function packageChoice(entry: DepLicenseEntry): Choice {
+  return { title: `${entry.name} v${entry.version}  (${entry.license})`, value: entry.name }
+}
 
 export function formatEntry(entry: DepLicenseEntry): string {
   const header = `${entry.name} v${entry.version} — ${entry.license}\n${'─'.repeat(60)}\n\n`
@@ -117,42 +120,29 @@ export function registerDepLicenseCommand(program: Command): void {
 
     const choices: Choice[] = [
       { title: t('cli.depLicense.primarySeparator'), value: SEPARATOR, disabled: true },
-      ...primary.map((e) => ({
-        title: `${e.name} v${e.version}  (${e.license})`,
-        value: e.name,
-      })),
+      ...primary.map(packageChoice),
       { title: t('cli.depLicense.transitiveSeparator'), value: SEPARATOR, disabled: true },
-      ...transitive.map((e) => ({
-        title: `${e.name} v${e.version}  (${e.license})`,
-        value: e.name,
-      })),
+      ...transitive.map(packageChoice),
     ]
 
-    let aborted = false
-    const response = await prompts(
-      withMenuPageSize({
-        type: 'autocomplete',
-        name: 'pkg',
-        message: t('cli.depLicense.promptSelect'),
-        choices,
-        suggest: async (input, choices) => {
-          if (!input) return choices
-          const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
-          return choices.filter(
-            (c) =>
-              c.value !== SEPARATOR &&
-              !c.disabled &&
-              terms.every((t: string) => c.title.toLowerCase().includes(t)),
-          )
-        },
-        onState(state: PromptStateChange) {
-          aborted = state.aborted || state.exited
-        },
-      }),
-    )
+    const pkg = await ask<unknown>({
+      type: 'autocomplete',
+      message: t('cli.depLicense.promptSelect'),
+      choices,
+      suggest: async (input, choices) => {
+        if (!input) return choices
+        const terms = String(input).toLowerCase().split(/\s+/).filter(Boolean)
+        return choices.filter(
+          (c) =>
+            c.value !== SEPARATOR &&
+            !c.disabled &&
+            terms.every((term: string) => c.title.toLowerCase().includes(term)),
+        )
+      },
+    })
 
-    if (aborted || !response.pkg || response.pkg === SEPARATOR) return
-    const entry = depLicenses.find((e) => e.name === response.pkg)
+    if (typeof pkg !== 'string' || pkg === '' || pkg === SEPARATOR) return
+    const entry = depLicenses.find((e) => e.name === pkg)
     if (entry) await displayWithPager(formatEntry(entry), mode)
   })
 }

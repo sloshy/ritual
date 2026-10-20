@@ -284,7 +284,6 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
                 format: getArchidektFormat(d.deckFormat),
               }),
             })),
-            hint: t('cli.importAccount.multiselectHint'),
           })
 
           if (selection === undefined) {

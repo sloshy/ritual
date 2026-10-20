@@ -25,18 +25,26 @@ export type PromptState = { exited: boolean }
 /**
  * Options the `prompts` library reads but does not declare in its published
  * types. `noMatches` is real (`lib/elements/autocomplete.js` defaults it to
- * `'no matches found'`) and is one of the few English strings the library lets
- * a caller replace; `@types/prompts` simply never listed it.
- *
- * Its multiselect `\nInstructions:\n` block has no such hook and cannot be
- * overridden without vendoring the library — an accepted, documented gap, since
- * the CLI contains exactly one multiselect.
+ * `'no matches found'`) and is one of the English strings the library lets a
+ * caller replace; `@types/prompts` simply never listed it. Nor did it list
+ * the confirm prompt's `yes` / `no` / `yesOption` / `noOption` labels
+ * (`lib/elements/confirm.js`), or the text prompt's `error`.
  *
  * `optionsPerPage` is real too, and is how the select family pages its rows.
  */
 export type UndeclaredPromptOptions = {
   /** Row shown in place of the choice list when an autocomplete matches nothing. */
   noMatches?: string
+  /** A confirm prompt's answer once the user said yes. */
+  yes?: string
+  /** A confirm prompt's answer once the user said no. */
+  no?: string
+  /** The keys shown after a confirm question whose default is yes (`(Y/n)`). */
+  yesOption?: string
+  /** The keys shown after a confirm question whose default is no (`(y/N)`). */
+  noOption?: string
+  /** A text or number prompt's error when its validator gives no reason of its own. */
+  error?: string
   /**
    * Whether Esc in an autocomplete first clears typed text before exiting
    * (`lib/elements/autocomplete.js`). {@link ask} turns it on by default.
@@ -51,14 +59,37 @@ export type UndeclaredPromptOptions = {
 
 /**
  * Every English string the `prompts` library will let a caller replace, filled
- * in on every prompt so a session never speaks two languages. `active` and
- * `inactive` are the toggle prompt's labels; `noMatches` is the autocomplete's
- * empty state. Options the prompt itself sets always win over these.
+ * in on every prompt so a session never speaks two languages. Options the
+ * prompt itself sets always win over these.
+ *
+ * A few library strings have no override and stay English, none of which
+ * Ritual can reach: the multiselect's minimum-selection error (no prompt sets
+ * `min`), its empty-filter row, and the autocomplete-multiselect's "Filtered
+ * results for:" line (no prompt uses that type).
  */
 export type PromptLibraryStrings = {
+  /** The autocomplete's empty state. */
   noMatches: string
+  /** The toggle prompt's two labels. */
   active: string
   inactive: string
+  /** A confirm prompt's answer once given, and the keys shown before it is. */
+  yes: string
+  no: string
+  yesOption: string
+  noOption: string
+  /** Shown when a select's or multiselect's highlighted row is disabled. */
+  warn: string
+  /** A text or number prompt's error when its validator gives no reason. */
+  error: string
+  /**
+   * The select's "how to pick" hint. Absent for every other type: a
+   * multiselect shows `hint` too, but its own default is empty and its key
+   * list arrives through `instructions` instead.
+   */
+  hint?: string
+  /** A multiselect's key list. Present only for the two multiselect types. */
+  instructions?: string
 }
 
 /**
@@ -184,16 +215,75 @@ export function suggestCardsWithMenu(options: MenuAwareSuggestOptions): SuggestC
 }
 
 /**
- * The `prompts` library's own English, rendered in the active locale. Resolved
- * per prompt rather than once at module load, because a module-level table
- * would freeze in whatever language was active when this file was first
- * imported.
+ * The key list under a multiselect, in place of the library's English block
+ * and in the same layout: a blank line, the heading, then one indented line per
+ * key. "Toggle all" is listed only when no `max` caps the selection, as the
+ * library does; the searchable variant lists its filter keys instead.
  */
-function promptLibraryStrings(): PromptLibraryStrings {
-  return {
+function multiselectInstructions(searchable: boolean, capped: boolean): string {
+  const lines = [
+    // i18n-exempt: key names stay English (the KeyLabel owner decision).
+    t('cli.prompt.instructions.highlight', { keys: '↑/↓' }),
+    // i18n-exempt: key names stay English (the KeyLabel owner decision).
+    t('cli.prompt.instructions.toggle', { keys: '←/→/[space]' }),
+  ]
+  if (searchable) {
+    // i18n-exempt: key names stay English (the KeyLabel owner decision).
+    lines.push(t('cli.prompt.instructions.filter', { keys: '[a,b,c]/delete' }))
+  } else if (!capped) {
+    lines.push(t('cli.prompt.instructions.toggleAll', { keys: 'a' }))
+  }
+  // i18n-exempt: key names stay English (the KeyLabel owner decision).
+  lines.push(t('cli.prompt.instructions.complete', { keys: 'enter/return' }))
+  const block = [t('cli.prompt.instructions.heading'), ...lines.map((line) => `    ${line}`)]
+  // The searchable variant's block also ends on a newline, as the library's does.
+  return `\n${block.join('\n')}${searchable ? '\n' : ''}`
+}
+
+/**
+ * The `prompts` library's own English, rendered in the active locale, for one
+ * prompt type. Resolved per prompt rather than once at module load, because a
+ * module-level table would freeze in whatever language was active when this
+ * file was first imported. `type` is undefined when a question computes its
+ * type at ask time; `capped` is whether a multiselect sets `max`.
+ */
+export function promptLibraryStrings(
+  type: prompts.PromptType | undefined,
+  capped = false,
+): PromptLibraryStrings {
+  const strings: PromptLibraryStrings = {
     noMatches: t('cli.prompt.noMatches'),
     active: t('cli.prompt.toggleOn'),
     inactive: t('cli.prompt.toggleOff'),
+    yes: t('cli.prompt.confirmYes'),
+    no: t('cli.prompt.confirmNo'),
+    // The letters are the keys the confirm prompt reads, so they never
+    // translate; the default answer's letter is the uppercase one.
+    yesOption: t('cli.prompt.confirmKeys', { yesKey: 'Y', noKey: 'n' }),
+    noOption: t('cli.prompt.confirmKeys', { yesKey: 'y', noKey: 'N' }),
+    warn: `- ${t('cli.prompt.disabledChoice')}`,
+    error: t('cli.prompt.invalidValue'),
+  }
+  // The multiselects' library default closes the note with a dash too.
+  const multiselectWarn = `- ${t('cli.prompt.disabledChoice')} -`
+  switch (type) {
+    case 'select':
+      // i18n-exempt: key names stay English (the KeyLabel owner decision).
+      return { ...strings, hint: `- ${t('cli.prompt.selectHint', { key: 'Return' })}` }
+    case 'multiselect':
+      return {
+        ...strings,
+        warn: multiselectWarn,
+        instructions: multiselectInstructions(false, capped),
+      }
+    case 'autocompleteMultiselect':
+      return {
+        ...strings,
+        warn: multiselectWarn,
+        instructions: multiselectInstructions(true, capped),
+      }
+    default:
+      return strings
   }
 }
 
@@ -203,11 +293,9 @@ function promptLibraryStrings(): PromptLibraryStrings {
  * clears it first). Wraps the library's `onState` exit-detection
  * dance so wizard-style commands don't have to repeat it per question.
  *
- * Every prompt in the CLI passes through here (bar a few unconverted sites in
- * `history` and `dep-license`, which size themselves with
- * {@link withMenuPageSize}), which makes this the one place the library's own
- * English is overridden, list prompts are sized to the terminal, and
- * `--no-input` refusals are phrased. A question's `subjectKey` names what it wanted as a
+ * Every prompt in the CLI passes through here, which makes this the one place
+ * the library's own English is overridden, list prompts are sized to the
+ * terminal, and `--no-input` refusals are phrased. A question's `subjectKey` names what it wanted as a
  * noun phrase; without one the refusal falls back to splicing the question
  * itself, which is what every not-yet-converted prompt does.
  */
@@ -228,7 +316,10 @@ export async function ask<T>(question: AskQuestion): Promise<T | undefined> {
   }
   const response = (await prompts(
     withMenuPageSize({
-      ...promptLibraryStrings(),
+      ...promptLibraryStrings(
+        typeof asked.type === 'string' ? asked.type : undefined,
+        asked.max !== undefined,
+      ),
       ...libraryQuestion,
       name: 'value',
       onState: (state: PromptState) => {

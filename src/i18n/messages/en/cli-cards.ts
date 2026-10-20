@@ -572,10 +572,16 @@ export const cliCardsMessages = {
   'cli.cleanup.actionRenamed': "renamed to '{file}'",
   'cli.cleanup.actionRewritten': 'rewritten in canonical form',
   'cli.cleanup.actionCategoriesRewritten': 'categories sidecar rewritten in canonical form',
-  'cli.cleanup.cardNamesFolded':
-    'folded {count} repeated-face card name(s) onto the card they print: {names}',
-  'cli.cleanup.categoriesPruned':
-    'pruned {count} category assignment(s) for cards no longer in the list: {names}',
+  'cli.cleanup.cardNamesFolded': {
+    $plural: 'count',
+    one: 'folded {count} repeated-face card name onto the card it prints: {names}',
+    other: 'folded {count} repeated-face card names onto the cards they print: {names}',
+  },
+  'cli.cleanup.categoriesPruned': {
+    $plural: 'count',
+    one: 'pruned {count} category assignment for a card no longer in the list: {names}',
+    other: 'pruned {count} category assignments for cards no longer in the list: {names}',
+  },
   'cli.cleanup.actionNeedsFormat': 'needs a format',
   'cli.cleanup.actionFormatSkipped': 'format skipped',
   'cli.cleanup.actionNoFormat': 'left without a format',
@@ -592,8 +598,9 @@ export const cliCardsMessages = {
     other:
       '{count} decks have no format and prompts are unavailable ({names}). Re-run with --skip-formats to leave them untouched, or run interactively to choose formats.',
   },
-  'cli.cleanup.fileLine': '{prefix}{file}: {actions}',
-  'cli.cleanup.fileWarning': '{prefix}{file}: warning: {warning}',
+  'cli.cleanup.fileLine': '{file}: {actions}',
+  'cli.cleanup.fileWarning': '{file}: warning: {warning}',
+  'cli.cleanup.checkLine': '[check] {line}',
   'cli.cleanup.noListFiles': 'No list files found.',
   'cli.cleanup.allClean': 'Checked {counted}; everything is already clean.',
   'cli.cleanup.summary': {

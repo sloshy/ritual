@@ -75,11 +75,23 @@ export const cliMessages = {
   //
   // The library ships its own English for these and takes an override per
   // prompt; `ask()` supplies them so every prompt in the CLI speaks one
-  // language. Its hardcoded multiselect "Instructions:" block has no override
-  // and stays English — a documented gap, and there is exactly one multiselect.
+  // language. Key names (`{key}` / `{keys}`) stay English: they are what is
+  // printed on the keys themselves.
   'cli.prompt.noMatches': 'no matches found',
   'cli.prompt.toggleOn': 'on',
   'cli.prompt.toggleOff': 'off',
+  'cli.prompt.selectHint': 'Use the arrow keys. {key} to submit.',
+  'cli.prompt.disabledChoice': 'This option is disabled',
+  'cli.prompt.invalidValue': 'Please enter a valid value',
+  'cli.prompt.confirmYes': 'yes',
+  'cli.prompt.confirmNo': 'no',
+  'cli.prompt.confirmKeys': '({yesKey}/{noKey})',
+  'cli.prompt.instructions.heading': 'Instructions:',
+  'cli.prompt.instructions.highlight': '{keys}: Highlight option',
+  'cli.prompt.instructions.toggle': '{keys}: Toggle selection',
+  'cli.prompt.instructions.toggleAll': '{keys}: Toggle all',
+  'cli.prompt.instructions.filter': '{keys}: Filter choices',
+  'cli.prompt.instructions.complete': '{keys}: Complete answer',
 
   // ── Card summaries ────────────────────────────────────────────────────
   'cli.card.summary': '{name} ({set})',

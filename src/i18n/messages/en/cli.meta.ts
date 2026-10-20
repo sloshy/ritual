@@ -311,6 +311,53 @@ export const cliMeta = {
   'cli.prompt.toggleOff': {
     description: "Override for the `prompts` library's toggle 'off' label.",
   },
+  'cli.prompt.selectHint': {
+    description:
+      'Grey hint after every select prompt\'s question, telling the user how to pick a row. {key} is the name of the submit key ("Return"), which stays English. The prompt shows a "- " before it.',
+  },
+  'cli.prompt.disabledChoice': {
+    description:
+      'Shown beside a select or multiselect prompt when the highlighted row cannot be chosen (a separator or an unavailable option). The prompt shows a "- " before it.',
+  },
+  'cli.prompt.invalidValue': {
+    description:
+      'Fallback error under a text prompt whose answer was rejected without a reason of its own. Almost every prompt supplies its own reason; this is the library default it replaces.',
+  },
+  'cli.prompt.confirmYes': {
+    description:
+      'A yes/no prompt\'s answer once the user said yes, printed after the question ("Save? … yes"). Keep it short and lowercase like the library default.',
+  },
+  'cli.prompt.confirmNo': {
+    description: 'The same answer once the user said no ("Save? … no").',
+  },
+  'cli.prompt.confirmKeys': {
+    description:
+      'Shown after a yes/no question, naming the two keys that answer it. {yesKey} and {noKey} are the letters the prompt actually accepts ("y" and "n"), so they never translate; the default answer\'s letter arrives uppercase ("Y/n" or "y/N"). Only the punctuation and any words around them are yours.',
+  },
+  'cli.prompt.instructions.heading': {
+    description:
+      'Heading of the key list printed under a multiple-choice prompt (pick several rows). The key lines below it follow.',
+  },
+  'cli.prompt.instructions.highlight': {
+    description:
+      'Key line of the multiple-choice instructions. {keys} is the key names ("↑/↓"), which stay English: these keys move the highlight between rows.',
+  },
+  'cli.prompt.instructions.toggle': {
+    description:
+      'Key line of the multiple-choice instructions. {keys} is the key names ("←/→/[space]"), which stay English: these keys tick or untick the highlighted row.',
+  },
+  'cli.prompt.instructions.toggleAll': {
+    description:
+      'Key line of the multiple-choice instructions. {keys} is the key name ("a"), which stays English: it ticks or unticks every row at once.',
+  },
+  'cli.prompt.instructions.filter': {
+    description:
+      'Key line of a searchable multiple-choice prompt. {keys} is the key names ("[a,b,c]/delete"), which stay English: typing letters narrows the rows, delete widens them again.',
+  },
+  'cli.prompt.instructions.complete': {
+    description:
+      'Key line of the multiple-choice instructions. {keys} is the key names ("enter/return"), which stay English: they accept the ticked rows.',
+  },
   'cli.card.summary': {
     description:
       'One-line rendering of a fetched card. {name} is the card name and {set} its set code, already uppercased; neither is translated. Only the punctuation around them is.',

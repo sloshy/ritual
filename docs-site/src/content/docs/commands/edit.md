@@ -66,7 +66,7 @@ When the cache is **empty** the session cannot start, so the same policy decides
 On startup, and whenever you back out of a list, you pick what to edit next:
 
 - `🗃️ All Lists`, `🎴 All Decks`, `📦 All Collections`, `🎯 All Wanted Lists` edit several lists at once (see [Multi-List Modes](#multi-list-modes)). Each is offered only when it spans at least two lists. `All Lists` is skipped when every list is of the same type, since it would duplicate that type's own entry.
-- Every **deck** (`🎴`, by display name), **collection** (`📦`), and **wanted list** (`🎯`) on disk, plus any list created this session. Lists with unsaved changes show a `— N unsaved change(s)` badge; a list not yet on disk is badged `— new`.
+- Every **deck** (`🎴`, by display name), **collection** (`📦`), and **wanted list** (`🎯`) on disk, plus any list created this session. Lists with unsaved changes show a `— N unsaved changes` badge (`— 1 unsaved change` for one); a list not yet on disk is badged `— new`.
 - `➕ New Deck` / `➕ New Collection` / `➕ New Wanted List` create a list and start editing it (see [Creating Lists](#creating-lists)).
 - `🚪 Exit` leaves the editor. With unsaved changes anywhere, it asks to save all, discard all, or cancel.
 
@@ -83,7 +83,7 @@ The creation is itself an unsaved change, so a new list with no cards still coun
     ← Back
 ```
 
-Discarding that entry removes the whole list from the session. It is refused while the list still has card changes (`Cannot discard this change yet — discard this wanted list's 1 card change(s) first`). If you were editing that list, you return to the selection menu. Saving commits the creation, and the entry disappears.
+Discarding that entry removes the whole list from the session. It is refused while the list still has card changes (`Cannot discard this change yet — discard this wanted list's 1 card change first`). If you were editing that list, you return to the selection menu. Saving commits the creation, and the entry disappears.
 
 A new deck prompts for its [format](#deck-format) and is written with the same front matter as [`new deck`](/commands/new/). New collections and wanted lists get a `# Title` heading. Files are named as the list is named; see [List file names](/commands/new/#list-file-names). The prompt rejects a name with no usable file-name characters, and a name that would [collide with an existing list](/list-resolution/#names-that-would-collide-are-refused-at-creation), including an unsaved list created earlier in the session.
 
@@ -198,7 +198,7 @@ The save actions:
 - `💾 Save all changes (N across M lists)` writes every open list's file and appends each list's session changelog while you keep working. Everything saved is committed, and the undo and discard menus reset.
 - `💾 Save current list changes (N)` writes only the list you are editing, keeping the other lists' changes in memory. A list receiving cards from its pending [moves](#moving-cards-to-another-list) is saved in the same step, other pending changes included.
 
-The save-current item appears only when the list you are editing has unsaved changes **and** at least one other open list does too. When just one list is dirty, both saves would do the same thing, so a single `💾 Save N change(s) (keep editing)` item is shown, even when that dirty list is not the one you are in. In a [multi-list mode](#multi-list-modes) there is no current list, so the save-current item is never shown.
+The save-current item appears only when the list you are editing has unsaved changes **and** at least one other open list does too. When just one list is dirty, both saves would do the same thing, so a single `💾 Save N changes (keep editing)` item is shown, even when that dirty list is not the one you are in. In a [multi-list mode](#multi-list-modes) there is no current list, so the save-current item is never shown.
 
 The counts track card changes. Pending work that is not a card change (a changed [deck format](#deck-format), edited deck tags, or an edited list [default-labels block](/list-format/#default-labels-and-descriptions)) still surfaces the save items but is left out of the counts. A list whose only pending work is such an edit shows count-less labels (`💾 Save changes (keep editing)`, `💾 Save current list changes`, `💾 Save all changes (M lists)`).
 
@@ -274,7 +274,7 @@ Typing filters the list by set code, set name, collector number, and rarity, nev
 The finish prompts price the same way, so you can see what a foil or etched copy costs before picking it: `Select Finish:` when adding a card, and `✨ Change Finish` in [Edit Mode](#edit-mode):
 
 ```
-? Select Finish: › - Use arrow-keys. Return to submit.
+? Select Finish: › - Use the arrow keys. Return to submit.
 ❯   Nonfoil  $1.85
     Foil     N/A
 ```

@@ -971,10 +971,15 @@ export const cliCardsMeta = {
   },
   'cli.cleanup.fileLine': {
     description:
-      'One reported file. {prefix} is an empty string or a "[dry-run] "/"[check] " marker; {actions} is the comma-joined action list.',
+      'One reported file. {file} is its workspace-relative path; {actions} is the comma-joined action list. A preview run wraps the whole line in its run marker.',
   },
   'cli.cleanup.fileWarning': {
-    description: 'One warning about a reported file. {prefix} is the same run marker as above.',
+    description:
+      'One warning about a reported file. {file} is its path; {warning} is the warning, already translated.',
+  },
+  'cli.cleanup.checkLine': {
+    description:
+      'Marks a line of `cleanup --check` output, which reports what a cleanup would change and fails if anything would. The bracketed marker is a machine-readable prefix and stays as-is, like the dry-run marker.',
   },
   'cli.cleanup.noListFiles': { description: 'The workspace holds no list files at all.' },
   'cli.cleanup.allClean': {

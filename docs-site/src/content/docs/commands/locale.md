@@ -55,7 +55,7 @@ Ignoring RITUAL_LOCALE "de_DE": invalid UI locale: invalid locale tag: de_DE
 
 The first line comes from the locale resolution that runs before **every** command; the second is this report restating the rejection.
 
-Such a value never fails the command. Ritual falls through to the next tier. The one exception is `--locale` itself, which the flag parser validates and rejects with exit `2`.
+Such a value never fails the command. Ritual falls through to the next tier. The one exception is `--locale` itself, which the flag parser validates and rejects with exit `2`. That refusal is worded in the language the remaining tiers pick (`RITUAL_LOCALE`, then `uiLocale`, then the OS), so a typo in `--locale` never hides a valid `RITUAL_LOCALE`; it is English only when no other tier names a usable locale.
 
 ## Detecting the OS locale
 

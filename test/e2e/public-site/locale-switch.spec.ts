@@ -6,10 +6,12 @@ import { filterRow, openFilterMenu } from '../helpers/filter-menu'
 import {
   expectNotReloaded,
   expectPseudo,
+  holdPseudoDictionary,
   languageSelect,
   markPage,
   pseudoCatalog,
   PSEUDO_LOCALE,
+  setLocale,
 } from '../helpers/i18n'
 import { localeTag } from '../../../src/i18n/locale-tag-message'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/change-problem'
@@ -289,6 +291,31 @@ test.describe('public site language switch', () => {
 
     await expectPseudo(chromeTexts(page).toolbarLabel, true)
     await expect(languageSelect(page)).toHaveValue(PSEUDO_LOCALE)
+  })
+
+  test('the __ritualLocale__ seam relabels chrome painted before its dictionary arrived', async ({
+    page,
+  }) => {
+    // The seam names the locale at once, so the first paint is rendered for
+    // `en-XA` from the English fallback; the dictionary is held back until that
+    // paint is on screen, then has to re-render it without the tag changing.
+    await setLocale(page, PSEUDO_LOCALE)
+    const release = await holdPseudoDictionary(page)
+    await page.goto(DECK_HASH)
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+
+    const chrome = chromeTexts(page)
+    await expect(chrome.nav).toHaveText('Decks')
+    await expect(page.locator('html')).toHaveAttribute('lang', PSEUDO_LOCALE)
+    // Evidence the relabel below is a re-render of this page, not a reload.
+    await markPage(page)
+
+    release()
+
+    await expectPseudo(chrome.nav, true)
+    await expectPseudo(chrome.toolbarLabel, true)
+    await expectPseudo(chrome.scryfallLink, true)
+    await expectNotReloaded(page)
   })
 
   test('hides itself when the site ships a single locale', async ({ page }) => {

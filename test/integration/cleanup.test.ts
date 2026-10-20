@@ -11,6 +11,7 @@ import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import type { DeckFormatSignal } from '../../src/list/deck-format'
 import { computeHash, hashPath, writeFileWithHash } from '../../src/changes/content-hash'
 import { runCli } from './helpers/cli'
+import { pseudoString } from '../helpers/sync-text'
 import { readCategoriesSidecar, writeCategoriesSidecar } from '../helpers/card-categories'
 import {
   bindWorkspace,
@@ -552,9 +553,16 @@ describe('cleanup CLI (Integration)', () => {
       const check = await runCli(['cleanup', '--check'], dir)
 
       expect(check.exitCode).toBe(1)
-      expect(check.stdout).toContain('[check]')
+      expect(check.stdout).toContain('[check] wanted/binder.md: ')
       expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
       expect(await Bun.file(path.join(dir, 'wanted', 'Binder.md')).exists()).toBeFalse()
+
+      // The marker is the catalog's, like every other command's dry-run marker.
+      const pseudo = await runCli(['cleanup', '--check'], dir, { RITUAL_LOCALE: 'en-XA' })
+      expect(pseudo.exitCode).toBe(1)
+      const [marker = ''] = pseudoString('cli.cleanup.checkLine').split('{line}')
+      expect(pseudo.stdout).toContain(marker)
+      expect(pseudo.stdout).not.toContain('[check]')
     })
   })
 
@@ -614,6 +622,29 @@ describe('cleanup CLI (Integration)', () => {
       expect(result.stderr).toContain('Skipped malformed line: this is not a card line')
       expect(result.stderr).toContain('not rewritten')
       expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
+    })
+  })
+
+  test('--dry-run marks every line, warnings included, with the catalog’s marker', async () => {
+    await withWorkspace(async (dir) => {
+      // A rename to report, and a malformed line to warn about.
+      await fs.writeFile(
+        path.join(dir, 'collections', 'bad.md'),
+        '# Bad\n\n- Opt (XLN:65) &1\nthis is not a card line\n',
+      )
+
+      const english = await runCli(['cleanup', '--dry-run', '--skip-formats'], dir)
+      expect(english.stdout).toContain('[dry-run] collections/bad.md: ')
+      expect(english.stderr).toContain('[dry-run] collections/bad.md: warning: ')
+
+      const pseudo = await runCli(['cleanup', '--dry-run', '--skip-formats'], dir, {
+        RITUAL_LOCALE: 'en-XA',
+      })
+      const [marker = ''] = pseudoString('cli.cardOps.dryRunLine').split('{line}')
+      const [warningFrame = ''] = pseudoString('cli.cleanup.fileWarning').split('{file}')
+      expect(pseudo.stdout).toContain(marker)
+      expect(pseudo.stderr).toContain(`${marker}${warningFrame}collections/bad.md`)
+      expect(`${pseudo.stdout}${pseudo.stderr}`).not.toContain('[dry-run]')
     })
   })
 

@@ -228,9 +228,15 @@ export function trackListCreation(
       const inbound = inboundMoves()
       const blocked =
         changes.length > 0
-          ? t('cli.edit.discardCardChangesFirst', { type: ref.type, count: changes.length })
+          ? t('cli.edit.discardCardChangesFirst', {
+              type: ref.type,
+              changes: t('cli.edit.cardChangeCount', { count: changes.length }),
+            })
           : inbound > 0
-            ? t('cli.edit.discardInboundMovesFirst', { type: ref.type, count: inbound })
+            ? t('cli.edit.discardInboundMovesFirst', {
+                type: ref.type,
+                moves: t('cli.edit.pendingMoveCount', { count: inbound }),
+              })
             : undefined
       // The creation is not a card change, so there is nothing on it to edit.
       return [{ label: creationLabel, blocked, editable: false }, ...changes]

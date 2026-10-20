@@ -108,10 +108,10 @@ ritual config set [options] <property> <value...>
 | `<property>` | The config key to set (dot notation for nested) | Yes      |
 | `<value...>` | One or more values to set                       | Yes      |
 
-| Option     | Description                                          |
-| ---------- | ---------------------------------------------------- |
-| `--add`    | Append value(s) to an array property (no duplicates) |
-| `--remove` | Remove value(s) from an array property               |
+| Option     | Description                                        |
+| ---------- | -------------------------------------------------- |
+| `--add`    | Append values to an array property (no duplicates) |
+| `--remove` | Remove values from an array property               |
 
 `--add` and `--remove` are mutually exclusive and apply only to `string[]` properties.
 

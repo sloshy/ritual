@@ -13,9 +13,10 @@
  *
  * The `help.commander.*` half is unusual: those strings are *Commander's*, not
  * ours, so English here must stay byte-identical to the library's own literals
- * (`node_modules/commander/lib/{command,help}.js`). `index.ts` feeds them back
- * in through the hooks Commander exposes — `.version()`, `.helpOption()`,
- * `.helpCommand()`, `configureHelp({ styleTitle })` and
+ * (`node_modules/commander/lib/{command,help,option,argument}.js`).
+ * `buildProgram()` in `src/cli/program.ts` feeds them back in through the hooks
+ * Commander exposes — `.version()`, `.helpOption()`, `.helpCommand()`,
+ * `configureHelp({ styleTitle, optionDescription, argumentDescription })` and
  * `configureOutput({ outputError })` — so an English run produces exactly the
  * bytes it did before and only a translated run diverges. Upgrading Commander
  * therefore means re-checking these against the library; a string that stops
@@ -64,6 +65,13 @@ export const helpMessages = {
   'help.commander.optionsTitle': 'Options:',
   'help.commander.commandsTitle': 'Commands:',
 
+  // ── Commander's help annotations (`optionDescription`, `argumentDescription`)
+  'help.commander.annotations': '({annotations})',
+  'help.commander.annotationChoices': 'choices: {choices}',
+  'help.commander.annotationDefault': 'default: {value}',
+  'help.commander.annotationPreset': 'preset: {value}',
+  'help.commander.annotationEnv': 'env: {name}',
+
   // ── Commander's parse errors (`configureOutput({ outputError })`) ─────
   'help.commander.unknownOption': "error: unknown option '{flag}'",
   'help.commander.unknownCommand': "error: unknown command '{name}'",
@@ -90,6 +98,7 @@ export const helpMessages = {
     "error: option '{flags}' value '{value}' from env '{env}' is invalid.",
   'help.commander.invalidCommandArgument':
     "error: command-argument value '{value}' is invalid for argument '{name}'.",
+  'help.commander.allowedChoices': 'Allowed choices are {choices}.',
   'help.commander.didYouMean': '(Did you mean {suggestion}?)',
   'help.commander.didYouMeanOneOf': '(Did you mean one of {suggestions}?)',
 } as const satisfies MessageCatalogShape

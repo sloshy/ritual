@@ -295,6 +295,8 @@ Failed to load deck 'winota': unexpected end of the stream within a flow collect
 The site was published without them.
 ```
 
+Any other failure, such as Scryfall being unreachable, stops the build with `Build failed: <reason>` and exit code `1`, and leaves the previously published site in place.
+
 Names given to `--decks`, `--collections`, and `--wanted-lists` match a list's display name or file base name, ignoring case, accents, and `-`/`_` (the folding described in [list resolution](/list-resolution/#what-folding-ignores)), with a trailing `.md` accepted. Unlike other commands, a build never accepts a partial (substring) name, since it publishes whatever it resolves. A name that matches two lists is reported rather than resolved to either:
 
 ```

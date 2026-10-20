@@ -6,6 +6,7 @@ import type { SkippedSource, SourceCategory } from '../../../src/site-build/sour
 import type { SiteDetailContext } from '../../../src/site-build/types'
 import type { CollectionSummary, ListSummary } from '../../../src/list/site-data'
 import type { ListType } from '../../../src/list/list-type'
+import type { PriceSource } from '../../../src/pricing/price-source'
 import { createWorkspace, removeWorkspace } from '../../helpers/workspace'
 import { captureConsole } from '../../helpers/capture'
 
@@ -66,6 +67,7 @@ async function run(
   kind: ListType,
   explicit: boolean,
   lists: (LoadedList | string)[],
+  priceStore: PriceSource = 'tcgplayer',
 ): Promise<Run> {
   const buildDir = await createWorkspace({ dirs: [], config: false })
   const skipped: SkippedSource[] = []
@@ -82,6 +84,7 @@ async function run(
         detailCtx: ctx,
         skipSource: (source) => skipped.push(source),
         loadingMessage: kind === 'deck' ? undefined : 'Loading...',
+        priceStore,
       }),
     )
     const files = await fs.readdir(buildDir, { recursive: true })
@@ -91,7 +94,7 @@ async function run(
   }
 }
 
-function list(kind: ListType, isEmpty: boolean): LoadedList {
+function list(kind: ListType, isEmpty: boolean, summary = SUMMARY): LoadedList {
   return {
     kind,
     name: 'Binder',
@@ -100,7 +103,7 @@ function list(kind: ListType, isEmpty: boolean): LoadedList {
     cardNames: () => Promise.resolve([]),
     build: () => {
       builds += 1
-      return Promise.resolve({ slug: SUMMARY.slug, detail: { ok: true }, summary: SUMMARY })
+      return Promise.resolve({ slug: summary.slug, detail: { ok: true }, summary })
     },
   }
 }
@@ -130,5 +133,16 @@ describe('writeListDetails', () => {
     expect(result.built).toBe(1)
     expect(result.summaries).toEqual([SUMMARY])
     expect(result.files).toContain(path.join('decks', 'binder.json'))
+  })
+
+  test("an announced list's total is read and formatted at the site's store", async () => {
+    const priced: CollectionSummary = {
+      ...SUMMARY,
+      cardCount: 3,
+      totalPrice: 9,
+      totalPriceEur: 12.5,
+    }
+    const result = await run('collection', false, [list('collection', false, priced)], 'cardmarket')
+    expect(result.logged).toContain('  - Loaded Binder (3 cards, €12.50)')
   })
 })

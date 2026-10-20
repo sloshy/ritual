@@ -650,7 +650,14 @@ async function runCleanup(
   const dryRun = options.dryRun ?? false
   const skipFormats = options.skipFormats ?? false
   const baseDir = getBaseDir()
-  const prefix = check ? '[check] ' : dryRun ? '[dry-run] ' : ''
+  // A preview's lines carry the run's marker, worded where every other
+  // command's dry-run marker is.
+  const marked = (line: string): string =>
+    check
+      ? t('cli.cleanup.checkLine', { line })
+      : dryRun
+        ? t('cli.cardOps.dryRunLine', { line })
+        : line
 
   const interactive = canPromptWithOutput(scripting)
 
@@ -687,11 +694,11 @@ async function runCleanup(
       const rel = path.relative(baseDir, result.filePath)
       const actions = describeActions(result, dryRun, skipFormats)
       if (actions.length > 0 && !scripting.quiet) {
-        console.log(t('cli.cleanup.fileLine', { prefix, file: rel, actions: actions.join(', ') }))
+        console.log(marked(t('cli.cleanup.fileLine', { file: rel, actions: actions.join(', ') })))
       }
       for (const warning of result.warnings) {
         console.warn(
-          t('cli.cleanup.fileWarning', { prefix, file: rel, warning: renderSyncMessage(warning) }),
+          marked(t('cli.cleanup.fileWarning', { file: rel, warning: renderSyncMessage(warning) })),
         )
       }
     }

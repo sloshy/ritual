@@ -13,8 +13,9 @@ const ROOT = path.resolve(import.meta.dir, '../..')
  * module that called the `prompts` library directly would open a prompt that
  * `--no-input` cannot refuse and that speaks the library's English — so all of
  * `src/` may import the library's types, never its value, except the files in
- * {@link ALLOWED}: `ask()` itself and the three unconverted prompt sites. A new
- * entry here is a regression.
+ * {@link ALLOWED}: `ask()` itself and the one unconverted prompt site, the
+ * `admin` command's password prompt (which shows no library text). A new entry
+ * here is a regression.
  */
 
 type Violation = { file: string; text: string }
@@ -59,12 +60,7 @@ async function scan(glob: string): Promise<Violation[]> {
 
 describe('prompt gate conventions', () => {
   const GATED = 'src/**/*.{ts,tsx}'
-  const ALLOWED = [
-    'src/cli/prompts.ts',
-    'src/commands/admin.ts',
-    'src/commands/history.ts',
-    'src/commands/dep-license.ts',
-  ]
+  const ALLOWED = ['src/cli/prompts.ts', 'src/commands/admin.ts']
 
   test('only the allowlisted files value-import the prompts library', async () => {
     // `import type { Choice } from 'prompts'` is fine; `import prompts from`

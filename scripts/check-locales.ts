@@ -19,7 +19,7 @@
  * bun run scripts/check-locales.ts --emit-template de   # write locales/de.json
  * ```
  *
- * The eleven validations, and why each one has the severity it has:
+ * The twelve validations, and why each one has the severity it has:
  *
  * | # | Check | Severity |
  * |---|---|---|
@@ -34,6 +34,7 @@
  * | 9 | dead key (no `t('…')` reference in `src/`) | error — the catalog is fully wired; `--allow-dead-keys` downgrades it |
  * | 10 | namespace-boundary violation (`src/site/**` using a `cli.*` key, or a browser surface *registering* the `cli` namespace) | error |
  * | 11 | a spelling-list key (`domain.import.csv.headers.*`) that is not a plain `\|`-separated list with no empty or space-padded entry | error — the importer splits it on `\|` and matches each entry |
+ * | 12 | an English string writing a plural as `word(s)` / `word(es)` / `entr(y/ies)` (any case, after a letter or a `{placeholder}`) | error — only `$plural` can be translated into a language with more than two forms |
  */
 
 // Node's stdlib only, no `bun` import: the pure exports here (`messagePlaceholders`,
@@ -83,6 +84,7 @@ export type IssueKind =
   | 'dead-key'
   | 'namespace-boundary'
   | 'spelling-list'
+  | 'plural-shortcut'
 
 /** One validation failure. `key` is null for whole-file problems. */
 export type CatalogIssue = {
@@ -307,6 +309,29 @@ function spellingListError(value: MessageValue): string | null {
   return null
 }
 
+/**
+ * A plural written as a parenthesized suffix — `change(s)`, `match(es)`,
+ * `entr(y/ies)`, `FILE(S)`, `{noun}(s)` — which only languages with exactly
+ * English's two forms can follow. The suffix may follow any letter (accented
+ * ones included) or a whole `{placeholder}`. `http(s)` is a URL scheme,
+ * not a plural, and is the one spelling allowed, in any case.
+ */
+const PLURAL_SHORTCUT = /(\p{L}+|\{[^{}]*\})\((?:e?s|ies|y\/ies)\)/giu
+
+/** The URL scheme `http(s)`, matched on the word before the paren. */
+const HTTP_SCHEME = /http$/i
+
+/** Every plural shortcut in one message form, as written. */
+export function pluralShortcuts(form: string): string[] {
+  const found: string[] = []
+  for (const match of form.matchAll(PLURAL_SHORTCUT)) {
+    const [whole, before = ''] = match
+    if (HTTP_SCHEME.test(before) && /^\(s\)$/i.test(whole.slice(before.length))) continue
+    found.push(whole)
+  }
+  return found
+}
+
 /** Checks that apply to any catalog, English or translated. */
 function checkValue(
   locale: string,
@@ -399,6 +424,18 @@ export function checkCatalogs(input: CatalogCheckInput): CatalogReport {
     const value = english[key]
     if (value === undefined) continue
     checkValue('en', key, value, meta[key]?.maxLen, issues)
+    const shortcuts = messageForms(value).flatMap(pluralShortcuts)
+    if (shortcuts.length > 0) {
+      issues.push(
+        issue(
+          'en',
+          key,
+          'plural-shortcut',
+          'error',
+          `${shortcuts.map((shortcut) => `"${shortcut}"`).join(', ')} writes a plural as a parenthesized suffix — use a $plural table on {count}, or reword when nothing is counted`,
+        ),
+      )
+    }
     const extra = extraPluralPlaceholders(value)
     if (extra.length > 0) {
       issues.push(

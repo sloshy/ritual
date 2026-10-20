@@ -25,7 +25,7 @@ import { getBaseDir } from '../config/base-dir'
 import { resolveStringOverride } from '../config/env-override'
 import { prescanArgs } from '../i18n/argv-prescan'
 import { prereadUiLocale } from '../i18n/config-preread'
-import { detectOsLocale, type LocaleEnv } from '../i18n/detect'
+import { detectOsLocale, type LocaleDetectionOptions, type LocaleEnv } from '../i18n/detect'
 import { matchLocale } from '../i18n/negotiate'
 import {
   DEFAULT_LOCALE,
@@ -120,8 +120,10 @@ export type UiLocaleResolution = {
  *
  * A malformed value never fails the command — it is recorded in `ignored` and
  * the next tier is consulted. The `--locale` flag is the exception and is
- * rejected earlier, by its Commander argParser, with a usage error (exit 2);
- * degrading a flag the user typed by hand would hide a typo.
+ * rejected by its Commander argParser with a usage error (exit 2); degrading a
+ * flag the user typed by hand would hide a typo. It still falls through here,
+ * so the pre-scan pass picks the language that refusal is worded in from the
+ * remaining tiers.
  *
  * Detection is negotiated against the shipped locales, unlike the explicit
  * tiers: an explicit tag is honored verbatim (per-key English fallback covers a
@@ -138,13 +140,20 @@ export function resolveUiLocale(input: UiLocaleInput): UiLocaleResolution {
   }
 
   // `--locale` beats `RITUAL_LOCALE`, blank counts as unset — the precedence
-  // rule every string-valued global option shares.
-  const override = resolveStringOverride(input.flag, input.env)
-  if (override !== undefined) {
-    const source: LocaleSource = (input.flag?.trim() ?? '') === '' ? 'env' : 'flag'
-    const parsed = parseUiLocale(override)
-    if (!isConfigParseError(parsed)) return accept(parsed, source, override)
-    ignored.push(ignoredLocale(source, override, parsed.error))
+  // rule every string-valued global option shares. Each is its own tier, so a
+  // flag that does not parse falls through to the variable rather than
+  // shadowing it: only the argv pre-scan ever sees a malformed flag (the
+  // argParser refuses it before the authoritative pass), and the refusal it is
+  // about to print is then worded in the variable's language, not English.
+  const overrides: readonly [LocaleSource, string | undefined][] = [
+    ['flag', input.flag?.trim() || undefined],
+    ['env', input.env?.trim() || undefined],
+  ]
+  for (const [source, value] of overrides) {
+    if (value === undefined) continue
+    const parsed = parseUiLocale(value)
+    if (!isConfigParseError(parsed)) return accept(parsed, source, value)
+    ignored.push(ignoredLocale(source, value, parsed.error))
   }
 
   const configured = input.config?.trim() || undefined
@@ -219,11 +228,15 @@ export function resetUiLocaleResolution(): void {
   lastResolution = null
 }
 
+/** The OS probes detection would spawn, injectable so a test never runs one. */
+export type LocaleProbes = Pick<LocaleDetectionOptions, 'probeWindows' | 'probeMacos'>
+
 /** Injectable process state, so both boot passes stay testable. */
 export type LocaleBootEnvironment = {
   argv?: readonly string[]
   env?: LocaleEnv & Record<string, string | undefined>
   platform?: string
+  probes?: LocaleProbes
 }
 
 function osLocaleFor(
@@ -231,12 +244,28 @@ function osLocaleFor(
   platform: string,
   hasExplicitLocale: boolean,
   available: readonly LocaleTag[],
+  probes: LocaleProbes = {},
 ): string | undefined {
   return detectOsLocale({
     platform,
     env,
     hasExplicitLocale,
     bundledLocaleCount: available.length,
+    ...probes,
+  })
+}
+
+/**
+ * Whether a higher tier than OS detection names a locale that will win — the
+ * condition that skips the OS probe. Only a value that parses counts: a
+ * malformed `--locale` or `RITUAL_LOCALE` falls through to the tiers below, so
+ * counting it would skip the probe and leave the run (and the flag's own
+ * refusal) in English when the OS names a language this build ships.
+ */
+export function hasUsableExplicitLocale(values: readonly (string | undefined)[]): boolean {
+  return values.some((value) => {
+    const trimmed = value?.trim()
+    return trimmed !== undefined && trimmed !== '' && !isConfigParseError(parseUiLocale(trimmed))
   })
 }
 
@@ -262,13 +291,13 @@ export function initI18n(boot: LocaleBootEnvironment = {}): UiLocaleResolution {
   // this point only the same tolerant sources can supply.
   const baseDir = resolveStringOverride(prescanned.baseDir, env.RITUAL_BASE_DIR)
   const configured = prereadUiLocale(path.resolve(baseDir ?? process.cwd()))
-  const explicit = resolveStringOverride(prescanned.locale, env[LOCALE_ENV_VAR]) ?? configured
+  const explicit = hasUsableExplicitLocale([prescanned.locale, env[LOCALE_ENV_VAR], configured])
 
   const resolution = resolveUiLocale({
     flag: prescanned.locale,
     env: env[LOCALE_ENV_VAR],
     config: configured,
-    detected: osLocaleFor(env, platform, explicit !== undefined, available),
+    detected: osLocaleFor(env, platform, explicit, available, boot.probes),
     available,
   })
   setLocale(resolution.locale)
@@ -304,13 +333,13 @@ export function applyCliLocale(options: CliLocaleOptions = {}): UiLocaleResoluti
   loadBundledDictionaries()
   const available = loadedLocales()
   const configured = prereadUiLocale(getBaseDir())
-  const explicit = resolveStringOverride(options.flag, env[LOCALE_ENV_VAR]) ?? configured
+  const explicit = hasUsableExplicitLocale([options.flag, env[LOCALE_ENV_VAR], configured])
 
   const resolution = resolveUiLocale({
     flag: options.flag,
     env: env[LOCALE_ENV_VAR],
     config: configured,
-    detected: osLocaleFor(env, platform, explicit !== undefined, available),
+    detected: osLocaleFor(env, platform, explicit, available, options.probes),
     available,
   })
   setLocale(resolution.locale)

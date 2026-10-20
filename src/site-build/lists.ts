@@ -17,6 +17,9 @@ import { cardCache } from '../cache'
 import { extractChangelogCardNames, type ChangelogPage } from '../changes/changelog-parser'
 import { extractPrimerCardNames } from '../list/primer-parser'
 import { t } from '../i18n/t'
+import { formatPrice } from '../pricing/price-currency'
+import { sourceCurrency, type PriceSource } from '../pricing/price-source'
+import { getSummaryTotalPrice } from '../pricing/price-summary'
 import type { ListType } from '../list/list-type'
 import type { ListSummary } from '../list/site-data'
 import { fetchDeckFromUrl } from '../importers/url-dispatch'
@@ -238,6 +241,11 @@ export type ListWriteInput = {
    * as it is written. Absent for decks, which phase 1 announced as it loaded them.
    */
   loadingMessage: string | undefined
+  /**
+   * The store the site opens in: each announced list's total is read at it and
+   * formatted in its currency.
+   */
+  priceStore: PriceSource
 }
 
 /** Bake every loaded list of one category into `<dataDir>/<slug>.json`. */
@@ -267,7 +275,10 @@ export async function writeListDetails(input: ListWriteInput): Promise<ListSumma
         t('cli.buildSite.loadedList', {
           name: summary.name,
           counted: t('domain.count.cards', { count: summary.cardCount }),
-          price: (summary.totalPrice ?? 0).toFixed(2),
+          price: formatPrice(
+            getSummaryTotalPrice(summary, input.priceStore),
+            sourceCurrency(input.priceStore),
+          ),
         }),
       )
     }

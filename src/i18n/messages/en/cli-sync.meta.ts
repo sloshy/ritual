@@ -377,10 +377,6 @@ export const cliSyncMeta = {
     description:
       'Secondary line under a deck in the picker. {format} is the Archidekt format name, English by contract.',
   },
-  'cli.importAccount.multiselectHint': {
-    description:
-      'Key hint under the deck picker. "Space" and "Return" are key names; use whatever those keys are called in the target language.',
-  },
   'cli.importAccount.noneSelected': {
     description: 'The user submitted the picker with nothing ticked.',
   },
@@ -488,7 +484,7 @@ export const cliSyncMeta = {
   },
   'cli.detectChanges.changeCount': {
     description:
-      'How many changelog entries a file is getting; the entries themselves are listed underneath. English does not inflect the noun here.',
+      "How many changelog entries a file is getting; the entries themselves are listed underneath. {label} is the file's workspace-relative path and never translates.",
   },
   'cli.detectChanges.gitDetail': {
     description:

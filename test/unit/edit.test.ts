@@ -107,9 +107,18 @@ describe('buildListSelectionChoices', () => {
       ['/wanted/to-buy.md', { changes: 0, isNew: false }],
     ])
     const titles = buildListSelectionChoices(refs, pending).map((c) => c.title)
-    expect(titles.find((t) => t.includes('Winota Stax'))).toContain('— 2 unsaved change(s)')
+    expect(titles.find((t) => t.includes('Winota Stax'))).toContain('— 2 unsaved changes')
     // A zero count (opened but fully saved) renders without a badge.
     expect(titles.find((t) => t.includes('To Buy'))).not.toContain('—')
+  })
+
+  test('a single pending change is counted in the singular', () => {
+    const pending: PendingChangesByFile = new Map([
+      ['/decks/winota-stax.md', { changes: 1, isNew: false }],
+    ])
+    const titles = buildListSelectionChoices(refs, pending).map((c) => c.title)
+    expect(titles.find((t) => t.includes('Winota Stax'))).toContain('— 1 unsaved change')
+    expect(titles.find((t) => t.includes('Winota Stax'))).not.toContain('changes')
   })
 
   test('a list created this session is badged as new until it is saved', () => {
@@ -120,7 +129,7 @@ describe('buildListSelectionChoices', () => {
     const titles = buildListSelectionChoices(refs, pending).map((c) => c.title)
     // A brand-new list has no card changes yet, but its creation is itself unsaved.
     expect(titles.find((t) => t.includes('Main Binder'))).toContain('— new')
-    expect(titles.find((t) => t.includes('To Buy'))).toContain('— new, 3 unsaved change(s)')
+    expect(titles.find((t) => t.includes('To Buy'))).toContain('— new, 3 unsaved changes')
   })
 
   test('create-new and exit selections are typed actions', () => {

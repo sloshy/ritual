@@ -788,7 +788,6 @@ export const cliInfraMeta = {
 
   // ── serve ─────────────────────────────────────────────────────────────
   'cli.serve.building': { description: '`serve --build` is building the site first.' },
-  'cli.serve.buildFailed': { description: 'The build under `serve --build` threw.' },
   'cli.serve.noBuiltSite': {
     description:
       'Nothing to serve. {outDirFlag} is either empty or a ready-to-paste " --out-dir <path>" fragment.',
@@ -1017,7 +1016,7 @@ export const cliInfraMeta = {
   'cli.buildSite.loadedDeck': { description: 'One deck was loaded. Keep the indentation.' },
   'cli.buildSite.loadedList': {
     description:
-      'One collection or wanted list was loaded. {counted} is a pre-rendered "N cards" fragment; the $ and {price} are a USD total.',
+      'One collection or wanted list was loaded. Keep the indentation. {counted} is a pre-rendered "N cards" fragment; {price} is its total at the site\'s default store, already formatted with its currency.',
   },
   'cli.buildSite.sourceWarning': {
     description: 'A parser warning from one list file. Keep the indentation.',
@@ -1086,6 +1085,10 @@ export const cliInfraMeta = {
     description: 'Progress line: stylesheet phase when --theme-file added custom themes.',
   },
   'cli.buildSite.done': { description: 'The build succeeded and published into {dir}.' },
+  'cli.buildSite.failed': {
+    description:
+      'The site build (`build-site`, or `serve --build`) stopped on an unexpected failure, such as a network error while fetching card data. {reason} is the underlying error, usually system text in English.',
+  },
 
   // ── init-site ─────────────────────────────────────────────────────────
   'cli.initSite.cancelled': { description: 'A prompt was cancelled, so nothing was written.' },
@@ -1642,6 +1645,10 @@ export const cliInfraMeta = {
   },
   'cli.price.totalsLowest': {
     description: 'The cheapest-printing total, shown only when it differs from the total.',
+  },
+  'cli.price.rowLowest': {
+    description:
+      'Trailing note on one card\'s row in the price browser and price report: what its copies would cost at the cheapest printing, when that differs from the price shown. {price} is the formatted amount. Follows a " · " separator, so it stays lowercase in English.',
   },
   'cli.price.totalsUnpriced': { description: 'How many entries have no price at all.' },
   'cli.price.headerUpdated': {

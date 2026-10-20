@@ -86,7 +86,7 @@ describe('a pending list creation in the session changes', () => {
     const { strategy, dropped } = tracked(['added Sol Ring'])
     // Dropping the list here would strand the card change that belongs to it.
     expect(strategy.listSessionChanges()[0]?.blocked).toBe(
-      "discard this wanted list's 1 card change(s) first",
+      "discard this wanted list's 1 card change first",
     )
 
     // The picker refuses it, and so does the wrapper if asked directly anyway.
@@ -100,7 +100,7 @@ describe('a pending list creation in the session changes', () => {
     const { strategy, dropped } = tracked([], () => inbound)
     // Dropping the list would leave the inbound moves with nowhere to deliver.
     expect(strategy.listSessionChanges()[0]?.blocked).toBe(
-      'discard the 2 pending move(s) into this wanted list first',
+      'discard the 2 pending moves into this wanted list first',
     )
     await strategy.discardSessionChange(createCardSessionContext(), 0)
     expect(dropped).toEqual([])

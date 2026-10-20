@@ -447,7 +447,6 @@ export const cliInfraMessages = {
 
   // ── serve ─────────────────────────────────────────────────────────────
   'cli.serve.building': 'Building site...',
-  'cli.serve.buildFailed': 'Build failed: {reason}',
   'cli.serve.noBuiltSite':
     'No built site found in {dir}. Build it first with `ritual build-site{outDirFlag}`, or re-run this command with --build.',
   'cli.serve.cacheImagesNote':
@@ -585,7 +584,7 @@ export const cliInfraMessages = {
   'cli.buildSite.loadingCollections': 'Loading collections...',
   'cli.buildSite.loadingWantedLists': 'Loading wanted lists...',
   'cli.buildSite.loadedDeck': '  - Loaded {name}',
-  'cli.buildSite.loadedList': '  - Loaded {name} ({counted}, ${price})',
+  'cli.buildSite.loadedList': '  - Loaded {name} ({counted}, {price})',
   'cli.buildSite.sourceWarning': '  ⚠️  {name}: {warning}',
   'cli.buildSite.noValidEntries': '  {name}: no valid entries, skipping',
   'cli.buildSite.uniqueCards': 'Found {count} unique cards.',
@@ -613,6 +612,7 @@ export const cliInfraMessages = {
   'cli.buildSite.writingCss': 'Writing CSS (initial theme: {theme})...',
   'cli.buildSite.writingCssCustom': 'Writing CSS (initial theme: {theme}, +{count} custom)...',
   'cli.buildSite.done': 'Site generated in {dir}',
+  'cli.buildSite.failed': 'Build failed: {reason}',
 
   // ── init-site ─────────────────────────────────────────────────────────
   'cli.initSite.cancelled': 'Cancelled.',
@@ -879,6 +879,7 @@ export const cliInfraMessages = {
   // ── price: the interactive browser ────────────────────────────────────
   'cli.price.totalsTotal': 'Total {price}',
   'cli.price.totalsLowest': 'Lowest {price}',
+  'cli.price.rowLowest': 'lowest {price}',
   'cli.price.totalsUnpriced': '{count} unpriced',
   'cli.price.headerUpdated': '💰 Prices last updated: {updated} · Store: {store} ({currency})',
   'cli.price.updatedUnknown': 'unknown',

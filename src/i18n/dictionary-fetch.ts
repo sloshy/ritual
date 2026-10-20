@@ -20,7 +20,7 @@ import {
   LOCALES_DIR,
 } from './runtime'
 import { tDiagnosticIn } from './t'
-import type { LocaleTag } from './types'
+import type { LocaleCatalog, LocaleTag } from './types'
 
 /** Options for {@link ensureLocaleLoaded}. */
 export type DictionaryFetchOptions = {
@@ -65,6 +65,7 @@ export async function ensureLocaleLoaded(
     )
     return DEFAULT_LOCALE
   }
+  let catalog: LocaleCatalog
   try {
     const response = await fetch(url, options.signal ? { signal: options.signal } : undefined)
     if (!response.ok) {
@@ -74,12 +75,16 @@ export async function ensureLocaleLoaded(
         }),
       )
     }
-    loadDictionary(tag, coerceCatalog(await response.json()))
-    return tag
+    catalog = coerceCatalog(await response.json())
   } catch (error) {
     if (isAbortError(error)) return DEFAULT_LOCALE
     return warn(error)
   }
+  // Outside the `try`: registering re-renders whatever the dictionary now
+  // translates, and a throw from that render is not a dictionary that failed to
+  // load — reporting it as one would also make the caller apply English.
+  loadDictionary(tag, catalog)
+  return tag
 }
 
 /**

@@ -61,8 +61,7 @@ export const cliEditMeta = {
     maxLen: 12,
   },
   'cli.edit.badgeUnsaved': {
-    description:
-      'Badge counting a list\'s pending changes in the selection menu. The English "(s)" is a legacy contraction rather than a real plural; a translator should write whatever their language does for an unknown count.',
+    description: "Badge counting a list's pending changes in the selection menu.",
     maxLen: 28,
   },
   'cli.edit.listFileExists': {
@@ -94,7 +93,11 @@ export const cliEditMeta = {
   },
   'cli.edit.discardCardChangesFirst': {
     description:
-      'Why the creation row above cannot be discarded yet. A lower-case imperative clause: it is spliced into "Cannot discard \\"…\\" yet — {reason}." The English "(s)" is a legacy contraction, not a real plural.',
+      'Why the creation row above cannot be discarded yet. A lower-case imperative clause: it is spliced into "Cannot discard \\"…\\" yet — {reason}." {changes} is the counted phrase below (cli.edit.cardChangeCount).',
+  },
+  'cli.edit.cardChangeCount': {
+    description:
+      'How many card changes a session-created list holds, spliced as {changes} into cli.edit.discardCardChangesFirst ("discard this deck\'s 2 card changes first").',
   },
   'cli.edit.discardedList': {
     description: 'Confirmation that a list created this session was taken back out of the editor.',
@@ -341,7 +344,11 @@ export const cliEditMeta = {
 
   'cli.edit.discardInboundMovesFirst': {
     description:
-      "Why a session-created list's creation cannot be discarded yet: other open lists hold pending moves into it, which would lose their destination. Spliced as the reason into cli.edit.cannotDiscardYet-style rows.",
+      "Why a session-created list's creation cannot be discarded yet: other open lists hold pending moves into it, which would lose their destination. Spliced as the reason into cli.edit.cannotDiscardYet-style rows. {moves} is the counted phrase below (cli.edit.pendingMoveCount).",
+  },
+  'cli.edit.pendingMoveCount': {
+    description:
+      'How many moves other open lists have pending into a session-created list, spliced as {moves} into cli.edit.discardInboundMovesFirst ("discard the 2 pending moves into this deck first").',
   },
   'cli.edit.promptMoveTarget': {
     description: 'Prompt heading for the destination picker of a cross-list card move.',
@@ -721,7 +728,7 @@ export const cliEditMeta = {
   'cli.history.timestampUpdated': { description: 'Confirms a retimed change set, in memory only.' },
   'cli.history.proseWarning': {
     description:
-      'Warns that a rewrite would throw away hand-written prose kept alongside the change sets. Spliced into cli.history.confirmRewrite after a space. The English "(s)" is a legacy contraction.',
+      'Warns that a rewrite would throw away hand-written prose kept alongside the change sets. Spliced into cli.history.confirmRewrite after a space. {count} is how many hand-written lines.',
   },
   'cli.history.confirmRewrite': {
     description:
@@ -742,7 +749,7 @@ export const cliEditMeta = {
   },
   'cli.history.rewrote': {
     description:
-      'Confirms the generated change set, in memory only. The English "entr(y/ies)" is a legacy contraction rather than a real plural.',
+      'Confirms the generated change set, in memory only. {count} is how many change entries it holds.',
   },
   'cli.history.nothingToUndo': { description: "The history editor's undo stack is empty." },
   'cli.history.reverted': { description: 'Confirms one history edit was undone.' },
@@ -775,7 +782,7 @@ export const cliEditMeta = {
   },
   'cli.history.saved': {
     description:
-      'Confirms the changelog was written. {file} is a filesystem path; the English "(s)" is a legacy contraction.',
+      'Confirms the changelog was written. {count} is how many change sets it now holds; {file} is a filesystem path.',
   },
   'cli.history.discardedAll': {
     description: 'Confirms the history editor exited without writing anything.',

@@ -6,11 +6,13 @@ import { fulfillJson } from '../helpers/fulfill'
 import {
   expectNotReloaded,
   expectPseudo,
+  holdPseudoDictionary,
   languageSelect,
   markPage,
   offerLocales,
   PSEUDO_LOCALE,
   pseudoCatalog,
+  setLocale,
 } from '../helpers/i18n'
 import {
   emitStreamConnectionError,
@@ -835,6 +837,33 @@ test.describe('admin language switch', () => {
 
     await expectPseudo(page.locator('.section-heading'), true)
     await expectPseudo(page.locator('.page-desc'), true)
+  })
+
+  test('the __ritualLocale__ seam relabels chrome painted before its dictionary arrived', async ({
+    page,
+  }) => {
+    // The seam names the locale at once, so the sidebar first renders for
+    // `en-XA` from the English fallback; the dictionary is held back until it
+    // is on screen, then has to re-render it without the tag changing.
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await setLocale(page, PSEUDO_LOCALE)
+    const release = await holdPseudoDictionary(page)
+    await gotoAdminDashboard(page)
+
+    const chrome = chromeTexts(page)
+    await expect(chrome.nav).toContainText('Dashboard')
+    await expect(chrome.heading).toContainText('Dashboard')
+    await expect(chrome.cardDesc).toContainText('Edit decks')
+    await expect(page.locator('html')).toHaveAttribute('lang', PSEUDO_LOCALE)
+    // Evidence the relabel below is a re-render of this page, not a reload.
+    await markPage(page)
+
+    release()
+
+    await expectPseudo(chrome.nav, true)
+    await expectPseudo(chrome.heading, true)
+    await expectPseudo(chrome.cardDesc, true)
+    await expectNotReloaded(page)
   })
 
   test('hides itself when this build ships a single locale', async ({ page }) => {

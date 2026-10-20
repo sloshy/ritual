@@ -165,24 +165,24 @@ ritual cache server [options]
 The cache feed is experimental: it may change or be removed in any release. Refreshing straight from Scryfall (the default `cacheSource`) is the supported path.
 :::
 
-Host a **cache feed**: download the raw Scryfall bulk files (the card bulk(s) chosen with `--cards` plus the oracle/art tag bulks, as gzipped JSONL), create a BitTorrent torrent for each, and run an HTTP server that publishes a `feed.json` describing the current files while seeding them to peers. Sharing the bulk data peer-to-peer means Scryfall serves each daily download once per group instead of once per machine.
+Host a **cache feed**: download the raw Scryfall bulk files (the card bulks chosen with `--cards` plus the oracle/art tag bulks, as gzipped JSONL), create a BitTorrent torrent for each, and run an HTTP server that publishes a `feed.json` describing the current files while seeding them to peers. Sharing the bulk data peer-to-peer means Scryfall serves each daily download once per group instead of once per machine.
 
 ```bash
 ritual cache feed host --public-url https://feed.example.com
 ```
 
-| Option                 | Description                                                                                                      | Default                                                                          |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `-p, --port <number>`  | Port for the feed HTTP server                                                                                    | `4010`                                                                           |
-| `--host <hostname>`    | Host interface for the feed HTTP server                                                                          | `127.0.0.1`                                                                      |
-| `--public-url <url>`   | Public base URL peers reach this host at; embedded in the feed's file/torrent URLs and each torrent's web seed   | `http://<host>:<port>`                                                           |
-| `--cards <which>`      | Card bulk(s) to publish: `default` (English-only `default_cards`), `all` (every-language `all_cards`), or `both` | whichever the host's [`defaultLanguage`](/configuration/#default-language) needs |
-| `--refresh <interval>` | Re-check Scryfall for new bulk data (`daily`, `weekly`, `monthly`; env `RITUAL_CACHE_FEED_REFRESH`)              | `daily`                                                                          |
-| `--upstream <url>`     | Bulk manifest URL to source artifacts from (another feed host's mirror, or a test stub)                          | Scryfall's `/bulk-data`                                                          |
-| `--dir <path>`         | Feed data directory                                                                                              | `<cache>/feed`                                                                   |
-| `--no-seed`            | Serve the feed and files over HTTP only, without BitTorrent seeding                                              | seeding on                                                                       |
-| `--torrent-port <n>`   | Fixed TCP port for incoming torrent peers                                                                        | random                                                                           |
-| `-v, --verbose`        | Log every feed-server request                                                                                    | off                                                                              |
+| Option                 | Description                                                                                                          | Default                                                                          |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `-p, --port <number>`  | Port for the feed HTTP server                                                                                        | `4010`                                                                           |
+| `--host <hostname>`    | Host interface for the feed HTTP server                                                                              | `127.0.0.1`                                                                      |
+| `--public-url <url>`   | Public base URL peers reach this host at; embedded in the feed's file/torrent URLs and each torrent's web seed       | `http://<host>:<port>`                                                           |
+| `--cards <which>`      | Which card bulks to publish: `default` (English-only `default_cards`), `all` (every-language `all_cards`), or `both` | whichever the host's [`defaultLanguage`](/configuration/#default-language) needs |
+| `--refresh <interval>` | Re-check Scryfall for new bulk data (`daily`, `weekly`, `monthly`; env `RITUAL_CACHE_FEED_REFRESH`)                  | `daily`                                                                          |
+| `--upstream <url>`     | Bulk manifest URL to source artifacts from (another feed host's mirror, or a test stub)                              | Scryfall's `/bulk-data`                                                          |
+| `--dir <path>`         | Feed data directory                                                                                                  | `<cache>/feed`                                                                   |
+| `--no-seed`            | Serve the feed and files over HTTP only, without BitTorrent seeding                                                  | seeding on                                                                       |
+| `--torrent-port <n>`   | Fixed TCP port for incoming torrent peers                                                                            | random                                                                           |
+| `-v, --verbose`        | Log every feed-server request                                                                                        | off                                                                              |
 
 ### feed fetch
 

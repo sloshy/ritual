@@ -6,7 +6,7 @@ import type { LocaleCatalog, LocaleTag } from '../../../src/i18n/types'
 import type { LocaleOverride } from '../../../src/i18n/runtime'
 import { localeTag } from '../../../src/i18n/locale-tag-message'
 import type { AdminLocalesOverride } from '../../../src/admin/site/hooks/useAdminLocale'
-import { fulfillJson } from './fulfill'
+import { fulfillJson, fulfillJsonRoute } from './fulfill'
 
 /**
  * Pin the page's UI locale through the `__ritualLocale__` seam
@@ -62,6 +62,24 @@ let cachedCatalog: LocaleCatalog | undefined
 export function pseudoCatalog(): LocaleCatalog {
   cachedCatalog ??= pseudoLocalize(en, enMeta)
   return cachedCatalog
+}
+
+/**
+ * Answer the pseudo-locale's dictionary only once the returned `release` is
+ * called, so a spec can prove the page re-renders text it painted *before* the
+ * dictionary arrived. Registered last, it wins over any earlier handler for the
+ * same file (Playwright matches route handlers in reverse registration order).
+ */
+export async function holdPseudoDictionary(page: Page): Promise<() => void> {
+  let release: () => void = () => undefined
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await page.route(`**/locales/${PSEUDO_LOCALE}.json`, async (route) => {
+    await released
+    await fulfillJsonRoute(route, pseudoCatalog())
+  })
+  return release
 }
 
 /** The header's language `<select>`. Hidden entirely when one locale ships. */

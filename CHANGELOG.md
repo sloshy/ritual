@@ -845,8 +845,52 @@ de_DE`) now nests the tag parser's reason as a message of its own: in the admin
   English; it now follows the server's UI language (`--locale`, `RITUAL_LOCALE`, `uiLocale`),
   list join included. Tool descriptions, result guidance and errors addressed to the agent
   stay English.
+- **Interactive prompts and `--help` speak the CLI's language throughout.** Every select
+  prompt's "Use the arrow keys. Return to submit." hint, the "This option is disabled" note,
+  a yes/no question's `(Y/n)` / `(y/N)` and its `yes` / `no` answer, a text prompt's
+  fallback "Please enter a valid value" error, and the key list under `import-account`'s
+  deck picker now follow the UI language (the key names, `Return`, `↑/↓`, `[space]` and the
+  `y`/`n` letters, stay as they are). That deck picker's own "Space to toggle" hint is gone:
+  the key list says the same. The prompts in `history`'s interactive editor and the
+  `dep-license` picker follow the UI language too, and their searches now clear typed text on
+  a first Esc, like every other search. On `--help` pages, the `(choices: …, default: …)`
+  note after an option is worded in the UI language, its values unchanged and listed the
+  way the language lists them, and so is `mcp --transport`'s "Allowed choices are stdio,
+  http." refusal. Two English strings are reworded: the select hint now reads "Use the arrow
+  keys." (it read "Use arrow-keys."), and the text-prompt error "Please enter a valid value"
+  (it read "Please Enter A Valid Value").
+- **A malformed `--locale` no longer hides `RITUAL_LOCALE`.** `--locale` is still refused with
+  exit `2`, but the refusal is now worded in the language the remaining tiers pick
+  (`RITUAL_LOCALE`, then `uiLocale`, then the OS) instead of skipping past a valid
+  `RITUAL_LOCALE`. On Windows and macOS, a malformed `--locale` or `RITUAL_LOCALE` no
+  longer stops Ritual from asking the OS for its language.
+- **`build-site` and `serve --build` report a failed build the same way.** A failure such
+  as Scryfall being unreachable now reads "Build failed: getaddrinfo ENOTFOUND
+  api.scryfall.com" in the UI language under `build-site` (it printed the bare system
+  text), and the previously published site is left in place. Under `serve --build`, a
+  refusal from the build (a usage error such as a bad `--decks` name) now keeps its own
+  message and exit code `2`, instead of being reported as "Build failed: …" with exit `1`.
+- **Counted lines agree with their count.** "1 unsaved change" / "2 unsaved changes" in the
+  `edit` list picker, "decks/a.md: 1 change" in `detect-changes`, `history`'s "Saved 1
+  change set" and its hand-written-lines warning, `cleanup`'s folded-name and
+  pruned-category lines, and the `edit` session's "discard this deck's 1 card change first"
+  / "discard the 2 pending moves …" refusals (each read "change(s)" and the like).
+  So do `history`'s "Rewrote history as a single change set with 1 entry" (it read
+  "entr(y/ies)").
+  `cleanup`'s `[check]` marker and the price browser's "lowest $2.00" note follow the UI
+  language too. The help for `config set` and `metadata set` reads "One or more values to
+  set" and "Add values to / Remove values from an array property", and `cache feed host
+--cards` reads "Which card bulks to publish" (each read "value(s)" or "bulk(s)").
 
 ### Fixed
+
+- `build-site`'s `- Loaded <list> (N cards, …)` line shows the list's total at the site's
+  default store, in that store's currency (`€12.50` for Cardmarket). It always printed the
+  TCGplayer figure with a `$`.
+- Opening the public site or the admin site with a language already pinned (the
+  `__ritualLocale__` test seam, or any start that names the language before its dictionary
+  has loaded) no longer leaves the header, navigation and footer in English: text drawn
+  before the dictionary arrived is redrawn in the language once it does.
 
 - Switching the language twice in quick succession on the public site or the admin site no
   longer lets the first language's dictionary, arriving last, overrule the second. The last

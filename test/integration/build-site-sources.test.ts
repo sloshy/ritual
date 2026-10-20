@@ -9,7 +9,13 @@ import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import { runCli } from './helpers/cli'
 import { captureExitCode } from '../helpers/cli'
 import { captureConsole } from '../helpers/capture'
-import { bindWorkspace, withWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import {
+  bindWorkspace,
+  withWorkspace,
+  writeDeckFile,
+  type BoundWorkspace,
+} from '../helpers/workspace'
+import { pseudoString } from '../helpers/sync-text'
 
 /**
  * Source selection and build integrity: a build that could not assemble what it
@@ -206,4 +212,43 @@ describe('build-site CLI source handling (Integration)', () => {
       { dirs: [], config: false },
     )
   })
+})
+
+/**
+ * A failure nothing anticipated — here the scratch directory cannot be made,
+ * because the output directory's parent is a file — is framed by both build
+ * entry points' shared `buildFailure`, in the CLI's language, its system text
+ * nested as the reason.
+ */
+describe('build-site unexpected failures (Integration)', () => {
+  /** A one-deck workspace whose `--out-dir blocker/dist` cannot be created. */
+  async function blockedWorkspace(dir: string): Promise<void> {
+    await writeDeckFile(dir, 'a', { cards: [{ name: 'Sol Ring', quantity: 1 }] })
+    await fs.writeFile(path.join(dir, 'blocker'), '')
+  }
+
+  const commands: [string, string[]][] = [
+    ['build-site', ['build-site', '--refresh', 'never', '--out-dir', 'blocker/dist']],
+    ['serve --build', ['serve', '--build', '--refresh', 'never', '--out-dir', 'blocker/dist']],
+  ]
+
+  test.each(commands)(
+    '%s frames the failure as "Build failed"',
+    async (_name, args) => {
+      await withWorkspace(async (dir) => {
+        await blockedWorkspace(dir)
+
+        const english = await runCli(args, dir)
+        expect(english.exitCode).toBe(ExitCode.RuntimeError)
+        expect(english.stderr).toMatch(/^Build failed: EEXIST: .*blocker/m)
+
+        const [frame = ''] = pseudoString('cli.buildSite.failed').split('{reason}')
+        const pseudo = await runCli(args, dir, { RITUAL_LOCALE: 'en-XA' })
+        expect(pseudo.exitCode).toBe(ExitCode.RuntimeError)
+        expect(pseudo.stderr).toContain(`${frame}EEXIST`)
+        expect(pseudo.stderr).not.toContain('Build failed')
+      })
+    },
+    60_000,
+  )
 })

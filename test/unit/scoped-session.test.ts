@@ -355,7 +355,7 @@ describe('scoped session changes', () => {
 
     const [creation, card] = session.strategy.listSessionChanges()
     expect(creation?.label).toContain('To Buy: Created this wanted list')
-    expect(creation?.blocked).toBe("discard this wanted list's 1 card change(s) first")
+    expect(creation?.blocked).toBe("discard this wanted list's 1 card change first")
     expect(card?.blocked).toBeUndefined()
   })
 })

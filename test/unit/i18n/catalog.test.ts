@@ -13,6 +13,7 @@ import { withSyntheticLocale } from '../../helpers/sync-text'
 import {
   checkCatalogs,
   messagePlaceholders,
+  pluralShortcuts,
   validateBraces,
   type CatalogIssue,
   type CatalogReport,
@@ -227,6 +228,62 @@ describe('checkCatalogs', () => {
     })
     expect(issuesOfKind(badEnglish, 'spelling-list')).toHaveLength(1)
   })
+
+  test('12. an English "(s)" / "(es)" plural fails; http(s) is a scheme, not a plural', () => {
+    const shortcuts = (value: MessageCatalogShape[string]): CatalogIssue[] => {
+      const key = 'cli.edit.badgeUnsaved'
+      return issuesOfKind(
+        checkCatalogs({
+          english: { ...ENGLISH, [key]: value },
+          meta: { ...META, [key]: { description: 'Badge.' } },
+        }),
+        'plural-shortcut',
+      )
+    }
+    const [shortcut] = shortcuts('{count} unsaved change(s)')
+    expect(shortcut).toMatchObject({
+      locale: 'en',
+      key: 'cli.edit.badgeUnsaved',
+      severity: 'error',
+    })
+    expect(shortcut?.message).toContain('"change(s)"')
+    expect(shortcuts('{count} match(es)')).toHaveLength(1)
+    // Every branch of a table is read, and a sentence naming nothing counted
+    // is caught too: it is just as untranslatable.
+    expect(shortcuts({ $select: 'type', deck: 'Value(s) to set', other: 'ok' })).toHaveLength(1)
+    expect(
+      shortcuts({ $plural: 'count', one: '{count} change', other: '{count} changes' }),
+    ).toEqual([])
+    expect(shortcuts('"{field}" must be an http(s) URL')).toEqual([])
+    // A translation is never judged by it: a language may well spell a plural
+    // with parentheses, and only English feeds a translator.
+    const translated = checkCatalogs({
+      english: ENGLISH,
+      meta: META,
+      translations: [withKey('de', 'cli.menu.saveAndExit', 'Datei(en) speichern')],
+    })
+    expect(issuesOfKind(translated, 'plural-shortcut')).toEqual([])
+  })
+
+  const flagged: [string, string[]][] = [
+    ['2 line(s), 3 match(es)', ['line(s)', 'match(es)']],
+    ['Remove FILE(S)', ['FILE(S)']],
+    ['MATCH(ES) found', ['MATCH(ES)']],
+    ['{count} entr(y/ies)', ['entr(y/ies)']],
+    ['{count} part(ies)', ['part(ies)']],
+    ['{count} {noun}(s)', ['{noun}(s)']],
+    ['{count} Änderung(s)', ['Änderung(s)']],
+  ]
+  test.each(flagged)('pluralShortcuts flags %p', (form, expected) => {
+    expect(pluralShortcuts(form)).toEqual(expected)
+  })
+
+  test.each(['an http(s) URL', 'an Http(s) URL', 'an HTTP(S) URL'])(
+    'pluralShortcuts exempts the URL scheme in %p',
+    (form) => {
+      expect(pluralShortcuts(form)).toEqual([])
+    },
+  )
 
   test('9. dead keys fail by default and are downgraded by --allow-dead-keys', () => {
     // `check-locales.ts` passes `deadKeySeverity: 'error'` unless `--allow-dead-keys`

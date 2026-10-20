@@ -1,4 +1,4 @@
-import { Command } from 'commander'
+import { Command, CommanderError } from 'commander'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { t } from '../i18n/t'
 import { formatUnitList } from '../i18n/format'
@@ -55,11 +55,18 @@ import type {
   WantedListSummary,
 } from '../list/site-data'
 import type { ListType } from '../list/list-type'
-import { ExitCode, type ExitCodeValue } from '../util/errors'
+import {
+  CardCommandError,
+  ExitCode,
+  getErrorMessage,
+  isBrokenPipeError,
+  localizedCommandError,
+  type ExitCodeValue,
+} from '../util/errors'
 import { parseEnumField } from '../util/parse-enum'
 import { emptyCacheAdvice } from '../cache/freshness'
 import { resolveThemeName, themeNames, type CustomTheme } from '../theme/themes'
-import { isMessageParseError, renderSyncMessage } from '../sync/message'
+import { isMessageParseError, renderSyncMessage, SyncMessageError } from '../sync/message'
 import type { RefreshMode, RefreshPolicy } from '../cache/refresh'
 import {
   buildSiteSpaFromSource,
@@ -436,6 +443,7 @@ async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult>
       detailCtx,
       skipSource,
       loadingMessage,
+      priceStore: siteStores.defaultSource,
     })
   const decks = (await write('deck')) as DeckSummary[]
   const collections = (await write(
@@ -584,6 +592,34 @@ export function registerBuildSiteCommand(program: Command): void {
     program.command('build-site').description(t('help.buildSite.description')),
   )
   command.action(async (options: BuildSiteOptions) => {
-    await runBuildSite({ ...options, locale: resolveBuildLocale(command, options) })
+    try {
+      await runBuildSite({ ...options, locale: resolveBuildLocale(command, options) })
+    } catch (err) {
+      throw buildFailure(err)
+    }
+  })
+}
+
+/**
+ * What a failed build throws on to the top level, shared by `build-site` and
+ * `serve --build`. An unexpected failure — a network error fetching card data,
+ * a disk error — is framed in the CLI's language as "Build failed: …" with its
+ * own text nested as the reason (exit 1). Everything that already says what it
+ * is passes through untouched, so nothing is framed twice and each keeps its
+ * own exit code: a catalog-worded refusal ({@link CardCommandError}), an engine
+ * failure raised from a key ({@link SyncMessageError}, a cancellation included),
+ * an error Commander raised and already printed, and a broken pipe.
+ */
+export function buildFailure(err: unknown): unknown {
+  if (
+    isBrokenPipeError(err) ||
+    err instanceof CardCommandError ||
+    err instanceof SyncMessageError ||
+    err instanceof CommanderError
+  ) {
+    return err
+  }
+  return localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.buildSite.failed', {
+    reason: getErrorMessage(err),
   })
 }

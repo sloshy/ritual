@@ -1,5 +1,5 @@
 import { Command, InvalidArgumentError } from 'commander'
-import prompts from 'prompts'
+import type prompts from 'prompts'
 import * as fs from 'node:fs/promises'
 import {
   isResolveListError,
@@ -33,7 +33,7 @@ import {
   type ScriptingOptions,
 } from '../cli/output'
 import { ExitCode } from '../util/errors'
-import { promptExitMenu, type PromptState, withMenuPageSize } from '../cli/prompts'
+import { ask, promptExitMenu } from '../cli/prompts'
 import { inputRequiredError, promptsUnavailable, requireInteractive } from '../util/no-input'
 import { fail, runCommandAction } from '../cli/action'
 import { parsePositiveInteger } from '../util/parse-number'
@@ -74,20 +74,8 @@ function setHeading(set: ChangeSet): string {
 
 /** Run a single-select prompt, returning the chosen value or null on cancel/ESC. */
 async function selectMenu(message: string, choices: prompts.Choice[]): Promise<string | null> {
-  let exited = false
-  const resp = await prompts(
-    withMenuPageSize({
-      type: 'select',
-      name: 'value',
-      message,
-      choices,
-      onState: (state: PromptState) => {
-        if (state.exited) exited = true
-      },
-    }),
-  )
-  if (exited || typeof resp.value !== 'string') return null
-  return resp.value
+  const value = await ask<unknown>({ type: 'select', message, choices })
+  return typeof value === 'string' ? value : null
 }
 
 /**
@@ -103,29 +91,21 @@ async function autocompleteMenu(
   choices: prompts.Choice[],
   pinned?: ReadonlySet<string>,
 ): Promise<string | null> {
-  let exited = false
-  const resp = await prompts(
-    withMenuPageSize({
-      type: 'autocomplete',
-      name: 'value',
-      message,
-      choices,
-      suggest: async (input, items) => {
-        const terms = String(input).toLowerCase().split(/\s+/).filter(Boolean)
-        if (terms.length === 0) return items
-        return items.filter(
-          (choice) =>
-            (pinned?.has(String(choice.value)) ?? false) ||
-            terms.every((term) => choice.title.toLowerCase().includes(term)),
-        )
-      },
-      onState: (state: PromptState) => {
-        if (state.exited) exited = true
-      },
-    }),
-  )
-  if (exited || typeof resp.value !== 'string') return null
-  return resp.value
+  const value = await ask<unknown>({
+    type: 'autocomplete',
+    message,
+    choices,
+    suggest: async (input, items) => {
+      const terms = String(input).toLowerCase().split(/\s+/).filter(Boolean)
+      if (terms.length === 0) return items
+      return items.filter(
+        (choice) =>
+          (pinned?.has(String(choice.value)) ?? false) ||
+          terms.every((term) => choice.title.toLowerCase().includes(term)),
+      )
+    },
+  })
+  return typeof value === 'string' ? value : null
 }
 
 export function registerHistoryCommand(program: Command): void {
@@ -450,21 +430,16 @@ async function handleRetime(state: EditorState, index: number): Promise<void> {
   const set = state.sets[index]
   if (!set) return
 
-  let exited = false
-  const resp = await prompts({
+  const answer = await ask<unknown>({
     type: 'text',
-    name: 'timestamp',
     message: t('cli.history.promptTimestamp'),
     initial: set.timestamp,
     validate: (value: string) =>
       isValidIso8601(value.trim()) ? true : t('cli.history.timestampInvalid'),
-    onState: (state: PromptState) => {
-      if (state.exited) exited = true
-    },
   })
-  if (exited || typeof resp.timestamp !== 'string') return
+  if (typeof answer !== 'string') return
 
-  const next = resp.timestamp.trim()
+  const next = answer.trim()
   if (next === set.timestamp) return
 
   pushUndo(state)

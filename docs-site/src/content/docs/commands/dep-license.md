@@ -4,7 +4,7 @@ title: 'dep-license'
 
 Show the license for a dependency bundled with Ritual.
 
-Without a package name, the command opens an interactive list of every bundled dependency. Primary dependencies (direct entries in `package.json`) come first, then transitive ones. Type to search both sections.
+Without a package name, the command opens an interactive list of every bundled dependency. Primary dependencies (direct entries in `package.json`) come first, then transitive ones. Type to search both sections; the first Esc clears the search, and the next one closes the list.
 
 ## Usage
 

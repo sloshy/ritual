@@ -68,7 +68,7 @@ export const helpInfraMessages = {
   'help.cacheFeed.upstream': 'Bulk manifest URL to source artifacts from',
   'help.cacheFeed.dir': 'Feed data directory (defaults to <cache>/feed)',
   'help.cacheFeed.cards':
-    "Card bulk(s) to publish: 'default' (English-only default_cards), 'all' (every-language all_cards), or 'both' (defaults to whichever the defaultLanguage config key demands)",
+    "Which card bulks to publish: 'default' (English-only default_cards), 'all' (every-language all_cards), or 'both' (defaults to whichever the defaultLanguage config key demands)",
   'help.cacheFeed.hostNoSeed':
     'Serve the feed and files over HTTP only, without BitTorrent seeding',
   'help.cacheFeed.torrentPort': 'Fixed TCP port for incoming torrent peers',
@@ -87,9 +87,9 @@ export const helpInfraMessages = {
   'help.config.description': 'Inspect and modify the ritual configuration file',
   'help.config.set': 'Set or update a value in the ritual configuration file',
   'help.config.setProperty': 'Config property to set (use dot notation for nested: parent.child)',
-  'help.config.setValue': 'Value(s) to set',
-  'help.config.add': 'Add value(s) to an array property instead of replacing it',
-  'help.config.remove': 'Remove value(s) from an array property',
+  'help.config.setValue': 'One or more values to set',
+  'help.config.add': 'Add values to an array property instead of replacing it',
+  'help.config.remove': 'Remove values from an array property',
   'help.config.get': 'Print the value of a single configuration property',
   'help.config.getProperty': 'Config property to read (use dot notation for nested: parent.child)',
   'help.config.list': 'Print the full effective configuration',
