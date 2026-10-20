@@ -57,8 +57,12 @@ export const cliEditMeta = {
   },
   'cli.edit.badgeNew': {
     description:
-      'Badge on a list created this session and not yet written. Joined with the unsaved-changes badge by ", " and appended to the row as " — new, 2 unsaved change(s)". Lower case, very short.',
+      'Badge on a list created this session and not yet written. Listed with the unsaved-changes badge in cli.edit.badgedList. Lower case, very short.',
     maxLen: 12,
+  },
+  'cli.edit.badgedList': {
+    description:
+      "A list's row in the editor's list picker when it has something pending, e.g. \"🎴 Burn — new, 2 unsaved changes\". {title} is the list's own row (icon and name); {badges} lists cli.edit.badgeNew and cli.edit.badgeUnsaved, already joined the way the reader's language lists items.",
   },
   'cli.edit.badgeUnsaved': {
     description: "Badge counting a list's pending changes in the selection menu.",
@@ -400,7 +404,7 @@ export const cliEditMeta = {
   'cli.deck.tagsCleared': { description: 'Confirms every tag was removed from the deck.' },
   'cli.deck.menuTargetSection': {
     description:
-      'Session menu row showing (and changing) the deck section new cards go into. {section} is a section name or the "prompt every time" phrase.',
+      'Session menu row showing (and changing) the deck section new cards go into. {section} is a section name (a standard board (domain.board.*) arrives already in the reader\'s language, any other section as the owner wrote it) or the "prompt every time" phrase.',
     maxLen: MENU_MAX_LEN,
   },
   'cli.deck.menuChangeFormat': {
@@ -442,7 +446,7 @@ export const cliEditMeta = {
   },
   'cli.deck.targetSectionSet': {
     description:
-      'Confirms the pinned section. {section} is a section name or cli.deck.promptEveryTimeInline.',
+      "Confirms the pinned section. {section} is a section name (a standard board (domain.board.*) arrives already in the reader's language, any other section as the owner wrote it) or cli.deck.promptEveryTimeInline.",
   },
   'cli.deck.filtersUpdatedSection': {
     description:
@@ -450,7 +454,7 @@ export const cliEditMeta = {
   },
   'cli.deck.addedCard': {
     description:
-      'Confirms a card was added to a deck section. {card} is the card name plus its printing and language annotation, already rendered; {section} is a section name.',
+      "Confirms a card was added to a deck section. {card} is the card name plus its printing and language annotation, already rendered; {section} is a section name: a standard board (domain.board.*) arrives already in the reader's language, any other section as the owner wrote it.",
   },
   'cli.deck.addedAnother': {
     description:
@@ -475,7 +479,7 @@ export const cliEditMeta = {
   },
   'cli.labels.menuListLabels': {
     description:
-      "Session menu row showing (and editing) the list's default labels (decks and collections). {labels} is a comma-joined list of label tokens, which are file-format vocabulary and never translate.",
+      "Session menu row showing (and editing) the list's default labels (decks and collections). {labels} lists the label names (domain.label.*), already in the reader's language and joined for it.",
     maxLen: MENU_MAX_LEN,
   },
   'cli.labels.none': {
@@ -484,7 +488,7 @@ export const cliEditMeta = {
   },
   'cli.labels.defaultSet': {
     description:
-      "Confirms the list's new default labels. The square brackets mirror how the value is written in the file.",
+      "Confirms the list's new default labels. {labels} lists the label names (domain.label.*), already in the reader's language and joined for it.",
   },
   'cli.labels.defaultCleared': {
     description: 'Confirms the list no longer sets a default label.',
@@ -594,7 +598,7 @@ export const cliEditMeta = {
   },
   'cli.printing.row': {
     description:
-      'One printing in the picker. Every parameter is data: {setName} the set\'s name, {set} its uppercase code, {number} the collector number, {rarity} the Scryfall rarity slug. The "#" and brackets are Ritual\'s notation.',
+      "One printing in the picker. Every parameter is data: {setName} the set's name, {set} its uppercase code, {number} the collector number, {rarity} the rarity's display name, already in the reader's language (site.rarity.*). The \"#\" and brackets are Ritual's notation.",
   },
   'cli.printing.languageBadge': {
     description:
@@ -602,7 +606,7 @@ export const cliEditMeta = {
   },
   'cli.printing.languageRow': {
     description:
-      "One card language in the language picker. {name} is the language's name, {code} its Scryfall code (never translated).",
+      "One card language in the language picker, and one entry of the languages a printing exists in that a refusal lists (cli.cardOps.languageUnavailable). {name} is the language's name, {code} its Scryfall code (never translated).",
   },
   'cli.printing.languageUnavailable': {
     description:
@@ -633,7 +637,7 @@ export const cliEditMeta = {
   },
   'cli.printing.finishUnavailable': {
     description:
-      'A --finish pin named a finish this printing is not offered in. {finish} and {available} are finish slugs (nonfoil / foil / etched), which are file-format vocabulary and never translate.',
+      "A --finish pin named a finish this printing is not offered in. {finish} is the finish's name, already in the reader's language (domain.finish.*); {available} lists the --finish values the printing does take (nonfoil / foil / etched), which are flag tokens and never translate.",
   },
 
   'cli.history.limitInvalid': {
@@ -660,7 +664,7 @@ export const cliEditMeta = {
   },
   'cli.history.setHeading': {
     description:
-      'One change set\'s header: {timestamp} is an ISO-8601 instant (never translated, never reformatted) and {changes} an already-rendered count like "3 changes". The two spaces are column alignment.',
+      'One change set\'s header: {timestamp} is the date and time the set was saved, already formatted for the reader\'s locale, and {changes} an already-rendered count like "3 changes". The two spaces are column alignment.',
   },
   'cli.history.noListsOfType': {
     description:

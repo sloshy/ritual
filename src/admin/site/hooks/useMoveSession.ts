@@ -5,8 +5,7 @@ import type { ScryfallCard } from '../../../scryfall/types'
 import { compareData, compareDisplay } from '../../../i18n/collate'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../../list/site-data'
 import { createChangeId } from '../../../changes/change-event'
-import { formatPrunedCategoriesSuffix } from '../../../editor/save-notices'
-import { formatDroppedNotesSuffix } from '../../../list/dropped-notes'
+import { joinSentences, saveNoticeSentences } from '../../../editor/save-notices'
 import type { DroppedNote } from '../../../list/move-staging'
 import { t } from '../../../i18n/t'
 import { apiMessage } from '../../../api/result'
@@ -85,11 +84,14 @@ export type MoveCommitStatus = {
  * categories ride after the count. Call it in JSX so it tracks the locale.
  */
 export function moveStatusText(status: MoveCommitStatus): string {
-  const skippedNote =
-    status.skipped > 0 ? t('admin.move.skippedSuffix', { count: status.skipped }) : ''
-  const droppedNote = formatDroppedNotesSuffix(status.droppedNotes)
-  const prunedNote = formatPrunedCategoriesSuffix(status.prunedCategories)
-  return `${t('admin.api.move.moved', { count: status.moved })}${skippedNote}${droppedNote}${prunedNote}`
+  const moved = t('admin.api.move.moved', { count: status.moved })
+  return joinSentences([
+    status.skipped > 0 ? t('admin.move.movedSkipped', { moved, count: status.skipped }) : moved,
+    ...saveNoticeSentences({
+      droppedNotes: status.droppedNotes,
+      prunedCategories: status.prunedCategories,
+    }),
+  ])
 }
 
 export type UseMoveSessionResult = {

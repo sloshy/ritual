@@ -11,9 +11,7 @@ import {
   getFrontFaceName,
 } from '../scryfall'
 import type { ScryfallCard } from '../scryfall/types'
-import { printingFinishes, type Finish } from './finish-condition'
-import { t, type MessageParams } from '../i18n/t'
-import { DEFAULT_LOCALE } from '../i18n/constants'
+import { FINISH_NAMES, printingFinishes, type Finish } from './finish-condition'
 import {
   findPrinting,
   hasSpecificPrinting,
@@ -22,13 +20,7 @@ import {
   type CardPrintingsResult,
   type PrintingFields,
 } from './card-printing'
-import {
-  displayLanguage,
-  formatLanguageList,
-  languageDisplayName,
-  storedLanguage,
-  type CardLanguage,
-} from './card-language'
+import { displayLanguage, storedLanguage, type CardLanguage } from './card-language'
 import { getDefaultLanguage } from '../config/ritual-config'
 import type { PrintingRef } from './printing-key'
 import { readRecordedCardBulkType } from '../cache/bulk-provenance'
@@ -39,7 +31,17 @@ import {
   localizedCommandError,
   messageCommandError,
 } from '../util/errors'
-import { errorParam, syncMessage, syncRef } from '../sync/message'
+import {
+  errorParam,
+  renderSyncMessage,
+  syncLanguage,
+  syncList,
+  syncMessage,
+  syncRef,
+  toSyncMessage,
+  type SyncMessage,
+  type SyncMessageRef,
+} from '../sync/message'
 
 /**
  * The language a freshly added entry records: the language the printing
@@ -91,7 +93,14 @@ export type AvailablePrinting = PrintingPair
  */
 export type PrintingPinMatch =
   | { ok: true; printing: ScryfallCard }
-  | { ok: false; message: string; available: AvailablePrinting[]; totalPrintings: number }
+  | {
+      ok: false
+      /** The refusal unrendered, for an envelope; {@link message} is it worded in the active locale. */
+      reason: SyncMessageRef
+      message: string
+      available: AvailablePrinting[]
+      totalPrintings: number
+    }
 
 const MAX_LISTED_PRINTINGS = 10
 
@@ -115,33 +124,37 @@ export function matchPrintingPin(
     collectorNumber: p.collector_number,
   }))
   if (printings.length === 0) {
-    return {
-      ok: false,
-      message: t('cli.printing.noneCached', { name: cardName }),
-      available,
-      totalPrintings: 0,
-    }
+    const reason = syncRef('cli.printing.noneCached', { name: cardName })
+    return { ok: false, reason, message: renderSyncMessage(reason), available, totalPrintings: 0 }
   }
-  const listed = available.map((p) => `${p.set.toUpperCase()}:${p.collectorNumber}`).join(', ')
-  const more =
-    printings.length > MAX_LISTED_PRINTINGS
-      ? t('cli.printing.andMore', { count: printings.length - MAX_LISTED_PRINTINGS })
-      : ''
+  const reason = syncRef('cli.printing.pinNotFound', {
+    printing: `${set.toUpperCase()}:${collectorNumber}`,
+    name: cardName,
+    listed: syncList(
+      available.map((p) => `${p.set.toUpperCase()}:${p.collectorNumber}`),
+      'unit',
+    ),
+    more:
+      printings.length > MAX_LISTED_PRINTINGS
+        ? syncRef('cli.printing.andMore', { count: printings.length - MAX_LISTED_PRINTINGS })
+        : '',
+  })
   return {
     ok: false,
-    message: t('cli.printing.pinNotFound', {
-      printing: `${set.toUpperCase()}:${collectorNumber}`,
-      name: cardName,
-      listed,
-      more,
-    }),
+    reason,
+    message: renderSyncMessage(reason),
     available,
     totalPrintings: printings.length,
   }
 }
 
-/** Result of validating a requested finish against a resolved printing. */
-export type FinishPinMatch = { ok: true } | { ok: false; message: string; available: Finish[] }
+/**
+ * Result of validating a requested finish against a resolved printing. A
+ * refusal carries its message both unrendered (`reason`, for an envelope or a
+ * message that nests it) and worded in the active locale (`message`).
+ */
+export type FinishPinMatch =
+  { ok: true } | { ok: false; reason: SyncMessageRef; message: string; available: Finish[] }
 
 /**
  * Validate that `finish` is one the printing is offered in. A valid-but-
@@ -155,20 +168,31 @@ export function matchFinishPin(
 ): FinishPinMatch {
   const available = printingFinishes(printing)
   if (available.includes(finish)) return { ok: true }
-  return {
-    ok: false,
-    message: t('cli.printing.finishUnavailable', {
-      printing: `${printing.set.toUpperCase()}:${printing.collector_number}`,
-      name: cardName,
-      finish,
-      available: available.join(', '),
-    }),
-    available,
-  }
+  // The one rule for a finish in a CLI message: a finish named in a sentence
+  // is its display name (`domain.finish.*`), nested; the values a flag accepts
+  // are listed as the `--finish` tokens a user types.
+  const reason = syncRef('cli.printing.finishUnavailable', {
+    printing: `${printing.set.toUpperCase()}:${printing.collector_number}`,
+    name: cardName,
+    finish: syncRef(FINISH_NAMES[finish]),
+    available: syncList(available, 'unit'),
+  })
+  return { ok: false, reason, message: renderSyncMessage(reason), available }
 }
 
 /** A strict `--set`/`--collector-number` printing pin (set code lowercase). */
 export type PrintingPin = PrintingPair
+
+/**
+ * A usage refusal worded in the reader's language, its key and English params
+ * on the envelope (`envelopeRef`) beside the structured `details`.
+ */
+function refusalWithDetails(
+  message: SyncMessage,
+  details: Record<string, unknown>,
+): CardCommandError {
+  return messageCommandError('usage_error', ExitCode.UsageError, message, details)
+}
 
 /** Case-insensitive name match tolerating a front-face-only spelling. */
 function sameCardName(a: string, b: string): boolean {
@@ -271,7 +295,7 @@ export async function resolvePinnedPrinting(
   const printings = result.printings
   const match = matchPrintingPin(cardName, printings, pin.set, pin.collectorNumber)
   if (!match.ok) {
-    throw new CardCommandError('usage_error', match.message, ExitCode.UsageError, {
+    throw refusalWithDetails(toSyncMessage(match.reason), {
       available: match.available,
       totalPrintings: match.totalPrintings,
     })
@@ -363,20 +387,22 @@ export async function ensureLanguageAvailableForEntry(
     available.length > 0 &&
     (await readRecordedCardBulkType()) === 'all_cards'
   ) {
-    const params: MessageParams<'cli.cardOps.languageUnavailable'> = {
-      printing: printingLabel,
-      name: cardName,
-      language: languageDisplayName(language),
-      code: language,
-      // English, like `language` beside it: the params ride the error envelope.
-      available: formatLanguageList(available, DEFAULT_LOCALE),
-    }
-    throw new CardCommandError(
-      'usage_error',
-      t('cli.cardOps.languageUnavailable', params),
-      ExitCode.UsageError,
+    // Worded in the reader's language; the envelope's params stay English.
+    throw refusalWithDetails(
+      syncMessage('cli.cardOps.languageUnavailable', {
+        printing: printingLabel,
+        name: cardName,
+        language: syncLanguage(language),
+        code: language,
+        // `Japanese (ja), Korean (ko)`: each name beside the code a flag takes.
+        available: syncList(
+          available.map((code) =>
+            syncRef('cli.printing.languageRow', { name: syncLanguage(code), code }),
+          ),
+          'unit',
+        ),
+      }),
       { availableLanguages: available },
-      { key: 'cli.cardOps.languageUnavailable', params },
     )
   }
 
@@ -387,16 +413,15 @@ export async function ensureLanguageAvailableForEntry(
     return { checked: false, reason: 'verify-failed', detail: getErrorMessage(err) }
   }
   if (!printing) {
-    throw localizedCommandError(
+    throw messageCommandError(
       'usage_error',
       ExitCode.UsageError,
-      'cli.cardOps.noLanguageObject',
-      {
-        language: languageDisplayName(language),
+      syncMessage('cli.cardOps.noLanguageObject', {
+        language: syncLanguage(language),
         code: language,
         printing: printingLabel,
         name: cardName,
-      },
+      }),
     )
   }
   ensureSameCard(printing, cardName, printingLabel)
@@ -417,17 +442,11 @@ export function ensureFinishAvailable(
 ): void {
   const match = matchFinishPin(cardName, printing, finish)
   if (!match.ok) {
-    const message = carriedOver
-      ? t('cli.cardOps.finishCarriedOver', { reason: match.message, finish })
-      : match.message
-    throw new CardCommandError(
-      'usage_error',
-      message,
-      ExitCode.UsageError,
-      { availableFinishes: match.available },
-      carriedOver
-        ? { key: 'cli.cardOps.finishCarriedOver', params: { reason: match.message, finish } }
-        : undefined,
-    )
+    // The refusal nests whole, so the envelope's `reason` is English like the
+    // params beside it while the message reads in the reader's language.
+    const refusal = carriedOver
+      ? syncRef('cli.cardOps.finishCarriedOver', { reason: match.reason, finish })
+      : match.reason
+    throw refusalWithDetails(toSyncMessage(refusal), { availableFinishes: match.available })
   }
 }

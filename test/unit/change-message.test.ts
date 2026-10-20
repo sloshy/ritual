@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import {
+  changeRef,
   changeSegments,
   displayChangeFromEvent,
   displayHistoryChange,
@@ -312,6 +313,15 @@ describe('formatChange — pending change events', () => {
       )
     }
   })
+
+  test('the one intended difference: a case-folded board displays as the board', () => {
+    // The persisted line keeps the owner's spelling; the display names the board.
+    const lower = createSetSectionChange('Sol Ring', 'sideboard', 6)
+    expect(formatChangeCore(lower, { tense: 'present' })).toBe(
+      'Move Sol Ring to section "sideboard" &6',
+    )
+    expect(formatChange(lower)).toBe('Move Sol Ring to section "Sideboard" &6')
+  })
 })
 
 describe('changeMessage follows the active locale', () => {
@@ -327,5 +337,66 @@ describe('changeMessage follows the active locale', () => {
     expect(line({ action: 'add' })).toBe('AJOUTÉ Lightning Bolt')
     // A key the dictionary does not carry still renders, in English.
     expect(line({ action: 'remove' })).toBe('Removed Lightning Bolt')
+  })
+})
+
+describe('a finish, board or section follows the reader', () => {
+  test('each is named in the active locale; any other section stays as written', () => {
+    loadDictionary(localeTag('xx'), {
+      'site.finishChip.etched': 'GRAVÉ',
+      'domain.board.sideboard': 'RÉSERVE',
+      'domain.board.maybeboard': 'PEUT-ÊTRE',
+    })
+    setLocale(localeTag('xx'))
+    expect(line({ action: 'set-finish', finish: 'etched' })).toBe(
+      'Set Lightning Bolt finish to GRAVÉ',
+    )
+    expect(line({ action: 'add', board: 'Sideboard' })).toBe('Added Lightning Bolt to RÉSERVE')
+    expect(line({ action: 'remove', board: 'Maybeboard' })).toBe(
+      'Removed Lightning Bolt from PEUT-ÊTRE',
+    )
+    expect(line({ action: 'set-section', section: 'Sideboard' })).toBe(
+      'Moved Lightning Bolt to section "RÉSERVE"',
+    )
+    expect(line({ action: 'set-section', section: 'Tokens' })).toBe(
+      'Moved Lightning Bolt to section "Tokens"',
+    )
+    expect(
+      line({ action: 'rename-section', section: 'Maybeboard', newSection: 'Considering' }),
+    ).toBe('Renamed section "PEUT-ÊTRE" to "Considering"')
+  })
+
+  test('an unrendered description nests them, and a board still picks the board wording', () => {
+    expect(changeRef(createRemoveChange('Sol Ring', { board: 'Sideboard', cardId: 2 }))).toEqual({
+      messageKey: 'domain.change.removeFromBoard',
+      messageParams: {
+        tense: 'present',
+        name: 'Sol Ring',
+        annotation: '',
+        board: { messageKey: 'domain.board.sideboard' },
+        id: ' &2',
+      },
+    })
+    expect(changeRef(createRenameSectionChange('Sideboard', 'Considering'))).toEqual({
+      messageKey: 'domain.change.renameSection',
+      messageParams: {
+        tense: 'present',
+        section: { messageKey: 'domain.board.sideboard' },
+        newSection: 'Considering',
+      },
+    })
+    // The main board is never annotated: an add to it takes the plain wording.
+    expect(changeRef(createAddChange('Sol Ring', { board: 'Main', cardId: 2 }))).toEqual({
+      messageKey: 'domain.change.add',
+      messageParams: { tense: 'present', name: 'Sol Ring', annotation: '', id: ' &2' },
+    })
+    expect(changeRef(createSetFinishChange('Sol Ring', { finish: 'foil', cardId: 2 }))).toEqual({
+      messageKey: 'domain.change.setFinish',
+      messageParams: {
+        name: 'Sol Ring',
+        finish: { messageKey: 'site.finishChip.foil' },
+        id: ' &2',
+      },
+    })
   })
 })

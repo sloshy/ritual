@@ -23,10 +23,10 @@ describe('lists CLI (Integration)', () => {
 
       const lines = result.stdout.trimEnd().split('\n')
       expect(lines).toEqual([
-        'deck        burn   Burn',
-        'deck        stax   Winota Stax',
-        'collection  main   Main Binder',
-        'wanted      needs  Needs',
+        'deck         burn   Burn',
+        'deck         stax   Winota Stax',
+        'collection   main   Main Binder',
+        'wanted list  needs  Needs',
       ])
     })
   })

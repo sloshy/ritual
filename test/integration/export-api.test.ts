@@ -100,7 +100,7 @@ describe('handleExport', () => {
       'Omitted cards a decklist has no board for: Maybeboard (2). ',
     )
     // Each omitted section is a message of its own, so a client re-renders the
-    // count in the reader's locale.
+    // count (and a standard board's name) in the reader's locale.
     expect(warning).toMatchObject({
       messageKey: 'domain.export.warning.extrasOmitted',
       messageParams: {
@@ -108,7 +108,7 @@ describe('handleExport', () => {
           list: [
             {
               messageKey: 'domain.export.warning.sectionCount',
-              messageParams: { section: 'Maybeboard', quantity: 2 },
+              messageParams: { section: { messageKey: 'domain.board.maybeboard' }, quantity: 2 },
             },
           ],
           join: 'unit',

@@ -23,7 +23,7 @@ import type { MessageCatalogShape } from '../../types'
 export const siteCardsMessages = {
   // ── Finishes ──────────────────────────────────────────────────────────
   //
-  // Two casings, deliberately. `site.finish.*` is the Title-cased name shown in
+  // Two casings, deliberately. `domain.finish.*` is the Title-cased name shown in
   // a card's printing label — `(SLD:1234 · Foil · NM)`. `site.finishChip.*` is
   // the lower-case chip on the trade printing picker's per-finish buttons,
   // which sit beside the raw set code and read as a token there. A language
@@ -31,9 +31,6 @@ export const siteCardsMessages = {
   //
   // The finish *tokens* themselves (`foil`, `etched`) are file-format
   // vocabulary and are never translated; only these labels are.
-  'site.finish.nonfoil': 'Nonfoil',
-  'site.finish.foil': 'Foil',
-  'site.finish.etched': 'Etched',
   'site.finishChip.nonfoil': 'nonfoil',
   'site.finishChip.foil': 'foil',
   'site.finishChip.etched': 'etched',

@@ -37,6 +37,11 @@ export const cliInfraMessages = {
   'cli.cache.valueNever': 'never',
   'cli.cache.valueNotApplicable': 'n/a',
   'cli.cache.valueUnrecorded': 'unrecorded',
+  'cli.cache.valueYes': 'yes',
+  'cli.cache.valueNo': 'no',
+  'cli.cache.sourceLocal': 'local',
+  'cli.cache.sourceCacheServer': 'cache server',
+  'cli.cache.rowLabel': '{label}:',
 
   // ── cache preload ─────────────────────────────────────────────────────
   'cli.cache.preloadingSet': "Preloading set '{set}'...",
@@ -886,7 +891,11 @@ export const cliInfraMessages = {
   'cli.price.updatedAt': '{timestamp} ({age} ago)',
   'cli.price.headerTypeTotals': '{icon} {title} ({count}) — {totals}',
   'cli.price.headerGrandTotals': '💵 All lists ({count}) — {totals}',
-  'cli.price.listRow': '{icon} {name} — {totals} · {count} cards',
+  'cli.price.listRow': {
+    $plural: 'count',
+    one: '{icon} {name} — {totals} · {count} card',
+    other: '{icon} {name} — {totals} · {count} cards',
+  },
   'cli.price.menuSearch': '🔎 Search all cards',
   'cli.price.menuRefresh': '🔄 Refresh prices',
   'cli.price.menuStore': '🏪 Change store',

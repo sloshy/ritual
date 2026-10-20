@@ -64,11 +64,11 @@ describe('printingChoices', () => {
     })
     expect(printingChoices([nonfoil, etchedOnly], 'usd')).toEqual([
       {
-        title: 'Limited Edition Alpha (LEA) #161 [common]  $3.00  $25.00 foil',
+        title: 'Limited Edition Alpha (LEA) #161 [Common]  $3.00  $25.00 foil',
         value: nonfoil,
       },
       {
-        title: 'Commander Legends (CMR) #472 [mythic]                          $14.99 etched',
+        title: 'Commander Legends (CMR) #472 [Mythic]                          $14.99 etched',
         value: etchedOnly,
       },
     ])
@@ -84,7 +84,7 @@ describe('printingChoices', () => {
       prices: { usd: '3.00' },
     })
     expect(printingChoices([card], 'usd').map((c) => c.title)).toEqual([
-      'Limited Edition Alpha (LEA) #161 [common]  $3.00',
+      'Limited Edition Alpha (LEA) #161 [Common]  $3.00',
     ])
   })
 
@@ -97,7 +97,7 @@ describe('printingChoices', () => {
       prices: { usd: '3.00' },
     })
     expect(printingChoices([card], 'eur').map((c) => c.title)).toEqual([
-      'Kamigawa (NEO) #1 [rare]  N/A',
+      'Kamigawa (NEO) #1 [Rare]  N/A',
     ])
   })
 })
@@ -214,10 +214,10 @@ describe('language-aware printing resolution helpers', () => {
         (c) => c.title,
       )
       expect(titles).toHaveLength(3)
-      expect(titles[0]).toContain('Commander 2021 (C21) #240 [common]')
+      expect(titles[0]).toContain('Commander 2021 (C21) #240 [Common]')
       expect(titles[0]).not.toContain('only')
       expect(titles[1]).not.toContain('only')
-      expect(titles[2]).toContain('Mystical Archive JP (STA) #999 [common] (ja only)')
+      expect(titles[2]).toContain('Mystical Archive JP (STA) #999 [Common] (ja only)')
     })
 
     test('under a non-en default, en-only printings get the badge instead', () => {

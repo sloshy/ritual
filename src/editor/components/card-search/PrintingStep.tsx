@@ -1,5 +1,6 @@
 import { For, Show, type Component } from 'solid-js'
-import { useT } from '../../../ui/i18n'
+import { useI18n, useT } from '../../../ui/i18n'
+import { formatUnitList } from '../../../i18n/format'
 import type { ScryfallCard } from '../../../scryfall/types'
 import { getCardImageUrl } from '../../../card/card-image'
 import { languageBadge, scryfallCardLanguage } from '../../../card/card-language'
@@ -43,6 +44,7 @@ export type PrintingStepProps = AddOptionsRowProps & {
 /** Step 2: pick a printing from the grid. */
 export const PrintingStep: Component<PrintingStepProps> = (props) => {
   const t = useT()
+  const { locale } = useI18n()
   return (
     <>
       <StepHeader
@@ -60,7 +62,10 @@ export const PrintingStep: Component<PrintingStepProps> = (props) => {
           <Show when={props.setFilterFellBack}>
             <div class="search-modal-hint">
               {t('ui.addCard.setFilterFellBack', {
-                sets: props.filterSets.map((code) => code.toUpperCase()).join(', '),
+                sets: formatUnitList(
+                  locale(),
+                  props.filterSets.map((code) => code.toUpperCase()),
+                ),
               })}
             </div>
           </Show>

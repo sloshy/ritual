@@ -1,13 +1,8 @@
 /**
  * `ui.*` — the shared `src/ui` component chrome (dialogs, quantity steppers,
  * modals) and the `src/editor` surfaces both SPAs embed. Consumed by the CLI's
- * browser-side surfaces and by both SPAs.
- *
- * The `ui.count.*` entries are the generic "N things" phrases that used to be
- * assembled by `countLabel(count, noun)` — a count plus a noun with an English
- * `s` glued on. They are separate keys per noun rather than one key with a
- * `{noun}` parameter because plural category and noun inflection are joined in
- * most languages: a translator needs the whole phrase.
+ * browser-side surfaces and by both SPAs. Counted nouns ("3 cards") are the
+ * shared `domain.count.*` entries, which every bundle registers.
  */
 
 import type { MessageCatalogShape } from '../../types'
@@ -17,6 +12,7 @@ export const uiMessages = {
   'ui.dialog.close': 'Close',
   'ui.dialog.done': 'Done',
   'ui.dialog.continue': 'Continue',
+  'ui.text.sentenceJoin': '{first} {second}',
   'ui.quantity.copies': 'Copies',
   'ui.quantity.ofTotal': 'of {total}',
   'ui.quantity.decrease': 'Decrease',
@@ -30,21 +26,6 @@ export const uiMessages = {
   'ui.field.quantity': 'Quantity',
 
   // ── Counted nouns ─────────────────────────────────────────────────────
-  'ui.count.cards': {
-    $plural: 'count',
-    one: '{count} card',
-    other: '{count} cards',
-  },
-  'ui.count.changes': {
-    $plural: 'count',
-    one: '{count} change',
-    other: '{count} changes',
-  },
-  'ui.count.lists': {
-    $plural: 'count',
-    one: '{count} list',
-    other: '{count} lists',
-  },
 
   // ── Cross-list selection ──────────────────────────────────────────────
   'ui.selection.confirmRemoveAll': {
@@ -70,6 +51,7 @@ export const uiMessages = {
     other: '{count} changes could not be applied to this list and were skipped:',
   },
   'ui.editor.importConflictItem': '{change} — {reason}',
+  'ui.editor.droppedNoteItem': '{name} ("{note}")',
   'ui.editor.droppedNotes': {
     $plural: 'count',
     one: 'Note dropped on merge: {items}.',
@@ -124,7 +106,7 @@ export const uiMessages = {
 
   // ── Save status ───────────────────────────────────────────────────────
   'ui.editor.saveSuccess': 'Changes saved successfully',
-  'ui.editor.saveSuccessNotices': 'Changes saved successfully.{notes}',
+  'ui.editor.saveSuccessNotices': 'Changes saved successfully. {notes}',
   'ui.editor.saveConflict': 'Content has been modified. Please reload to continue editing.',
   'ui.editor.saveFailed': 'Save failed',
   'ui.editor.saveRequestFailed': 'Failed to save changes',
@@ -176,9 +158,6 @@ export const uiMessages = {
     'When set, the printing picker shows only matching printings (with fallback to all if none match). Comma-separated, case-insensitive.',
   'ui.editor.defaultsAskEachTime': 'Ask each time',
   'ui.editor.defaultsClear': 'Clear all',
-  'ui.editor.finishNonfoil': 'Nonfoil',
-  'ui.editor.finishFoil': 'Foil',
-  'ui.editor.finishEtched': 'Etched',
 
   // ── Change-printing prompt ────────────────────────────────────────────
   'ui.editor.changePrintingTitle': 'Change printing',

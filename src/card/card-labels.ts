@@ -19,10 +19,19 @@
  * answer identically in each.
  */
 
+import { formatUnitList } from '../i18n/format'
 import type { MessageKey } from '../i18n/messages/en'
-import { t } from '../i18n/t'
+import { t, tIn } from '../i18n/t'
+import type { LocaleTag } from '../i18n/types'
 import type { ListType } from '../list/list-type'
-import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
+import {
+  nestSync,
+  syncList,
+  syncMessage,
+  syncRef,
+  type SyncListParam,
+  type SyncMessage,
+} from '../sync/message'
 import { isUnknownArray } from '../util/guards'
 import { parseEnumField } from '../util/parse-enum'
 
@@ -326,9 +335,68 @@ export function cardLabelName(label: CardLabel): string {
 
 /** A signed label's human wording in the active UI locale ("For sale", "Not a proxy"). */
 export function signedLabelName(label: SignedCardLabel): string {
+  return t(signedLabelKey(label))
+}
+
+/**
+ * Message keys for each label's compact tile badge ("sale"), the short form of
+ * {@link CARD_LABEL_DISPLAY_NAMES} for a tile whose name line truncates.
+ * Resolve with {@link cardLabelBadge}.
+ */
+export const CARD_LABEL_BADGES = {
+  sale: 'domain.label.badge.sale',
+  trade: 'domain.label.badge.trade',
+  keep: 'domain.label.badge.keep',
+  proxy: 'domain.label.badge.proxy',
+} as const satisfies Record<CardLabel, MessageKey>
+
+/** A label's compact badge text in the active UI locale ("sale"). */
+export function cardLabelBadge(label: CardLabel): string {
+  return t(CARD_LABEL_BADGES[label])
+}
+
+/** The message key naming a signed label ("For sale", "Not a proxy"). */
+function signedLabelKey(label: SignedCardLabel): CardLabelMessageKey {
   return isNegatedLabel(label)
-    ? t(NEGATED_CARD_LABEL_DISPLAY_NAMES[baseLabel(label)])
-    : cardLabelName(label)
+    ? NEGATED_CARD_LABEL_DISPLAY_NAMES[baseLabel(label)]
+    : CARD_LABEL_DISPLAY_NAMES[label]
+}
+
+/**
+ * A positive label set for a reader — "For sale, For trade" — in canonical
+ * order, named and joined the way `locale` lists independent items. The display
+ * twin of {@link formatCardLabels}, whose `sale,trade` is the file form. The
+ * locale is a required argument, as on `languageLabel`: this module sits on the
+ * changelog writer's import route, and a hidden read of the active locale is
+ * what must never reach a persisted line.
+ */
+export function cardLabelsDisplay(labels: readonly CardLabel[], locale: LocaleTag): string {
+  return formatUnitList(
+    locale,
+    normalizeCardLabels(labels).map((label) => tIn(locale, CARD_LABEL_DISPLAY_NAMES[label])),
+  )
+}
+
+/**
+ * A label override for a reader — "For trade, Not for sale" — in canonical
+ * order, in `locale`. The display twin of {@link formatLabelOverride}.
+ */
+export function signedLabelsDisplay(labels: readonly SignedCardLabel[], locale: LocaleTag): string {
+  return formatUnitList(
+    locale,
+    normalizeLabelOverride(labels).map((label) => tIn(locale, signedLabelKey(label))),
+  )
+}
+
+/**
+ * {@link signedLabelsDisplay} unrendered, for a message param rendered later in
+ * its reader's locale (a `--output json` payload's nested params).
+ */
+export function signedLabelsParam(labels: readonly SignedCardLabel[]): SyncListParam {
+  return syncList(
+    normalizeLabelOverride(labels).map((label) => syncRef(signedLabelKey(label))),
+    'unit',
+  )
 }
 
 /**
@@ -827,9 +895,9 @@ export function listDefaultLabels(
 }
 
 /**
- * The canonical comma-joined form of a positive label set (`sale,trade`),
- * written to front matter displays and menu rows. Ordering is re-normalized so
- * no caller can serialize `trade,sale`.
+ * The canonical comma-joined form of a positive label set (`sale,trade`): the
+ * file and comparison form. A reader sees {@link cardLabelsDisplay} instead.
+ * Ordering is re-normalized so no caller can serialize `trade,sale`.
  */
 export function formatCardLabels(labels: readonly CardLabel[]): string {
   return normalizeCardLabels(labels).join(',')

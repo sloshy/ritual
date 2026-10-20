@@ -129,22 +129,6 @@ export function normalizeLanguageValue(raw: string): CardLanguage | null {
 }
 
 /**
- * The **frozen English** name for a language code (`ja` → `Japanese`).
- *
- * Every persisted or re-parsed surface uses this: `formatChangeCore`'s
- * `Set language of "X" to Japanese` line, and anything else whose output a
- * parser has to read back. Display surfaces that may be translated call
- * {@link languageLabel} instead.
- */
-// Remaining display callers still on this frozen English table — CollectionPage,
-// list-view/language-prompt, CardSearchModal, admin Settings, session/prompts,
-// card-target, set-card — move to `languageLabel` in the domain-vocabulary pass.
-// **New display code must use `languageLabel`**; this is the parse-side name.
-export function languageDisplayName(code: CardLanguage): string {
-  return LANGUAGE_PARSE_NAMES[code]
-}
-
-/**
  * Memoized `Intl.DisplayNames` per UI locale. Built lazily and never with a
  * bare (host-resolved) locale — Bun resolves none from the environment, so the
  * tag is always passed in explicitly.
@@ -166,13 +150,25 @@ function displayNamesFor(locale: string): Intl.DisplayNames | null {
 }
 
 /**
+ * Scryfall's two Chinese codes as the BCP-47 tags ICU names: `zhs` / `zht` are
+ * no language tag, but the script subtags are, so each gets its own name in
+ * every locale (`Chinesisch (vereinfacht)`) instead of the English fallback.
+ * `ph` (Phyrexian) has no tag at all and keeps its English name.
+ */
+const INTL_LANGUAGE_TAGS: ReadonlyMap<CardLanguage, string> = new Map([
+  ['zhs', 'zh-Hans'],
+  ['zht', 'zh-Hant'],
+])
+
+/**
  * The name of a card language **in the UI locale** (`ja` → `Japanese` under
  * `en`, `Japanisch` under `de`) — the display half of the split described on
  * {@link LANGUAGE_PARSE_NAMES}.
  *
- * Scryfall's vocabulary is not BCP-47: `zhs`, `zht` and `ph` name no language
- * ICU knows, so `fallback: 'none'` makes those lookups return `undefined` and
- * the frozen English name stands in. Under `en` this returns exactly
+ * Scryfall's vocabulary is not BCP-47: `zhs` and `zht` are looked up by their
+ * script tags ({@link INTL_LANGUAGE_TAGS}), and `ph` names no language ICU
+ * knows, so `fallback: 'none'` returns `undefined` for it and the frozen
+ * English name stands in. Under `en` this returns exactly
  * {@link LANGUAGE_PARSE_NAMES} for every one of the 17 codes, so English output
  * is unchanged by the split.
  *
@@ -185,7 +181,7 @@ export function languageLabel(code: CardLanguage, locale: string): string {
   const names = displayNamesFor(locale)
   if (names === null) return frozen
   try {
-    return names.of(code) ?? frozen
+    return names.of(INTL_LANGUAGE_TAGS.get(code) ?? code) ?? frozen
   } catch {
     return frozen
   }

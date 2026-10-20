@@ -175,7 +175,7 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
           <Show when={!loading()} fallback={t('site.findPrintings.searching')}>
             {t('site.findPrintings.summary', {
               count: copyCount(),
-              lists: t('ui.count.lists', { count: groups().length }),
+              lists: t('domain.count.lists', { count: groups().length }),
             })}
           </Show>
         </span>

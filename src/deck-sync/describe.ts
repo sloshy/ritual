@@ -17,12 +17,16 @@ import { describeSyncCard, itemChangeLines, type ItemChangeLine } from '../sync/
 import type { SyncDirection } from '../sync/common'
 import {
   syncList,
+  syncMessage,
   syncRef,
+  type SyncMessage,
   type SyncMessageRef,
   type SyncParam,
   type SyncText,
 } from '../sync/message'
+import { sectionNameParam } from '../list/deck-format'
 import type { DeckSyncCardChange, DeckSyncPrinting } from './types'
+import type { MoveShortfall } from './diff'
 
 /** An absent finish is the bare-line default. */
 function finishOf(printing: DeckSyncPrinting): string {
@@ -47,6 +51,19 @@ function describePrintingSide(printing: DeckSyncPrinting, finishChanged: boolean
   return parts.filter((part) => part !== '').join(' ') || syncRef('domain.sync.detailNoPrinting')
 }
 
+/**
+ * A pull's warning that Archidekt moved copies the local file does not hold on
+ * the source board: both boards nested, named in the reader's language.
+ */
+export function describeMoveShortfall(shortfall: MoveShortfall): SyncMessage {
+  return syncMessage('domain.sync.moveShortfall', {
+    count: shortfall.quantity,
+    card: shortfall.name,
+    from: sectionNameParam(shortfall.from),
+    to: sectionNameParam(shortfall.to),
+  })
+}
+
 /** The detail line for one card change, e.g. `+ 2 Sol Ring (C21:263) to Main`. */
 export function describeDeckCardChange(change: DeckSyncCardChange): SyncMessageRef {
   switch (change.kind) {
@@ -54,18 +71,18 @@ export function describeDeckCardChange(change: DeckSyncCardChange): SyncMessageR
       return syncRef('domain.sync.detailAdded', {
         quantity: change.quantity,
         card: describeSyncCard(change.name, change.printing),
-        place: change.board,
+        place: sectionNameParam(change.board),
       })
     case 'removed':
       return syncRef('domain.sync.detailRemoved', {
         quantity: change.quantity,
         card: describeSyncCard(change.name, change.printing),
-        place: change.board,
+        place: sectionNameParam(change.board),
       })
     case 'quantity':
       return syncRef('domain.sync.detailQuantity', {
         card: describeSyncCard(change.name, change.printing),
-        place: change.board,
+        place: sectionNameParam(change.board),
         from: change.from,
         to: change.to,
       })
@@ -73,14 +90,14 @@ export function describeDeckCardChange(change: DeckSyncCardChange): SyncMessageR
       return syncRef('domain.sync.detailMove', {
         quantity: change.quantity,
         card: describeSyncCard(change.name, change.printing),
-        from: change.from,
-        to: change.to,
+        from: sectionNameParam(change.from),
+        to: sectionNameParam(change.to),
       })
     case 'printing': {
       const finishChanged = finishOf(change.from) !== finishOf(change.to)
       return syncRef('domain.sync.detailPrinting', {
         card: change.name,
-        place: change.board,
+        place: sectionNameParam(change.board),
         from: describePrintingSide(change.from, finishChanged),
         to: describePrintingSide(change.to, finishChanged),
       })

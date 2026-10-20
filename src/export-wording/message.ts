@@ -37,6 +37,7 @@ import type {
   ExportWarningCode,
 } from '../export/text'
 import type { MessageKey } from '../i18n/messages/en'
+import { sectionNameParam } from '../list/deck-format'
 import type { LocaleTag } from '../i18n/types'
 import {
   allUsed,
@@ -207,7 +208,10 @@ function exportWarningRef(warning: ExportWarning): SyncMessageRef {
       return syncRef(WARNING_KEYS[warning.code], {
         sections: syncList(
           sections.map(({ section, quantity }) =>
-            syncRef('domain.export.warning.sectionCount', { section, quantity }),
+            syncRef('domain.export.warning.sectionCount', {
+              section: sectionNameParam(section),
+              quantity,
+            }),
           ),
           'unit',
         ),

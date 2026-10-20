@@ -20,6 +20,7 @@ import type { CardData, CardGroup, CategoryGroupBy, SortLayer } from '../list-vi
 import { CATEGORY_GROUP_BYS, groupAndSortCards } from '../list-view/card-sorting'
 import type { CardCategory } from '../card/card-categories'
 import { syncRef } from '../sync/message'
+import { sectionNameParam } from '../list/deck-format'
 
 /**
  * Whether a grouping is one of the two that nests inside a deck's boards. Takes
@@ -33,7 +34,11 @@ export function isCategoryGroupBy(groupBy: string): groupBy is CategoryGroupBy {
 
 /** One board of a deck, in display order, with the cards it renders. */
 export type DeckBoardCards<C extends CardData = CardData> = {
-  /** The board heading, as the deck spells it. English by contract. */
+  /**
+   * The board's section name, as the deck spells it — its identity (the
+   * section key) — and shown through `sectionNameParam`, which names a known
+   * board in the reader's language.
+   */
   label: string
   /** The board's cards, already filtered exactly as that board is rendered today. */
   cards: readonly C[]
@@ -105,7 +110,7 @@ export function groupDeckBoardsByCategory<C extends CardData>(
       nested.push({
         key: `${boardSectionKey(board.label)}/${group.key}`,
         heading: syncRef('site.cardSection.boardCategoryHeading', {
-          board: board.label,
+          board: sectionNameParam(board.label),
           category: group.heading,
         }),
         board: board.label,

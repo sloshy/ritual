@@ -202,6 +202,10 @@ describe('formatListChoiceTitle', () => {
     const title = formatListChoiceTitle(summary({ unpricedCount: 3 }), 'usd')
     expect(title).toContain('My Deck — Total $250.00 · Lowest $200.00 · 3 unpriced · 100 cards')
   })
+
+  test('counts a one-card list in the singular', () => {
+    expect(formatListChoiceTitle(summary({ cardCount: 1 }), 'usd')).toEndWith(' · 1 card')
+  })
 })
 
 describe('formatEntryChoiceTitle', () => {
@@ -220,6 +224,14 @@ describe('formatEntryChoiceTitle', () => {
     )
     expect(title).toStartWith('2x Sol Ring (C19:221) [foil] — $6.00 · lowest $2.00')
     expect(title).toEndWith('My Deck')
+  })
+
+  test("leads a multi-copy row with the CLI language's quantity form", () => {
+    withSyntheticLocale('en-XA', pseudoCatalog(), () => {
+      const title = formatEntryChoiceTitle(entry({ quantity: 2 }), 'usd', false)
+      const [before] = pseudoString('cli.row.quantity').split('{item}')
+      expect(title).toStartWith(before!.replace('{count}', '2'))
+    })
   })
 
   test("words the lowest-price note in the CLI's language", () => {

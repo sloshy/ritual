@@ -540,7 +540,7 @@ describe('add-card CLI (Integration)', () => {
       expect(result.exitCode).toBe(2)
       const err = JSON.parse(result.stderr) as CliErrorPayload
       expect(err.error.code).toBe('usage_error')
-      expect(err.error.message).toContain('not available in foil')
+      expect(err.error.message).toContain('not available in Foil')
       expect(err.error.details?.availableFinishes).toEqual(['nonfoil'])
     })
   })
@@ -832,7 +832,7 @@ describe('add-card CLI (Integration)', () => {
       )
       expect(result.exitCode).toBe(2)
       const err = JSON.parse(result.stderr) as CliErrorPayload
-      expect(err.error.message).toContain('not available in foil')
+      expect(err.error.message).toContain('not available in Foil')
     })
 
     test.each([

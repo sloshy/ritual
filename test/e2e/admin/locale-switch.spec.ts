@@ -3,6 +3,8 @@ import type { Page } from '@playwright/test'
 import { LOCALE_STORAGE_KEY } from '../../../src/i18n/runtime'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJson } from '../helpers/fulfill'
+import { openListEditor, selectList } from '../helpers/editor-nav'
+import { makeMockScryfallCard } from '../helpers/mock-cards'
 import {
   expectNotReloaded,
   expectPseudo,
@@ -12,6 +14,7 @@ import {
   offerLocales,
   PSEUDO_LOCALE,
   pseudoCatalog,
+  pseudoString,
   setLocale,
 } from '../helpers/i18n'
 import {
@@ -807,6 +810,59 @@ test.describe('admin language switch', () => {
     await expectPseudo(reasons.first(), true)
     // A reason this version does not know is a stored identifier it cannot label.
     await expect(reasons.nth(1)).toHaveText('Invalid password')
+  })
+
+  test('relabels a deck editor’s label badge and board heading, the deck’s own names kept', async ({
+    page,
+  }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await gotoAdminDashboard(page)
+    const ring = makeMockScryfallCard({ id: 'vocab-ring', name: 'Sol Ring' })
+    const bolt = makeMockScryfallCard({ id: 'vocab-bolt', name: 'Lightning Bolt' })
+    await fulfillJson(
+      page,
+      '**/api/decks',
+      { decks: [{ slug: 'vocab-deck', name: 'Vocab Deck' }] },
+      { method: 'GET' },
+    )
+    await fulfillJson(page, '**/api/deck/vocab-deck', {
+      success: true,
+      slug: 'vocab-deck',
+      contentHash: 'hash-1',
+      deck: {
+        name: 'Vocab Deck',
+        sections: [
+          {
+            name: 'Main',
+            cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1, labels: ['proxy'] }],
+          },
+          { name: 'Sideboard', cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 2 }] },
+        ],
+      },
+      cards: { 'Sol Ring': ring, 'Lightning Bolt': bolt },
+      printings: {},
+      lowestPriceCards: {},
+      lowestPriceCardsEur: {},
+      lowestPriceCardsTix: {},
+      symbolMap: {},
+      frontMatter: {},
+    })
+    await openListEditor(page, 'deck')
+    await selectList(page, 'deck', 'vocab-deck')
+    await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+    await markPage(page)
+
+    const badge = page.locator('.card-item[data-name="sol ring"] .card-label-badge.label-proxy')
+    const boardHeading = page.locator('[data-section="board:Sideboard"] .section-divider h2')
+    await expect(badge).toHaveText('proxy')
+    await expect(boardHeading).toContainText('Sideboard')
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+
+    await expect(badge).toHaveText(pseudoString('domain.label.badge.proxy'))
+    await expect(boardHeading).toContainText(pseudoString('domain.board.sideboard'))
+    await expect(boardHeading).not.toContainText('Sideboard')
+    await expectNotReloaded(page)
   })
 
   test('stamps the document language and remembers the choice', async ({ page }) => {

@@ -26,7 +26,7 @@ ritual cache status [--output text|json|ndjson]
 
 The report is the command's entire output, so there is no `--quiet` ([shared convention](/cli-conventions/#scripting)).
 
-Text output is aligned `key: value` lines. `json`/`ndjson` emit an object with these fields:
+Text output is aligned `label: value` lines worded for the reader in your [UI language](/localization/): yes/no for the flags, the source's name, the refresh time as a local date and time. `json`/`ndjson` keep the raw values, and emit an object with these fields:
 
 | Field             | Meaning                                                                                                                                  |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |

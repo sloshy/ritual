@@ -90,6 +90,24 @@ export const cliInfraMeta = {
   'cli.cache.valueUnrecorded': {
     description: '`cache status` value: the cache predates bulk-type provenance.',
   },
+  'cli.cache.valueYes': {
+    description:
+      '`cache status` value of a yes/no row (Empty, Prices stale, Tags present, Bulk stale): yes.',
+  },
+  'cli.cache.valueNo': {
+    description: '`cache status` value of a yes/no row: no.',
+  },
+  'cli.cache.sourceLocal': {
+    description: '`cache status` Source value: the card cache is the files in this workspace.',
+  },
+  'cli.cache.sourceCacheServer': {
+    description:
+      '`cache status` Source value: the card cache is read from a shared cache server (`ritual cache server`) rather than local files.',
+  },
+  'cli.cache.rowLabel': {
+    description:
+      'A `cache status` row label followed by its punctuation, before the padded value, e.g. "Prices stale:". {label} is one of the cli.cache.row* labels. Use the punctuation your language puts before a value (French writes a space before the colon).',
+  },
 
   // ── cache preload ─────────────────────────────────────────────────────
   'cli.cache.preloadingSet': {
@@ -1663,7 +1681,10 @@ export const cliInfraMeta = {
     description: 'One per-type totals row. {icon} is an emoji; {title} is a plural list-type name.',
   },
   'cli.price.headerGrandTotals': { description: 'The across-all-types totals row.' },
-  'cli.price.listRow': { description: 'One list’s row in the browser’s main menu.' },
+  'cli.price.listRow': {
+    description:
+      'One list’s row in the browser’s main menu. {icon} is an emoji, {name} the list name, {totals} the already-formatted price totals, {count} how many cards the list holds.',
+  },
   'cli.price.menuSearch': { description: 'Main menu action: search every list’s cards.' },
   'cli.price.menuRefresh': { description: 'Main menu action: redownload prices.' },
   'cli.price.menuStore': {

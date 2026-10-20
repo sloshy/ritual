@@ -50,6 +50,8 @@ import {
 } from '../cli/output'
 import { addDryRunOption, addScriptingOptions } from '../cli/options'
 import { t } from '../i18n/t'
+import { formatUnitList } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
 import { compareData } from '../i18n/collate'
 import {
   errorMessage,
@@ -694,7 +696,14 @@ async function runCleanup(
       const rel = path.relative(baseDir, result.filePath)
       const actions = describeActions(result, dryRun, skipFormats)
       if (actions.length > 0 && !scripting.quiet) {
-        console.log(marked(t('cli.cleanup.fileLine', { file: rel, actions: actions.join(', ') })))
+        console.log(
+          marked(
+            t('cli.cleanup.fileLine', {
+              file: rel,
+              actions: formatUnitList(currentLocale(), actions),
+            }),
+          ),
+        )
       }
       for (const warning of result.warnings) {
         console.warn(

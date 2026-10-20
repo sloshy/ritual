@@ -1,5 +1,7 @@
 import type { Choice } from 'prompts'
 import { t } from '../../i18n/t'
+import { formatUnitList } from '../../i18n/format'
+import { currentLocale } from '../../i18n/runtime'
 import { LIST_TYPES, type ListType } from '../../list/list-type'
 import type { SessionConfig } from './config'
 import { confirmMultiListExit, runCardSession, type MultiListSessionControls } from './loop'
@@ -58,14 +60,16 @@ export type ListPendingState = { changes: number; isNew: boolean }
 /** Pending state for the selection menu badges, keyed by list file path. */
 export type PendingChangesByFile = Map<string, ListPendingState>
 
-/** The `— …` badge trailing an open list's name in the selection menu. */
-function pendingBadge(pending: ListPendingState | undefined): string {
-  if (!pending) return ''
+/** An open list's selection-menu title: its name, then any `— …` badges. */
+function badgedTitle(title: string, pending: ListPendingState | undefined): string {
+  if (!pending) return title
   const parts = [
     ...(pending.isNew ? [t('cli.edit.badgeNew')] : []),
     ...(pending.changes > 0 ? [t('cli.edit.badgeUnsaved', { count: pending.changes })] : []),
   ]
-  return parts.length > 0 ? ` — ${parts.join(', ')}` : ''
+  return parts.length > 0
+    ? t('cli.edit.badgedList', { title, badges: formatUnitList(currentLocale(), parts) })
+    : title
 }
 
 /**
@@ -94,7 +98,7 @@ export function buildListSelectionChoices(
     refs
       .filter((ref) => ref.type === type)
       .map((ref): Choice => ({
-        title: `${listRefTitle(ref)}${pendingBadge(pending.get(ref.file))}`,
+        title: badgedTitle(listRefTitle(ref), pending.get(ref.file)),
         value: { kind: 'open', list: ref } satisfies UnifiedSelection,
       })),
   )

@@ -8,6 +8,7 @@ import { repackSessionIds } from '../../card/card-id'
 import { applyChangeToDeck } from '../../changes/deck-changes'
 import type { CardLabel } from '../../card/card-labels'
 import { findCardById } from '../../list/deck-io'
+import { sectionDisplayName } from '../../list/deck-format'
 import type { SessionAddItem } from './strategy'
 
 // ── Discarding session adds ─────────────────────────────────────────
@@ -26,7 +27,7 @@ export function renderDeckCopyRecord(record: DeckCopyRecord): SessionAddItem {
     ? ` (${record.printing.set.toUpperCase()}:${record.printing.collectorNumber})`
     : ''
   return {
-    label: `${record.name}${printingInfo} → ${record.section}`,
+    label: `${record.name}${printingInfo} → ${sectionDisplayName(record.section)}`,
     name: record.name,
     cardId: record.cardId,
   }

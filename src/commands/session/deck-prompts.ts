@@ -1,7 +1,15 @@
 import type { Choice } from 'prompts'
 import { t } from '../../i18n/t'
 import type { DeckData } from '../../list/deck'
-import { DECK_FORMAT_KEYS, getDeckFormatLabel, type DeckFormatKey } from '../../list/deck-format'
+import {
+  DECK_FORMAT_KEYS,
+  getDeckFormatLabel,
+  resolveTypedSectionName,
+  sectionDisplayName,
+  sectionDisplayNames,
+  type DeckFormatKey,
+} from '../../list/deck-format'
+import { isBlankSectionName } from '../../editor/section-edits'
 import { ask, askSequence, type AskSequenceQuestion } from '../../cli/prompts'
 import { deckSectionNames } from '../../list/deck-io'
 import {
@@ -71,21 +79,52 @@ type DeckConfigAnswers = SessionConfigAnswers & { section?: string }
  * can never describe the same setting differently.
  */
 export function targetSectionDisplay(config: SessionConfig): string {
-  return config.targetSection ?? t('cli.deck.promptEveryTimeInline')
+  return config.targetSection === null
+    ? t('cli.deck.promptEveryTimeInline')
+    : sectionDisplayName(config.targetSection)
 }
 
-/** Prompt for a free-form new section name. Returns the trimmed name, or null on cancel/empty. */
-export async function promptNewSectionName(): Promise<string | null> {
-  const name = (
-    await ask<string>({
-      type: 'text',
-      message: t('cli.deck.promptNewSectionName'),
-      subjectKey: 'cli.prompt.subject.sectionName',
-      initial: 'Main',
-      validate: (val: string) => (val.trim().length > 0 ? true : t('cli.deck.sectionNameEmpty')),
-    })
-  )?.trim()
-  return name ? name : null
+/**
+ * One select row per section, its value the section's own heading and its
+ * title what a reader sees (a known board in the UI language, or the raw
+ * heading where two fold to the same board — {@link sectionDisplayNames}).
+ * `current` is marked "(current)". Shared by every CLI section picker.
+ */
+export function sectionChoices(names: readonly string[], current?: string): Choice[] {
+  const titles = sectionDisplayNames(names)
+  return names.map((name, index) => {
+    const title = titles[index] ?? name
+    return {
+      title: name === current ? t('cli.edit.current', { label: title }) : title,
+      value: name,
+    }
+  })
+}
+
+/**
+ * Why a typed name cannot be a section, worded for the CLI, or `undefined`
+ * when it can — the editors' one rule ({@link isBlankSectionName}).
+ */
+export function sectionNameProblem(typed: string): string | undefined {
+  return isBlankSectionName(typed) ? t('cli.deck.sectionNameEmpty') : undefined
+}
+
+/**
+ * Prompt for a free-form new section name in `deck`. Returns the heading to
+ * use, or null on cancel: a name that is an existing section (case folded, or
+ * a known board typed in the UI language) is that section's own heading, and a
+ * board's translated name is its English token (see `resolveTypedSectionName`).
+ */
+export async function promptNewSectionName(deck: DeckData): Promise<string | null> {
+  const typed = await ask<string>({
+    type: 'text',
+    message: t('cli.deck.promptNewSectionName'),
+    subjectKey: 'cli.prompt.subject.sectionName',
+    initial: 'Main',
+    validate: (val: string) => sectionNameProblem(val) ?? true,
+  })
+  if (typed === undefined || sectionNameProblem(typed) !== undefined) return null
+  return resolveTypedSectionName(deckSectionNames(deck), typed).name
 }
 
 /**
@@ -105,13 +144,13 @@ export async function resolveTargetSection(
     message: t('cli.deck.promptAddSection'),
     subjectKey: 'cli.prompt.subject.addSection',
     choices: [
-      ...existing.map((n) => ({ title: n, value: n })),
+      ...sectionChoices(existing),
       { title: `+ ${t('cli.deck.newSection')}`, value: NEW_SECTION },
     ],
   })
   if (section === undefined) return null
   if (section !== NEW_SECTION) return section
-  return promptNewSectionName()
+  return promptNewSectionName(deck)
 }
 
 /** A target-section select: its rows plus the cursor on the pinned section (or "prompt every time"). */
@@ -129,7 +168,7 @@ function targetSectionChoices(
 ): TargetSectionChoices {
   const choices: Choice[] = [
     { title: t('cli.deck.promptEveryTime'), value: PROMPT_EVERY_TIME },
-    ...deckSectionNames(deck).map((n) => ({ title: n, value: n })),
+    ...sectionChoices(deckSectionNames(deck)),
     { title: newSectionTitle, value: NEW_SECTION },
   ]
   const initial = config.targetSection
@@ -155,6 +194,7 @@ type NewSectionCancel = 'keep-pin' | 'clear-pin'
  * name prompt leaves behind.
  */
 async function applyTargetSectionAnswer(
+  deck: DeckData,
   config: SessionConfig,
   value: string,
   onNewSectionCancel: NewSectionCancel,
@@ -162,7 +202,7 @@ async function applyTargetSectionAnswer(
   if (value === PROMPT_EVERY_TIME) {
     config.targetSection = null
   } else if (value === NEW_SECTION) {
-    const newName = await promptNewSectionName()
+    const newName = await promptNewSectionName(deck)
     if (newName || onNewSectionCancel === 'clear-pin') config.targetSection = newName
   } else {
     config.targetSection = value
@@ -183,7 +223,7 @@ export async function promptSetTargetSection(deck: DeckData, config: SessionConf
     initial,
   })
   if (section === undefined) return
-  await applyTargetSectionAnswer(config, section, 'keep-pin')
+  await applyTargetSectionAnswer(deck, config, section, 'keep-pin')
   console.log(t('cli.deck.targetSectionSet', { section: targetSectionDisplay(config) }))
 }
 
@@ -218,7 +258,7 @@ export async function promptDeckConfigUpdate(
 
   applySessionConfigAnswers(sessionConfig, answers)
   if (answers.section !== undefined) {
-    await applyTargetSectionAnswer(sessionConfig, answers.section, 'clear-pin')
+    await applyTargetSectionAnswer(deck, sessionConfig, answers.section, 'clear-pin')
   }
 
   const cardNames = await reloadCardNames(sessionConfig, excludeDigitalOnly)
@@ -233,14 +273,11 @@ export async function promptMoveSection(deck: DeckData, current: string): Promis
     message: t('cli.deck.promptMoveSection'),
     subjectKey: 'cli.prompt.subject.moveSection',
     choices: [
-      ...deckSectionNames(deck).map((n) => ({
-        title: n === current ? t('cli.edit.current', { label: n }) : n,
-        value: n,
-      })),
+      ...sectionChoices(deckSectionNames(deck), current),
       { title: `+ ${t('cli.deck.newSection')}`, value: NEW_SECTION },
     ],
   })
   if (section === undefined) return null
   if (section !== NEW_SECTION) return section
-  return promptNewSectionName()
+  return promptNewSectionName(deck)
 }

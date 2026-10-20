@@ -260,9 +260,9 @@ Once a card is chosen in [Name Mode](#name-mode-default), the `Select Printing:`
 
 ```
 ? Select Printing: ›
-❯   Marvel Super Heroes Commander (MSC) #211 [uncommon]  $1.85  $4.20 foil
-    Secrets of Strixhaven Commander (SOC) #427 [mythic]         $14.93 foil  $22.00 etched
-    Secret Lair Drop (SLD) #2683 [rare]                  N/A
+❯   Marvel Super Heroes Commander (MSC) #211 [Uncommon]  $1.85  $4.20 foil
+    Secrets of Strixhaven Commander (SOC) #427 [Mythic]         $14.93 foil  $22.00 etched
+    Secret Lair Drop (SLD) #2683 [Rare]                  N/A
 ```
 
 Each printing is quoted in **every finish it comes in**, one column per finish: nonfoil first, then foil and etched. A column appears only when some printing in the list has that finish. Non-nonfoil prices are tagged with the finish (`$14.93 foil`) so they never read as a nonfoil price, and a printing that lacks a column's finish leaves that cell blank. `N/A` (or `N/A foil`) means the card cache has no price for that printing and finish in that currency.

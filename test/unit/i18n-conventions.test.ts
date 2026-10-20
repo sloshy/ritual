@@ -128,7 +128,8 @@ const LINE_FENCE = [
 const LINE_ROUTE_LEDGER: Record<string, string> = {
   'src/card/card-labels.ts':
     'label refusals and display labels returned to callers; the [labels] token is built from the literal vocabulary (formatLabelOverride)',
-  'src/card/card-language.ts': 'collation only; the [ja] token is the literal code (languageToken)',
+  'src/card/card-language.ts':
+    'collation and the display-only language names and lists (languageLabel, formatLanguageList) returned to callers; the [ja] token is the literal code (languageToken)',
   'src/card/card-tags.ts':
     'collation only (compareData, pinned English) to order a tag set; tag values are the owner’s data',
   'src/card/finish-condition.ts':
@@ -136,7 +137,7 @@ const LINE_ROUTE_LEDGER: Record<string, string> = {
   'src/config/ritual-config.ts':
     'config validation refusals returned to callers and its own warning to the console; a card line carries no config text',
   'src/list/deck-format.ts':
-    'display labels and the invalid-format refusal returned to callers; section headings and format slugs are literals',
+    'display labels (deck formats, the standard boards’ names) and the invalid-format refusal returned to callers; section headings and format slugs are literals',
   'src/list/list-type.ts':
     'display labels and nouns for list types; no line token is a list-type noun',
   'src/list/resolve-list.ts': 'refusals for a list that does not resolve, returned to callers',
@@ -160,7 +161,7 @@ const I18N_ROUTE_LEDGER: Record<string, string> = {
   'src/card/card-labels.ts':
     'label refusals (keyed messages) and display labels returned to callers; the label tokens a line carries are literals',
   'src/card/card-language.ts':
-    'collation only; persisted language names come from LANGUAGE_PARSE_NAMES, not the catalog',
+    'collation, and display-only language names and lists (languageLabel, formatLanguageList) with an explicit locale; persisted language names come from LANGUAGE_PARSE_NAMES, not the catalog',
   'src/card/card-tags.ts': 'collation only (compareData) to order a tag set',
   'src/card/finish-condition.ts':
     'display-only conditionLabel / finishLabel / finishSuffix and refusals for callers; the persisted tokens are literals',
@@ -169,7 +170,7 @@ const I18N_ROUTE_LEDGER: Record<string, string> = {
   'src/list/card-categories-record.ts':
     'collation only (compareData, pinned English) to order category names; its parse refusals are messages returned to callers, never sidecar bytes',
   'src/list/deck-format.ts':
-    'display labels for deck formats and the invalid-format refusal returned to callers; the persisted format slugs and section-role spellings are literals',
+    'display labels for deck formats and the standard boards (sectionDisplayName) and the invalid-format refusal returned to callers; the persisted format slugs, section names and section-role spellings are literals',
   'src/list/list-type.ts':
     'display labels and nouns for list types; the persisted kinds and the English workspaceListTypeNoun commit messages use are literals',
   'src/list/resolve-list.ts':

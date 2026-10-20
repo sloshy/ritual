@@ -11,9 +11,11 @@ import {
   type Condition,
   type Finish,
   conditionLabel,
+  finishLabel,
   isCondition,
   isFinish,
   VALID_CONDITIONS,
+  VALID_FINISHES,
 } from '../../card/finish-condition'
 import { formatSetCodesForDisplay, parseSetCodesInput } from '../../card/set-codes'
 import type { CardLanguage } from '../../card/card-language'
@@ -206,11 +208,10 @@ export function buildSessionConfigQuestions(
       // rows' titles are localized.
       choices: [
         { title: t('cli.session.finishAlwaysPrompt'), value: '' },
-        { title: t('cli.session.finishNonfoil'), value: 'nonfoil' },
-        { title: t('cli.session.finishFoil'), value: 'foil' },
-        { title: t('cli.session.finishEtched'), value: 'etched' },
+        ...VALID_FINISHES.map((finish) => ({ title: finishLabel(finish), value: finish })),
       ],
-      initial: config.finish ? ['', 'nonfoil', 'foil', 'etched'].indexOf(config.finish) : 0,
+      // Row 0 is "always prompt"; the finishes follow in VALID_FINISHES order.
+      initial: config.finish ? VALID_FINISHES.indexOf(config.finish) + 1 : 0,
     },
   ]
   if (includeCondition) {

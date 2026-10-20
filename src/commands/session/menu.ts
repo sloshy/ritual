@@ -10,10 +10,10 @@ import {
 import type { ScryfallCard } from '../../scryfall/types'
 import { rankNameMatches } from '../../card/term-match'
 import type { MessageKey } from '../../i18n/messages/en'
-import { DEFAULT_LOCALE } from '../../i18n/runtime'
+import { currentLocale, DEFAULT_LOCALE } from '../../i18n/runtime'
 import { t, tIn, type TranslateArgs } from '../../i18n/t'
 import { matchesChoiceTerms, type SearchableChoice } from '../../cli/menu-search'
-import { languageDisplayName, type CardLanguage } from '../../card/card-language'
+import { languageLabel, type CardLanguage } from '../../card/card-language'
 import type { EntryMode, SessionConfig } from './config'
 import type { LastAdded, SessionAddItem, SessionMode } from './strategy'
 
@@ -277,7 +277,7 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
     // filter, and it is reached far less often than the set/finish/condition
     // defaults — see `SessionConfig.language`.
     menuRow('🌐', '__CARD_LANGUAGE__', 'cli.menu.cardLanguage', {
-      language: languageDisplayName(input.language),
+      language: languageLabel(input.language, currentLocale()),
     }),
     menuRow('⚙️ ', '__CONFIG__', 'cli.menu.configureFilters'),
     mode === 'name'

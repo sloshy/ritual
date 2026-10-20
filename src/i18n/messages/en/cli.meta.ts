@@ -419,7 +419,7 @@ export const cliMeta = {
   },
   'cli.menu.cardLanguage': {
     description:
-      'Session menu row showing, and changing, the language stamped on cards added from here on. {language} is that language\u2019s English display name (e.g. "Japanese"), already localized by the caller.',
+      'Session menu row showing, and changing, the language stamped on cards added from here on. {language} is that language\u2019s name, already in the reader\u2019s language (e.g. "Japanese").',
     maxLen: MENU_WITH_NAME,
   },
   'cli.menu.undoLastAdd': {
@@ -604,6 +604,10 @@ export const cliMeta = {
     description:
       'Parenthetical appended to the card prompt while the same card is being added repeatedly. {count} is how many in a row, {name} the card name. Keep the leading space: it is what separates this from the prompt text.',
   },
+  'cli.row.quantity': {
+    description:
+      'A card row in an interactive picker (the price browser, the export wizard) led by its copy count, e.g. "2x Sol Ring (LEA:232) [foil] — $3.00". {count} is the number of copies (always more than one); {item} is the rest of the row, already rendered. The "x" is a multiplication marker.',
+  },
 
   'cli.session.promptPickToEdit': {
     description:
@@ -685,16 +689,6 @@ export const cliMeta = {
   'cli.session.finishAlwaysPrompt': {
     description:
       'Session-filter choice leaving the finish unset, so every add asks. Paired with the finish names below.',
-  },
-  'cli.session.finishNonfoil': {
-    description:
-      'Session-filter choice for the plain finish. The persisted slug stays `nonfoil`; only this label is translated.',
-  },
-  'cli.session.finishFoil': {
-    description: 'Session-filter choice for the foil finish. The persisted slug stays `foil`.',
-  },
-  'cli.session.finishEtched': {
-    description: 'Session-filter choice for the etched finish. The persisted slug stays `etched`.',
   },
   'cli.session.conditionAlwaysPrompt': {
     description: 'Session-filter choice leaving the condition unset, so every add asks.',

@@ -16,6 +16,8 @@ import {
   resolveList,
   type ListLocation,
 } from '../list/resolve-list'
+import { formatUnitList } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
 import { t } from '../i18n/t'
 import { renderSyncMessage } from '../sync/message'
 import { buildDiffReport } from '../changes/list-diff-report'
@@ -90,7 +92,10 @@ function printingBreakdownItem(printing: DiffPrinting): string {
     ? `${printing.set.toUpperCase()}${printing.collectorNumber ? `:${printing.collectorNumber}` : ''}`
     : t('cli.diff.noPrinting')
   const finish = printing.finish === 'nonfoil' ? '' : ` [${printing.finish}]`
-  return `${base}${finish}${languageToken(printing.language)} x${printing.quantity}`
+  return t('cli.diff.bucket', {
+    printing: `${base}${finish}${languageToken(printing.language)}`,
+    count: printing.quantity,
+  })
 }
 
 /** Whether a side's printings are just "one unpinned nonfoil bucket" (no breakdown needed). */
@@ -113,10 +118,13 @@ function formatOnlyLine(only: DiffOnly, by: DiffBy): string {
       card: `${only.name}${printingSuffix(only.printings[0])}`,
     })
   }
-  const breakdown = isPlainBucket(only.printings)
-    ? ''
-    : ` (${only.printings.map(printingBreakdownItem).join(', ')})`
-  return t('cli.diff.onlyLine', { quantity: only.quantity, card: `${only.name}${breakdown}` })
+  const card = isPlainBucket(only.printings)
+    ? only.name
+    : t('cli.diff.breakdown', {
+        name: only.name,
+        buckets: formatUnitList(currentLocale(), only.printings.map(printingBreakdownItem)),
+      })
+  return t('cli.diff.onlyLine', { quantity: only.quantity, card })
 }
 
 function formatMismatchLine(match: DiffMatch, by: DiffBy, labels: SideLabels): string {

@@ -6,6 +6,9 @@ import type { PriceCurrency } from '../pricing/price-currency'
 import { normalizeCardName } from '../card/term-match'
 import { useT } from '../ui/i18n'
 import type { TranslateFn } from '../i18n/t'
+import { formatUnitList } from '../i18n/format'
+import { listTypeNoun, listTypeSingularTitle } from '../list/list-type'
+import { currentLocale } from '../i18n/runtime'
 import { formatPrice, getCardPriceForFinish } from '../pricing/price-currency'
 import type {
   TradeCardEntry,
@@ -49,22 +52,22 @@ import {
 import { useStuck } from './useStuck'
 
 /**
- * Render one decode warning. Takes the translator rather than reaching for the
- * module-level `t`, so the list re-renders in the new language when the locale
- * switches.
+ * Render one decode warning with the component's reactive translator. The
+ * list-type nouns and the ID list read the locale through the module-level
+ * helpers, which track it too, so the whole warning relabels on a switch.
  */
 function formatDecodeWarning(t: TranslateFn, w: TradeDecodeWarning): string {
   switch (w.kind) {
     case 'unknown-source':
       return t('site.trade.unknownSource', {
-        sourceKind: w.sourceKind,
+        sourceKind: listTypeSingularTitle(w.sourceKind),
         sourceName: w.sourceName,
       })
     case 'unknown-card-ids':
       return t('site.trade.unknownCardIds', {
         count: w.ids.length,
-        ids: w.ids.join(', '),
-        sourceKind: w.sourceKind,
+        ids: formatUnitList(currentLocale(), w.ids.map(String)),
+        sourceKind: listTypeNoun(w.sourceKind),
         sourceName: w.sourceName,
       })
     case 'unknown-scryfall-id':
@@ -602,7 +605,9 @@ export const TradePage: Component<TradePageProps> = (props) => {
         </div>
         <div class="primary-toolbar-right">
           <span class="trade-summary-side">
-            <span class="trade-summary-count">{t('ui.count.cards', { count: leftCount() })}</span>
+            <span class="trade-summary-count">
+              {t('domain.count.cards', { count: leftCount() })}
+            </span>
             <span style="color: var(--text-dim)">·</span>
             <span class="trade-summary-price">{formatPrice(leftTotal(), props.currency)}</span>
           </span>
@@ -610,7 +615,9 @@ export const TradePage: Component<TradePageProps> = (props) => {
           <span class="trade-summary-side">
             <span class="trade-summary-price">{formatPrice(rightTotal(), props.currency)}</span>
             <span style="color: var(--text-dim)">·</span>
-            <span class="trade-summary-count">{t('ui.count.cards', { count: rightCount() })}</span>
+            <span class="trade-summary-count">
+              {t('domain.count.cards', { count: rightCount() })}
+            </span>
           </span>
           <span class="primary-toolbar-sep" />
           <span class="primary-toolbar-balance">

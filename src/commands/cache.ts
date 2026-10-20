@@ -16,7 +16,8 @@ import { registerCacheFeedSubcommand } from './cache-feed'
 import { registerCacheServerSubcommand } from './cache-server'
 import { addOutputOption } from '../cli/options'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
-import { t } from '../i18n/t'
+import { t, type ParameterlessKey } from '../i18n/t'
+import { formatDateTime, formatNumber } from '../ui/format'
 import { displayWidth, padEndDisplay } from '../i18n/width'
 
 /** Flags for `cache preload-all`. */
@@ -32,35 +33,59 @@ type CachePreloadAllOptions = {
 /** One `label: value` row of the text report. */
 type StatusRow = { label: string; value: string }
 
+/** A yes/no field of the text report, in the reader's language. */
+function yesNo(value: boolean): string {
+  return value ? t('cli.cache.valueYes') : t('cli.cache.valueNo')
+}
+
+/** Where the report's cache lives, named for its reader. */
+const SOURCE_LABELS = {
+  local: 'cli.cache.sourceLocal',
+  'cache-server': 'cli.cache.sourceCacheServer',
+} as const satisfies Record<CacheStatusResult['source'], ParameterlessKey>
+
+/**
+ * The human report. Every value is worded or formatted for its reader — yes/no,
+ * the source's name, a locale-formatted date and counts — while `--output json`
+ * keeps the raw booleans, slugs and ISO timestamp. The language code and
+ * Scryfall's bulk-type name are identifiers and print as they are.
+ */
 function formatCacheStatusText(status: CacheStatusResult): string {
   const rows: StatusRow[] = [
-    { label: t('cli.cache.rowEmpty'), value: String(status.empty) },
-    { label: t('cli.cache.rowCardNames'), value: String(status.cardCount) },
+    { label: t('cli.cache.rowEmpty'), value: yesNo(status.empty) },
+    { label: t('cli.cache.rowCardNames'), value: formatNumber(status.cardCount) },
     {
       label: t('cli.cache.rowLastCardRefresh'),
-      value: status.lastCardRefresh ?? t('cli.cache.valueNever'),
+      value:
+        status.lastCardRefresh === null
+          ? t('cli.cache.valueNever')
+          : formatDateTime(status.lastCardRefresh),
     },
     {
       label: t('cli.cache.rowPriceAgeHours'),
       value:
         status.priceAgeHours === null
           ? t('cli.cache.valueNotApplicable')
-          : String(status.priceAgeHours),
+          : formatNumber(status.priceAgeHours),
     },
-    { label: t('cli.cache.rowPricesStale'), value: String(status.priceStale) },
-    { label: t('cli.cache.rowTagsPresent'), value: String(status.tagsPresent) },
-    { label: t('cli.cache.rowSource'), value: status.source },
+    { label: t('cli.cache.rowPricesStale'), value: yesNo(status.priceStale) },
+    { label: t('cli.cache.rowTagsPresent'), value: yesNo(status.tagsPresent) },
+    { label: t('cli.cache.rowSource'), value: t(SOURCE_LABELS[status.source]) },
     { label: t('cli.cache.rowDefaultLanguage'), value: status.defaultLanguage },
     {
       label: t('cli.cache.rowCardBulk'),
       value: status.cardBulkType ?? t('cli.cache.valueUnrecorded'),
     },
-    { label: t('cli.cache.rowBulkStale'), value: String(status.bulkTypeStale) },
+    { label: t('cli.cache.rowBulkStale'), value: yesNo(status.bulkTypeStale) },
   ]
   // Display columns, not code units: a label is ASCII today, but padding is a
   // terminal-width problem and `padEnd` gets it wrong the moment one is not.
-  const width = Math.max(...rows.map((row) => displayWidth(row.label))) + 1
-  return rows.map((row) => `${padEndDisplay(`${row.label}:`, width)} ${row.value}`).join('\n')
+  // The label is padded with its punctuation, which the catalog places.
+  const labels = rows.map((row) => t('cli.cache.rowLabel', { label: row.label }))
+  const width = Math.max(...labels.map(displayWidth)) + 1
+  return rows
+    .map((row, index) => `${padEndDisplay(labels[index] ?? '', width)} ${row.value}`)
+    .join('\n')
 }
 
 export function registerCacheCommand(program: Command): void {

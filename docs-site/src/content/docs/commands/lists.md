@@ -31,13 +31,13 @@ ritual lists
 ```
 
 ```text
-deck        burn   Burn
-deck        stax   Winota Stax
-collection  main   Main Binder
-wanted      needs  Needs
+deck         burn   Burn
+deck         stax   Winota Stax
+collection   main   Main Binder
+wanted list  needs  Needs
 ```
 
-Each text row has three aligned columns: the list type, the slug (the file basename, which other commands resolve), and the display name (the list's `# Title` heading).
+Each text row has three aligned columns: the list type (worded in your [UI language](/localization/); `--output json` always spells it `deck`, `collection` or `wanted`), the slug (the file basename, which other commands resolve), and the display name (the list's `# Title` heading).
 
 Only decks, as JSON:
 

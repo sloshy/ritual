@@ -1,6 +1,7 @@
+import type { MessageKey } from '../i18n/messages/en'
 import { t, type ParameterlessKey } from '../i18n/t'
-import { syncList, syncMessage, type SyncMessage } from '../sync/message'
-import { DEFAULT_SECTION, type DeckData, type DeckSection } from './deck'
+import { syncList, syncMessage, syncRef, type SyncMessage, type SyncText } from '../sync/message'
+import { BOARDS, DEFAULT_SECTION, type Board, type DeckData, type DeckSection } from './deck'
 
 import type { DeckFormatKey } from './deck'
 export type { DeckFormatKey }
@@ -217,6 +218,113 @@ export function isCompanionSection(name: string): boolean {
   return sectionRole(name) === 'companion'
 }
 
+/** Message keys naming the known deck boards. */
+type BoardMessageKey = Extract<MessageKey, `domain.board.${string}`>
+
+/**
+ * The display name of each known board. Keys, not rendered text — the table is
+ * evaluated once at module load. Only the four {@link Board} names: every other
+ * heading (`Creatures`, `Mainboard`, `Tokens`) is the owner's own wording.
+ */
+const BOARD_DISPLAY_KEYS = {
+  Commander: 'domain.board.commander',
+  Main: 'domain.board.main',
+  Sideboard: 'domain.board.sideboard',
+  Maybeboard: 'domain.board.maybeboard',
+} as const satisfies Record<Board, BoardMessageKey>
+
+/** Each known board by its folded (trimmed, lowercased) spelling. */
+const BOARD_BY_FOLDED_NAME: ReadonlyMap<string, Board> = new Map(
+  BOARDS.map((board): [string, Board] => [board.toLowerCase(), board]),
+)
+
+/**
+ * The known board a section heading is, matched the way
+ * {@link resolveSectionName} matches a section (trimmed, case folded): a
+ * hand-written `## sideboard` is the Sideboard. `undefined` for any other heading.
+ */
+export function knownBoard(section: string): Board | undefined {
+  return BOARD_BY_FOLDED_NAME.get(section.trim().toLowerCase())
+}
+
+/**
+ * A section's name **for a reader**: a known board ({@link knownBoard} — so
+ * `sideboard` too) by its name in the UI locale; any other section is shown
+ * exactly as written. Any list's section — a collection's or wanted list's
+ * implicit `Main` is the same word. Display only: the file, `--output json`,
+ * flags and API payloads keep the name as it is, so a section a reader picks is
+ * still selected by its own name.
+ */
+export function sectionDisplayName(section: string): string {
+  const board = knownBoard(section)
+  return board === undefined ? section : t(BOARD_DISPLAY_KEYS[board])
+}
+
+/**
+ * {@link sectionDisplayName} unrendered, for a heading or message param that
+ * is rendered later in its reader's locale: a known board as a message
+ * reference, any other section as its literal text.
+ */
+export function sectionNameParam(section: string): SyncText {
+  const board = knownBoard(section)
+  return board === undefined ? section : syncRef(BOARD_DISPLAY_KEYS[board])
+}
+
+/**
+ * The labels a picker (or the Sections manager) shows for `names`, in order:
+ * each {@link sectionDisplayName} — except where two or more headings would
+ * read the same (`## Sideboard` beside a hand-written `## sideboard`, or a
+ * custom `## Seitenboard` beside `## Sideboard` under German), where every
+ * member of that group shows its raw heading instead of identical rows.
+ */
+export function sectionDisplayNames(names: readonly string[]): string[] {
+  const displays = names.map(sectionDisplayName)
+  const counts = new Map<string, number>()
+  for (const display of displays) {
+    const folded = display.toLowerCase()
+    counts.set(folded, (counts.get(folded) ?? 0) + 1)
+  }
+  return names.map((name, index) => {
+    const display = displays[index] ?? name
+    return (counts.get(display.toLowerCase()) ?? 0) > 1 ? name : display
+  })
+}
+
+/** A typed section name resolved: see {@link resolveTypedSectionName}. */
+export type TypedSectionName = { name: string; existing: string | undefined }
+
+/**
+ * What a section name the reader **typed** names. `name` is the heading to
+ * write and `existing` the section of `sections` it already is, when one is:
+ *
+ * 1. a heading the deck has, case-folded — the owner's own `## Seitenboard`
+ *    is found by typing it;
+ * 2. else a known board, typed as its token in any case or as its name in the
+ *    UI locale (German `Seitenboard`), is the board's English token — so no
+ *    translated heading reaches the file — and the deck's heading of that
+ *    token, case-folded, when it has one.
+ *
+ * Nothing matches by display name alone: a custom `## Seitenboard` is a
+ * main-board section, and typing `Sideboard` must name the Sideboard, not it.
+ * Each prompt decides what an `existing` match does (refuse a duplicate, or
+ * fold onto it).
+ */
+export function resolveTypedSectionName(
+  sections: readonly string[],
+  typed: string,
+): TypedSectionName {
+  const trimmed = typed.trim()
+  const folded = trimmed.toLowerCase()
+  const exact = sections.find((section) => section.trim().toLowerCase() === folded)
+  if (exact !== undefined) return { name: exact, existing: exact }
+  const board =
+    knownBoard(trimmed) ??
+    BOARDS.find((candidate) => t(BOARD_DISPLAY_KEYS[candidate]).trim().toLowerCase() === folded)
+  const name = board ?? trimmed
+  const existing = sections.find((section) => section.trim().toLowerCase() === name.toLowerCase())
+  return { name: existing ?? name, existing }
+}
+
 /**
  * The existing section a requested section name means, else the name itself.
  * A caller naming a section to place a card in — an MCP `add`, a CLI
@@ -228,7 +336,8 @@ export function isCompanionSection(name: string): boolean {
  *    `Maybeboard`, …, or a main-board spelling such as `Main`), the deck's
  *    first section of that role (`Main` → `## Creatures` in a deck whose main
  *    board is split into custom sections);
- * 3. else the requested name, unchanged — a section to create.
+ * 3. else the requested name — a section to create — with a case variant of
+ *    a known board's token canonicalized (`sideboard` → `Sideboard`).
  *
  * The one resolver behind both engines that place deck cards by section (the
  * change reducer and the on-disk line engine), so a requested section lands
@@ -244,7 +353,10 @@ export function resolveSectionName(existing: readonly string[], requested: strin
     const byRole = existing.find((name) => sectionSlot(name) === slot)
     if (byRole !== undefined) return byRole
   }
-  return requested
+  // A case variant of a board's token is that board: `--section sideboard` on a
+  // deck without one writes `## Sideboard`, as every prompt and editor does.
+  // Only the token — a flag never takes a translated name.
+  return knownBoard(requested) ?? requested
 }
 
 /**
@@ -354,8 +466,9 @@ export function getMainDeckSize(sections: DeckSection[]): number {
 /** Every legal deck format key, in declaration order. */
 export const DECK_FORMAT_KEYS = Object.keys(FORMAT_INFO) as DeckFormatKey[]
 
+/** Own keys only: `constructor` and friends live on every object's prototype. */
 function isDeckFormatKey(value: string): value is DeckFormatKey {
-  return value in FORMAT_INFO
+  return Object.hasOwn(FORMAT_INFO, value)
 }
 
 /**
@@ -379,7 +492,7 @@ export function parseDeckFormat(raw: unknown): DeckFormatKey | null {
     .replace(/^-+|-+$/g, '')
   if (!slug) return null
   if (isDeckFormatKey(slug)) return slug
-  return FORMAT_ALIASES[slug] ?? null
+  return Object.hasOwn(FORMAT_ALIASES, slug) ? (FORMAT_ALIASES[slug] ?? null) : null
 }
 
 /**
@@ -507,5 +620,8 @@ export function getDeckCountLabel(
   const info = FORMAT_INFO[format]
   const label = t(info.label)
   if (mainboardSize === info.expectedMainboardSize) return { primary: label }
-  return { primary: label, suffix: `(${pluralizeCards(mainboardSize)})` }
+  return {
+    primary: label,
+    suffix: t('domain.deckCount.unusual', { cards: pluralizeCards(mainboardSize) }),
+  }
 }

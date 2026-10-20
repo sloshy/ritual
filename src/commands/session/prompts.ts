@@ -1,6 +1,7 @@
 import type { Choice } from 'prompts'
 import { ask } from '../../cli/prompts'
 import { t } from '../../i18n/t'
+import { rarityName } from '../../list-view/printing-display'
 import { currentLocale } from '../../i18n/runtime'
 import { renderSyncMessage } from '../../sync/message'
 import { getCardPrintings, isDigitalOnlySet } from '../../scryfall'
@@ -31,13 +32,14 @@ import {
   displayLanguage,
   formatLanguageList,
   isCardLanguage,
-  languageDisplayName,
+  languageLabel,
   type CardLanguage,
 } from '../../card/card-language'
 import {
   cardLabelChoicesFor,
   cardLabelDefaultChoicesFor,
   currentLabelChoice,
+  cardLabelsDisplay,
   formatCardLabels,
   labelChoiceKey,
   overrideForChoice,
@@ -373,7 +375,7 @@ export function printingChoices(
         setName: p.set_name,
         set: p.set.toUpperCase(),
         number: p.collector_number,
-        rarity: p.rarity,
+        rarity: rarityName(t, p.rarity),
       })
       return {
         label: `${row}${languageBadge}`,
@@ -481,13 +483,13 @@ async function promptLanguageFallback(
     type: 'select',
     message: t('cli.printing.languageUnavailable', {
       printing: printingLabel(printing.set, printing.collector_number),
-      language: languageDisplayName(defaultLanguage),
+      language: languageLabel(defaultLanguage, currentLocale()),
       available: availableNames,
     }),
     choices: [
       {
         title: t('cli.printing.useLanguage', {
-          language: languageDisplayName(stamp),
+          language: languageLabel(stamp, currentLocale()),
           code: stamp,
         }),
         value: 'confirm',
@@ -602,7 +604,10 @@ export async function promptLanguageChoice(
     message: t('cli.printing.promptLanguage'),
     subjectKey: 'cli.prompt.subject.language',
     choices: CARD_LANGUAGES.map((code) => {
-      const row = t('cli.printing.languageRow', { name: languageDisplayName(code), code })
+      const row = t('cli.printing.languageRow', {
+        name: languageLabel(code, currentLocale()),
+        code,
+      })
       return {
         title: code === resolved ? t('cli.edit.current', { label: row }) : row,
         value: code,
@@ -664,6 +669,21 @@ export async function promptCardLabelChoice(
     'cli.prompt.subject.cardLabel',
   )
   return picked === null ? null : overrideForChoice(picked.labels, listDefault)
+}
+
+/**
+ * A list's default labels as its session menu row shows them: their names in
+ * the UI language, or "none".
+ */
+export function defaultLabelsValue(labels: readonly CardLabel[]): string {
+  return cardLabelsDisplay(labels, currentLocale()) || t('cli.labels.none')
+}
+
+/** The confirmation a changed default-labels pick prints: the new labels, or the clear. */
+export function defaultLabelsChangedLine(labels: readonly CardLabel[]): string {
+  return labels.length > 0
+    ? t('cli.labels.defaultSet', { labels: cardLabelsDisplay(labels, currentLocale()) })
+    : t('cli.labels.defaultCleared')
 }
 
 /**

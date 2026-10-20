@@ -37,6 +37,7 @@ import { enMeta } from '../../src/i18n/messages/en.meta'
 import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
 import { PSEUDO_LOCALE, pseudoLocalize } from '../../scripts/generate-locales'
 import { localeTag } from '../../src/i18n/locale-tag-message'
+import { pseudoString } from '../helpers/sync-text'
 import { languageLabel } from '../../src/card/card-language'
 import type { LocaleTag } from '../../src/i18n/types'
 
@@ -128,6 +129,26 @@ describe('.changes.md is byte-identical under any UI locale', () => {
     expect(display).toContain('&5')
   })
 
+  test('a finish, board or section is translated in the display, never in the line', () => {
+    loadDictionary(PSEUDO_LOCALE, pseudoCatalog)
+    setLocale(PSEUDO_LOCALE)
+    const finish = createSetFinishChange('Sol Ring', { finish: 'etched', cardId: 4 })
+    const board = createRemoveChange('Misty Rainforest', { board: 'Maybeboard', cardId: 2 })
+    const section = createSetSectionChange('Sol Ring', 'Sideboard', 4)
+    // The display follows the reader: each vocabulary word is pseudo-localized.
+    expect(formatChange(finish)).toContain(pseudoString('site.finishChip.etched'))
+    expect(formatChange(board)).toContain(pseudoString('domain.board.maybeboard'))
+    expect(formatChange(section)).toContain(pseudoString('domain.board.sideboard'))
+    // The persisted lines do not: each is pinned English in the last describe.
+  })
+
+  test('a case-folded board is the board in the display, while the line keeps its spelling', () => {
+    // Intended: the display names the board, the persisted line the heading as written.
+    const lower = createAddSectionChange('sideboard')
+    expect(formatChange(lower)).toBe('Add section "Sideboard"')
+    expect(formatChangelogLine(lower)).toBe('- Added section "sideboard"')
+  })
+
   test('a card mutation writes the same bytes under en and en-XA', async () => {
     await withDir(async (dir) => {
       const english = await writeChangelogUnder(localeTag('en'), dir, 'english')
@@ -198,8 +219,7 @@ describe('history rewrite lines are locale-invariant too', () => {
   test('buildDefaultChangeLines renders English under the pseudo-locale', () => {
     loadDictionary(PSEUDO_LOCALE, pseudoCatalog)
 
-    setLocale(localeTag('en'))
-    const english = buildDefaultChangeLines({
+    const snapshot: Parameters<typeof buildDefaultChangeLines>[0] = {
       sectionOrder: ['Main', 'Foils'],
       entries: [
         {
@@ -215,26 +235,12 @@ describe('history rewrite lines are locale-invariant too', () => {
           isCommander: true,
         },
       ],
-    })
+    }
+    setLocale(localeTag('en'))
+    const english = buildDefaultChangeLines(snapshot)
 
     setLocale(PSEUDO_LOCALE)
-    const pseudo = buildDefaultChangeLines({
-      sectionOrder: ['Main', 'Foils'],
-      entries: [
-        {
-          name: 'Sol Ring',
-          set: 'neo',
-          collectorNumber: '234',
-          language: 'ja',
-          note: 'ramp',
-          labels: ['sale'],
-          cardId: 7,
-          section: 'Foils',
-          quantity: 2,
-          isCommander: true,
-        },
-      ],
-    })
+    const pseudo = buildDefaultChangeLines(snapshot)
 
     expect(pseudo).toEqual(english)
     expect(english).toContain('- Added section "Foils"')
@@ -390,6 +396,28 @@ describe('every persisted line shape is pinned English', () => {
     {
       event: createSetCategoryOrderChange([]),
       line: '- Cleared category order',
+    },
+    {
+      // Standard boards, which every display translates; the line never does.
+      event: createAddSectionChange('Sideboard'),
+      line: '- Added section "Sideboard"',
+    },
+    {
+      event: createRemoveSectionChange('Maybeboard'),
+      line: '- Removed section "Maybeboard"',
+    },
+    {
+      event: createSetSectionChange('Sol Ring', 'Sideboard', 4),
+      line: '- Moved "Sol Ring" to section "Sideboard" &4',
+    },
+    {
+      // A case-folded board persists exactly as the owner spelled it.
+      event: createSetSectionChange('Sol Ring', 'sideboard', 4),
+      line: '- Moved "Sol Ring" to section "sideboard" &4',
+    },
+    {
+      event: createRenameSectionChange('Maybeboard', 'Commander'),
+      line: '- Renamed section "Maybeboard" to "Commander"',
     },
   ]
 

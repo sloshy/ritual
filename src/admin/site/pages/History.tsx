@@ -301,7 +301,7 @@ export function History(): JSX.Element {
                           </span>
                           <span class="history-set-time">{set.timestamp}</span>
                           <span class="history-set-count">
-                            {t('ui.count.changes', { count: set.lines.length })}
+                            {t('domain.count.changes', { count: set.lines.length })}
                           </span>
                         </button>
                         <div class="history-set-actions">

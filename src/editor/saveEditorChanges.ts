@@ -1,6 +1,6 @@
 import type { DroppedNote } from '../list/move-staging'
 import type { SaveEffect } from '../changes/save-effects'
-import { saveSuccessSuffix, type SaveSuccessNotices } from './save-notices'
+import { saveNoticeSentences, type SaveSuccessNotices } from './save-notices'
 import {
   type EditorStatusActions,
   type EditorStatusMessage,
@@ -57,7 +57,7 @@ export async function saveEditorChanges(
         categoryWarnings: data.categoryWarnings,
       }
       statusActions.saveSuccess(
-        saveSuccessSuffix(notices)
+        saveNoticeSentences(notices).length > 0
           ? { kind: 'saved', notices }
           : statusMessage('ui.editor.saveSuccess'),
       )

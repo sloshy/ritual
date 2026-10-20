@@ -129,7 +129,9 @@ test.describe('Public deck editor', () => {
     await firstCard.hover()
     await firstCard.locator('.edit-btn-decrement').click()
     await expect(page.locator('.changes-badge')).toHaveText('1')
-    await expect(page.locator('.edit-banner')).toContainText('1 change')
+    await expect(page.locator('.edit-banner-label')).toHaveText(
+      /Editing a local copy — not the published version \(1 change\)$/,
+    )
 
     // Toggle to the original (read-only): the edit action bar disappears.
     await page.locator('.edit-banner-toggle-btn', { hasText: 'Original' }).click()

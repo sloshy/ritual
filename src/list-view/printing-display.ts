@@ -17,20 +17,11 @@
 
 import type { MessageKey } from '../i18n/messages/en'
 import type { TranslateFn } from '../i18n/t'
-import { FINISH_CHIP_LABELS, type Finish } from '../card/finish-condition'
+import { FINISH_CHIP_LABELS, FINISH_NAMES, isFinish, type Finish } from '../card/finish-condition'
 import { capitalize } from '../util/strings'
-
-/** Message keys naming a finish in title case. Narrowed so `t()` needs no params. */
-type FinishMessageKey = Extract<MessageKey, `site.finish.${string}`>
 
 /** Message keys naming a Scryfall rarity. */
 type RarityMessageKey = Extract<MessageKey, `site.rarity.${string}`>
-
-const FINISH_NAMES = {
-  nonfoil: 'site.finish.nonfoil',
-  foil: 'site.finish.foil',
-  etched: 'site.finish.etched',
-} as const satisfies Record<Finish, FinishMessageKey>
 
 /**
  * Scryfall's rarity vocabulary. Typed as plain strings because `ScryfallCard`
@@ -46,14 +37,16 @@ const RARITY_NAMES = {
   bonus: 'site.rarity.bonus',
 } as const satisfies Record<string, RarityMessageKey>
 
+/** {@link RARITY_NAMES} by token, so a prototype name (`constructor`) is no rarity. */
+const RARITY_KEYS: ReadonlyMap<string, RarityMessageKey> = new Map(Object.entries(RARITY_NAMES))
+
 /**
  * A finish's title-cased display name ("Foil"), for a card's printing label.
  * An unrecognized token degrades to its capitalized self, which is exactly what
  * this function replaced.
  */
 export function finishName(t: TranslateFn, finish: string): string {
-  const key = (FINISH_NAMES as Record<string, FinishMessageKey>)[finish]
-  return key ? t(key) : capitalize(finish)
+  return isFinish(finish) ? t(FINISH_NAMES[finish]) : capitalize(finish)
 }
 
 /** A finish's lower-case chip form ("foil"), for the trade printing picker's buttons. */
@@ -63,6 +56,6 @@ export function finishChipName(t: TranslateFn, finish: Finish): string {
 
 /** A rarity's display name ("Mythic"), degrading to the raw token when unknown. */
 export function rarityName(t: TranslateFn, rarity: string): string {
-  const key = (RARITY_NAMES as Record<string, RarityMessageKey>)[rarity]
+  const key = RARITY_KEYS.get(rarity)
   return key ? t(key) : capitalize(rarity)
 }

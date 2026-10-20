@@ -1,29 +1,17 @@
 import { type Component, createSignal, For, Show } from 'solid-js'
 import {
-  type Finish,
   type Condition,
+  FINISH_NAMES,
   VALID_FINISHES,
   VALID_CONDITIONS,
 } from '../../card/finish-condition'
 import { useT, useTKey } from '../../ui/i18n'
-import type { ParameterlessKey } from '../../i18n/t'
 import {
   type EditorDefaults,
   type UseEditorDefaultsResult,
   parseSetCodesInput,
   formatSetCodesForDisplay,
 } from '../useEditorDefaults'
-
-/**
- * Message keys, not rendered text: the table is built once at module load, so a
- * rendered string would keep the radio labels in the boot language after a
- * locale switch.
- */
-const FINISH_LABELS: Record<Finish, ParameterlessKey> = {
-  nonfoil: 'ui.editor.finishNonfoil',
-  foil: 'ui.editor.finishFoil',
-  etched: 'ui.editor.finishEtched',
-}
 
 type EditorDefaultsFormProps = {
   defaults: UseEditorDefaultsResult
@@ -118,7 +106,7 @@ export const EditorDefaultsForm: Component<EditorDefaultsFormProps> = (props) =>
                   checked={d().finish === finish}
                   onChange={() => props.defaults.setFinish(finish)}
                 />
-                {tKey(FINISH_LABELS[finish])}
+                {tKey(FINISH_NAMES[finish])}
               </label>
             )}
           </For>

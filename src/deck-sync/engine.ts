@@ -81,7 +81,12 @@ import {
   remoteDeckCategories,
 } from './categories'
 import { resolveTargetDecks } from './targets'
-import { deckChangeCounts, deckItemLines, describeDeckChangeSummary } from './describe'
+import {
+  deckChangeCounts,
+  deckItemLines,
+  describeDeckChangeSummary,
+  describeMoveShortfall,
+} from './describe'
 import { deckSyncCardChanges } from './card-changes'
 
 export { listSyncableDecks } from './targets'
@@ -473,12 +478,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
         kind: 'log',
         level: 'warn',
         item: name,
-        ...syncMessage('domain.sync.moveShortfall', {
-          count: shortfall.quantity,
-          card: shortfall.name,
-          from: shortfall.from,
-          to: shortfall.to,
-        }),
+        ...describeMoveShortfall(shortfall),
       })
     }
 

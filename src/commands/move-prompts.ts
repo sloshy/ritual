@@ -8,13 +8,14 @@
 import type { Choice } from 'prompts'
 import { listRefDisplay } from '../changes/change-message'
 import { t } from '../i18n/t'
+import { resolveTypedSectionName } from '../list/deck-format'
+import { sectionChoices, sectionNameProblem } from './session/deck-prompts'
 import type { CardLanguage } from '../card/card-language'
 import { resolveCardPrinting } from './session/prompts'
 import { ask, suggestByTitleTerms } from '../cli/prompts'
 import { deckSectionChoices } from './move-choices'
 import type { PhysicalCard } from '../list/move-staging'
 import type { ListEntry } from '../list/list-info'
-import { hasLineBreak } from '../util/single-line'
 
 /**
  * Ask which list a move targets. The caller decides what to offer (the
@@ -68,7 +69,7 @@ export async function promptDestinationSection(dest: ListEntry): Promise<Section
   if (names.length === 0) return { kind: 'section' }
 
   const choices: Choice[] = [
-    ...names.map((name) => ({ title: name, value: name })),
+    ...sectionChoices(names),
     { title: t('cli.move.sectionNew'), value: NEW_SECTION },
   ]
   const initial = defaultName === undefined ? 0 : Math.max(0, names.indexOf(defaultName))
@@ -87,12 +88,12 @@ export async function promptDestinationSection(dest: ListEntry): Promise<Section
 }
 
 /**
- * Name a section the deck does not have yet. Two answers are not new sections
- * at all and are folded rather than written: a name that differs from an
- * existing section only by case (which would produce a second `## main` beside
- * `## Main`, splitting the deck's mainboard in two), and a name carrying `#` or
- * a line break (which the serializer would emit as `## ## Sideboard`, or as a
- * heading followed by stray prose).
+ * Name a section the deck does not have yet. A name that already is a section
+ * is folded onto it rather than written: one differing from an existing
+ * section only by case (which would produce a second `## main` beside
+ * `## Main`, splitting the deck's mainboard in two), or a known board typed by
+ * its name in the UI language (`resolveTypedSectionName`). A blank answer
+ * cancels.
  */
 async function promptNewSection(names: readonly string[]): Promise<SectionSelection> {
   const typed = await ask<string>({
@@ -100,16 +101,8 @@ async function promptNewSection(names: readonly string[]): Promise<SectionSelect
     message: t('cli.move.sectionNewPrompt'),
     subjectKey: 'cli.prompt.subject.deckSection',
   })
-  const name = typed?.trim()
-  if (!name) return { kind: 'cancelled' }
-
-  const existing = names.find((section) => section.toLowerCase() === name.toLowerCase())
-  if (existing !== undefined) return { kind: 'section', section: existing }
-  if (name.startsWith('#') || hasLineBreak(name)) {
-    console.log(t('cli.move.sectionNameInvalid', { name }))
-    return { kind: 'cancelled' }
-  }
-  return { kind: 'section', section: name }
+  if (typed === undefined || sectionNameProblem(typed) !== undefined) return { kind: 'cancelled' }
+  return { kind: 'section', section: resolveTypedSectionName(names, typed).name }
 }
 
 /**

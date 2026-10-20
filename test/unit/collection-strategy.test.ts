@@ -39,7 +39,7 @@ describe('collection strategy — Edit List Labels', () => {
     const labeled = makeStrategy(
       makeSession('---\nlabels: [sale, trade]\n---\n', { labels: ['sale', 'trade'] }),
     )
-    expect(labeled.extraMenuItems?.()[0]?.title).toContain('(default: sale,trade)')
+    expect(labeled.extraMenuItems?.()[0]?.title).toContain('(default: For sale, For trade)')
   })
 
   test('picking a default rebuilds the block in memory and dirties the session', async () => {

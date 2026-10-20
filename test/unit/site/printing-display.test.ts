@@ -56,3 +56,11 @@ describe('rarityName', () => {
     expect(rarityName(t, 'timeshifted')).toBe('Timeshifted')
   })
 })
+
+describe('prototype names are no vocabulary', () => {
+  test('a rarity or finish named after an Object property degrades to its own text', () => {
+    expect(rarityName(t, 'constructor')).toBe('Constructor')
+    expect(rarityName(t, 'toString')).toBe('ToString')
+    expect(finishName(t, 'constructor')).toBe('Constructor')
+  })
+})

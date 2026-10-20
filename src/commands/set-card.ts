@@ -15,9 +15,9 @@ import {
   createUnsetCommanderChange,
   type ConditionUpdate,
 } from '../changes/change-event'
-import { languageDisplayName, type CardLanguage } from '../card/card-language'
+import { languageLabel, type CardLanguage } from '../card/card-language'
 import type { PrintingFields } from '../card/card-printing'
-import { parseLabelOverrideToken, type LabelOverride } from '../card/card-labels'
+import { parseLabelOverrideToken, signedLabelsParam, type LabelOverride } from '../card/card-labels'
 import { formatCardTags, normalizeCardTags, type CardTag } from '../card/card-tags'
 import { formatCardCategories, type CardCategory } from '../card/card-categories'
 import {
@@ -61,8 +61,20 @@ import {
   localizedCommandError,
   messageCommandError,
 } from '../util/errors'
-import { nestSync, renderSyncMessage, syncMessage } from '../sync/message'
+import {
+  nestSync,
+  renderSyncMessage,
+  syncLanguage,
+  syncMessage,
+  syncRef,
+  toSyncMessage,
+  type SyncMessage,
+  type SyncMessageRef,
+} from '../sync/message'
 import { t } from '../i18n/t'
+import { formatUnitList } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
+import { sectionNameParam } from '../list/deck-format'
 import { describeEntry, type EntryRef } from '../list/entry-ref'
 import {
   ensureFinishAvailable,
@@ -74,7 +86,12 @@ import {
 import { resolveListSelection, resolveTarget } from './card-target'
 import { exitCodeFor, runCommandAction } from '../cli/action'
 import type { ListTypeFlags } from '../list/resolve-list'
-import { VALID_CONDITIONS, VALID_FINISHES, type Finish } from '../card/finish-condition'
+import {
+  FINISH_NAMES,
+  VALID_CONDITIONS,
+  VALID_FINISHES,
+  type Finish,
+} from '../card/finish-condition'
 import type { ListType } from '../list/list-type'
 
 /**
@@ -267,7 +284,12 @@ type RunInput = {
 }
 
 type SetCardResult = CardCommandResultBase & {
-  applied: string[]
+  /**
+   * One message per change made, in the payload convention: English `message`
+   * plus `messageKey` / `messageParams`, a finish, label, language or standard
+   * deck board nested as a message so a client words it in its own language.
+   */
+  applied: SyncMessage[]
   /**
    * Absolute paths this run wrote: the list file and its `.sha256`, the
    * changelog, and any sidecar (`.categories.json` + its hash, `.art.json`).
@@ -281,22 +303,24 @@ type SetCardResult = CardCommandResultBase & {
  * and `NM` is the *unrecorded* default the serializer omits — so neither may be
  * reported as a grade now recorded on the line.
  */
-function describeConditionUpdate(condition: ConditionUpdate): string {
-  if (condition === 'NONE') return t('cli.setCard.conditionCleared')
-  if (condition === 'NM') return t('cli.setCard.conditionDefault')
-  return t('cli.setCard.conditionSet', { condition })
+function describeConditionUpdate(condition: ConditionUpdate): SyncMessageRef {
+  if (condition === 'NONE') return syncRef('cli.setCard.conditionCleared')
+  if (condition === 'NM') return syncRef('cli.setCard.conditionDefault')
+  return syncRef('cli.setCard.conditionSet', { condition })
 }
 
 /**
  * How an applied language reads in the success output. `en` clears the token —
  * a bare line is English — so it must not read as a token now on the line.
  */
-function describeLanguageUpdate(language: CardLanguage): string {
-  if (language === 'en') return t('cli.setCard.languageCleared')
-  return t('cli.setCard.languageSet', {
-    code: language,
-    language: languageDisplayName(language),
-  })
+function describeLanguageUpdate(language: CardLanguage): SyncMessageRef {
+  if (language === 'en') return syncRef('cli.setCard.languageCleared')
+  return syncRef('cli.setCard.languageSet', { code: language, language: syncLanguage(language) })
+}
+
+/** How an applied finish reads: its name, in the reader's language. */
+function describeFinishUpdate(finish: Finish): SyncMessageRef {
+  return syncRef('cli.setCard.appliedFinish', { finish: syncRef(FINISH_NAMES[finish]) })
 }
 
 /**
@@ -397,9 +421,9 @@ async function writeCardArt(filePath: string, write: ArtWrite): Promise<string[]
 }
 
 /** How an applied `--art` reads in the success output. */
-function describeArtUpdate(art: CardArtUpdate): string {
-  if (isCardArtClear(art)) return t('cli.setCard.artCleared')
-  return t('cli.setCard.appliedArt', { art: 'file' in art ? art.file : art.url })
+function describeArtUpdate(art: CardArtUpdate): SyncMessageRef {
+  if (isCardArtClear(art)) return syncRef('cli.setCard.artCleared')
+  return syncRef('cli.setCard.appliedArt', { art: 'file' in art ? art.file : art.url })
 }
 
 async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise<void> {
@@ -501,7 +525,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
         [
           t('cli.setCard.languageUnverified', {
             printing: `${printingForLanguage.set?.toUpperCase()}:${printingForLanguage.collectorNumber}`,
-            language: languageDisplayName(input.language),
+            language: languageLabel(input.language, currentLocale()),
             code: input.language,
             detail:
               check.detail !== undefined
@@ -515,7 +539,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   }
 
   const changes: CardMutationChange[] = []
-  const applied: string[] = []
+  const applied: SyncMessageRef[] = []
 
   if (input.set !== undefined && input.collectorNumber !== undefined) {
     // A finish given alongside the printing folds into the same set-printing
@@ -532,12 +556,12 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
       }),
     )
     applied.push(
-      t('cli.setCard.appliedPrinting', {
+      syncRef('cli.setCard.appliedPrinting', {
         printing: `${input.set.toUpperCase()}:${input.collectorNumber}`,
       }),
     )
     if (input.finish !== undefined) {
-      applied.push(t('cli.setCard.appliedFinish', { finish: input.finish }))
+      applied.push(describeFinishUpdate(input.finish))
     }
     if (input.condition !== undefined) applied.push(describeConditionUpdate(input.condition))
   } else if (input.condition !== undefined) {
@@ -555,13 +579,13 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     )
     applied.push(describeConditionUpdate(input.condition))
     if (input.finish !== undefined) {
-      applied.push(t('cli.setCard.appliedFinish', { finish: input.finish }))
+      applied.push(describeFinishUpdate(input.finish))
     }
   } else if (input.finish !== undefined) {
     changes.push(
       createSetFinishChange(target.name, { finish: input.finish, cardId: target.cardId }),
     )
-    applied.push(t('cli.setCard.appliedFinish', { finish: input.finish }))
+    applied.push(describeFinishUpdate(input.finish))
   }
 
   if (input.language !== undefined) {
@@ -579,8 +603,8 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     changes.push(createSetLabelChange(target.name, { labels: input.label, cardId: target.cardId }))
     applied.push(
       input.label.length === 0
-        ? t('cli.setCard.labelCleared')
-        : t('cli.setCard.appliedLabel', { labels: input.label.join(', ') }),
+        ? syncRef('cli.setCard.labelCleared')
+        : syncRef('cli.setCard.appliedLabel', { labels: signedLabelsParam(input.label) }),
     )
   }
 
@@ -597,8 +621,8 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     }
     applied.push(
       added.length > 0
-        ? t('cli.setCard.appliedTagsAdded', { tags: formatCardTags(added) })
-        : t('cli.setCard.tagsAlreadyPresent', { tags: formatCardTags(input.tag) }),
+        ? syncRef('cli.setCard.appliedTagsAdded', { tags: formatCardTags(added) })
+        : syncRef('cli.setCard.tagsAlreadyPresent', { tags: formatCardTags(input.tag) }),
     )
   }
   if (input.untag !== undefined) {
@@ -608,8 +632,8 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     }
     applied.push(
       removed.length > 0
-        ? t('cli.setCard.appliedTagsRemoved', { tags: formatCardTags(removed) })
-        : t('cli.setCard.tagsAlreadyAbsent', { tags: formatCardTags(input.untag) }),
+        ? syncRef('cli.setCard.appliedTagsRemoved', { tags: formatCardTags(removed) })
+        : syncRef('cli.setCard.tagsAlreadyAbsent', { tags: formatCardTags(input.untag) }),
     )
   }
   if (input.categories !== undefined) {
@@ -623,23 +647,25 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     changes.push(createSetCategoriesChange(target.name, input.categories))
     applied.push(
       input.categories.length === 0
-        ? t('cli.setCard.categoriesCleared')
-        : t('cli.setCard.appliedCategories', {
+        ? syncRef('cli.setCard.categoriesCleared')
+        : syncRef('cli.setCard.appliedCategories', {
             categories: formatCardCategories(input.categories),
           }),
     )
   }
   if (input.art !== undefined) applied.push(describeArtUpdate(input.art))
+  // The section entry names where the card landed, which only the apply knows
+  // (`Sideboard` for a requested `sideboard`): it is filled in after the run.
+  const sectionAt = applied.length
   if (input.section !== undefined) {
     changes.push(createSetSectionChange(target.name, input.section, target.cardId))
-    applied.push(t('cli.setCard.appliedSection', { section: input.section }))
   }
   if (input.commander === true) {
     changes.push(createSetCommanderChange(target.name, { cardId: target.cardId }))
-    applied.push(t('cli.setCard.appliedCommander'))
+    applied.push(syncRef('cli.setCard.appliedCommander'))
   } else if (input.commander === false) {
     changes.push(createUnsetCommanderChange(target.name, { cardId: target.cardId }))
-    applied.push(t('cli.setCard.appliedNotCommander'))
+    applied.push(syncRef('cli.setCard.appliedNotCommander'))
   }
 
   // A dry run resolves the list, the target, and every validation above, then
@@ -656,19 +682,28 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   const artFiles =
     !input.dryRun && artWrite !== undefined ? await writeCardArt(filePath, artWrite) : []
 
+  const landed = mutation.section ?? input.section
+  if (landed !== undefined) {
+    const section = syncRef('cli.setCard.appliedSection', { section: sectionNameParam(landed) })
+    applied.splice(sectionAt, 0, section)
+  }
+
   const result: SetCardResult = {
     type,
     list: listSlug,
     cardName: target.name,
     cardId: target.cardId,
-    applied,
+    applied: applied.map(toSyncMessage),
     writtenFiles: [...new Set([...mutation.writtenFiles, ...artFiles])],
   }
   const line = t('cli.setCard.updated', {
     mode: input.dryRun ? 'preview' : 'done',
     entry: describeEntry(target),
     list: listSlug,
-    changes: applied.join(', '),
+    changes: formatUnitList(
+      currentLocale(),
+      applied.map((change) => renderSyncMessage(change)),
+    ),
   })
   emitCardResult(result, line, scripting, input.dryRun)
 }

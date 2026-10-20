@@ -781,7 +781,11 @@ export const siteChromeMeta = {
   },
   'site.theme.invalidJson': {
     description:
-      "Error shown when a picked theme file is not valid JSON. {error} is the parser's own English message.",
+      'Error shown when a theme file picked with Import… is not valid JSON (a text format for structured data; "JSON" is its name and is not translated).',
+  },
+  'site.theme.invalidJsonAt': {
+    description:
+      'The same error when the browser reports where the file stops being valid JSON: {line} and {column} are 1-based numbers.',
   },
   'site.theme.editVar': {
     description:

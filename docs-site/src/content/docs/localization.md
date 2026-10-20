@@ -150,8 +150,9 @@ Everything a human reads is localizable. Everything a **machine** reads is Engli
 | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
 | Exit codes and `--output json` error `code` values                                                                                               | Scripts match on them                                                         |
 | `--output json` / `ndjson` **payload keys**                                                                                                      | Same                                                                          |
+| `--output json` / `ndjson` enum **values** (`lists`' `type: "wanted"`, a card's `finish: "foil"`, `labels: ["sale"]`)                            | Same; the text output names them in your language                             |
 | `.changes.md` prose lines and their `ritual-changes` event block                                                                                 | It is a git-diffable data format that Ritual reads back                       |
-| Deck section names (`Main`, `Sideboard`, `Commander`, …)                                                                                         | They are parsed back out of your list files                                   |
+| Section names in list files, `--output json`, flags and API fields (`Main`, `Sideboard`, `Commander`, …)                                         | They are parsed back out of your list files                                   |
 | CSV and [export](/commands/export/) headers, including the Archidekt dialect (the export wizard's column picker shows the same names translated) | Other tools import them                                                       |
 | Set codes, `&N` card IDs, `[ja]` / `[foil]` / `[etched]` / condition and label tokens                                                            | They are the file format                                                      |
 | `ritual.config.json` keys and values, deck format slugs, URL query values (`sort=`, `group=`, `labels=`)                                         | Persisted identifiers; a shared list-view link must survive a language change |
@@ -164,7 +165,9 @@ Everything a human reads is localizable. Everything a **machine** reads is Engli
 | The installable [agent skills](/commands/skills/)                                                                                                | Same, plus their content hash decides "machine-managed vs user-edited"        |
 | These docs                                                                                                                                       | Localizing them is a separate project                                         |
 
-Two consequences may surprise you:
+Some consequences may surprise you:
+
+- **The four standard deck boards are shown in your language.** Commander, Main, Sideboard and Maybeboard (matched case-insensitively, so a hand-written `## sideboard` is the Sideboard) read in your language in headings, pickers and messages, while the file keeps the heading exactly as it is written. Any other section is shown exactly as you wrote it. Typing a board's name in your language where Ritual asks for a section names that board.
 
 - **`.changes.md` on disk stays English while the UI shows it translated.** The file is data. The change history in the CLI, the admin **Change History** page, and the site's **View Changes** modal is rendered from that data in your language.
 - **Prices in CSV and export output never use a localized decimal separator.** A comma decimal separator inside a comma-delimited file would corrupt it, so exports format prices invariantly even when on-screen prices follow your locale.

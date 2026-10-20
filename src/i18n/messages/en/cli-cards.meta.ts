@@ -126,7 +126,7 @@ export const cliCardsMeta = {
   },
   'cli.cardOps.languageUnavailable': {
     description:
-      'Refusal when a printing is known not to exist in the requested card language. {code} is the Scryfall language code, {available} a comma-joined list of language names.',
+      "Refusal when a printing is known not to exist in the requested card language. {code} is the Scryfall language code, {language} the language's name and {available} the languages it does exist in, both already in the reader's language.",
   },
   'cli.cardOps.noLanguageObject': {
     description: 'Scryfall confirmed the printing has no object in the requested card language.',
@@ -258,7 +258,7 @@ export const cliCardsMeta = {
   },
   'cli.setCard.languageSet': {
     description:
-      'One entry of the applied-changes list. {code} is the Scryfall language code, {language} its display name.',
+      "One entry of the applied-changes list. {code} is the Scryfall language code, {language} the language's name in the reader's language.",
   },
   'cli.setCard.finishCheckUnknownPrinting': {
     description:
@@ -322,14 +322,16 @@ export const cliCardsMeta = {
     description: 'One entry of the applied-changes list. {printing} is SET:number.',
   },
   'cli.setCard.appliedFinish': {
-    description: 'One entry of the applied-changes list. {finish} is a machine value.',
+    description:
+      "One entry of the applied-changes list. {finish} is the finish's name, already in the reader's language (domain.finish.*).",
   },
   'cli.setCard.labelCleared': {
     description:
       "One entry of the applied-changes list: the card's label override was removed, so the list default applies.",
   },
   'cli.setCard.appliedLabel': {
-    description: 'One entry of the applied-changes list. {labels} is a comma-joined slug list.',
+    description:
+      "One entry of the applied-changes list. {labels} lists the label names (domain.label.*), already in the reader's language and joined for it.",
   },
   'cli.setCard.appliedTagsAdded': {
     description:
@@ -354,7 +356,10 @@ export const cliCardsMeta = {
   'cli.setCard.categoriesCleared': {
     description: "One clause of set-card's success line, for --no-categories.",
   },
-  'cli.setCard.appliedSection': { description: 'One entry of the applied-changes list.' },
+  'cli.setCard.appliedSection': {
+    description:
+      "One entry of the applied-changes list. {section} is the deck section's name: a standard board (domain.board.*) already in the reader's language, any other section as the owner wrote it.",
+  },
   'cli.setCard.appliedCommander': {
     description: 'One entry of the applied-changes list: the card became the commander.',
   },
@@ -362,7 +367,8 @@ export const cliCardsMeta = {
     description: 'One entry of the applied-changes list: the card stopped being the commander.',
   },
   'cli.setCard.updated': {
-    description: 'Success line. {changes} is the comma-joined list of applied changes.',
+    description:
+      "Success line. {changes} lists the applied changes, already joined the way the reader's language lists items.",
   },
 
   // ── note ──────────────────────────────────────────────────────────────
@@ -485,6 +491,14 @@ export const cliCardsMeta = {
   'cli.diff.noPrinting': {
     description: 'Stands in for a printing in the breakdown when the card line pins none.',
   },
+  'cli.diff.bucket': {
+    description:
+      'One printing bucket in a card\'s per-printing breakdown, e.g. "LEA:161 [foil] x2". {printing} is the printing written the way a card line writes it (a set code, collector number and bracketed tokens — never translate it) or cli.diff.noPrinting; {count} is how many copies the bucket holds. The "x" is a multiplication marker.',
+  },
+  'cli.diff.breakdown': {
+    description:
+      'A card name followed by its per-printing breakdown, e.g. "Sol Ring (LEA:161 x1, 2ED:250 x2)". {name} is the card name (never translated); {buckets} lists cli.diff.bucket entries, already joined the way the reader\'s language lists items.',
+  },
   'cli.diff.onlyInHeading': {
     description: 'Section heading for cards present in only one of the two lists.',
   },
@@ -567,7 +581,7 @@ export const cliCardsMeta = {
   'cli.move.noCardMatching': { description: 'No card in the source list matched the typed name.' },
   'cli.move.noCopiesMatching': {
     description:
-      'Copies exist but none match the printing flags. {criteria} is a comma-joined list of the criteria below.',
+      "Copies exist but none match the printing flags. {criteria} lists the criteria below, already joined the way the reader's language lists items.",
   },
   'cli.move.multiplePrintings': {
     description:
@@ -578,7 +592,8 @@ export const cliCardsMeta = {
     description: 'One narrowing criterion: the collector number.',
   },
   'cli.move.criteriaFinish': {
-    description: 'One narrowing criterion: the finish, a machine value.',
+    description:
+      "One narrowing criterion: the finish. {finish} is the finish's name, already in the reader's language (domain.finish.*).",
   },
   'cli.move.printingNeedsBoth': {
     description: 'A collection destination needs a printing, and only half the pin was given.',
@@ -634,10 +649,6 @@ export const cliCardsMeta = {
   },
   'cli.move.sectionNewPrompt': {
     description: 'Text prompt asking for the name of the deck section to create.',
-  },
-  'cli.move.sectionNameInvalid': {
-    description:
-      "Refusal when a typed new-section name would not survive being written as a '## ' heading — it starts with '#' or carries a line break. {name} is what was typed.",
   },
   'cli.move.batchNoSources': {
     description:
@@ -971,7 +982,7 @@ export const cliCardsMeta = {
   },
   'cli.cleanup.fileLine': {
     description:
-      'One reported file. {file} is its workspace-relative path; {actions} is the comma-joined action list. A preview run wraps the whole line in its run marker.',
+      "One reported file. {file} is its workspace-relative path; {actions} lists the actions, already joined the way the reader's language lists items. A preview run wraps the whole line in its run marker.",
   },
   'cli.cleanup.fileWarning': {
     description:

@@ -292,7 +292,7 @@ describe('list-file bytes under a foreign UI language (Integration)', () => {
       "Confirmation name does not match. Expected 'Gone'.",
       expect.stringContaining("Front matter 'labels' ignored:"),
       "applyTargetedChanges cannot apply 'set-section' to a collection",
-      expect.stringContaining('Broken.art.json: not valid JSON:'),
+      expect.stringContaining('Broken.art.json: not valid JSON'),
       'image references card &99, which is not a card in this list.',
       "The file's front matter is not a key/value mapping, so a metadata write would overwrite it. Fix the block by hand first.",
       "The file's front matter is not a key/value mapping, so a list image write would overwrite it. Fix the block by hand first.",

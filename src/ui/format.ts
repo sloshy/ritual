@@ -1,10 +1,11 @@
 /**
- * Locale-bound number and date formatting for the browser surfaces.
+ * Locale-bound number and date formatting in the active UI locale — the SPAs'
+ * every date and count, and the CLI's human (non-JSON) reports.
  *
  * `src/i18n/format.ts` owns the memoized `Intl` factories but deliberately
  * takes an explicit locale tag, because the CLI sometimes has to render for a
- * locale that is not the active one. The SPAs never do: they always format in
- * the UI locale. This module is that one-line binding, so a component calls
+ * locale that is not the active one (an English error envelope). Display text
+ * always formats in the UI locale. This module is that one-line binding, so a caller
  * `formatDateTime(stamp)` rather than repeating
  * `dateTimeFormat(currentLocale(), …)` at every site.
  *
@@ -49,6 +50,20 @@ export function formatDateTime(
   // the reader's language.
   if (Number.isNaN(date.getTime())) return t('ui.format.invalidDate')
   return dateTimeFormat(currentLocale(), options).format(date)
+}
+
+/**
+ * {@link formatDateTime}, or `fallback` when `value` is not a date at all — a
+ * heading someone hand-wrote, shown as written rather than as the catalog's
+ * "invalid date" text.
+ */
+export function formatDateTimeOr(
+  value: DateTimeInput,
+  fallback: string,
+  options?: Intl.DateTimeFormatOptions,
+): string {
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? fallback : formatDateTime(date, options)
 }
 
 /** Render a number with the active UI locale's grouping and decimal separators. */

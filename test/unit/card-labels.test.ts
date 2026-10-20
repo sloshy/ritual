@@ -4,9 +4,11 @@ import {
   arrivalLabels,
   carriedEffectiveLabels,
   carriedLabels,
+  cardLabelBadge,
   cardLabelChoicesFor,
   cardLabelDefaultChoicesFor,
   cardLabelName,
+  cardLabelsDisplay,
   CARD_LABELS,
   checkLabelsForListType,
   currentLabelChoice,
@@ -32,6 +34,8 @@ import {
   parseCardLabelsValue,
   readListDefaultLabels,
   signedLabelName,
+  signedLabelsDisplay,
+  signedLabelsParam,
   SIGNED_CARD_LABELS,
   supportsAnyLabels,
   unsupportedLabelsFor,
@@ -41,6 +45,8 @@ import {
   type SignedCardLabel,
 } from '../../src/card/card-labels'
 import type { ListType } from '../../src/list/list-type'
+import { pseudoCatalog, pseudoString, withSyntheticLocale } from '../helpers/sync-text'
+import { DEFAULT_LOCALE } from '../../src/i18n/runtime'
 
 /** Every legal (positive) label set a list of `type` may hold or default to. */
 function legalSets(type: ListType): CardLabel[][] {
@@ -800,5 +806,45 @@ describe('cardLabelName / signedLabelName', () => {
       'Not a proxy',
     ])
     expect(signedLabelName('trade')).toBe('For trade')
+  })
+})
+
+describe('label display text', () => {
+  test('a badge is the short form, in the UI language', () => {
+    expect(CARD_LABELS.map(cardLabelBadge)).toEqual(['sale', 'trade', 'keep', 'proxy'])
+    withSyntheticLocale('en-XA', pseudoCatalog(), () => {
+      expect(CARD_LABELS.map(cardLabelBadge)).toEqual(
+        CARD_LABELS.map((label) => pseudoString(`domain.label.badge.${label}`)),
+      )
+    })
+  })
+
+  test('a label set lists its names in canonical order — never the file tokens', () => {
+    expect(cardLabelsDisplay(['trade', 'sale'], DEFAULT_LOCALE)).toBe('For sale, For trade')
+    expect(cardLabelsDisplay([], DEFAULT_LOCALE)).toBe('')
+    expect(signedLabelsDisplay(['no-sale', 'trade'], DEFAULT_LOCALE)).toBe(
+      'For trade, Not for sale',
+    )
+  })
+
+  test('the names and the join follow the locale passed, not the active one', () => {
+    const override: SignedCardLabel[] = ['no-keep', 'no-sale', 'no-trade']
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      // The active locale is ignored: the caller names the one it renders for.
+      expect(signedLabelsDisplay(override, DEFAULT_LOCALE)).toBe(
+        'Not for sale, Not for trade, Not to keep',
+      )
+      expect(cardLabelsDisplay(['sale'], locale)).toBe(pseudoString('domain.label.sale'))
+    })
+    // German joins the last of three with "und"; the names fall back to English.
+    const german = withSyntheticLocale('de', {}, (locale) => signedLabelsDisplay(override, locale))
+    expect(german).toBe('Not for sale, Not for trade und Not to keep')
+  })
+
+  test('the unrendered override nests each name for its reader', () => {
+    expect(signedLabelsParam(['no-sale', 'trade'])).toEqual({
+      list: [{ messageKey: 'domain.label.trade' }, { messageKey: 'domain.label.notSale' }],
+      join: 'unit',
+    })
   })
 })

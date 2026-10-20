@@ -77,6 +77,44 @@ describe('cache status CLI (Integration)', () => {
     expect(payload.tagsPresent).toBe(false)
   })
 
+  test('text output words each value for its reader; json keeps the raw values', async () => {
+    await cardCache.bulkSet({ 'Sol Ring': [makeScryfallCard({ name: 'Sol Ring' })] })
+    const result = await runCli(['cache', 'status'], workspace.dir, NO_CACHE_SERVER)
+    expect(result.exitCode).toBe(0)
+    const rows = new Map(
+      result.stdout
+        .trim()
+        .split('\n')
+        .map((line): [string, string] => {
+          const [label = '', ...value] = line.split(/:\s+/)
+          return [label, value.join(': ')]
+        }),
+    )
+    expect(rows.get('Empty')).toBe('no')
+    expect(rows.get('Prices stale')).toBe('no')
+    expect(rows.get('Tags present')).toBe('no')
+    expect(rows.get('Source')).toBe('local')
+    // The instant is formatted for the reader, never the raw ISO stamp JSON carries.
+    const refreshed = rows.get('Last card refresh') ?? ''
+    expect(refreshed).toMatch(/^\d{1,2}\/\d{1,2}\/\d{4}, \d{1,2}:\d{2}:\d{2}\s[AP]M$/)
+    const { payload } = await statusJson(workspace.dir)
+    expect(payload.lastCardRefresh).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(payload.empty).toBe(false)
+  })
+
+  test('a German run formats the refresh time the German way', async () => {
+    await cardCache.bulkSet({ 'Sol Ring': [makeScryfallCard({ name: 'Sol Ring' })] })
+    const result = await runCli(['cache', 'status'], workspace.dir, {
+      ...NO_CACHE_SERVER,
+      RITUAL_LOCALE: 'de',
+    })
+    expect(result.exitCode).toBe(0)
+    const refreshed = result.stdout
+      .split('\n')
+      .find((line) => line.startsWith('Last card refresh:'))
+    expect(refreshed).toMatch(/\d{1,2}\.\d{1,2}\.\d{4}, \d{2}:\d{2}:\d{2}$/)
+  })
+
   test('tagsPresent flips when a cached card carries oracle tags', async () => {
     await cardCache.bulkSet({
       'Sol Ring': [makeScryfallCard({ name: 'Sol Ring' })],

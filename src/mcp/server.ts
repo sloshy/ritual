@@ -37,7 +37,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   ({ elapsedMs } or { durationMs }) or a card language ({ language }): import results' counts,
   the sync tools' per-item "reasonParams" and run-level "report.errorMessages[].messageParams",
   export_cards' and diff_lists' "warnings" (a list's parse warning nested as "warning", the
-  sections a decklist dialect left out as a list), and get_sell_cart's "warnings" (the etched
+  sections a decklist dialect left out as a list, each "section" a "domain.board.*" message
+  for a standard board such as Maybeboard and the heading as written otherwise), and get_sell_cart's "warnings" (the etched
   titles as a list).
   A failed import_change_bundle list carries "errorKey"/"errorParams" beside "error".
   get_list's "warnings", the sync tools' "report.unreadable[].warnings", export_cards' and

@@ -5,24 +5,49 @@
  */
 
 import { DEFAULT_SECTION } from '../list/deck'
+import { resolveTypedSectionName } from '../list/deck-format'
 import type { CardContextInfo } from '../list-view/card-context'
 import type { SectionInfo } from './editor-config'
 
 /**
- * Section names are unique case-insensitively. Returns the existing section
- * whose name matches `name` ignoring case, if any, so callers can reject
- * duplicates and resolve a typed name back to its canonical casing.
+ * Section names are unique case-insensitively, and by what they read as: a
+ * known board typed by its name in the UI language (German `Seitenboard`) is
+ * that board. Returns the existing section a typed `name` means, if any
+ * (`resolveTypedSectionName`), so callers can reject duplicates and resolve a
+ * typed name back to the heading the list already has.
  */
 export function canonicalSection(order: readonly string[], name: string): string | undefined {
-  return order.find((s) => s.toLowerCase() === name.toLowerCase())
+  return resolveTypedSectionName(order, name).existing
+}
+
+/**
+ * The heading a typed new or renamed section name writes: a known board's
+ * name in the UI language is the board's English token, so a translated name
+ * never lands in the file. A pure case change of an existing heading keeps the
+ * casing typed.
+ */
+export function typedSectionHeading(order: readonly string[], value: string): string {
+  const trimmed = value.trim()
+  const { name, existing } = resolveTypedSectionName(order, trimmed)
+  return existing !== undefined && existing.toLowerCase() === trimmed.toLowerCase() ? trimmed : name
 }
 
 /** Why a typed section name is refused. */
 export type SectionNameError = { kind: 'required' } | { kind: 'exists'; clash: string }
 
 /**
- * Validation shared by the new-section and rename prompts: non-empty and
- * unique case-insensitively. A rename may keep its own name — a pure case
+ * The one shape rule for a typed section name, shared by every prompt — the
+ * CLI's and both editors': it must not be blank. Nothing else is refused: a
+ * leading `#` round-trips (`## #Foo` reads back as `#Foo`), and a line break is
+ * folded away when the heading is written.
+ */
+export function isBlankSectionName(value: string): boolean {
+  return value.trim() === ''
+}
+
+/**
+ * Validation shared by the new-section and rename prompts: non-empty
+ * ({@link isBlankSectionName}) and unique case-insensitively. A rename may keep its own name — a pure case
  * change of the same section is allowed — via `allowExisting`; clashing with a
  * *different* existing section (case-insensitively) is not.
  */
@@ -31,8 +56,8 @@ export function sectionNameError(
   value: string,
   allowExisting?: string,
 ): SectionNameError | null {
+  if (isBlankSectionName(value)) return { kind: 'required' }
   const trimmed = value.trim()
-  if (!trimmed) return { kind: 'required' }
   const clash = canonicalSection(order, trimmed)
   if (clash && clash !== allowExisting) return { kind: 'exists', clash }
   return null
@@ -43,7 +68,11 @@ export function sectionInfoFrom(
   order: readonly string[],
   counts: Record<string, number>,
 ): SectionInfo[] {
-  return order.map((name) => ({ name, count: counts[name] ?? 0 }))
+  // Own keys only: a section named `constructor` is not the prototype's.
+  return order.map((name) => ({
+    name,
+    count: Object.hasOwn(counts, name) ? (counts[name] ?? 0) : 0,
+  }))
 }
 
 /**

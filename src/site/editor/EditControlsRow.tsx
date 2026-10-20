@@ -72,8 +72,15 @@ export const EditControlsRow: Component<EditControlsRowProps> = (props) => {
   )
   // The stressed phrase is a parameter, not hard-coded markup, so a translator
   // can put it anywhere in the sentence.
+  // With unsaved changes, their count is part of the same sentence, so the
+  // translator places it.
   const notice = () =>
-    tSegments('site.editor.localCopy', { emphasis: t('site.editor.localCopyEmphasis') })
+    count() > 0
+      ? tSegments('site.editor.localCopyChanges', {
+          emphasis: t('site.editor.localCopyEmphasis'),
+          changes: t('domain.count.changes', { count: count() }),
+        })
+      : tSegments('site.editor.localCopy', { emphasis: t('site.editor.localCopyEmphasis') })
   return (
     <div class="edit-banner" role="status">
       <div class="edit-banner-label">
@@ -83,10 +90,13 @@ export const EditControlsRow: Component<EditControlsRowProps> = (props) => {
         <span>
           <For each={notice()}>
             {(segment) =>
-              segment.kind === 'param' ? <strong>{segment.value}</strong> : segment.value
+              segment.kind === 'param' && segment.name === 'emphasis' ? (
+                <strong>{segment.value}</strong>
+              ) : (
+                segment.value
+              )
             }
           </For>
-          <Show when={count() > 0}> ({t('ui.count.changes', { count: count() })})</Show>
         </span>
       </div>
 

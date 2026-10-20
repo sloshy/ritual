@@ -1109,3 +1109,17 @@ describe('group identity', () => {
     expect(heading(group!)).toBe(english)
   })
 })
+
+describe('section grouping headings', () => {
+  test('a standard board is a message for its reader; any other section is its own text', () => {
+    const cards = [
+      makeCard({ name: 'A', section: 'Sideboard' }),
+      makeCard({ name: 'B', section: 'Ramp' }),
+    ]
+    const groups = groupAndSortCards(cards, 'section', sl('name'), ['Ramp', 'Sideboard'])
+    expect(groups.map((group) => [group.key, group.heading])).toEqual([
+      ['section:Ramp', 'Ramp'],
+      ['section:Sideboard', { messageKey: 'domain.board.sideboard' }],
+    ])
+  })
+})

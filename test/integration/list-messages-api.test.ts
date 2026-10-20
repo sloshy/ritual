@@ -225,14 +225,12 @@ describe('list-engine refusals on the admin API (Integration)', () => {
       art: { url: 'https://example.test/bolt.png' },
     })
     expect(status).toBe(400)
-    expect(keyedMessage(body)).toStartWith(`${sidecar}: not valid JSON: `)
+    // The parser's own (engine-worded) text never rides along; Bun's names no position.
+    expect(keyedMessage(body)).toBe(`${sidecar}: not valid JSON`)
     expect(body.messageKey).toBe('domain.list.sidecar.problem')
     expect(body.messageParams).toEqual({
       file: sidecar,
-      reason: {
-        messageKey: 'domain.list.sidecar.invalidJson',
-        messageParams: { error: expect.any(String) as string },
-      },
+      reason: { messageKey: 'domain.list.sidecar.invalidJson' },
     })
     // Refused rather than overwritten.
     expect(await fs.readFile(sidecar, 'utf-8')).toBe('{ nope')

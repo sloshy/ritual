@@ -12,6 +12,9 @@
 import type { Choice } from 'prompts'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
+import { quantityRow } from '../cli/rows'
+import { formatDateTime } from '../ui/format'
+import { sectionDisplayName } from '../list/deck-format'
 import { LIST_TYPE_DISPLAY, LIST_TYPES, listTypeTitle, type ListType } from '../list/list-type'
 import { printingFinishes } from '../card/finish-condition'
 import {
@@ -45,8 +48,6 @@ import { comparePrintings } from '../scryfall'
 import { formatDuration } from '../util/duration'
 import type { ScryfallCard } from '../scryfall/types'
 import { ask, promptTextFilter, suggestByTitleTerms } from '../cli/prompts'
-import { dateTimeFormat } from '../i18n/format'
-import { currentLocale } from '../i18n/runtime'
 import { printingLabel } from '../card/card-line-tail'
 import {
   PRICE_SOURCE_LABELS,
@@ -155,24 +156,6 @@ export function formatTotalsSegment(totals: PriceTotals, currency: PriceCurrency
   return parts.join(' · ')
 }
 
-/**
- * Date and time down to the second, in the active UI locale.
- *
- * The fields are spelled out rather than left to `Date.prototype.toLocaleString`
- * for two reasons: that method takes no explicit tag, and Bun resolves none from
- * the environment, so it would silently render US English on a German machine.
- */
-function formatTimestamp(epochMs: number): string {
-  return dateTimeFormat(currentLocale(), {
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-  }).format(new Date(epochMs))
-}
-
 /** The main screen's at-a-glance header: cache age, per-type totals, grand total. */
 export function formatReportHeaderLines(
   report: PriceReport,
@@ -183,7 +166,7 @@ export function formatReportHeaderLines(
     lastRefreshedAt === null
       ? t('cli.price.updatedUnknown')
       : t('cli.price.updatedAt', {
-          timestamp: formatTimestamp(lastRefreshedAt),
+          timestamp: formatDateTime(lastRefreshedAt),
           age: formatDuration(now - lastRefreshedAt),
         })
   const lines: string[] = [
@@ -258,7 +241,6 @@ export function formatEntryChoiceTitle(
   currency: PriceCurrency,
   showSource: boolean,
 ): string {
-  const qty = entry.quantity > 1 ? `${entry.quantity}x ` : ''
   const printing =
     entry.set && entry.collectorNumber
       ? ` (${printingLabel(entry.set, entry.collectorNumber)})${entry.pinned ? '' : '*'}`
@@ -270,7 +252,8 @@ export function formatEntryChoiceTitle(
       ? ` · ${t('cli.price.rowLowest', { price: formatPrice(entry.lowest * entry.quantity, currency) })}`
       : ''
   const source = showSource ? ` · ${LIST_TYPE_DISPLAY[entry.listType].icon} ${entry.listName}` : ''
-  return `${qty}${entry.name}${printing}${finish} — ${price}${lowest}${source}`
+  const item = `${entry.name}${printing}${finish} — ${price}${lowest}${source}`
+  return quantityRow(entry.quantity, item)
 }
 
 /** What the user picked in a card browser screen. */
@@ -361,7 +344,7 @@ export function formatEntryDetailLines(entry: PricedEntry, currency: PriceCurren
     t('cli.price.detailList', {
       icon: display.icon,
       name: entry.listName,
-      section: entry.section,
+      section: sectionDisplayName(entry.section),
     }),
   ]
   if (!entry.pinned && entry.set) {

@@ -22,6 +22,7 @@ export const siteEditorMessages = {
   // into a frame plus the phrase to stress rather than hard-coded markup — a
   // translator can move the stressed phrase anywhere in the sentence.
   'site.editor.localCopy': 'Editing a local copy — {emphasis}',
+  'site.editor.localCopyChanges': 'Editing a local copy — {emphasis} ({changes})',
   'site.editor.localCopyEmphasis': 'not the published version',
   'site.editor.viewToggle': 'View original or edited',
   'site.editor.viewOriginal': 'Original',

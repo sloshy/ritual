@@ -599,8 +599,11 @@ export const adminMessages = {
   'admin.move.loadListsFailed': 'Failed to load lists: {reason}',
   'admin.move.loadListFailed': 'Failed to load {name}',
   'admin.move.loadListFailedReason': 'Failed to load {name}: {reason}',
-  // Deliberately opens with a space: it is appended to `admin.api.move.moved`.
-  'admin.move.skippedSuffix': ' ({count} skipped)',
+  'admin.move.movedSkipped': {
+    $plural: 'count',
+    one: '{moved} ({count} skipped)',
+    other: '{moved} ({count} skipped)',
+  },
   'admin.move.saveFailed': 'Failed to save moves: {reason}',
   'admin.move.unsavedWarning': {
     $plural: 'count',

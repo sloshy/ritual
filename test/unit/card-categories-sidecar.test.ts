@@ -119,11 +119,12 @@ describe('parseCardCategoriesSidecar', () => {
     expect(keyedMessage(parsed.message)).toBe(english)
   })
 
-  test('refuses malformed JSON, the parser’s own message nested', () => {
+  test('refuses malformed JSON in its own words, never the parser’s', () => {
     const parsed = parseCardCategoriesSidecar('{ nope')
     if (parsed.ok) throw new Error('expected a refusal')
+    // Bun's engine names no position, so the position-free wording applies.
     expect(parsed.message.messageKey).toBe('domain.list.sidecar.invalidJson')
-    expect(keyedMessage(parsed.message)).toStartWith('not valid JSON: ')
+    expect(keyedMessage(parsed.message)).toBe('not valid JSON')
   })
 
   test('knownCardNames reports stale entries as a warning but KEEPS them', () => {

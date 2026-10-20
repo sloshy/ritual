@@ -5,11 +5,12 @@ import {
   deckItemLines,
   describeDeckCardChange,
   describeDeckChangesLine,
+  describeMoveShortfall,
 } from '../../src/deck-sync/describe'
 import { diffDeckCards, type DeckDiff } from '../../src/deck-sync/diff'
 import { buildUploadPlan } from '../../src/deck-sync/upload-plan'
 import { ArchidektClient, type ArchidektCardQuery } from '../../src/clients/ArchidektClient'
-import type { DeckSection } from '../../src/list/deck'
+import type { Board, DeckSection } from '../../src/list/deck'
 import { archidektDeck, archidektDeckSections, searchingClient } from '../helpers/archidekt-deck'
 import type { DeckSyncCardChange } from '../../src/deck-sync/types'
 import { english, englishLines } from '../helpers/sync-text'
@@ -130,6 +131,45 @@ describe('describeDeckCardChange', () => {
       '> 2 Island: Main → Sideboard',
       '* Sol Ring in Main: (C21:263) [foil] → (LEA:270) [foil]',
     ])
+  })
+
+  test('nests each standard board for its reader; any other section stays as written', () => {
+    const move = describeDeckCardChange({
+      kind: 'move',
+      name: 'Island',
+      quantity: 2,
+      from: 'Main',
+      to: 'Sideboard',
+    })
+    expect(move.messageParams).toMatchObject({
+      from: { messageKey: 'domain.board.main' },
+      to: { messageKey: 'domain.board.sideboard' },
+    })
+    // The type admits only the standard boards; a heading outside them (a
+    // hand-built change) falls through as its own text.
+    const added = describeDeckCardChange({
+      kind: 'added',
+      name: 'Brainstorm',
+      quantity: 1,
+      board: 'Creatures' as Board,
+    })
+    expect(added.messageParams?.place).toBe('Creatures')
+  })
+
+  test('a move shortfall names both boards for its reader', () => {
+    expect(
+      describeMoveShortfall({ name: 'Bolt', from: 'Main', to: 'Sideboard', quantity: 2 }),
+    ).toEqual({
+      message:
+        'Could not move 2 copies of "Bolt" from Main to Sideboard: the local Main does not hold them.',
+      messageKey: 'domain.sync.moveShortfall',
+      messageParams: {
+        count: 2,
+        card: 'Bolt',
+        from: { messageKey: 'domain.board.main' },
+        to: { messageKey: 'domain.board.sideboard' },
+      },
+    })
   })
 
   test('names the printing a printing-keyed change carries, set code uppercased', () => {
@@ -413,6 +453,8 @@ describe('buildUploadPlan applied', () => {
     )
 
     expect(plan.errors).toHaveLength(1)
+    expect(plan.errors[0]?.messageKey).toBe('domain.sync.boardMoveShortfall')
+    expect(plan.errors[0]?.messageParams?.board).toEqual({ messageKey: 'domain.board.main' })
     expect(plan.applied.boardMoves).toEqual([
       { name: 'Sol Ring', from: 'Main', to: 'Sideboard', quantity: 1 },
     ])

@@ -90,9 +90,11 @@ describe('matchFinishPin', () => {
     const result = matchFinishPin('Test Card', makePrinting('lea', '161', ['nonfoil']), 'etched')
     expect(result.ok).toBe(false)
     if (result.ok) return
-    expect(result.message).toContain('LEA:161')
-    expect(result.message).toContain('etched')
-    expect(result.message).toContain('nonfoil')
+    // The asked-for finish by its name; the finishes offered as the --finish tokens.
+    expect(result.message).toBe(
+      "Printing LEA:161 of 'Test Card' is not available in Etched. Available finishes: nonfoil.",
+    )
+    expect(result.reason.messageParams?.finish).toEqual({ messageKey: 'domain.finish.etched' })
     expect(result.available).toEqual(['nonfoil'])
   })
 

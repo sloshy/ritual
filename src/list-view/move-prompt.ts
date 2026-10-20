@@ -2,6 +2,7 @@ import { createSignal, type Accessor } from 'solid-js'
 import type { ListRef } from '../changes/change-event'
 import { listRefDisplay } from '../changes/change-message'
 import { t } from '../i18n/t'
+import { sectionDisplayNames } from '../list/deck-format'
 
 /**
  * One selectable destination in the move-target picker.
@@ -73,11 +74,12 @@ export function promptSectionMove(
   onPick: (section: string) => void,
   onNew: () => void,
 ): void {
+  const labels = sectionDisplayNames(sections)
   promptMoveTarget({
     title: t('site.move.toSectionTitle'),
     options: [
-      ...sections.map((section) => ({
-        label: section,
+      ...sections.map((section, index) => ({
+        label: labels[index] ?? section,
         onSelect: () => onPick(section),
       })),
       { label: t('site.move.newSection'), variant: 'create', onSelect: onNew },

@@ -10,7 +10,7 @@ import {
   sessionCacheVersion,
 } from '../list-view/session-cache'
 import { normalizeCardName } from '../card/term-match'
-import { useT } from '../ui/i18n'
+import { useI18n, useT } from '../ui/i18n'
 import { ListDescriptionSection } from './ListDescription'
 import { PageCountAndTotal } from './PageStats'
 import type { ScryfallCard } from '../scryfall/types'
@@ -18,7 +18,7 @@ import type { CardContextInfo } from '../list-view/card-context'
 import type { CollectionCardEntry } from '../list/site-data'
 import type { MetaEntry } from '../list-view/meta-entry'
 import {
-  cardLabelName,
+  cardLabelsDisplay,
   effectiveLabels,
   labelFiltersFor,
   type CardLabel,
@@ -34,6 +34,7 @@ import { ListPageShell, type ListPageChangelog, type ListPageExport } from './Li
 import type { FlatListPageProps } from './list-page-props'
 import { useListPage } from './useListPage'
 import { finishName, rarityName } from '../list-view/printing-display'
+import { conditionLabel } from '../card/finish-condition'
 import { CardSection } from './CardSection'
 import { collectionGroupByOptions, type CollectionGroupBy } from './list-page-options'
 import { deriveSectionOrder, sectionDefaultGroupBy } from '../list/section-format'
@@ -53,7 +54,7 @@ import {
   frontMatterFor,
 } from '../list/list-export'
 import { lookupPrintingCard, printingKey } from '../card/printing-key'
-import { languageDisplayName, storedLanguage, type CardLanguage } from '../card/card-language'
+import { languageLabel, storedLanguage, type CardLanguage } from '../card/card-language'
 
 // The sort fields this page offers, in order — shared by the toolbar's dropdown
 // options and the URL sync's validation of incoming sort layers.
@@ -80,6 +81,7 @@ type CollectionPageProps = FlatListPageProps<CollectionCardEntry, BulkEditBundle
 
 export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const t = useT()
+  const { locale } = useI18n()
 
   // Section order, including any empty sections from the build/save payload; falls back to the
   // sections discovered in the entries (in file order) when not provided.
@@ -431,11 +433,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       })
     }
     if (entry.condition) {
-      parts.push({ label: 'condition', value: entry.condition })
+      parts.push({ label: 'condition', value: conditionLabel(entry.condition) })
     }
     const language = entryLanguage(entry)
     if (language) {
-      parts.push({ label: 'language', value: languageDisplayName(language) })
+      parts.push({ label: 'language', value: languageLabel(language, locale()) })
     }
     // The modal is the full-truth view, so it shows the *effective* labels —
     // inherited defaults included — unlike the tiles, which badge overrides only.
@@ -443,7 +445,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     if (labels.length > 0) {
       parts.push({
         label: 'labels',
-        value: labels.map(cardLabelName).join(' · '),
+        value: cardLabelsDisplay(labels, locale()),
       })
     }
     parts.push({

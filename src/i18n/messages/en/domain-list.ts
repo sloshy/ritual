@@ -51,7 +51,8 @@ export const domainListMessages = {
   'domain.list.description.notText': 'a list description must be text',
 
   // ── A list's categories file ───────────────────────────────────────────
-  'domain.list.sidecar.invalidJson': 'not valid JSON: {error}',
+  'domain.list.sidecar.invalidJson': 'not valid JSON',
+  'domain.list.sidecar.invalidJsonAt': 'not valid JSON (line {line}, column {column})',
   'domain.list.categories.notObject':
     'the file must contain a JSON object with "order" and "cards"',
   'domain.list.categories.cardsNotObject': '"cards" must be an object keyed by card name',

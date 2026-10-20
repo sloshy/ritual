@@ -257,8 +257,8 @@ export function ImportChanges(): JSX.Element {
               <div>
                 <label class="form-label">
                   {t('admin.importChanges.pendingLabel', {
-                    changes: t('ui.count.changes', { count: totalChanges() }),
-                    lists: t('ui.count.lists', { count: bundleListCount(b()) }),
+                    changes: t('domain.count.changes', { count: totalChanges() }),
+                    lists: t('domain.count.lists', { count: bundleListCount(b()) }),
                   })}
                 </label>
                 <div class="import-changes-preview">
@@ -271,7 +271,7 @@ export function ImportChanges(): JSX.Element {
                             listType: list.kind,
                             name: list.name,
                             slug: list.slug,
-                            changes: t('ui.count.changes', { count: list.changes.length }),
+                            changes: t('domain.count.changes', { count: list.changes.length }),
                           })}
                         </div>
                         <ul class="import-changes-preview-changes">
@@ -327,8 +327,8 @@ export function ImportChanges(): JSX.Element {
                 {loading()
                   ? t('admin.importChanges.applying')
                   : t('admin.importChanges.applyButton', {
-                      changes: t('ui.count.changes', { count: totalChanges() }),
-                      lists: t('ui.count.lists', { count: bundleListCount(b()) }),
+                      changes: t('domain.count.changes', { count: totalChanges() }),
+                      lists: t('domain.count.lists', { count: bundleListCount(b()) }),
                     })}
               </button>
             </>

@@ -174,6 +174,7 @@ export const cliMessages = {
   'cli.session.forceOptions': '{title} (Force Options)',
   'cli.session.collectorChoice': '{printing} — {name}',
   'cli.session.streakHint': ' ({count}x {name})',
+  'cli.row.quantity': '{count}x {item}',
 
   // ── The interactive card session's prompts ────────────────────────────
   'cli.session.promptPickToEdit': 'Select a card to edit (type to search)',
@@ -205,9 +206,6 @@ export const cliMessages = {
   'cli.session.changeActionDiscard': 'Discard This Change',
   'cli.session.cardLanguageSet': 'Cards added from here on are {language} ({code}).',
   'cli.session.finishAlwaysPrompt': 'None (Always Prompt)',
-  'cli.session.finishNonfoil': 'Nonfoil',
-  'cli.session.finishFoil': 'Foil',
-  'cli.session.finishEtched': 'Etched',
   'cli.session.conditionAlwaysPrompt': 'None (Always Prompt)',
   'cli.session.conditionDontCare': "Don't Care",
 

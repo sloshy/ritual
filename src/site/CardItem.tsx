@@ -3,6 +3,7 @@ import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
 import type { ScryfallCard } from '../scryfall/types'
 import {
   baseLabel,
+  cardLabelBadge,
   isNegatedLabel,
   signedLabelName,
   type PricelessReason,
@@ -377,12 +378,12 @@ export const CardItem: Component<CardItemProps> = (props) => {
 
         /**
          * The compact SALE/TRADE/KEEP/PROXY tag run, shared by all three view
-         * modes. A negation takes an inherited label away: the list view, which
-         * has room, says so in the UI language ("Not a proxy"); a tile, whose
-         * name line truncates, shows the label's own token struck through
-         * (~~PROXY~~) with that wording as its accessible name and tooltip, so a
-         * long phrase never pushes the card name out. Positives stay the
-         * compact domain token, as before.
+         * modes, worded in the UI language: a positive label is its short badge
+         * form. A negation takes an inherited label away: the list view, which
+         * has room, says so in full ("Not a proxy"); a tile, whose name line
+         * truncates, shows the label's badge struck through (~~PROXY~~) with
+         * that wording as its accessible name and tooltip, so a long phrase
+         * never pushes the card name out. The class names keep the label token.
          */
         const badgeRun = (compact: boolean) => (
           <Show when={labelBadges()}>
@@ -398,7 +399,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                           aria-label={signedLabelName(label)}
                           title={signedLabelName(label)}
                         >
-                          {baseLabel(label)}
+                          {cardLabelBadge(baseLabel(label))}
                         </span>
                       ) : (
                         <span class={`card-label-badge label-negated label-${label}`}>
@@ -406,7 +407,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                         </span>
                       )
                     ) : (
-                      <span class={`card-label-badge label-${label}`}>{label}</span>
+                      <span class={`card-label-badge label-${label}`}>{cardLabelBadge(label)}</span>
                     )
                   }
                 </For>

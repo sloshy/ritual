@@ -10,6 +10,7 @@ import {
   languageSelect,
   markPage,
   pseudoCatalog,
+  pseudoString,
   PSEUDO_LOCALE,
   setLocale,
 } from '../helpers/i18n'
@@ -18,6 +19,7 @@ import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/cha
 import type { LocaleTag } from '../../../src/i18n/types'
 import {
   makeCollectionSummary,
+  makeDeckDetail,
   makeDeckSummary,
   makeSiteIndex,
   mockPublicSiteCollectionWithTags,
@@ -26,6 +28,7 @@ import {
   mockPublicSiteForTrade,
 } from '../helpers/mock-public-site'
 import { enterEditMode, openEditTags } from '../helpers/list-ui'
+import { makeMockScryfallCard } from '../helpers/mock-cards'
 
 /**
  * Switching the UI language at runtime.
@@ -246,6 +249,101 @@ test.describe('public site language switch', () => {
     await expectPseudo(error, true)
     await expect(error).toContainText('accent')
     await expect(error).not.toContainText('must start with')
+    await expectNotReloaded(page)
+  })
+
+  test('relabels a label badge and a standard board heading, keeping the section’s identity', async ({
+    page,
+  }) => {
+    const bolt = makeMockScryfallCard({ id: 'vocab-bolt', name: 'Vocab Bolt' })
+    const ring = makeMockScryfallCard({ id: 'vocab-ring', name: 'Vocab Ring' })
+    const token = makeMockScryfallCard({ id: 'vocab-token', name: 'Vocab Token' })
+    await fulfillJson(
+      page,
+      '**/decks/vocab-deck.json',
+      makeDeckDetail({
+        deck: {
+          name: 'Vocab Deck',
+          sections: [
+            {
+              name: 'Main',
+              cards: [
+                { quantity: 1, name: bolt.name, cardId: 1, labels: ['proxy'] },
+                { quantity: 1, name: 'Filler', cardId: 2 },
+              ],
+            },
+            { name: 'Sideboard', cards: [{ quantity: 1, name: ring.name, cardId: 3 }] },
+            { name: 'Tokens', cards: [{ quantity: 1, name: token.name, cardId: 4 }] },
+          ],
+        },
+        cards: {
+          [bolt.name]: bolt,
+          [ring.name]: ring,
+          [token.name]: token,
+          Filler: makeMockScryfallCard({ name: 'Filler' }),
+        },
+      }),
+    )
+    await fulfillJson(
+      page,
+      '**/index.json',
+      makeSiteIndex({
+        decks: [makeDeckSummary({ slug: 'vocab-deck', name: 'Vocab Deck', cardCount: 3 })],
+        availableLocales: [localeTag('en'), PSEUDO_LOCALE],
+      }),
+    )
+    await page.goto('#/deck/vocab-deck')
+    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await markPage(page)
+
+    const badge = page.locator('.card-item[data-name="vocab bolt"] .card-label-badge.label-proxy')
+    const board = page.locator('[data-section="board:Sideboard"]')
+    const boardHeading = board.locator('.section-divider h2')
+    // A section that is not a standard board is the owner's own heading.
+    const ownHeading = page.locator('[data-section="board:Tokens"] .section-divider h2')
+    await expect(badge).toHaveText('proxy')
+    await expect(boardHeading).toContainText('Sideboard')
+    await expect(ownHeading).toContainText('Tokens')
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+
+    // Both are pinned to the pseudo template itself: the badge is too short to
+    // carry the pseudo-locale's brackets (its length cap).
+    await expect(badge).toHaveText(pseudoString('domain.label.badge.proxy'))
+    await expect(boardHeading).toContainText(pseudoString('domain.board.sideboard'))
+    await expect(boardHeading).not.toContainText('Sideboard')
+    await expect(ownHeading).toContainText('Tokens')
+    // The board's identity is the deck's own section name, not its heading.
+    await expect(board).toHaveCount(1)
+    await expect(board.locator('.card-item')).toHaveCount(1)
+    await expectNotReloaded(page)
+  })
+
+  test('relabels a theme file that is not JSON, the engine’s own wording never shown', async ({
+    page,
+    browserName,
+  }) => {
+    await page.goto(DECK_HASH)
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await page.getByRole('button', { name: 'Theme', exact: true }).click()
+    await page.getByRole('button', { name: /Customize theme/ }).click()
+    await page.locator('.theme-editor input[type="file"]').setInputFiles({
+      name: 'bad.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('{ not json'),
+    })
+    const error = page.locator('.theme-editor-error')
+    // V8 names where the file stops being JSON; other engines may not.
+    await expect(error).toHaveText(
+      browserName === 'chromium'
+        ? 'This file is not valid JSON (line 1, column 3).'
+        : /^This file is not valid JSON( \(line 1, column \d+\))?\.$/,
+    )
+
+    await markPage(page)
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(error, true)
+    await expect(error).not.toContainText('not valid JSON')
     await expectNotReloaded(page)
   })
 

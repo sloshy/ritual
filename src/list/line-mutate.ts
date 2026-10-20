@@ -94,6 +94,12 @@ export type TargetedMutateResult = {
    * `knownCardNames`, so it never prunes.
    */
   writtenFiles: string[]
+  /**
+   * The deck section a `set-section` in the batch landed the card in — the
+   * deck's own heading (`Sideboard` for a requested `sideboard`) — on a dry run
+   * too. Absent when the batch moved nothing between sections.
+   */
+  section?: string
 }
 
 /**
@@ -137,7 +143,9 @@ export async function applyTargetedChanges(
     return { ...withId, section: section.kind === 'leading' ? DEFAULT_SECTION : section.name }
   })
   const newContent = applyTargetedChangesToContent(content, type, resolved, stamped)
-  if (options.dryRun === true) return { writtenFiles: [] }
+  const landed = stamped.findLast((change) => change.action === 'set-section')
+  const section = landed?.action === 'set-section' ? { section: landed.section } : {}
+  if (options.dryRun === true) return { writtenFiles: [], ...section }
   const writtenFiles: string[] = []
   // A batch whose only events are the name-keyed category ones leaves every card
   // line alone, so the `.md` must not be rewritten: reporting it among the
@@ -171,7 +179,7 @@ export async function applyTargetedChanges(
   })
   writtenFiles.push(...categories.writtenFiles)
 
-  return { writtenFiles: [...new Set(writtenFiles)] }
+  return { writtenFiles: [...new Set(writtenFiles)], ...section }
 }
 
 /**

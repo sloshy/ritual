@@ -20,6 +20,7 @@ import {
   expectLocaleInForce,
   foreignLocales,
   pseudoCatalog,
+  pseudoString,
   withSyntheticLocale,
 } from '../helpers/sync-text'
 
@@ -248,16 +249,17 @@ describe('a list’s own warning', () => {
 })
 
 describe('the reader’s language', () => {
-  test('an omitted-sections warning translates its frame and keeps the section names', () => {
+  test('an omitted-sections warning translates its frame and the standard boards only', () => {
     const [warning, english] = WARNINGS['extras-omitted']
     withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
       expectLocaleInForce(locale)
       const rendered = renderExportWarning(warning)
       expect(rendered).not.toBe(english)
       expect(rendered).not.toContain('Omitted cards')
-      // Section names are the deck file's own.
-      expect(rendered).toContain('Maybeboard')
-      expect(rendered).toContain('Tokens')
+      // A standard board reads in the reader's language; any other section is
+      // the deck file's own name.
+      expect(rendered).toContain(`${pseudoString('domain.board.maybeboard')} (5)`)
+      expect(rendered).toContain('Tokens (1)')
     })
   })
 })

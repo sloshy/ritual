@@ -3,6 +3,8 @@ import { t } from '../../i18n/t'
 import {
   promptCardLabelChoice,
   promptConditionChoice,
+  defaultLabelsChangedLine,
+  defaultLabelsValue,
   promptDefaultLabelsChoice,
   promptEditAction,
   promptFinishAndCondition,
@@ -44,12 +46,7 @@ import {
   type PrintingTuple,
 } from '../../changes/change-event'
 import { displayLanguage, type CardLanguage } from '../../card/card-language'
-import {
-  formatCardLabels,
-  parseCardLabelsValue,
-  sameCardLabels,
-  sameLabelOverride,
-} from '../../card/card-labels'
+import { parseCardLabelsValue, sameCardLabels, sameLabelOverride } from '../../card/card-labels'
 import { dumpFrontMatterBlock, readFrontMatterMapping } from '../../list/front-matter-write'
 import { applyLabelsPatch } from '../../list/flat-list-metadata'
 
@@ -134,11 +131,7 @@ export function createCollectionStrategy(
     const dumped = dumpFrontMatterBlock(merged)
     session.frontMatter = dumped === undefined ? undefined : { raw: dumped, data: merged }
     session.dirty = true
-    console.log(
-      labels.length > 0
-        ? t('cli.labels.defaultSet', { labels: formatCardLabels(labels) })
-        : t('cli.labels.defaultCleared'),
-    )
+    console.log(defaultLabelsChangedLine(labels))
   }
 
   /**
@@ -257,9 +250,7 @@ export function createCollectionStrategy(
     saveTarget: { filePath: session.filePath, listName },
     sessionConfig,
     extraMenuItems: (): MenuChoice[] => {
-      const params = {
-        labels: formatCardLabels(list.listLabels() ?? []) || t('cli.labels.none'),
-      }
+      const params = { labels: defaultLabelsValue(list.listLabels() ?? []) }
       return [
         menuRow('🏷️ ', '__LIST_LABELS__', 'cli.labels.menuListLabels', params),
         ...categoryMenuItems(),

@@ -6,6 +6,10 @@ import type { uiMessages } from './ui'
 export const uiMeta = {
   'ui.dialog.cancel': { description: 'Button that dismisses a dialog without applying it.' },
   'ui.dialog.close': { description: 'Button that closes a modal.' },
+  'ui.text.sentenceJoin': {
+    description:
+      'Runs two whole sentences together in one status line, e.g. after a save: "Moved 3 cards. Note dropped on merge: …". {first} and {second} are already-rendered sentences, each with its own final punctuation. Use the separator your language puts between sentences (a space in English, none in Japanese or Chinese).',
+  },
   'ui.dialog.done': {
     description:
       'Button that closes a dialog once the user has finished reading or working in it. Not a save — nothing is applied by pressing it.',
@@ -50,18 +54,6 @@ export const uiMeta = {
     description: 'Field name for how many copies of a card an action applies to.',
     maxLen: 16,
   },
-  'ui.count.cards': {
-    description:
-      'A number of cards, on its own — rendered inside a longer sentence or as a standalone counter. {count} is a whole number.',
-  },
-  'ui.count.changes': {
-    description:
-      'A number of pending or applied edits to a list. {count} is a whole number. "Change" here is one edit (an add, a removal, a set-finish), not a modification in general.',
-  },
-  'ui.count.lists': {
-    description:
-      'A number of lists (decks, collections and wanted lists together). {count} is a whole number.',
-  },
   'ui.selection.confirmRemoveAll': {
     description:
       'Confirmation asked before deleting every selected card from the lists holding it. {count} counts copies, not distinct cards.',
@@ -82,13 +74,17 @@ export const uiMeta = {
     description:
       'One skipped change in the import dialog: {change} is the rendered change line, {reason} one of the domain.importConflict.* phrases saying why it was skipped.',
   },
+  'ui.editor.droppedNoteItem': {
+    description:
+      "One card in the dropped-note report: {name} is the card name (never translated) and {note} the note that could not be kept, as the owner wrote it. Use your language's quotation marks.",
+  },
   'ui.editor.droppedNotes': {
     description:
-      'Reported after a save merged a card into an existing line and its note could not be kept. {items} is a comma-separated list of card names with their dropped notes.',
+      "Reported after a save merged a card into an existing line and its note could not be kept. {items} lists ui.editor.droppedNoteItem entries, already joined the way the reader's language lists items.",
   },
   'ui.editor.prunedCategories': {
     description:
-      'Reported after a save whose card removals left categories sidecar entries behind; the save pruned them. {count} is how many names were pruned (the plural selector) and {items} is the comma-separated list of them. The CLI states the same fact in its own voice as cli.session.categoriesPruned; the two are deliberately worded per surface.',
+      "Reported after a save whose card removals left categories sidecar entries behind; the save pruned them. {count} is how many names were pruned (the plural selector) and {items} lists them, already joined the way the reader's language lists items. The CLI states the same fact in its own voice as cli.session.categoriesPruned; the two are deliberately worded per surface.",
   },
   'ui.editor.loading': {
     description:
@@ -117,7 +113,7 @@ export const uiMeta = {
   },
   'ui.editor.saveSuccessNotices': {
     description:
-      'Save confirmation when the save also had news to report. {notes} is one or more already-rendered notice sentences (dropped notes, pruned categories, sidecar warnings), each arriving with a leading space.',
+      'Save confirmation when the save also had news to report. {notes} is one or more already-rendered notice sentences (dropped notes, pruned categories, sidecar warnings), joined by ui.text.sentenceJoin.',
   },
   'ui.editor.saveConflict': {
     description:
@@ -274,15 +270,6 @@ export const uiMeta = {
   'ui.editor.defaultsClear': {
     description: 'Button resetting every add-card default back to unset.',
     maxLen: 16,
-  },
-  'ui.editor.finishNonfoil': {
-    description: 'The plain, non-shiny printing of a card.',
-    maxLen: 12,
-  },
-  'ui.editor.finishFoil': { description: 'The shiny printing of a card.', maxLen: 12 },
-  'ui.editor.finishEtched': {
-    description: 'The etched-foil printing of a card — a distinct treatment from ordinary foil.',
-    maxLen: 12,
   },
   'ui.editor.changePrintingTitle': {
     description:
@@ -540,7 +527,7 @@ export const uiMeta = {
   },
   'ui.addCard.setFilterFellBack': {
     description:
-      'Notice that the set-code default matched nothing so every printing is offered instead. {sets} is a comma-separated list of uppercase set codes and is never translated.',
+      "Notice that the set-code default matched nothing so every printing is offered instead. {sets} lists the uppercase set codes (never translated), already joined the way the reader's language lists items.",
   },
   'ui.addCard.noSpecificPrinting': {
     description:

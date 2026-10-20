@@ -292,6 +292,8 @@ export const cliCardsMessages = {
   'cli.diff.invalidMode': "Invalid mode '{value}'. Use 'name' or 'printing'.",
   'cli.diff.identical': 'Lists are identical by {by}.',
   'cli.diff.noPrinting': 'no printing',
+  'cli.diff.bucket': '{printing} x{count}',
+  'cli.diff.breakdown': '{name} ({buckets})',
   'cli.diff.onlyInHeading': 'Only in {list} ({count})',
   'cli.diff.quantityHeading': 'Different quantities ({count})',
   'cli.diff.onlyLine': '  {quantity} {card}',
@@ -365,8 +367,6 @@ export const cliCardsMessages = {
   'cli.move.sectionPrompt': 'Section in {list}:',
   'cli.move.sectionNew': '➕ New section…',
   'cli.move.sectionNewPrompt': 'New section name:',
-  'cli.move.sectionNameInvalid':
-    "'{name}' is not a usable section name — drop the leading '#' and any line breaks.",
   'cli.move.batchNoSources': 'No lists selected to view. Leaving batch mode.',
   'cli.move.batchNoCards': 'No cards left to move in the selected lists. Leaving batch mode.',
   'cli.move.batchPrompt': 'Select cards to move ({count} selected), or choose an option:',

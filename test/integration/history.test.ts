@@ -120,15 +120,35 @@ describe('history --show (Integration)', () => {
   test('prints the change sets newest first with verbatim lines', async () => {
     await withWorkspace(async (dir) => {
       await seedDeck(dir, CHANGELOG)
-      const result = await runCli(['history', 'test', '--show'], dir)
+      // Pinned to UTC, so the local date and time below is the same on every host.
+      const result = await runCli(['history', 'test', '--show'], dir, { TZ: 'UTC' })
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain("Change history for Deck 'test' — 2 change sets.")
-      expect(result.stdout).toContain(`${NEWER_TS}  (1 change):`)
-      expect(result.stdout).toContain(`${OLDER_TS}  (2 changes):`)
-      expect(result.stdout.indexOf(NEWER_TS)).toBeLessThan(result.stdout.indexOf(OLDER_TS))
+      // Each set is headed with its instant as a local date and time, while the
+      // file (and --output json) keep the ISO stamp.
+      // (ICU builds differ on the space before AM: a plain or a narrow one.)
+      const newer = /2\/1\/2026, 10:00:00\s?AM {2}\(1 change\):/
+      const older = /1\/1\/2026, 10:00:00\s?AM {2}\(2 changes\):/
+      expect(result.stdout).toMatch(newer)
+      expect(result.stdout).toMatch(older)
+      expect(result.stdout).not.toContain(NEWER_TS)
+      expect(result.stdout.search(newer)).toBeLessThan(result.stdout.search(older))
       // Raw lines verbatim — leading '- ' and '&N' intact — indented two spaces.
       expect(result.stdout).toContain('  - Added "Sol Ring" &1')
       expect(result.stdout).toContain('  - Removed "Lightning Bolt" (LEA:161) &2')
+    })
+  })
+
+  test('heads each set in the reader’s locale: a German run formats the date the German way', async () => {
+    await withWorkspace(async (dir) => {
+      await seedDeck(dir, CHANGELOG)
+      const result = await runCli(['history', 'test', '--show'], dir, {
+        TZ: 'UTC',
+        RITUAL_LOCALE: 'de',
+      })
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toMatch(/1\.2\.2026, 10:00:00 {2}\(1 change\):/)
+      expect(result.stdout).toMatch(/1\.1\.2026, 10:00:00 {2}\(2 changes\):/)
     })
   })
 

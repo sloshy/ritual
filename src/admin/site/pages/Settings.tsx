@@ -9,7 +9,7 @@ import type {
 // so only its types may be imported into the admin SPA bundle.
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../config/search-debounce'
-import { CARD_LANGUAGES, isCardLanguage, languageDisplayName } from '../../../card/card-language'
+import { CARD_LANGUAGES, isCardLanguage, languageLabel } from '../../../card/card-language'
 import {
   PRICE_SOURCE_LABELS,
   VALID_PRICE_SOURCES,
@@ -31,7 +31,7 @@ import { adoptConfiguredLocale, availableLocales } from '../hooks/useAdminLocale
 import { localeEndonym } from '../../../site/LanguageSwitcher'
 import { isLocaleTagError, parseLocaleTag } from '../../../i18n/locale-tag'
 import type { LocaleTag, MessageSegment } from '../../../i18n/types'
-import { useT, useTSegments } from '../../../ui/i18n'
+import { useI18n, useT, useTSegments } from '../../../ui/i18n'
 import { apiMessage } from '../../../api/result'
 import { renderSyncMessage, type SyncMessage } from '../../../sync/message'
 import { useApiAction } from '../hooks/useApiAction'
@@ -66,6 +66,7 @@ function displayBannedPrinting(key: string): string {
 export function Settings(): JSX.Element {
   const t = useT()
   const tSegments = useTSegments()
+  const { locale } = useI18n()
   const [config, setConfig] = createSignal<RitualConfig | null>(null)
   const { status, error, loading, run, setStatus, setError } = useApiAction()
   /** True from Save click until every post-save push (incl. the status re-read) lands. */
@@ -379,7 +380,10 @@ export function Settings(): JSX.Element {
               <For each={CARD_LANGUAGES}>
                 {(code) => (
                   <option value={code}>
-                    {t('admin.settings.languageOption', { name: languageDisplayName(code), code })}
+                    {t('admin.settings.languageOption', {
+                      name: languageLabel(code, locale()),
+                      code,
+                    })}
                   </option>
                 )}
               </For>

@@ -206,6 +206,7 @@ export const cliSyncMessages = {
   'cli.importChanges.unreadable': "Cannot read '{file}': {reason}",
   'cli.importChanges.invalidBundle': 'Invalid change bundle: {reason}',
   'cli.importChanges.empty': 'The file contains no changes to apply.',
+  'cli.importChanges.reasonCount': '{reason}: {count}',
   'cli.importChanges.confirmationRequired':
     'Confirmation required: pass --yes to apply changes non-interactively.',
   'cli.importChanges.confirmApply': 'Apply {changes} to {lists}?',

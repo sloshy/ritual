@@ -45,7 +45,7 @@ export const CombineSetDialog: Component<CombineSetDialogProps> = (props) => {
               >
                 <span class="history-set-time">{candidate.timestamp}</span>
                 <span class="history-set-count">
-                  {t('ui.count.changes', { count: candidate.changeCount })}
+                  {t('domain.count.changes', { count: candidate.changeCount })}
                 </span>
               </button>
             )}

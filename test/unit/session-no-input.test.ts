@@ -77,7 +77,7 @@ describe('session prompts under --no-input', () => {
       () => promptWantedFinishChoice(undefined, undefined),
       'a preferred finish, or no preference',
     ],
-    ['new section name', () => promptNewSectionName(), 'a name for the new deck section'],
+    ['new section name', () => promptNewSectionName(BURN), 'a name for the new deck section'],
     [
       'add-to-section picker (no pinned target)',
       () => resolveTargetSection(BURN, buildInitialSessionConfig({}, undefined)),

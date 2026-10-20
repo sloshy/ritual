@@ -7,6 +7,8 @@ import { Modal } from '../../ui/Modal'
 import { MenuButton, type MenuButtonItem } from '../../ui/MenuButton'
 import { useMobileLayout } from '../../ui/useMediaQuery'
 import { useT } from '../../ui/i18n'
+import { sectionDisplayNames } from '../../list/deck-format'
+import { canonicalSection } from '../section-edits'
 
 type EditorActionBarProps = {
   changeCount: number
@@ -161,10 +163,16 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
   // The existing section whose name matches the draft case-insensitively (its canonical casing),
   // or undefined when the draft is free. Drives the duplicate highlight and the disabled state.
   const duplicateOf = createMemo(() => {
-    const lower = trimmedName().toLowerCase()
-    if (!lower) return undefined
-    return props.sections.find((s) => s.name.toLowerCase() === lower)?.name
+    const typed = trimmedName()
+    if (!typed) return undefined
+    return canonicalSection(
+      props.sections.map((s) => s.name),
+      typed,
+    )
   })
+  // What each row reads as: a known board in the UI language, or the raw
+  // heading when two of them are the same board.
+  const sectionLabels = createMemo(() => sectionDisplayNames(props.sections.map((s) => s.name)))
   const canAddSection = () => trimmedName() !== '' && !duplicateOf()
 
   const submitNewSection = () => {
@@ -332,11 +340,11 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
 
         <ul class="section-manager-list">
           <For each={props.sections}>
-            {(section) => (
+            {(section, index) => (
               <li
                 class={`section-manager-row${duplicateOf() === section.name ? ' section-manager-row--clash' : ''}`}
               >
-                <span class="section-manager-name">{section.name}</span>
+                <span class="section-manager-name">{sectionLabels()[index()] ?? section.name}</span>
                 <span class="section-manager-count">{section.count}</span>
                 <button
                   type="button"

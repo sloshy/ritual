@@ -1205,9 +1205,9 @@ export const adminMeta = {
   'admin.move.loadListFailedReason': {
     description: 'admin.move.loadListFailed with the underlying failure appended.',
   },
-  'admin.move.skippedSuffix': {
+  'admin.move.movedSkipped': {
     description:
-      'Appended to admin.api.move.moved: copies the commit stepped over. **Keep the leading space** — it separates this clause from the one before it.',
+      'The Move Cards commit banner when the commit stepped over some copies, e.g. "Moved 3 cards. (1 skipped)". {moved} is the already-rendered admin.api.move.moved sentence; {count} is how many copies were skipped (the plural selector). Order the two however your language reads best.',
   },
   'admin.move.saveFailed': {
     description:

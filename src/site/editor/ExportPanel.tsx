@@ -298,19 +298,19 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
           <p class="export-panel-count">
             <Switch
               fallback={t('site.editor.exporting', {
-                changes: t('ui.count.changes', { count: currentCount() }),
+                changes: t('domain.count.changes', { count: currentCount() }),
               })}
             >
               <Match when={activeScope() === 'all'}>
                 {t('site.editor.exportingAcross', {
-                  changes: t('ui.count.changes', { count: allCount() }),
-                  lists: t('ui.count.lists', { count: allListCount() }),
+                  changes: t('domain.count.changes', { count: allCount() }),
+                  lists: t('domain.count.lists', { count: allListCount() }),
                 })}
               </Match>
               <Match when={activeScope() === 'combined'}>
                 {t('site.editor.exportingAcross', {
-                  changes: t('ui.count.changes', { count: combinedCount() }),
-                  lists: t('ui.count.lists', { count: combinedListCount() }),
+                  changes: t('domain.count.changes', { count: combinedCount() }),
+                  lists: t('domain.count.lists', { count: combinedListCount() }),
                 })}
               </Match>
             </Switch>
@@ -334,7 +334,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
                         {t('site.editor.reviewGroup', {
                           icon: LIST_TYPE_DISPLAY[group.kind].icon,
                           name: group.name,
-                          changes: t('ui.count.changes', { count: group.changes.length }),
+                          changes: t('domain.count.changes', { count: group.changes.length }),
                         })}
                       </div>
                       <ul class="export-panel-review-changes">

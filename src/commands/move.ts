@@ -34,7 +34,13 @@ import {
   localizedCommandError,
   messageCommandError,
 } from '../util/errors'
-import { syncMessage } from '../sync/message'
+import {
+  syncList,
+  syncMessage,
+  syncRef,
+  type SyncListParam,
+  type SyncMessageRef,
+} from '../sync/message'
 import { describeEntry, ensureCardIdMatchesName } from '../list/entry-ref'
 import { resolvePinnedPrinting } from '../card/printing-pin'
 import { runCommandAction } from '../cli/action'
@@ -45,6 +51,7 @@ import { matchByNormalizedName } from '../card/term-match'
 import { getCardPrintingsResult } from '../scryfall'
 import { printingsAreComplete } from '../card/card-printing'
 import {
+  FINISH_NAMES,
   finishSuffix,
   isFinish,
   normalizeFinishValue,
@@ -56,6 +63,8 @@ import { printingSuffix } from '../card/card-line'
 import { languageToken, type CardLanguage } from '../card/card-language'
 import type { ListType } from '../list/list-type'
 import { t } from '../i18n/t'
+import { formatUnitList } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
 import { printingLabel } from '../card/card-line-tail'
 
 /**
@@ -474,7 +483,7 @@ async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptio
   // is data loss: it goes on stderr like the note warning below.
   if (prunedCategories.length > 0) {
     process.stderr.write(
-      `${t('cli.session.categoriesPruned', { names: prunedCategories.join(', ') })}\n`,
+      `${t('cli.session.categoriesPruned', { names: formatUnitList(currentLocale(), prunedCategories) })}\n`,
     )
   }
 
@@ -661,18 +670,24 @@ function printingComboKey(card: PhysicalCard): string {
   return `${card.set?.toLowerCase() ?? ''}|${card.collectorNumber ?? ''}|${card.finish ?? 'nonfoil'}|${card.language ?? 'en'}`
 }
 
-function describeNarrowing(selection: HeadlessSelection): string {
-  const parts: string[] = []
+/**
+ * The narrowing flags a refusal names, unrendered: listed and worded in the
+ * reader's locale, the finish by its name, the set code as written.
+ */
+function describeNarrowing(selection: HeadlessSelection): SyncListParam {
+  const parts: SyncMessageRef[] = []
   if (selection.set !== undefined) {
-    parts.push(t('cli.move.criteriaSet', { set: selection.set.toUpperCase() }))
+    parts.push(syncRef('cli.move.criteriaSet', { set: selection.set.toUpperCase() }))
   }
   if (selection.collectorNumber !== undefined) {
-    parts.push(t('cli.move.criteriaCollectorNumber', { value: selection.collectorNumber }))
+    parts.push(syncRef('cli.move.criteriaCollectorNumber', { value: selection.collectorNumber }))
   }
   if (selection.finish !== undefined) {
-    parts.push(t('cli.move.criteriaFinish', { finish: selection.finish }))
+    parts.push(
+      syncRef('cli.move.criteriaFinish', { finish: syncRef(FINISH_NAMES[selection.finish]) }),
+    )
   }
-  return parts.join(', ')
+  return syncList(parts, 'unit')
 }
 
 /**
@@ -806,7 +821,11 @@ async function savePendingMoves(virtualState: Map<string, VirtualCard>): Promise
   console.log(t('cli.move.saving', { count: pending.length }))
   const { moved, droppedNotes, prunedCategories } = await commitAllMoves(virtualState)
   if (prunedCategories.length > 0) {
-    console.warn(t('cli.session.categoriesPruned', { names: prunedCategories.join(', ') }))
+    console.warn(
+      t('cli.session.categoriesPruned', {
+        names: formatUnitList(currentLocale(), prunedCategories),
+      }),
+    )
   }
   for (const dn of droppedNotes) {
     console.log(

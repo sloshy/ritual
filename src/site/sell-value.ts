@@ -24,6 +24,8 @@ import { displayLanguage, type CardLanguage } from '../card/card-language'
 import type { CardData } from '../list-view/card-sorting'
 import type { CardLabel } from '../card/card-labels'
 import { isPricelessCard } from '../list-view/priceless'
+import { formatUnitList } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
 import { t } from '../i18n/t'
 
 /**
@@ -221,7 +223,9 @@ export function sellShortfallNote(summary: SellValueSummary): string | null {
     // unquotable, not merely unlisted, so they get their own wording.
     parts.push(t('site.sell.nonEnglish', { count: summary.nonEnglishCount }))
   }
-  return parts.length > 0 ? `(${parts.join(', ')})` : null
+  return parts.length > 0
+    ? t('site.sell.shortfall', { parts: formatUnitList(currentLocale(), parts) })
+    : null
 }
 
 /**

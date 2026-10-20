@@ -110,7 +110,7 @@ describe('deck strategy — Edit List Labels', () => {
 
   test('the menu item shows the deck default (or none)', () => {
     expect(labelsTitle({})).toContain('Edit List Labels (default: none)')
-    expect(labelsTitle({ labels: ['proxy'] })).toContain('Edit List Labels (default: proxy)')
+    expect(labelsTitle({ labels: ['proxy'] })).toContain('Edit List Labels (default: Proxy)')
   })
 
   test('picking a default writes the front matter and dirties the session', async () => {

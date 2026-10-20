@@ -150,7 +150,7 @@ export const domainExportMeta = {
     description: `${WARNING} A plain-text decklist written for MTG Arena or Moxfield (two websites; "Arena" and "Moxfield" are brand names) has no place for a deck's "Maybeboard" (cards being considered) or "Tokens" sections, so their cards were left out. {sections} is the list of sections left out, each with its card count, already joined.`,
   },
   'domain.export.warning.sectionCount': {
-    description: `${WARNING} One entry of the list of deck sections an export left out: {section} is the section's name as the deck file spells it (never translate it), {quantity} how many cards it held.`,
+    description: `${WARNING} One entry of the list of deck sections an export left out: {section} is the section's name — a standard board (domain.board.*) already in the reader's language, any other section as the deck file spells it — and {quantity} how many cards it held.`,
   },
   'domain.export.warning.categoriesUnwritable': {
     description: `${WARNING} A Moxfield decklist writes each card's categories (its roles in a deck, like "Ramp") as tags, but some could not be written. {categories} is the list of those category names, already joined; never translate them. "Moxfield" is a brand name; "#", "&" and "!" are literal characters.`,

@@ -22,7 +22,7 @@ import { formatCanonicalCardLine, type DeckCardLineFields } from '../../src/card
 import { formatCardLabels, formatLabelOverride, type CardLabel } from '../../src/card/card-labels'
 import { formatCardTagsToken } from '../../src/card/card-tags'
 import { DEFAULT_CARD_CATEGORIES } from '../../src/card/card-categories'
-import { languageDisplayName, CARD_LANGUAGES } from '../../src/card/card-language'
+import { LANGUAGE_PARSE_NAMES, CARD_LANGUAGES } from '../../src/card/card-language'
 import {
   emptyCardCategoriesRecord,
   serializeCardCategoriesSidecar,
@@ -435,7 +435,7 @@ describe('the line format never localizes', () => {
       formatCardTagsToken(['Ramp', 'Card Draw']),
       serializeCardCategoriesSidecar(record),
       // The language names a changelog line persists and re-parses.
-      ...CARD_LANGUAGES.map(languageDisplayName),
+      ...CARD_LANGUAGES.map((code) => LANGUAGE_PARSE_NAMES[code]),
     ]
   }
 

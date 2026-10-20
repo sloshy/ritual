@@ -35,6 +35,8 @@ import { menuRow, type MenuChoice, type MenuSentinel } from './menu'
 import type { CardSessionContext } from './strategy'
 import { promptCategoryOrder, promptCategoryRename } from './prompts'
 import { t } from '../../i18n/t'
+import { formatUnitList } from '../../i18n/format'
+import { currentLocale } from '../../i18n/runtime'
 import { renderSyncMessage } from '../../sync/message'
 
 /** A CLI edit session's pending category edits. */
@@ -162,7 +164,9 @@ export function warnUnreconciledCategories(result: CommitCategoryChangesResult):
     )
   }
   if (result.pruned.length > 0) {
-    console.warn(t('cli.session.categoriesPruned', { names: result.pruned.join(', ') }))
+    console.warn(
+      t('cli.session.categoriesPruned', { names: formatUnitList(currentLocale(), result.pruned) }),
+    )
   }
 }
 

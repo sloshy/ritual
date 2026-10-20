@@ -131,23 +131,23 @@ export const domainSyncMeta = {
   },
   'domain.sync.detailAdded': {
     description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card added. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt.',
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card added. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, a deck board name already in the reader\'s language (domain.board.*), a collection list name (the owner\'s own), or domain.sync.placeArchidekt.',
   },
   'domain.sync.detailRemoved': {
     description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card removed. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt.',
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card removed. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, a deck board name already in the reader\'s language (domain.board.*), a collection list name (the owner\'s own), or domain.sync.placeArchidekt.',
   },
   'domain.sync.detailQuantity': {
     description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose quantity changes. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt. {from} and {to} are the old and new copy counts.',
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose quantity changes. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, a deck board name already in the reader\'s language (domain.board.*), a collection list name (the owner\'s own), or domain.sync.placeArchidekt. {from} and {to} are the old and new copy counts.',
   },
   'domain.sync.detailMove': {
     description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card moving between deck boards. {quantity} is the number of copies moving. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {from} and {to} are deck board names (Commander, Main, Sideboard, Maybeboard), interpolated untranslated.',
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card moving between deck boards. {quantity} is the number of copies moving. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {from} and {to} are deck board names, already in the reader\'s language (domain.board.*).',
   },
   'domain.sync.detailPrinting': {
     description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose copies change printing. {card} is the card name. {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt. {from} and {to} are the old and new printings in card-line grammar like "(LEA:270) [foil]" (a finish-only change reads "[nonfoil] → [foil]"), or domain.sync.detailNoPrinting.',
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose copies change printing. {card} is the card name. {place} is where the copies are, a deck board name already in the reader\'s language (domain.board.*), a collection list name (the owner\'s own), or domain.sync.placeArchidekt. {from} and {to} are the old and new printings in card-line grammar like "(LEA:270) [foil]" (a finish-only change reads "[nonfoil] → [foil]"), or domain.sync.detailNoPrinting.',
   },
   'domain.sync.detailCategories': {
     description:
@@ -270,7 +270,7 @@ export const domainSyncMeta = {
     description: `${LOG_CONTEXT} Warning during a deck push with category syncing on: the local deck has no categories at all, so the push leaves Archidekt's alone rather than wiping them. "--sync-categories" is a literal CLI flag.`,
   },
   'domain.sync.moveShortfall': {
-    description: `${LOG_CONTEXT} Warning during a deck pull: Archidekt moved copies of a card between deck boards, but the local file does not hold enough of them on the source board. {count} is the number of copies, {card} the card name, {from} and {to} deck board names (Commander, Main, Sideboard, Maybeboard), interpolated untranslated.`,
+    description: `${LOG_CONTEXT} Warning during a deck pull: Archidekt moved copies of a card between deck boards, but the local file does not hold enough of them on the source board. {count} is the number of copies, {card} the card name, {from} and {to} deck board names, already in the reader's language (domain.board.*).`,
   },
   'domain.sync.noChangesDetected': {
     description: `${LOG_CONTEXT} Logged under a deck a pull found already up to date.`,
@@ -366,7 +366,7 @@ export const domainSyncMeta = {
   },
   'domain.sync.boardMoveShortfall': {
     description:
-      'A deck push could not move copies of a card between deck boards: the Archidekt deck does not hold enough of them on the source board. {count} is the number of copies, {card} the card with its printing, {board} a deck board name (Commander, Main, Sideboard, Maybeboard), interpolated untranslated.',
+      "A deck push could not move copies of a card between deck boards: the Archidekt deck does not hold enough of them on the source board. {count} is the number of copies, {card} the card with its printing, {board} a deck board name, already in the reader's language (domain.board.*).",
   },
   'domain.sync.noReadableListsToPush': {
     description: `${LOG_CONTEXT} Error: a collection push found no collection list it could read, and refuses to run because an empty local side would delete the whole Archidekt collection.`,

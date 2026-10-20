@@ -1,5 +1,5 @@
 import { createStore } from 'solid-js/store'
-import { saveSuccessSuffix, type SaveSuccessNotices } from './save-notices'
+import { joinSentences, saveNoticeSentences, type SaveSuccessNotices } from './save-notices'
 import type { MessageKey } from '../i18n/messages/en'
 import { paramsOf, type MessageRef, type TranslateArgs, type TranslateDynamicFn } from '../i18n/t'
 import { renderSyncMessage, type SyncMessage } from '../sync/message'
@@ -72,7 +72,7 @@ export function renderStatus(t: TranslateDynamicFn, message: EditorStatusMessage
     case 'saved': {
       // The notices render through the module translator, which reads the same
       // locale signal, so they track the switch the frame does.
-      const notes = saveSuccessSuffix(message.notices)
+      const notes = joinSentences(saveNoticeSentences(message.notices))
       return notes ? t('ui.editor.saveSuccessNotices', { notes }) : t('ui.editor.saveSuccess')
     }
   }

@@ -51,6 +51,7 @@ import {
   type SyncMessage,
   type SyncMessageRef,
 } from '../sync/message'
+import { jsonErrorPosition } from '../util/json'
 
 type ThemeOption = {
   value: string
@@ -138,8 +139,13 @@ export const ThemeEditor: Component = () => {
     try {
       parsed = JSON.parse(text)
     } catch (e) {
+      // The engine's own message is English (and engine-specific), so only the
+      // position it names, when it names one, reaches the reader.
+      const position = jsonErrorPosition(e)
       setImportError(
-        syncRef('site.theme.invalidJson', { error: e instanceof Error ? e.message : String(e) }),
+        position === undefined
+          ? syncRef('site.theme.invalidJson')
+          : syncRef('site.theme.invalidJsonAt', { line: position.line, column: position.column }),
       )
       return
     }

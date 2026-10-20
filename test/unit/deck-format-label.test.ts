@@ -174,3 +174,11 @@ describe('getDeckCountLabel', () => {
     expect(getDeckCountLabel(null, 0)).toEqual({ primary: '0 cards' })
   })
 })
+
+describe('parseDeckFormat — prototype names', () => {
+  test('a format named after an Object property is no format', () => {
+    for (const raw of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+      expect(parseDeckFormat(raw)).toBeNull()
+    }
+  })
+})

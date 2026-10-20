@@ -879,6 +879,75 @@ describe('pseudo-locale (Integration)', () => {
     })
   })
 
+  test('set-card names a standard board in the CLI’s language; the deck keeps its English heading', async () => {
+    await withTempDir(async (dir) => {
+      await writeDeckFile(dir, 'burn', {
+        name: 'Burn',
+        sections: [
+          { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] },
+          { name: 'Sideboard', cards: [] },
+        ],
+      })
+      const result = await runCli(
+        ['set-card', '--deck', 'burn', 'Sol', 'Ring', '--section', 'sideboard'],
+        dir,
+        PSEUDO_ENV,
+      )
+      expect(result.exitCode).toBe(0)
+      // The applied change names the board as the reader's language spells it.
+      const board = await pseudoText('domain.board.sideboard')
+      expect(unwrap(result.stdout)).toContain(board)
+      expect(result.stdout).not.toContain('→ Sideboard')
+
+      // The file and its changelog keep the deck's own English heading.
+      const deck = await fs.readFile(path.join(dir, 'decks', 'burn.md'), 'utf-8')
+      expect(deck).toContain('## Sideboard\n- 1 Sol Ring &1')
+      expect(deck).not.toContain(board)
+      const log = await fs.readFile(path.join(dir, 'decks', 'burn.changes.md'), 'utf-8')
+      expect(log).toContain('- Moved "Sol Ring" to section "Sideboard" &1')
+    })
+  })
+
+  test('set-card creates a missing board under its English heading, whatever the token’s case; json keys each change', async () => {
+    await withTempDir(async (dir) => {
+      await writeDeckFile(dir, 'burn', {
+        name: 'Burn',
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      })
+      const result = await runCli(
+        // A lowercase board token still writes the board's own heading.
+        ['set-card', '--deck', 'burn', 'Sol', 'Ring', '--section', 'sideboard', '--output', 'json'],
+        dir,
+        PSEUDO_ENV,
+      )
+      expect(result.exitCode).toBe(0)
+      const deck = await fs.readFile(path.join(dir, 'decks', 'burn.md'), 'utf-8')
+      expect(deck).toContain('## Sideboard\n- 1 Sol Ring &1')
+      expect(deck).not.toContain(await pseudoText('domain.board.sideboard'))
+      // Each applied change is English plus its key, the board nested as a
+      // message so a client names it in its own language.
+      const json = JSON.parse(result.stdout) as { applied: unknown[] }
+      expect(json.applied).toEqual([
+        {
+          message: 'section → Sideboard',
+          messageKey: 'cli.setCard.appliedSection',
+          messageParams: { section: { messageKey: 'domain.board.sideboard' } },
+        },
+      ])
+    })
+  })
+
+  test('lists words the type column in the CLI’s language; json keeps the token', async () => {
+    await withTempDir(async (dir) => {
+      await writeWantedFile(dir, 'needs', { entries: [{ name: 'Demonic Tutor', cardId: 1 }] })
+      const text = await runCli(['lists'], dir, PSEUDO_ENV)
+      expect(text.exitCode).toBe(0)
+      expect(text.stdout).toContain(await pseudoBranch('domain.listType.noun', 'wanted'))
+      const json = await runCli(['lists', '--output', 'json'], dir, PSEUDO_ENV)
+      expect(JSON.parse(json.stdout)).toEqual([{ type: 'wanted', slug: 'needs', name: 'needs' }])
+    })
+  })
+
   test('a malformed ritual.config.json is refused in the CLI’s language', async () => {
     await withTempDir(async (dir) => {
       const configPath = path.join(dir, 'ritual.config.json')

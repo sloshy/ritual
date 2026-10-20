@@ -32,7 +32,8 @@ import {
   normalizeScriptingOptions,
 } from '../cli/output'
 import { fail, failWith } from '../cli/action'
-import { DEFAULT_LOCALE } from '../i18n/runtime'
+import { currentLocale, DEFAULT_LOCALE } from '../i18n/runtime'
+import { formatUnitList } from '../i18n/format'
 import { addScriptingOptions } from '../cli/options'
 import { ExitCode } from '../util/errors'
 
@@ -116,9 +117,12 @@ function summarizeConflictReasons(conflicts: readonly ImportConflict[]): string 
   for (const conflict of conflicts) {
     counts.set(conflict.reason, (counts.get(conflict.reason) ?? 0) + 1)
   }
-  return [...counts.entries()]
-    .map(([reason, count]) => `${t(IMPORT_CONFLICT_REASON_KEY[reason])}: ${count}`)
-    .join(', ')
+  return formatUnitList(
+    currentLocale(),
+    [...counts.entries()].map(([reason, count]) =>
+      t('cli.importChanges.reasonCount', { reason: t(IMPORT_CONFLICT_REASON_KEY[reason]), count }),
+    ),
+  )
 }
 
 /** Print per-list applied counts, skipped conflicts, and failures after an apply. */

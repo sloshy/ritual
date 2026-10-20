@@ -84,10 +84,24 @@ describe('groupDeckBoardsByCategory', () => {
     expect(commander!.heading).toEqual({
       messageKey: 'site.cardSection.boardCategoryHeading',
       messageParams: {
-        board: 'Commander',
+        board: { messageKey: 'domain.board.commander' },
         category: { messageKey: 'site.groupBy.uncategorized' },
       },
     })
+  })
+
+  test('a board that is not a standard one keeps its own heading text', () => {
+    const [tokens] = groupDeckBoardsByCategory(
+      [
+        {
+          label: 'Tokens',
+          cards: [makeCard({ name: 'Goblin', categories: ['Ramp'] })],
+          hideCount: false,
+        },
+      ],
+      options({ categoryOrder: ['Ramp'] }),
+    )
+    expect(tokens!.heading).toMatchObject({ messageParams: { board: 'Tokens' } })
   })
 
   test('a board name holding the key separator stays its own board', () => {

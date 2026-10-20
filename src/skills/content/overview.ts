@@ -66,9 +66,10 @@ or the full name exactly as spelled. The error's last line always names the
 remedy that actually applies.
 
 **Discovering lists:** \`ritual lists\` is the discovery primitive — it enumerates
-every deck, collection, and wanted list as \`type slug name\` rows. Filter with
+every deck, collection, and wanted list as \`type slug name\` rows (the text type
+column is worded in the UI language, e.g. \`wanted list\`). Filter with
 \`--deck\`/\`--collection\`/\`--wanted\`, and pass \`--output json\` for machine-readable
-\`{type, slug, name}\` objects. Prefer it over globbing the workspace folders.
+\`{type, slug, name}\` objects whose \`type\` is always \`deck\`/\`collection\`/\`wanted\`. Prefer it over globbing the workspace folders.
 
 **List lifecycle:** \`ritual new <deck|collection|wanted> "<name>"\` creates a list
 (\`-f/--format\` for decks, default \`commander\`), \`ritual rename <list> "<new name>"\`

@@ -4,7 +4,9 @@ import {
   moveBaselineSection,
   sectionInfoFrom,
   sectionNameError,
+  typedSectionHeading,
 } from '../../src/editor/section-edits'
+import { withSyntheticLocale } from '../helpers/sync-text'
 import { DEFAULT_SECTION } from '../../src/list/deck'
 import { makeContextInfo } from '../test-utils'
 
@@ -73,5 +75,53 @@ describe('moveBaselineSection', () => {
 
   test('a list without section lookup baselines to the default section', () => {
     expect(moveBaselineSection({ section: 'Sideboard' }, target, undefined)).toBe(DEFAULT_SECTION)
+  })
+})
+
+describe('a board typed in the UI language', () => {
+  const GERMAN = { 'domain.board.sideboard': 'Seitenboard' }
+
+  test('clashes with the board the list has, and is written as its English heading', () => {
+    withSyntheticLocale('de', GERMAN, () => {
+      expect(canonicalSection(['Main', 'Sideboard'], 'Seitenboard')).toBe('Sideboard')
+      expect(sectionNameError(['Main', 'Sideboard'], 'Seitenboard')).toEqual({
+        kind: 'exists',
+        clash: 'Sideboard',
+      })
+      expect(typedSectionHeading(['Main'], 'Seitenboard')).toBe('Sideboard')
+    })
+  })
+
+  test('a pure case change of an existing heading keeps the casing typed', () => {
+    expect(typedSectionHeading(['Main', 'sideboard'], 'Sideboard')).toBe('Sideboard')
+    expect(sectionNameError(['Main', 'sideboard'], 'Sideboard', 'sideboard')).toBeNull()
+  })
+})
+
+describe('sectionInfoFrom — prototype names', () => {
+  test('a section named after an Object property counts its own cards only', () => {
+    expect(sectionInfoFrom(['constructor', '__proto__'], {})).toEqual([
+      { name: 'constructor', count: 0 },
+      { name: '__proto__', count: 0 },
+    ])
+  })
+})
+
+describe('a custom heading that reads like a board, under German', () => {
+  const GERMAN = { 'domain.board.sideboard': 'Seitenboard' }
+  const ORDER_DE = ['Main', 'Seitenboard']
+
+  test('Add of "Sideboard" is no duplicate, and writes the Sideboard', () => {
+    withSyntheticLocale('de', GERMAN, () => {
+      expect(sectionNameError(ORDER_DE, 'Sideboard')).toBeNull()
+      expect(typedSectionHeading(ORDER_DE, 'Sideboard')).toBe('Sideboard')
+    })
+  })
+
+  test('Rename of `Seitenboard` to "Sideboard" renames it to the board', () => {
+    withSyntheticLocale('de', GERMAN, () => {
+      expect(sectionNameError(ORDER_DE, 'Sideboard', 'Seitenboard')).toBeNull()
+      expect(typedSectionHeading(ORDER_DE, 'Sideboard')).toBe('Sideboard')
+    })
   })
 })

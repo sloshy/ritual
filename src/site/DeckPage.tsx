@@ -19,7 +19,7 @@ import type { CardContextInfo } from '../list-view/card-context'
 import type { BakedDeckCard, BakedDeckData, CardKingdomCards } from '../list/site-data'
 import { sourceCards } from '../list-view/source-cards'
 import {
-  cardLabelName,
+  cardLabelsDisplay,
   effectiveLabels,
   labelFiltersFor,
   type CardLabel,
@@ -71,7 +71,14 @@ import { PrimerRenderer, buildToc } from './PrimerRenderer'
 import { selectionMoveCarry, type SelectedCard } from '../list-view/useCardSelection'
 import type { DeckBulkEditBundle } from '../list-view/selection-edit-actions'
 import type { ExportFormat } from './ExportMenu'
-import { isExtraSection, isSideboardSection } from '../list/deck-format'
+import {
+  canonicalSectionName,
+  COMMANDER_SECTION,
+  isCommanderSection,
+  isExtraSection,
+  isSideboardSection,
+  sectionNameParam,
+} from '../list/deck-format'
 import { deckToExportText, deckToMarkdown } from '../list/deck-text'
 import { deckToCsv } from '../list/list-export'
 
@@ -487,7 +494,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     const language = storedLanguage(entry.language)
     if (language) parts.push({ label: 'language', value: languageLabel(language, locale()) })
     if (labels.length > 0) {
-      parts.push({ label: 'labels', value: labels.map(cardLabelName).join(' · ') })
+      parts.push({ label: 'labels', value: cardLabelsDisplay(labels, locale()) })
     }
     parts.push({ label: 'rarity', value: rarityName(t, card.rarity) })
     return parts
@@ -631,14 +638,15 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       .filter((s) => s.cards.length > 0)
   })
 
-  // The two board names the deck may spell for itself. Extracted so the nested
-  // and flat branches below can never disagree about a heading.
+  // The two board names the deck may spell for itself — its own section names,
+  // the identity behind each heading's anchor. Extracted so the nested and flat
+  // branches below can never disagree about a heading; each is shown through
+  // `sectionNameParam`, which translates a standard board for the reader.
   const commanderLabel = () =>
-    // i18n-exempt: a board name, English by contract (see BOARDS).
-    props.deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ?? 'Commander'
+    props.deck.sections.find((s) => isCommanderSection(s.name))?.name ?? COMMANDER_SECTION
   const sideboardLabel = () =>
-    // i18n-exempt: a board name, English by contract (see BOARDS).
-    props.deck.sections.find((s) => isSideboardSection(s.name))?.name ?? 'Sideboard'
+    props.deck.sections.find((s) => isSideboardSection(s.name))?.name ??
+    canonicalSectionName('sideboard')
 
   // The two category groupings nest inside
   // every board — `Sideboard › Draw` — while every other grouping keeps grouping
@@ -797,7 +805,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 <CardSection
                   priceEstimated={page.priceEstimated}
                   sectionKey={boardSectionKey(commanderLabel())}
-                  heading={commanderLabel()}
+                  heading={sectionNameParam(commanderLabel())}
                   cards={partitioned().commanderCards}
                   currency={props.currency}
                   renderCard={renderDeckCard(true)}
@@ -823,7 +831,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 <CardSection
                   priceEstimated={page.priceEstimated}
                   sectionKey={boardSectionKey(sideboardLabel())}
-                  heading={sideboardLabel()}
+                  heading={sectionNameParam(sideboardLabel())}
                   cards={page.filteredAlso()}
                   currency={props.currency}
                   renderCard={renderDeckCard(false)}
@@ -836,7 +844,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                   <CardSection
                     priceEstimated={page.priceEstimated}
                     sectionKey={boardSectionKey(s.name)}
-                    heading={s.name}
+                    heading={sectionNameParam(s.name)}
                     cards={s.cards}
                     currency={props.currency}
                     renderCard={renderDeckCard(false)}

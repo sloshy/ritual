@@ -38,6 +38,8 @@ import { inputRequiredError, promptsUnavailable, requireInteractive } from '../u
 import { fail, runCommandAction } from '../cli/action'
 import { parsePositiveInteger } from '../util/parse-number'
 import { t, type MessageRef } from '../i18n/t'
+import { formatDateTimeOr } from '../ui/format'
+import { choiceSearchAliases, type SearchableChoice } from '../cli/menu-search'
 import { writeFileAtomic } from '../util/atomic-write'
 import { renderSyncMessage } from '../sync/message'
 
@@ -61,15 +63,25 @@ function listTypeLabel(type: ListType): string {
 }
 
 /**
- * One change set's header line — `2026-05-29T12:00:00.000Z  (3 changes)`. The
+ * One change set's header line — `5/29/2026, 12:00:00 PM  (3 changes)`. The
  * `--show` output and three editor screens all render it, and a `:` is appended
  * where the block's lines follow, so the wording lives in exactly one place.
+ * The instant is formatted for the reader; the file (and `--output json`) keep
+ * the ISO heading, and a heading that is not a date prints as written.
  */
 function setHeading(set: ChangeSet): string {
   return t('cli.history.setHeading', {
-    timestamp: set.timestamp,
+    timestamp: formatDateTimeOr(set.timestamp, set.timestamp),
     changes: t('domain.count.changes', { count: set.lines.length }),
   })
+}
+
+/**
+ * A change set's picker row: its heading, findable by the ISO timestamp the
+ * file records as well as by the date the heading shows.
+ */
+function setChoice(set: ChangeSet, value: string): SearchableChoice {
+  return { title: setHeading(set), value, searchAliases: [set.timestamp] }
 }
 
 /** Run a single-select prompt, returning the chosen value or null on cancel/ESC. */
@@ -82,7 +94,9 @@ async function selectMenu(message: string, choices: prompts.Choice[]): Promise<s
  * Run a type-to-filter autocomplete prompt, returning the chosen value or null on
  * cancel/ESC. Matching mirrors the card pickers elsewhere in the CLI: an empty
  * query shows everything, otherwise a choice is kept when every whitespace-split
- * term is a case-insensitive substring of its title. Values in `pinned` always
+ * term is a case-insensitive substring of its title or of its search aliases (a
+ * change set's ISO timestamp, so `2026-05-29` finds a set whose title shows the
+ * date in the reader's format). Values in `pinned` always
  * stay visible regardless of the query (used to keep action items shown while the
  * change sets are being filtered).
  */
@@ -98,11 +112,11 @@ async function autocompleteMenu(
     suggest: async (input, items) => {
       const terms = String(input).toLowerCase().split(/\s+/).filter(Boolean)
       if (terms.length === 0) return items
-      return items.filter(
-        (choice) =>
-          (pinned?.has(String(choice.value)) ?? false) ||
-          terms.every((term) => choice.title.toLowerCase().includes(term)),
-      )
+      return items.filter((choice) => {
+        if (pinned?.has(String(choice.value)) ?? false) return true
+        const haystack = [choice.title, ...choiceSearchAliases(choice)].join(' ').toLowerCase()
+        return terms.every((term) => haystack.includes(term))
+      })
     },
   })
   return typeof value === 'string' ? value : null
@@ -338,10 +352,7 @@ const MAIN_ACTION_VALUES: ReadonlySet<string> = new Set([
 ])
 
 export function buildMainChoices(state: EditorState): prompts.Choice[] {
-  const setChoices: prompts.Choice[] = state.sets.map((s, i) => ({
-    title: setHeading(s),
-    value: `set:${i}`,
-  }))
+  const setChoices: SearchableChoice[] = state.sets.map((s, i) => setChoice(s, `set:${i}`))
 
   // Undo first (it takes back whatever you just did), then the safe review
   // action, and only then the one item that rewrites every set — a destructive
@@ -417,7 +428,7 @@ async function handleCombine(state: EditorState, targetIndex: number): Promise<v
 
   const choice = await autocompleteMenu(
     t('cli.history.promptCombine'),
-    others.map(({ s, i }) => ({ title: setHeading(s), value: String(i) })),
+    others.map(({ s, i }) => setChoice(s, String(i))),
   )
   if (choice === null) return
 

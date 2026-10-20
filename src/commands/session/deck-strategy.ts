@@ -1,8 +1,16 @@
 import { ask } from '../../cli/prompts'
 import type { DeckData } from '../../list/deck'
-import { promptDefaultLabelsChoice, promptFinishAndCondition, resolveCardPrinting } from './prompts'
+import {
+  defaultLabelsChangedLine,
+  defaultLabelsValue,
+  promptDefaultLabelsChoice,
+  promptFinishAndCondition,
+  resolveCardPrinting,
+} from './prompts'
 import { resolveAddedLanguage } from '../../card/printing-pin'
-import { formatCardLabels, sameCardLabels } from '../../card/card-labels'
+import { sameCardLabels } from '../../card/card-labels'
+import { formatUnitList } from '../../i18n/format'
+import { currentLocale } from '../../i18n/runtime'
 import { languageToken, type CardLanguage } from '../../card/card-language'
 import type { SessionConfig } from './config'
 import { findCardById, findDeckCard, writeDeck } from '../../list/deck-io'
@@ -18,7 +26,12 @@ import type { DroppedNote } from '../../list/move-staging'
 import type { MoveToChange } from '../../changes/change-event'
 import { droppedMoveNote, type DeckLandingOptions } from '../../changes/deck-changes'
 import { t } from '../../i18n/t'
-import { getDeckFormatLabel, resolveDeckFormat, type DeckFormatKey } from '../../list/deck-format'
+import {
+  getDeckFormatLabel,
+  resolveDeckFormat,
+  sectionDisplayName,
+  type DeckFormatKey,
+} from '../../list/deck-format'
 import type { DeckFrontMatter } from '../../list/deck-file'
 import {
   applyDeckChange,
@@ -169,14 +182,13 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     state.dirty = true
     console.log(
       tags.length > 0
-        ? t('cli.deck.tagsSet', { tags: tags.join(', ') })
+        ? t('cli.deck.tagsSet', { tags: formatUnitList(currentLocale(), tags) })
         : t('cli.deck.tagsCleared'),
     )
   }
 
-  /** The deck's default labels as shown in the menu row: comma-joined, or "none". */
-  const labelsDisplay = (): string =>
-    formatCardLabels(frontMatter.labels ?? []) || t('cli.labels.none')
+  /** The deck's default labels as shown in the menu row. */
+  const labelsDisplay = (): string => defaultLabelsValue(frontMatter.labels ?? [])
 
   /**
    * Prompt for the deck's default card labels (`labels:` front matter). Like a
@@ -191,11 +203,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     if (labels.length === 0) delete frontMatter.labels
     else frontMatter.labels = labels
     state.dirty = true
-    console.log(
-      labels.length > 0
-        ? t('cli.labels.defaultSet', { labels: formatCardLabels(labels) })
-        : t('cli.labels.defaultCleared'),
-    )
+    console.log(defaultLabelsChangedLine(labels))
   }
 
   /** Add a card (with or without a printing) to `section`, tracking it as the last added. */
@@ -240,7 +248,10 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       : ''
     const languageInfo = languageToken(printing.language)
     console.log(
-      t('cli.deck.addedCard', { card: `${cardName}${printingInfo}${languageInfo}`, section }),
+      t('cli.deck.addedCard', {
+        card: `${cardName}${printingInfo}${languageInfo}`,
+        section: sectionDisplayName(section),
+      }),
     )
   }
 
@@ -456,7 +467,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       console.log(
         t('cli.deck.addedAnother', {
           name: ctx.lastAdded.name,
-          section: lastSection,
+          section: sectionDisplayName(lastSection),
           count: ctx.lastAddedCount,
         }),
       )

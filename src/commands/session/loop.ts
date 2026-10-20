@@ -4,8 +4,9 @@ import { appendChangelog } from '../../changes/changelog-writer'
 import { createSetNoteChange } from '../../changes/change-event'
 import { formatSetCodesForDisplay } from '../../card/set-codes'
 import { t } from '../../i18n/t'
+import { currentLocale } from '../../i18n/runtime'
 import { ask, menuPageSize, promptExitMenu } from '../../cli/prompts'
-import { languageDisplayName } from '../../card/card-language'
+import { languageLabel } from '../../card/card-language'
 import { promptLanguageChoice } from './prompts'
 import {
   asMenuSentinel,
@@ -470,7 +471,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         sessionConfig.language = language
         console.log(
           t('cli.session.cardLanguageSet', {
-            language: languageDisplayName(language),
+            language: languageLabel(language, currentLocale()),
             code: language,
           }),
         )

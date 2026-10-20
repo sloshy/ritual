@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { compareData } from '../i18n/collate'
 import { loadListInfos, type ListInfo } from '../list/list-info'
-import { LIST_TYPES } from '../list/list-type'
+import { LIST_TYPES, listTypeNoun } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
 import { resolveListTypeFlag, addScriptingOptions } from '../cli/options'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
@@ -33,16 +33,19 @@ export function registerListsCommand(program: Command): void {
         if (!scripting.quiet) emitOutput(t('cli.lists.empty'), scripting)
         return
       }
-      // Terminal columns, not code units — a slug is ASCII but a list name is
-      // not, and the same padding helper is what keeps every table honest.
-      const typeWidth = Math.max(...rows.map((row) => displayWidth(row.type)))
+      // Terminal columns, not code units — a slug is ASCII but a list name (or
+      // a translated type) is not, and the same padding helper is what keeps
+      // every table honest. The type reads in the UI language; JSON keeps the
+      // `deck` / `collection` / `wanted` token.
+      const types = rows.map((row) => listTypeNoun(row.type))
+      const typeWidth = Math.max(...types.map(displayWidth))
       const slugWidth = Math.max(...rows.map((row) => displayWidth(row.slug)))
-      for (const row of rows) {
+      rows.forEach((row, index) => {
         emitOutput(
-          `${padEndDisplay(row.type, typeWidth)}  ${padEndDisplay(row.slug, slugWidth)}  ${row.name}`,
+          `${padEndDisplay(types[index] ?? '', typeWidth)}  ${padEndDisplay(row.slug, slugWidth)}  ${row.name}`,
           scripting,
         )
-      }
+      })
       return
     }
 

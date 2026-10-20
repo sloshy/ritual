@@ -26,7 +26,7 @@ export const siteMeta = {
   },
   'site.findPrintings.summary': {
     description:
-      'Summary of the "find other printings" modal: how many copies were found, and in how many lists. {lists} is an already-rendered count phrase from ui.count.lists (e.g. "2 lists").',
+      'Summary of the "find other printings" modal: how many copies were found, and in how many lists. {lists} is an already-rendered count phrase from domain.count.lists (e.g. "2 lists").',
   },
   'site.combine.selected': {
     description:
@@ -41,7 +41,7 @@ export const siteMeta = {
   },
   'site.trade.unknownCardIds': {
     description:
-      'Warning while restoring a shared trade link: the link names card IDs the source list no longer holds. {ids} is a comma-separated list of numeric IDs; {sourceKind} is a list type and {sourceName} its name.',
+      'Warning while restoring a shared trade link: the link names card IDs the source list no longer holds. {ids} lists the numeric IDs, already joined the way the reader\'s language lists items; {sourceKind} is the list type as a lowercase noun in the reader\'s language (domain.listType.noun, e.g. "wanted list") and {sourceName} its name.',
   },
   'site.sell.notOnBuylist': {
     description:
@@ -50,6 +50,10 @@ export const siteMeta = {
   'site.sell.nonEnglish': {
     description:
       "Part of the parenthetical after a sell value: non-English copies, which the buyer's English-only feed can never quote.",
+  },
+  'site.sell.shortfall': {
+    description:
+      'The parenthetical after a sell value naming the copies the buyer will not take, e.g. "(1 card not on buylist, 2 non-English cards — not quotable)". {parts} lists site.sell.notOnBuylist, site.sell.overLimit and site.sell.nonEnglish entries, already joined the way the reader\'s language lists items.',
   },
   'site.sell.notBaked': {
     description:

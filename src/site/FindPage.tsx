@@ -366,8 +366,8 @@ export const FindPage: Component<FindPageProps> = (props) => {
         >
           <p class="find-summary">
             {t('site.find.summary', {
-              cards: t('ui.count.cards', { count: matchedCount() }),
-              lists: t('ui.count.lists', { count: resultGroups().length }),
+              cards: t('domain.count.cards', { count: matchedCount() }),
+              lists: t('domain.count.lists', { count: resultGroups().length }),
             })}
           </p>
 

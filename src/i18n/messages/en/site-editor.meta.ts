@@ -8,6 +8,10 @@ export const siteEditorMeta = {
     description:
       'Standing notice while the public site is in edit mode: the edits live only in this browser. {emphasis} is rendered bold and is supplied by site.editor.localCopyEmphasis.',
   },
+  'site.editor.localCopyChanges': {
+    description:
+      'The same notice while there are unsaved changes, their count appended, e.g. "Editing a local copy — not the published version (3 changes)". {emphasis} is site.editor.localCopyEmphasis, rendered bold; {changes} is an already-rendered count (domain.count.changes).',
+  },
   'site.editor.localCopyEmphasis': {
     description:
       'The stressed half of that notice — what the visitor is *not* editing. Rendered bold inside site.editor.localCopy.',

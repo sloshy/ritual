@@ -7,7 +7,8 @@ import {
   formatLanguageList,
   isCardLanguage,
   languageBadge,
-  languageDisplayName,
+  LANGUAGE_PARSE_NAMES,
+  languageLabel,
   languageToken,
   misspelledLanguage,
   normalizeLanguageValue,
@@ -110,15 +111,30 @@ describe('normalizeLanguageValue', () => {
   })
 })
 
-describe('languageDisplayName', () => {
+describe('LANGUAGE_PARSE_NAMES', () => {
   test('names every code', () => {
-    expect(languageDisplayName('en')).toBe('English')
-    expect(languageDisplayName('ja')).toBe('Japanese')
-    expect(languageDisplayName('zhs')).toBe('Simplified Chinese')
-    expect(languageDisplayName('zht')).toBe('Traditional Chinese')
-    expect(languageDisplayName('grc')).toBe('Ancient Greek')
-    expect(languageDisplayName('ph')).toBe('Phyrexian')
-    for (const code of CARD_LANGUAGES) expect(languageDisplayName(code)).not.toBe('')
+    expect(LANGUAGE_PARSE_NAMES.en).toBe('English')
+    expect(LANGUAGE_PARSE_NAMES.ja).toBe('Japanese')
+    expect(LANGUAGE_PARSE_NAMES.zhs).toBe('Simplified Chinese')
+    expect(LANGUAGE_PARSE_NAMES.zht).toBe('Traditional Chinese')
+    expect(LANGUAGE_PARSE_NAMES.grc).toBe('Ancient Greek')
+    expect(LANGUAGE_PARSE_NAMES.ph).toBe('Phyrexian')
+    for (const code of CARD_LANGUAGES) expect(LANGUAGE_PARSE_NAMES[code]).not.toBe('')
+  })
+})
+
+describe('languageLabel', () => {
+  test('under English it is the persisted name, for every code', () => {
+    for (const code of CARD_LANGUAGES)
+      expect(languageLabel(code, 'en')).toBe(LANGUAGE_PARSE_NAMES[code])
+  })
+
+  test('names each language in the locale passed, the Chinese scripts included', () => {
+    expect(languageLabel('ja', 'de')).toBe('Japanisch')
+    expect(languageLabel('zhs', 'de')).toBe('Chinesisch (vereinfacht)')
+    expect(languageLabel('zht', 'de')).toBe('Chinesisch (traditionell)')
+    // Phyrexian has no language tag: its English name stands in.
+    expect(languageLabel('ph', 'de')).toBe('Phyrexian')
   })
 })
 

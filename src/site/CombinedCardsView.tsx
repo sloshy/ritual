@@ -28,11 +28,11 @@ import type { CombinedCardData, NamedListRef } from '../list-view/combined-list'
 import { combinedGroupByOptions, type GroupByOption } from './list-page-options'
 import {
   CARD_LABEL_SELECTIONS,
-  cardLabelName,
+  cardLabelsDisplay,
   labelFiltersFor,
   type CardLabelSelection,
 } from '../card/card-labels'
-import { useT } from '../ui/i18n'
+import { useI18n, useT } from '../ui/i18n'
 
 // The sort fields the combined view offers, in order — shared by the toolbar's
 // dropdown options and the URL sync's validation of incoming sort layers.
@@ -116,6 +116,7 @@ interface CombinedCardsViewProps extends SellModeProps {
  */
 export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   const t = useT()
+  const { locale } = useI18n()
   const [modalTile, setModalTile] = createSignal<CombinedCardData | null>(null)
 
   const sectionOrder = createMemo(() => {
@@ -187,7 +188,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     if (card.labels.length > 0) {
       parts.push({
         label: 'labels',
-        value: card.labels.map(cardLabelName).join(' · '),
+        value: cardLabelsDisplay(card.labels, locale()),
       })
     }
     if (card.card) parts.push({ label: 'rarity', value: rarityName(t, card.card.rarity) })

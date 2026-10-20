@@ -99,6 +99,7 @@ import {
   getWantedDir,
 } from '../config/ritual-config'
 import { t } from '../i18n/t'
+import { sectionDisplayName } from '../list/deck-format'
 
 /**
  * Parse existing &N IDs from a file and allocate the next available ID.
@@ -625,7 +626,7 @@ async function addToDeck(
       mode: addMode(dryRun),
       card: `${options.quantity} ${selectedName}${printingLabel}`,
       file: path.basename(target.filePath),
-      section: outcome.section,
+      section: sectionDisplayName(outcome.section),
     }),
     scripting,
     dryRun,

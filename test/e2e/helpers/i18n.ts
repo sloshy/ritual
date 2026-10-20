@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { pseudoLocalize } from '../../../scripts/generate-locales'
-import { en } from '../../../src/i18n/messages/en'
+import { en, type MessageKey } from '../../../src/i18n/messages/en'
 import { enMeta } from '../../../src/i18n/messages/en.meta'
 import type { LocaleCatalog, LocaleTag } from '../../../src/i18n/types'
 import type { LocaleOverride } from '../../../src/i18n/runtime'
@@ -62,6 +62,13 @@ let cachedCatalog: LocaleCatalog | undefined
 export function pseudoCatalog(): LocaleCatalog {
   cachedCatalog ??= pseudoLocalize(en, enMeta)
   return cachedCatalog
+}
+
+/** One plain-string message of {@link pseudoCatalog}, placeholders unfilled. */
+export function pseudoString(key: MessageKey): string {
+  const value = pseudoCatalog()[key]
+  if (typeof value !== 'string') throw new Error(`${key} is not a plain-string message`)
+  return value
 }
 
 /**

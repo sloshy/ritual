@@ -17,6 +17,7 @@ import {
 import type { PriceCurrency } from '../pricing/price-currency'
 import type { ListRefKey } from './combined-list'
 import { isPricelessCard } from './priceless'
+import { sectionNameParam } from '../list/deck-format'
 
 export type ViewMode = 'binder' | 'list' | 'overlap' | 'stack'
 export type CardSize = 'large' | 'medium' | 'small'
@@ -805,7 +806,7 @@ function groupSlotsFor(
       return (c) => [
         {
           key: `section:${c.section}`,
-          heading: c.section,
+          heading: sectionNameParam(c.section),
           rank: rankIn(options.sectionOrder.indexOf(c.section)),
         },
       ]

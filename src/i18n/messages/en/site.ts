@@ -76,6 +76,7 @@ export const siteMessages = {
     one: '{count} non-English card — not quotable',
     other: '{count} non-English cards — not quotable',
   },
+  'site.sell.shortfall': '({parts})',
   'site.sell.notBaked': 'this list was built without buylist data',
   'site.sell.quotesHttpFailed': 'the quote request failed (HTTP {status})',
   'site.sell.quotesFailed': 'the quote request failed: {detail}',

@@ -58,6 +58,10 @@ import {
 } from '../card/finish-condition'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
+import { quantityRow } from '../cli/rows'
+import { formatUnitList } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
+import { sectionDisplayName } from '../list/deck-format'
 import { renderSyncMessage } from '../sync/message'
 import { LIST_TYPE_DISPLAY } from '../list/list-type'
 import { listLocations, type ListLocation } from '../list/resolve-list'
@@ -121,7 +125,6 @@ export function assembledWizardEntries(
 
 /** One entry's menu/review row: qty, name, printing, finish, condition, source list. */
 export function formatExportEntryChoice(entry: ExportEntry): string {
-  const qty = entry.quantity > 1 ? `${entry.quantity}x ` : ''
   const printing =
     entry.set && entry.collectorNumber
       ? ` (${printingLabel(entry.set, entry.collectorNumber)})`
@@ -129,7 +132,8 @@ export function formatExportEntryChoice(entry: ExportEntry): string {
   const finish = entry.finish ? ` [${entry.finish}]` : ''
   const condition = entry.condition ? ` [${entry.condition}]` : ''
   const icon = LIST_TYPE_DISPLAY[entry.listType].icon
-  return `${qty}${entry.name}${printing}${finish}${condition} · ${icon} ${entry.listName} / ${entry.section}`
+  const item = `${entry.name}${printing}${finish}${condition} · ${icon} ${entry.listName} / ${sectionDisplayName(entry.section)}`
+  return quantityRow(entry.quantity, item)
 }
 
 /** "name "sol" · set LEA · foil · NM/none" — the active filters, or "none". */
@@ -181,9 +185,10 @@ export function formatWizardHeaderLines(state: ExportWizardState, entryCount: nu
   })
   if (exportFormatUsesColumns(state.settings.format)) {
     formatLine += t('cli.exportWizard.columnsSegment', {
-      columns: state.settings.columns
-        .map((column) => exportColumnLabel(column, state.settings.dialect))
-        .join(', '),
+      columns: formatUnitList(
+        currentLocale(),
+        state.settings.columns.map((column) => exportColumnLabel(column, state.settings.dialect)),
+      ),
     })
   }
   formatLine += dialectSegment(state.settings.format, state.settings.dialect)
@@ -677,7 +682,10 @@ async function promptCsvOptions(state: ExportWizardState): Promise<void> {
 export function formatPresetSummary(name: string, preset: ExportPreset): string {
   const parts: string[] = [
     preset.format.toUpperCase(),
-    preset.columns.map((column) => exportColumnLabel(column, preset.dialect)).join(', '),
+    formatUnitList(
+      currentLocale(),
+      preset.columns.map((column) => exportColumnLabel(column, preset.dialect)),
+    ),
   ]
   if (preset.header === false) parts.push(t('cli.exportWizard.presetNoHeader'))
   if (preset.quoteAll) parts.push(t('cli.exportWizard.quoteAll'))

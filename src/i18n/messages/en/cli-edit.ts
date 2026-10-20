@@ -54,6 +54,7 @@ export const cliEditMessages = {
   },
   'cli.edit.nameEmpty': 'Name cannot be empty',
   'cli.edit.badgeNew': 'new',
+  'cli.edit.badgedList': '{title} — {badges}',
   'cli.edit.badgeUnsaved': {
     $plural: 'count',
     one: '{count} unsaved change',
@@ -263,7 +264,7 @@ export const cliEditMessages = {
   'cli.labels.promptDefault': 'Default labels:',
   'cli.labels.menuListLabels': 'Edit List Labels (default: {labels})',
   'cli.labels.none': 'none',
-  'cli.labels.defaultSet': 'Default labels set to [{labels}].',
+  'cli.labels.defaultSet': 'Default labels set to {labels}.',
   'cli.labels.defaultCleared': 'Default labels cleared.',
 
   // ── Custom art (the Set Custom Art edit action) ───────────────────────

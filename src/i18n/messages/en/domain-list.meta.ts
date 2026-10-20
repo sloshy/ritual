@@ -81,7 +81,10 @@ export const domainListMeta = {
     description: `Why a list's description (the prose blurb printed above its cards, set as "description" in the list file's settings block or through the API) was refused: it is not text — a number, a list or a mapping. ${REFUSAL}`,
   },
   'domain.list.sidecar.invalidJson': {
-    description: `A list sidecar file is not valid JSON. {error} is the JSON parser's own message, as it reported it (usually English). ${SIDECAR_LOWERCASE}`,
+    description: `A list sidecar file is not valid JSON. ${SIDECAR_LOWERCASE}`,
+  },
+  'domain.list.sidecar.invalidJsonAt': {
+    description: `The same, when the JSON parser reported where the file stops being valid: {line} and {column} are 1-based numbers. ${SIDECAR_LOWERCASE}`,
   },
   'domain.list.categories.notObject': {
     description: `${CATEGORIES_CONTEXT} The file holds something other than a JSON object.`,

@@ -414,6 +414,10 @@ export const cliSyncMeta = {
     description:
       'Usage error: nothing can be asked (piped stdin or --no-input), so --yes is required.',
   },
+  'cli.importChanges.reasonCount': {
+    description:
+      "One entry of a list's skipped-change tally, e.g. \"card not found: 2\". {reason} is why the changes were skipped (domain.importConflict.*, already in the reader's language); {count} is how many. The entries are listed the way the reader's language lists items.",
+  },
   'cli.importChanges.confirmApply': {
     description:
       'The apply confirmation. {changes} and {lists} arrive already counted and pluralised (e.g. "3 changes", "2 lists").',
@@ -763,7 +767,7 @@ export const cliSyncMeta = {
   },
   'cli.exportWizard.columnsSegment': {
     description:
-      'Appended to the format header line when the format uses columns. Begins with a separator, since it continues the line. {columns} is a comma-separated list of column labels, English by contract.',
+      "Appended to the format header line when the format uses columns. Begins with a separator, since it continues the line. {columns} lists the column labels, already joined the way the reader's language lists items.",
   },
   'cli.exportWizard.dialectValues': {
     description:

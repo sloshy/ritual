@@ -360,7 +360,10 @@ release changes a file format or a generated file, it ships the change as a
   no key). Update anything that matched the old text.
 - **Theme errors follow the reader's language.** The theme editor's Import… refusals (a
   file that is not a theme, not JSON, or unreadable) are worded in the browser's language
-  and relabelled when you switch it; `build-site` and `serve`'s `--theme-file` and
+  and relabelled when you switch it. A file that is not JSON reads "This file is not valid
+  JSON (line 1, column 2)." (the position when the browser reports one) instead of
+  repeating the browser's own English parser message, and a list sidecar (`.art.json`,
+  `.categories.json`) that is not JSON is refused the same way; `build-site` and `serve`'s `--theme-file` and
   `--theme`, and `admin --theme`, word theme refusals in the CLI's, with the built-in theme names joined
   in it. So do the `--out-dir` refusals of `build-site` and `serve`, the `Price:` /
   `Cheapest printing:` line `add-card` and the edit sessions print after an add, and the
@@ -412,7 +415,9 @@ release changes a file format or a generated file, it ships the change as a
   `{ "message", "messageKey", "messageParams" }` objects instead of bare strings
   (`domain.export.warning.*`; a list's own parse warning nests as `warning` inside
   `domain.export.warning.inList`, and the sections a decklist dialect left out are a
-  `unit` list of `domain.export.warning.sectionCount` messages). `message` is the English
+  `unit` list of `domain.export.warning.sectionCount` messages, whose `section` is a
+  `domain.board.*` message for a standard board such as `Maybeboard` and the heading as
+  written otherwise). `message` is the English
   it always was. A refused `columns`, `filters.conditions` or `filters.labels` in
   `POST /api/export` is keyed (`domain.export.problem.*`, the accepted values a `unit`
   list), and so is a malformed `exportPresets` setting (in `PUT /api/config`, and in the
@@ -881,6 +886,64 @@ de_DE`) now nests the tag parser's reason as a message of its own: in the admin
   language too. The help for `config set` and `metadata set` reads "One or more values to
   set" and "Add values to / Remove values from an array property", and `cache feed host
 --cards` reads "Which card bulks to publish" (each read "value(s)" or "bulk(s)").
+- **Card labels, deck boards and list types are named in your UI language wherever they are
+  shown.** Your files, `.changes.md`, flags, URLs and the machine fields of `--output json`
+  and API payloads keep the English tokens, and flags and filters still take them; a
+  message's params name a standard board as a `domain.board.*` message, so a client words
+  it in its own language.
+  - Labels: the badges on card tiles (`sale`, `trade`, `keep`, `proxy`, a struck-through
+    negation too), the `edit` session's Edit List Labels row and its "Default labels set to
+    For sale, For trade." confirmation (it read `[sale,trade]`), and `set-card`'s
+    `label → For sale, For trade` entry (it read `label → sale, trade`).
+  - The four standard deck boards (Commander, Main, Sideboard, Maybeboard, matched
+    case-insensitively, so a hand-written `## sideboard` is the Sideboard) in both sites'
+    deck headings, section pickers and Sections manager, and in the CLI: the `edit`
+    session's section pickers, card rows and "Added … to Sideboard" lines, `add-card`,
+    `set-card`, the price browser, the export wizard, the export's omitted-sections warning,
+    change descriptions, and `deck-sync`'s per-card lines and board-move warnings. Any other
+    section is shown exactly as written; where two headings are the same board (`## Sideboard`
+    beside `## sideboard`), pickers show both as written. Typing a board's name in your
+    language as a new section name (the `edit` and `move` prompts, both sites' Sections
+    manager and "New section…") names that board, so no translated heading reaches the file.
+    A `--section` flag takes the English token only, and a case variant of it now creates
+    the board under its own heading (`--section sideboard` writes `## Sideboard`; it wrote
+    `## sideboard`). `move`'s new-section prompt no longer refuses a name starting with `#`,
+    which the deck file reads back as written.
+  - `ritual lists` words its type column in the UI language: `wanted list` (it read
+    `wanted`). **Read the type from `lists --output json` in scripts**, where it is still
+    `deck`, `collection` or `wanted`. A shared trade link's warnings name the list type the
+    same way.
+- **Language names, rarities, finishes and conditions follow the UI language too.** A card
+  language is named the way your language names it (the Set Language picker, the admin
+  Settings Default Language list, the collection card details, `edit`'s Card Language row,
+  `set-card`'s applied change and its language checks). The printing
+  picker's rarity reads `[Common]` (it read `[common]`). A change description's finish
+  (`Set Sol Ring finish to foil`), `set-card`'s `finish → Foil` entry (it read `finish →
+foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not available in
+  Foil" refusal name the finish in your language; the finishes such a refusal offers stay the
+  `--finish` values you type. The collection card details name
+  a condition (`Lightly Played`) instead of printing its code.
+- **`cache status` and `history` dates read as dates.** `cache status` prints `yes`/`no`
+  for its flags (it printed `true`/`false`), `local` or `cache server` for its source (it
+  printed `cache-server`), its counts grouped and the last refresh as a local date and
+  time, all in the UI language. `history --show` and the interactive history head each set
+  with a local date and time. Both commands' `--output json` keep the raw values and the
+  ISO-8601 timestamps.
+- **Lists of things are joined the way your language joins them.** This covers `set-card`'s
+  applied changes, `cleanup`'s per-file actions, the export wizard's columns, the `edit`
+  list picker's badges, `import-changes`'s skipped-change tally, `diff`'s per-printing
+  breakdown, the sell-mode shortfall note, the editors' save notices, the Move Cards
+  banner, a trade link's unknown card IDs, and a card's labels in the site's card details
+  (`For sale, For trade`; they were joined with `·`). The parentheses and separators around a counted note (a deck cover's
+  `(99 cards)`, the edit banner's change count) are part of the translation too. The price
+  browser's list row reads "1 card" for one card (it read "1 cards").
+- **`set-card --output json`'s `applied` entries are messages.** Each is now an object
+  (`message` in English, `messageKey`, `messageParams`, a finish, label, language or standard
+  board nested as a message) instead of a bare string, and the section entry names the heading
+  the card landed under (`section → Sideboard` for `--section sideboard`). **Update any
+  script that read `applied` as strings to read `.message`, and match on `messageKey`.**
+- **`history`'s set picker finds a set by its ISO timestamp too.** The rows show each set's
+  local date and time, and typing an ISO-8601 fragment (`2026-05-29`) still finds the set.
 
 ### Fixed
 

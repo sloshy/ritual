@@ -11,22 +11,9 @@ const CHIP_MAX_LEN = 16
 
 export const siteCardsMeta = {
   // ── Finishes ──────────────────────────────────────────────────────────
-  'site.finish.nonfoil': {
-    description:
-      "A card printed without a foil treatment, shown in a card's printing label. Title case.",
-    maxLen: CHIP_MAX_LEN,
-  },
-  'site.finish.foil': {
-    description: "A foil (shiny) printing of a card, shown in a card's printing label. Title case.",
-    maxLen: CHIP_MAX_LEN,
-  },
-  'site.finish.etched': {
-    description: "An etched-foil printing of a card, shown in a card's printing label. Title case.",
-    maxLen: CHIP_MAX_LEN,
-  },
   'site.finishChip.nonfoil': {
     description:
-      'Lower-case variant of "Nonfoil" for the small per-finish buttons in the trade printing picker, and the finish tag after a price in a printing picker\'s price column. Use the same word as site.finish.nonfoil if your language does not vary casing.',
+      'Lower-case variant of "Nonfoil" for the small per-finish buttons in the trade printing picker, and the finish tag after a price in a printing picker\'s price column. Use the same word as domain.finish.nonfoil if your language does not vary casing.',
     maxLen: CHIP_MAX_LEN,
   },
   'site.finishChip.foil': {

@@ -115,10 +115,11 @@ export function messageCommandError(
   code: ErrorCode,
   exitCode: ExitCodeValue,
   message: SyncMessage,
+  details?: Record<string, unknown>,
 ): CardCommandError {
   const ref = envelopeRef(message)
-  if (ref === undefined) return new CardCommandError(code, message.message, exitCode)
-  return new CardCommandError(code, renderSyncMessage(message), exitCode, undefined, ref)
+  if (ref === undefined) return new CardCommandError(code, message.message, exitCode, details)
+  return new CardCommandError(code, renderSyncMessage(message), exitCode, details, ref)
 }
 
 /**

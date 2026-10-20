@@ -71,6 +71,7 @@ import {
   moveBaselineSection,
   sectionInfoFrom,
   sectionNameError,
+  typedSectionHeading,
 } from './section-edits'
 import { addedCardNamesFrom, refusedToConflicts, usedIdsAfterRestore } from './session-changes'
 
@@ -535,8 +536,8 @@ export function useEditor<TData, TCardEntry = unknown>(
     canonicalSectionIn(sectionOrder(), name)
 
   const handleAddSection = (name: string) => {
-    const trimmed = name.trim()
-    if (sectionNameError(sectionOrder(), trimmed) !== null) return
+    if (sectionNameError(sectionOrder(), name) !== null) return
+    const trimmed = typedSectionHeading(sectionOrder(), name)
     changes.addChange({ action: 'add-section', section: trimmed })
     setData((prev) =>
       prev !== null ? config.applyChange(prev, { action: 'add-section', section: trimmed }) : prev,
@@ -544,9 +545,9 @@ export function useEditor<TData, TCardEntry = unknown>(
   }
 
   const handleRenameSection = (oldName: string, newName: string) => {
-    const trimmed = newName.trim()
+    if (sectionNameError(sectionOrder(), newName, oldName) !== null) return
+    const trimmed = typedSectionHeading(sectionOrder(), newName)
     if (trimmed === oldName) return
-    if (sectionNameError(sectionOrder(), trimmed, oldName) !== null) return
     changes.addChange({ action: 'rename-section', section: oldName, newSection: trimmed })
     setData((prev) =>
       prev !== null
@@ -581,7 +582,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     // Resolve to an existing section's canonical casing when one matches case-insensitively;
     // otherwise create the new section first so it persists even if no other card lands there.
     const existing = canonicalSection(raw)
-    const trimmed = existing ?? raw
+    const trimmed = existing ?? typedSectionHeading(sectionOrder(), raw)
     if (!existing) handleAddSection(trimmed)
     for (const target of targets) {
       const cardId = target.cardIds[0]

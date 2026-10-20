@@ -8,10 +8,11 @@
 
 import { promptMoveTarget } from './move-prompt'
 import { t } from '../i18n/t'
+import { currentLocale } from '../i18n/runtime'
 import {
   CARD_LANGUAGES,
   displayLanguage,
-  languageDisplayName,
+  languageLabel,
   type CardLanguage,
 } from '../card/card-language'
 
@@ -33,8 +34,8 @@ export function promptCardLanguage(
     options: CARD_LANGUAGES.map((code) => ({
       label:
         code === resolved
-          ? t('ui.editor.languageCurrent', { name: languageDisplayName(code) })
-          : languageDisplayName(code),
+          ? t('ui.editor.languageCurrent', { name: languageLabel(code, currentLocale()) })
+          : languageLabel(code, currentLocale()),
       onSelect: () => onPick(code),
     })),
   })

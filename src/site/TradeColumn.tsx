@@ -223,7 +223,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
         <div class="trade-col-title-row">
           <h2 class="trade-col-title">{title()}</h2>
           <span class="trade-col-meta">
-            {t('ui.count.cards', { count: totalCount() })} ·{' '}
+            {t('domain.count.cards', { count: totalCount() })} ·{' '}
             <strong>{totalPrice() > 0 ? formatPrice(totalPrice(), props.currency) : '—'}</strong>
           </span>
         </div>

@@ -11,11 +11,21 @@
  */
 
 import { syncMessage, type SyncMessage, type SyncText } from '../sync/message'
-import { getErrorMessage } from '../util/errors'
+import { jsonErrorPosition } from '../util/json'
 
-/** A sidecar whose bytes are not JSON; the parser's own message rides as it came. */
+/**
+ * A sidecar whose bytes are not JSON. The parser's own (English, engine-worded)
+ * message never reaches the reader — only the line and column it names, when
+ * it names them.
+ */
 export function invalidJsonMessage(error: unknown): SyncMessage {
-  return syncMessage('domain.list.sidecar.invalidJson', { error: getErrorMessage(error) })
+  const position = jsonErrorPosition(error)
+  return position === undefined
+    ? syncMessage('domain.list.sidecar.invalidJson')
+    : syncMessage('domain.list.sidecar.invalidJsonAt', {
+        line: position.line,
+        column: position.column,
+      })
 }
 
 /** A sidecar problem, prefixed with the sidecar's path. */

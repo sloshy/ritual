@@ -83,7 +83,7 @@ export const sitePagesMeta = {
   },
   'site.cardSection.boardCategoryHeading': {
     description:
-      'Heading for a category group nested inside one board of a deck: the board name, then the category. {board} is a deck section name (data). {category} is a category name (data) or the translated "Uncategorized" heading. Translate only the separator and the order.',
+      'Heading for a category group nested inside one board of a deck: the board name, then the category. {board} is a deck section name: a standard board (domain.board.*) already in the reader\'s language, any other section as the owner wrote it. {category} is a category name (data) or the translated "Uncategorized" heading. Translate only the separator and the order.',
   },
   'site.groupBy.none': { description: 'Toolbar "Group by" choice: do not group at all.' },
   'site.group.all': {
@@ -607,7 +607,7 @@ export const sitePagesMeta = {
   },
   'site.trade.unknownSource': {
     description:
-      'Trade link warning: the list a card came from no longer exists. {sourceKind} is a raw list kind (deck, collection, wanted) and {sourceName} the list name.',
+      'Trade link warning: the list a card came from no longer exists. {sourceKind} is the list type\'s singular name, already in the reader\'s language (domain.listTypeSingular.*, e.g. "Wanted List"), and {sourceName} the list name.',
   },
   'site.trade.unknownScryfallId': {
     description:

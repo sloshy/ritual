@@ -31,6 +31,9 @@ import {
 } from './change-event'
 import { formatLabelOverride } from '../card/card-labels'
 import { formatCardCategories } from '../card/card-categories'
+import { FINISH_CHIP_LABELS, isFinish } from '../card/finish-condition'
+import { sectionNameParam } from '../list/deck-format'
+import { MAIN_BOARD, type Board } from '../list/deck'
 import { currentLocale } from '../i18n/runtime'
 import {
   tIn,
@@ -48,6 +51,7 @@ import {
   type SyncLanguageParam,
   type SyncMessageParams,
   type SyncMessageRef,
+  type SyncText,
 } from '../sync/message'
 
 // ---------------------------------------------------------------------------
@@ -77,9 +81,9 @@ export type DisplayChange = {
   idSuffix: string
   /** ` (NEO:234) [foil] [LP] [ja]` — already space-prefixed, or `''`. */
   annotation: string
-  /** A non-main deck board (`Sideboard`), or `undefined` for the main board. */
+  /** A non-main deck board (`Sideboard`) in the UI locale, or `undefined` for the main board. */
   board?: string
-  /** The finish token for `set-finish`. */
+  /** The finish name for `set-finish` (`foil`), already in the UI locale. */
   finish?: string
   /** `NEO:234 [foil]` for `set-printing`; `undefined` means "no specific printing". */
   printing?: string
@@ -87,13 +91,20 @@ export type DisplayChange = {
   language?: string
   /** The note body for `set-note`; `''` means the note was cleared. */
   note?: string
-  /** Comma-joined label tokens for `set-label`; `''` means the override was cleared. */
+  /**
+   * The override's comma-joined label tokens for `set-label` (`trade,no-sale`) —
+   * the card line's own `[…]` token, shown as grammar like the printing
+   * annotation; `''` means the override was cleared.
+   */
   labels?: string
   /** The tag for `add-tag` / `remove-tag`, as the owner wrote it (`Card Draw`); the template quotes it. */
   tag?: string
-  /** The section name for the section-structural actions and `set-section`. */
+  /**
+   * The section name for the section-structural actions and `set-section` — a
+   * known board in the UI locale, any other section as written.
+   */
   section?: string
-  /** The new section name for `rename-section`. */
+  /** The new section name for `rename-section`, rendered like {@link DisplayChange.section}. */
   newSection?: string
   /** The other list's rendered name for `move-from` / `move-to`. */
   list?: string
@@ -281,9 +292,20 @@ function idSuffixOf(change: ChangeEvent): string {
   return cardId === undefined ? '' : ` &${cardId}`
 }
 
-/** A non-main board name, or `undefined` — the main board is never annotated. */
-function boardOf(board: string | undefined): string | undefined {
-  return board !== undefined && board !== '' && board.toLowerCase() !== 'main' ? board : undefined
+/**
+ * A non-main board, named for its reader, or `undefined` — the main board is
+ * never annotated.
+ */
+function boardOf(board: Board | undefined): SyncText | undefined {
+  return board !== undefined && board !== MAIN_BOARD ? sectionNameParam(board) : undefined
+}
+
+/**
+ * A `set-finish` finish named for its reader (`foil`, lower case as it sits
+ * mid-sentence); a token the vocabulary does not know is shown as it is.
+ */
+function finishPart(finish: string): SyncText {
+  return isFinish(finish) ? syncRef(FINISH_CHIP_LABELS[finish]) : finish
 }
 
 /**
@@ -315,7 +337,8 @@ function printingDescriptor(
 
 /**
  * The parts of a {@link DisplayChange} that depend on the reader's locale, held
- * unrendered: the language name of a `set-language`, the other list of a move.
+ * unrendered: the language name of a `set-language`, the other list of a move,
+ * a finish, and every board or section name (a known board is translated).
  * Each key is also the catalog placeholder it fills, so {@link changeRef} can
  * hand them on as nested params and {@link displayChangeFromEvent} can render
  * them — the one list of what a description renders in a locale.
@@ -323,10 +346,21 @@ function printingDescriptor(
 type LocaleParts = {
   language?: SyncLanguageParam
   list?: SyncMessageRef
+  finish?: SyncText
+  board?: SyncText
+  section?: SyncText
+  newSection?: SyncText
 }
 
 /** Every {@link LocaleParts} key — what {@link splitLocaleParts} takes out. */
-const LOCALE_PART_KEYS = ['language', 'list'] as const satisfies readonly (keyof LocaleParts)[]
+const LOCALE_PART_KEYS = [
+  'language',
+  'list',
+  'finish',
+  'board',
+  'section',
+  'newSection',
+] as const satisfies readonly (keyof LocaleParts)[]
 
 /** A locale part missing from {@link LOCALE_PART_KEYS} is a compile error here. */
 type UnlistedLocalePart = Exclude<keyof LocaleParts, (typeof LOCALE_PART_KEYS)[number]>
@@ -349,15 +383,15 @@ type SplitParts = { plain: PlainParts; deferred: LocaleParts }
  * never ride along in the plain fields unrendered or be dropped.
  */
 function splitLocaleParts(parts: ChangeParts): SplitParts {
-  const plain: Record<string, unknown> = { ...parts }
+  const { language, list, finish, board, section, newSection, ...plain } = parts
+  const locale: LocaleParts = { language, list, finish, board, section, newSection }
   const deferred: LocaleParts = {}
   const take = <K extends keyof LocaleParts>(key: K): void => {
-    delete plain[key]
-    if (parts[key] !== undefined) deferred[key] = parts[key]
+    const part = locale[key]
+    if (part !== undefined) deferred[key] = part
   }
   for (const key of LOCALE_PART_KEYS) take(key)
-  // `plain` is `parts` less exactly the keys `LocaleParts` declares.
-  return { plain: plain as PlainParts, deferred }
+  return { plain, deferred }
 }
 
 /**
@@ -380,7 +414,7 @@ function changeParts(change: ChangeEvent, tense: ChangeTense): ChangeParts {
     case 'remove':
       return { ...base, annotation: formatPrintingAnnotation(change), board: boardOf(change.board) }
     case 'set-finish':
-      return { ...base, finish: change.finish }
+      return { ...base, finish: finishPart(change.finish) }
     case 'set-printing':
       return {
         ...base,
@@ -415,11 +449,15 @@ function changeParts(change: ChangeEvent, tense: ChangeTense): ChangeParts {
       }
     case 'add-section':
     case 'remove-section':
-      return { ...base, section: change.section }
+      return { ...base, section: sectionNameParam(change.section) }
     case 'rename-section':
-      return { ...base, section: change.section, newSection: change.newSection }
+      return {
+        ...base,
+        section: sectionNameParam(change.section),
+        newSection: sectionNameParam(change.newSection),
+      }
     case 'set-section':
-      return { ...base, section: change.section }
+      return { ...base, section: sectionNameParam(change.section) }
     case 'set-categories':
       return { ...base, categories: formatCardCategories(change.categories) }
     case 'rename-category':
@@ -476,9 +514,13 @@ export function displayHistoryChange(change: ChangeEvent): DisplayChange {
  */
 export function changeRef(change: ChangeEvent): SyncMessageRef {
   const { plain, deferred } = splitLocaleParts(changeParts(change, 'present'))
-  // No locale part steers which key `changeMessage` picks (a language or a move's
-  // other list never selects a variant), so the plain fields alone choose it.
-  const message = changeMessage(plain)
+  // A locale part steers which key `changeMessage` picks only by being present
+  // (a board selects `addToBoard` over `add`), so each present part stands in
+  // as a non-empty placeholder while the key is chosen; its params are then
+  // replaced by the unrendered parts below.
+  const present: Partial<Record<keyof LocaleParts, string>> = {}
+  for (const key of LOCALE_PART_KEYS) if (deferred[key] !== undefined) present[key] = key
+  const message = changeMessage({ ...plain, ...present })
   const params: SyncMessageParams = { ...message.params }
   for (const key of LOCALE_PART_KEYS) {
     const part = deferred[key]

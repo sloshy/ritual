@@ -20,8 +20,14 @@ type SetCardJson = {
   list: string
   cardName: string
   cardId?: number
-  applied: string[]
+  /** Each applied change as English plus its key (`messageParams` may nest). */
+  applied: { message: string; messageKey: string; messageParams?: Record<string, unknown> }[]
   writtenFiles: string[]
+}
+
+/** What each applied change says in English. */
+function appliedText(json: SetCardJson): string[] {
+  return json.applied.map((entry) => entry.message)
 }
 
 type ErrorJson = {
@@ -63,7 +69,7 @@ describe('set-card CLI (Integration)', () => {
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
     expect(json.cardId).toBe(3)
-    expect(json.applied).toEqual(['finish → foil'])
+    expect(appliedText(json)).toEqual(['finish → Foil'])
 
     const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
     expect(deckContent).toContain('1 Lightning Bolt (2XM:157) [foil] &3')
@@ -92,7 +98,7 @@ describe('set-card CLI (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['printing → 2XM:157'])
+    expect(appliedText(json)).toEqual(['printing → 2XM:157'])
     const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
     // The card was foil before the printing change; the finish must survive.
     expect(deckContent).toContain('1 Lightning Bolt (2XM:157) [foil] &2')
@@ -180,7 +186,7 @@ describe('set-card CLI (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['printing → C19:221', 'finish → foil'])
+    expect(appliedText(json)).toEqual(['printing → C19:221', 'finish → Foil'])
 
     const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
     expect(deckContent).toContain('2 Sol Ring (C19:221) [foil] &1')
@@ -219,7 +225,7 @@ describe('set-card CLI (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['printing → LEA:161', 'finish → nonfoil'])
+    expect(appliedText(json)).toEqual(['printing → LEA:161', 'finish → Nonfoil'])
   })
 
   test('fails as runtime_error when the printing lookup itself fails', async () => {
@@ -308,7 +314,7 @@ describe('set-card CLI (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['condition → LP'])
+    expect(appliedText(json)).toEqual(['condition → LP'])
     const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
     expect(content).toContain('- Mana Crypt (2XM:1) [foil] [LP] &2')
   })
@@ -332,7 +338,7 @@ describe('set-card CLI (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['condition → HP', 'finish → nonfoil'])
+    expect(appliedText(json)).toEqual(['condition → HP', 'finish → Nonfoil'])
     const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
     // nonfoil renders without a finish annotation; HP appears as the condition.
     expect(content).toContain('- Mana Crypt (2XM:1) [HP] &2')
@@ -361,10 +367,22 @@ describe('set-card CLI (Integration)', () => {
       ),
     )
     const result = await runCli(
-      ['set-card', '--deck', 'spelled', 'Sol', 'Ring', '--section', 'sideboard'],
+      [
+        'set-card',
+        '--deck',
+        'spelled',
+        'Sol',
+        'Ring',
+        '--section',
+        'sideboard',
+        '--output',
+        'json',
+      ],
       dir,
     )
     expect(result.exitCode).toBe(0)
+    // The report names the heading the card landed under, not the spelling asked for.
+    expect(appliedText(JSON.parse(result.stdout) as SetCardJson)).toEqual(['section → Sideboard'])
     expect(await fs.readFile(deckPath, 'utf-8')).toContain('## Sideboard\n1 Sol Ring &1')
     const changelog = await fs.readFile(path.join(dir, 'decks', 'spelled.changes.md'), 'utf-8')
     expect(parseChangelog(changelog).pages.flatMap((page) => page.changes)).toMatchObject([
@@ -440,7 +458,7 @@ describe('set-card CLI (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['commander'])
+    expect(appliedText(json)).toEqual(['commander'])
     const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
     // The Commander section body (up to the next section) holds the card now.
     const commanderBody = deckContent.split('## Commander')[1]?.split('## ')[0] ?? ''
@@ -455,7 +473,7 @@ describe('set-card CLI (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['not commander'])
+    expect(appliedText(json)).toEqual(['not commander'])
     const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
     // The Commander section body (up to the next section) is empty again...
     const commanderBody = deckContent.split('## Commander')[1]?.split('## ')[0] ?? ''
@@ -496,7 +514,7 @@ describe('set-card CLI (Integration)', () => {
       expect(result.exitCode).toBe(2)
       const err = JSON.parse(result.stderr) as ErrorJson
       expect(err.error.code).toBe('usage_error')
-      expect(err.error.message).toContain('not available in etched')
+      expect(err.error.message).toContain('not available in Etched')
       const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
       expect(deckContent).not.toContain('[etched]')
     })
@@ -521,7 +539,7 @@ describe('set-card CLI (Integration)', () => {
       )
       expect(result.exitCode).toBe(2)
       const err = JSON.parse(result.stderr) as ErrorJson
-      expect(err.error.message).toContain('not available in etched')
+      expect(err.error.message).toContain('not available in Etched')
       const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
       expect(deckContent).not.toContain('[LP]')
     })
@@ -649,7 +667,7 @@ describe('set-card CLI (Integration)', () => {
       )
       expect(result.exitCode).toBe(2)
       const err = JSON.parse(result.stderr) as ErrorJson
-      expect(err.error.message).toContain('not available in foil')
+      expect(err.error.message).toContain('not available in Foil')
       expect(err.error.message).toContain('--finish')
       const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
       expect(deckContent).toContain('1 Lightning Bolt (LEA:161) [foil] &2')
@@ -698,7 +716,7 @@ describe('set-card CLI (Integration)', () => {
       )
       expect(result.exitCode).toBe(0)
       const json = JSON.parse(result.stdout) as SetCardJson
-      expect(json.applied).toEqual(['condition → none (grade cleared)'])
+      expect(appliedText(json)).toEqual(['condition → none (grade cleared)'])
       const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
       expect(content).toContain('- Sol Ring (C21:240) &1')
       expect(content).not.toContain('[LP]')
@@ -724,7 +742,7 @@ describe('set-card CLI (Integration)', () => {
       )
       expect(result.exitCode).toBe(0)
       const json = JSON.parse(result.stdout) as SetCardJson
-      expect(json.applied[0]).toContain('NM is the default')
+      expect(appliedText(json)[0]).toContain('NM is the default')
       const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
       expect(content).toContain('- Sol Ring (C21:240) &1')
       expect(content).not.toContain('[NM]')
@@ -761,7 +779,7 @@ describe('set-card CLI (Integration)', () => {
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson & { dryRun?: boolean }
     expect(json.dryRun).toBe(true)
-    expect(json.applied).toEqual(['section → Sideboard'])
+    expect(appliedText(json)).toEqual(['section → Sideboard'])
     expect(await snapshotTree(dir)).toEqual(before)
   })
 
@@ -822,7 +840,13 @@ describe('set-card --language (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['language → ja (Japanese)'])
+    expect(json.applied).toEqual([
+      {
+        message: 'language → ja (Japanese)',
+        messageKey: 'cli.setCard.languageSet',
+        messageParams: { code: 'ja', language: { language: 'ja' } },
+      },
+    ])
 
     const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
     expect(content).toContain('- Sol Ring (C21:240) [ja] &1')
@@ -841,7 +865,7 @@ describe('set-card --language (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['language → en (token cleared — a bare line means English)'])
+    expect(appliedText(json)).toEqual(['language → en (token cleared — a bare line means English)'])
 
     const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
     expect(content).toContain('- Sol Ring (C21:240) &1')
@@ -899,6 +923,38 @@ describe('set-card --language (Integration)', () => {
 
     const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
     expect(content).not.toContain('[ja]')
+  })
+
+  test('a language refusal names languages in the CLI’s language, its envelope params English', async () => {
+    await seedCardCache(dir, {
+      'Sol Ring': [
+        makeScryfallCard({
+          id: 'sol-c21-en',
+          name: 'Sol Ring',
+          set: 'c21',
+          collector_number: '240',
+        }),
+      ],
+    })
+    await writeBulkProvenance(dir, 'all_cards')
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--language', 'ja', '--output', 'json'],
+      dir,
+      { ...OFFLINE_ENV, RITUAL_LOCALE: 'de' },
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as {
+      error: { message: string; messageKey?: string; messageParams?: Record<string, unknown> }
+    }
+    // German has no dictionary, so the frame is English; the names are Intl's.
+    expect(err.error.message).toContain('Japanisch')
+    expect(err.error.message).toContain('Englisch (en)')
+    expect(err.error.messageKey).toBe('cli.cardOps.languageUnavailable')
+    expect(err.error.messageParams).toMatchObject({
+      language: 'Japanese',
+      code: 'ja',
+      available: 'English (en)',
+    })
   })
 
   test('proceeds with a warning when the on-demand verification cannot reach Scryfall', async () => {
@@ -964,7 +1020,7 @@ describe('set-card --language (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['printing → 2XM:157', 'language → ja (Japanese)'])
+    expect(appliedText(json)).toEqual(['printing → 2XM:157', 'language → ja (Japanese)'])
 
     const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
     expect(deckContent).toContain('1 Lightning Bolt (2XM:157) [foil] [ja] &2')
@@ -1044,7 +1100,18 @@ describe('set-card --label (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['label → trade, no-sale'])
+    expect(json.applied).toEqual([
+      {
+        message: 'label → For trade, Not for sale',
+        messageKey: 'cli.setCard.appliedLabel',
+        messageParams: {
+          labels: {
+            list: [{ messageKey: 'domain.label.trade' }, { messageKey: 'domain.label.notSale' }],
+            join: 'unit',
+          },
+        },
+      },
+    ])
 
     const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
     expect(content).toContain('- Sol Ring (C21:240) [trade,no-sale] &1')
@@ -1062,7 +1129,7 @@ describe('set-card --label (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['label → none (list default)'])
+    expect(appliedText(json)).toEqual(['label → none (list default)'])
 
     const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
     expect(content).toContain('- Sol Ring (C21:240) &1')
@@ -1079,7 +1146,7 @@ describe('set-card --label (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['label → proxy'])
+    expect(appliedText(json)).toEqual(['label → Proxy'])
 
     const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
     expect(deckContent).toContain('1 Lightning Bolt (2XM:157) [proxy] &3')
@@ -1187,7 +1254,7 @@ describe('set-card --tag / --untag (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['tags added → Card Draw, Staple'])
+    expect(appliedText(json)).toEqual(['tags added → Card Draw, Staple'])
 
     const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
     expect(content).toContain('- Sol Ring (C21:240) #Card Draw, Staple &1')
@@ -1220,7 +1287,7 @@ describe('set-card --tag / --untag (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual([
+    expect(appliedText(json)).toEqual([
       'tags unchanged (staple already on the line)',
       'tags removed → ramp',
     ])
@@ -1276,7 +1343,7 @@ describe('set-card --tag / --untag (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual([
+    expect(appliedText(json)).toEqual([
       'tags unchanged (ramp already on the line)',
       'tags unchanged (nope not on the line)',
     ])
@@ -1313,7 +1380,7 @@ describe('set-card --tag / --untag (Integration)', () => {
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson & { dryRun?: boolean }
     expect(json.dryRun).toBe(true)
-    expect(json.applied).toEqual(['tags added → ramp'])
+    expect(appliedText(json)).toEqual(['tags added → ramp'])
     expect(await snapshotTree(dir)).toEqual(before)
   })
 
@@ -1388,7 +1455,7 @@ describe('set-card --art (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['custom art → proxies/bolt.png'])
+    expect(appliedText(json)).toEqual(['custom art → proxies/bolt.png'])
 
     expect(await readSidecar('decks/test.art.json')).toEqual({ '3': { file: 'proxies/bolt.png' } })
     // The sidecar rides the `writtenFiles` machine contract, so an auto-commit
@@ -1407,7 +1474,7 @@ describe('set-card --art (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual([`custom art → ${ART_URL}`])
+    expect(appliedText(json)).toEqual([`custom art → ${ART_URL}`])
     expect(await readSidecar('collections/main.art.json')).toEqual({ '1': { url: ART_URL } })
   })
 
@@ -1428,7 +1495,7 @@ describe('set-card --art (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['custom art → none (cleared)'])
+    expect(appliedText(json)).toEqual(['custom art → none (cleared)'])
     expect(await Bun.file(path.join(dir, 'collections', 'main.art.json')).exists()).toBe(false)
   })
 
@@ -1462,7 +1529,7 @@ describe('set-card --art (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['label → proxy', `custom art → ${ART_URL}`])
+    expect(appliedText(json)).toEqual(['label → Proxy', `custom art → ${ART_URL}`])
 
     const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
     expect(deckContent).toContain('1 Lightning Bolt (2XM:157) [proxy] &3')
@@ -1537,7 +1604,7 @@ describe('set-card --art (Integration)', () => {
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson & { dryRun?: boolean }
     expect(json.dryRun).toBe(true)
-    expect(json.applied).toEqual(['custom art → proxies/bolt.png'])
+    expect(appliedText(json)).toEqual(['custom art → proxies/bolt.png'])
     expect(await snapshotTree(dir)).toEqual(before)
   })
 })
@@ -1563,7 +1630,7 @@ describe('set-card --categories / --no-categories (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['categories → Ramp, Artifacts'])
+    expect(appliedText(json)).toEqual(['categories → Ramp, Artifacts'])
 
     // The item-(b) assertion: the `line-mutate` categories seam reports the
     // sidecar AND its hash among the run's written files, alongside the
@@ -1601,7 +1668,7 @@ describe('set-card --categories / --no-categories (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['categories cleared'])
+    expect(appliedText(json)).toEqual(['categories cleared'])
     expect(json.writtenFiles).toContain(sidecar())
     expect(json.writtenFiles).toContain(`${sidecar()}.sha256`)
     // The card's entry goes; the list's declared vocabulary is not the card's

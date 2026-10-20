@@ -38,6 +38,7 @@ import { foldCategoryCardName } from '../../card/card-categories'
 import { deckCardNameSet } from '../../list/card-names'
 import { displayLanguage } from '../../card/card-language'
 import { t } from '../../i18n/t'
+import { sectionDisplayName } from '../../list/deck-format'
 import {
   allocateId,
   assignMissingDeckCardIds,
@@ -174,7 +175,7 @@ export function applyDeckChange(
 
 /** Render a deck line for the edit-mode picker, e.g. `2 Sol Ring (C19:221) [foil] — Main &5`. */
 export function renderDeckCardLine(card: Card, sectionName: string): string {
-  return `${card.quantity} ${card.name}${formatPrintingAnnotation(card)} — ${sectionName} &${card.cardId}`
+  return `${card.quantity} ${card.name}${formatPrintingAnnotation(card)} — ${sectionDisplayName(sectionName)} &${card.cardId}`
 }
 
 /** The deck session as the shared edit-mode operations see it. */
@@ -435,7 +436,7 @@ export async function editDeckCard(
     console.log(
       t('cli.deck.addedAnother', {
         name: card.name,
-        section: sectionName,
+        section: sectionDisplayName(sectionName),
         count: card.quantity + 1,
       }),
     )
@@ -731,7 +732,12 @@ export function performDeckLineRemoval(
     reclaimId: cardId,
   })
   resetStaleLastAdded(deckModel(state), ctx, cardId)
-  console.log(t('cli.deck.removedFromSection', { name: snapshot.name, section: sectionName }))
+  console.log(
+    t('cli.deck.removedFromSection', {
+      name: snapshot.name,
+      section: sectionDisplayName(sectionName),
+    }),
+  )
 }
 
 /** Label of the operation Undo Last Edit would revert, or null when the stack is empty. */

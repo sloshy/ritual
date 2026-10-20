@@ -164,19 +164,21 @@ export function finishRequiresPrinting(finish: Finish): boolean {
 }
 
 /**
- * A finish's display name. A key table rather than `capitalize(finish)`: the
- * slugs are file-format vocabulary that must never move, and capitalising one
- * leaves a translator with no string to translate at all.
+ * A finish's title-case display name, the one table every surface reads (the
+ * CLI's pickers and rows, both editors, a card's printing label). A key table
+ * rather than `capitalize(finish)`: the slugs are file-format vocabulary that
+ * must never move, and capitalising one leaves a translator with no string to
+ * translate at all. Its lower-case twin is {@link FINISH_CHIP_LABELS}.
  */
-const FINISH_LABELS = {
-  nonfoil: 'cli.session.finishNonfoil',
-  foil: 'cli.session.finishFoil',
-  etched: 'cli.session.finishEtched',
+export const FINISH_NAMES = {
+  nonfoil: 'domain.finish.nonfoil',
+  foil: 'domain.finish.foil',
+  etched: 'domain.finish.etched',
 } as const satisfies Record<Finish, MessageKey>
 
 /** A finish's display name in the active UI locale. */
 export function finishLabel(finish: Finish): string {
-  return t(FINISH_LABELS[finish])
+  return t(FINISH_NAMES[finish])
 }
 
 /**

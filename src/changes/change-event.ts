@@ -29,12 +29,17 @@ import {
 import {
   displayLanguage,
   isCardLanguage,
-  languageDisplayName,
+  LANGUAGE_PARSE_NAMES,
   type CardLanguage,
 } from '../card/card-language'
 import { resolvePrinting } from '../card/card-line'
 import { isConditionUpdate, isFinish } from '../card/finish-condition'
 import { formatTokenTail, printingLabel } from '../card/card-line-tail'
+
+/** The persisted language names, looked up so an unknown code cannot index past the table. */
+const PARSE_NAME_BY_CODE: ReadonlyMap<string, string> = new Map(
+  Object.entries(LANGUAGE_PARSE_NAMES),
+)
 
 /**
  * A condition *update*: a grade to record, or `'NONE'` to clear a recorded
@@ -1536,8 +1541,10 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
       return `Set ${name} printing to ${printingDesc}${idInfo}`
     }
     case 'set-language':
+      // A decoded event's code is data from a file: one outside the vocabulary
+      // writes as itself rather than as `undefined`.
       // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
-      return `Set language of ${name} to ${languageDisplayName(change.language)}${idInfo}`
+      return `Set language of ${name} to ${PARSE_NAME_BY_CODE.get(change.language) ?? change.language}${idInfo}`
     case 'set-note': {
       if (change.note === '') {
         const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'

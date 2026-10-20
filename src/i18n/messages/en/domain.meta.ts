@@ -3,6 +3,9 @@
 import type { MetaFor } from '../../types'
 import type { domainMessages } from './domain'
 
+const FINISH_CONTEXT =
+  'A card printing\'s finish, title case: in a card\'s printing label ("SLD:1234 · Foil · NM"), the finish pickers of the CLI and both editors, and a CLI card row. The persisted token (nonfoil, foil, etched) never changes; only this name is translated. The lower-case chip form is site.finishChip.*.'
+
 const CONDITION_CONTEXT =
   'Trading-card grade shown next to a card. Use the wording collectors in the target language use.'
 
@@ -38,7 +41,7 @@ const EXPORT_HINT_CONTEXT =
 const EXPORT_FORMAT_CONTEXT = "A row in the export wizard's output-format picker."
 
 const CONFLICT_CONTEXT =
-  'Why one change in an imported change bundle could not be applied. Shown in a comma-joined per-reason tally ("card not found: 2") and again beside each skipped change, so keep it a short lowercase noun phrase rather than a sentence.'
+  'Why one change in an imported change bundle could not be applied. Shown in a per-reason tally (cli.importChanges.reasonCount, "card not found: 2") and again beside each skipped change, so keep it a short lowercase noun phrase rather than a sentence.'
 
 const SIDECAR_CONTEXT =
   'The state of a list file measured against its `.sha256` sidecar, printed by `ritual detect-changes --verify` in a `<file>: <state>` column. Keep it a short lowercase phrase.'
@@ -49,12 +52,30 @@ const ADMIN_PAGE_CONTEXT =
 const COUNT_CONTEXT =
   'A count and the thing it counts, agreeing in number. Supply every plural category your language uses — English needs only "one" and "other", Russian needs "one", "few", "many" and "other". This is a *fragment* spliced into a longer sentence that is still English, so keep it a bare noun phrase with no leading capital and no final punctuation.'
 
+const LABEL_BADGE_CONTEXT =
+  'The compact tag a card tile shows for one of its labels, beside the card name, rendered in small capitals. Tiles are narrow, so keep it one short word; the full wording (domain.label.*) is used where there is room.'
+
+const BOARD_CONTEXT =
+  'One of the four standard deck boards, shown as a section heading and in section pickers. The deck file keeps its own heading, so translating this only changes what the reader sees. A heading is this board when it matches case-insensitively; any other section is shown exactly as written. A reader who types this translation as a new section name gets this board.'
+
 export const domainMeta = {
   'domain.condition.nm': { description: `${CONDITION_CONTEXT} Best grade.`, maxLen: 20 },
   'domain.condition.lp': { description: `${CONDITION_CONTEXT} Second-best grade.`, maxLen: 20 },
   'domain.condition.mp': { description: `${CONDITION_CONTEXT} Middle grade.`, maxLen: 20 },
   'domain.condition.hp': { description: `${CONDITION_CONTEXT} Second-worst grade.`, maxLen: 20 },
   'domain.condition.dmg': { description: `${CONDITION_CONTEXT} Worst grade.`, maxLen: 20 },
+  'domain.finish.nonfoil': {
+    description: `${FINISH_CONTEXT} The plain, non-shiny printing.`,
+    maxLen: 12,
+  },
+  'domain.finish.foil': {
+    description: `${FINISH_CONTEXT} The shiny (foil) printing.`,
+    maxLen: 12,
+  },
+  'domain.finish.etched': {
+    description: `${FINISH_CONTEXT} The etched-foil printing — a distinct treatment from ordinary foil.`,
+    maxLen: 12,
+  },
   'domain.label.sale': {
     description: 'Card label meaning the owner is willing to sell this card.',
     maxLen: 16,
@@ -111,6 +132,38 @@ export const domainMeta = {
       'Row in the *list default* label picker meaning the list declares no default at all.',
     maxLen: 24,
   },
+  'domain.label.badge.sale': {
+    description: `${LABEL_BADGE_CONTEXT} The "for sale" label.`,
+    maxLen: 8,
+  },
+  'domain.label.badge.trade': {
+    description: `${LABEL_BADGE_CONTEXT} The "for trade" label. A tile also shows it struck through when a card takes an inherited "for trade" away.`,
+    maxLen: 8,
+  },
+  'domain.label.badge.keep': {
+    description: `${LABEL_BADGE_CONTEXT} The "to keep" label: the owner will not part with this card.`,
+    maxLen: 8,
+  },
+  'domain.label.badge.proxy': {
+    description: `${LABEL_BADGE_CONTEXT} The "proxy" label: a stand-in printout, not a real card.`,
+    maxLen: 8,
+  },
+  'domain.board.commander': {
+    description: `${BOARD_CONTEXT} The command zone: the deck's commander.`,
+    maxLen: 20,
+  },
+  'domain.board.main': {
+    description: `${BOARD_CONTEXT} The main deck.`,
+    maxLen: 20,
+  },
+  'domain.board.sideboard': {
+    description: `${BOARD_CONTEXT} Cards kept beside the deck to swap in between games.`,
+    maxLen: 20,
+  },
+  'domain.board.maybeboard': {
+    description: `${BOARD_CONTEXT} Cards the owner is considering for the deck but has not put in it.`,
+    maxLen: 20,
+  },
   'domain.listType.deck': { description: 'Plural name for the deck list type.', maxLen: 20 },
   'domain.listType.collection': {
     description: 'Plural name for the collection list type.',
@@ -134,7 +187,7 @@ export const domainMeta = {
   },
   'domain.listType.noun': {
     description:
-      'A list type as a lowercase common noun. It is spliced mid-sentence into CLI import messages (the {label} of cli.import.promptListName, cli.import.savedList and their siblings, the {type} of cli.importChanges.listHeading), and it is also listed bare, comma-joined, as the {kinds} of ui.editor.importWrongKind. One branch per type: a deck, a collection, or a wanted list (a list of cards the user is looking for). Use the form that reads in both places.',
+      'A list type as a lowercase common noun. It is spliced mid-sentence into CLI import messages (the {label} of cli.import.promptListName, cli.import.savedList and their siblings, the {type} of cli.importChanges.listHeading), the {sourceKind} of site.trade.unknownCardIds, and it is also shown bare: listed, comma-joined, as the {kinds} of ui.editor.importWrongKind, and as the type column of `ritual lists`. One branch per type: a deck, a collection, or a wanted list (a list of cards the user is looking for). Use the form that reads in both places.',
   },
   'domain.currency.tix': {
     description:
@@ -142,6 +195,10 @@ export const domainMeta = {
   },
 
   'domain.count.cards': { description: `${COUNT_CONTEXT} Magic cards.` },
+  'domain.deckCount.unusual': {
+    description:
+      'On a deck cover and in Quick Switch, shown smaller after the deck\'s format name when the deck does not hold that format\'s usual number of cards, e.g. "Commander (99 cards)". {cards} is an already-rendered count (domain.count.cards).',
+  },
   'domain.count.copies': {
     description: `${COUNT_CONTEXT} Copies of one card — how many of the same card a list holds.`,
   },
@@ -507,13 +564,13 @@ export const domainMeta = {
     description: `${CHANGE_CONTEXT} A card was added to a list. ${ANNOTATION_CONTEXT}`,
   },
   'domain.change.addToBoard': {
-    description: `${CHANGE_CONTEXT} A card was added to a named deck board. {board} is the board name (Sideboard, Maybeboard, Commander) and is file-format vocabulary — leave it untranslated. ${ANNOTATION_CONTEXT}`,
+    description: `${CHANGE_CONTEXT} A card was added to a named deck board. {board} is the board name, already in the reader's language when it is a standard board (domain.board.*) and the owner's own section name otherwise. ${ANNOTATION_CONTEXT}`,
   },
   'domain.change.remove': {
     description: `${CHANGE_CONTEXT} A card was removed from a list. ${ANNOTATION_CONTEXT}`,
   },
   'domain.change.removeFromBoard': {
-    description: `${CHANGE_CONTEXT} A card was removed from a named deck board. {board} is the untranslated board name. ${ANNOTATION_CONTEXT}`,
+    description: `${CHANGE_CONTEXT} A card was removed from a named deck board. {board} is the board name, already in the reader's language when it is a standard board (domain.board.*) and the owner's own section name otherwise. ${ANNOTATION_CONTEXT}`,
   },
   'domain.change.setCommander': {
     description: `${CHANGE_CONTEXT} A card was made the deck's commander. ${ID_CONTEXT}`,
@@ -522,7 +579,7 @@ export const domainMeta = {
     description: `${CHANGE_CONTEXT} A card stopped being the deck's commander. ${ID_CONTEXT}`,
   },
   'domain.change.setFinish': {
-    description: `${CHANGE_CONTEXT} A card's finish changed. {finish} is one of the untranslated file tokens nonfoil / foil / etched. ${ID_CONTEXT}`,
+    description: `${CHANGE_CONTEXT} A card's finish changed. {finish} is the finish's lower-case name, already in the reader's language (site.finishChip.*). ${ID_CONTEXT}`,
   },
   'domain.change.setPrinting': {
     description: `${CHANGE_CONTEXT} A card was pinned to a specific printing. {printing} is a pre-rendered descriptor like "NEO:234 [foil] [ja]" — never translate it. ${ID_CONTEXT}`,
@@ -540,7 +597,7 @@ export const domainMeta = {
     description: `${CHANGE_CONTEXT} A card's note was deleted. ${ID_CONTEXT}`,
   },
   'domain.change.setLabels': {
-    description: `${CHANGE_CONTEXT} A card's labels were set. {labels} is a comma-joined list of the untranslated tokens sale / trade / keep / proxy; keep the square brackets, which are file-format punctuation. ${ID_CONTEXT}`,
+    description: `${CHANGE_CONTEXT} A card's labels were set. {labels} is the card line's own label token, a comma-joined list of the untranslated tokens sale / trade / keep / proxy (with a no- prefix for a negation); keep the square brackets, which are file-format punctuation. ${ID_CONTEXT}`,
   },
   'domain.change.clearLabels': {
     description: `${CHANGE_CONTEXT} A card's label override was cleared, so the list default applies again. ${ID_CONTEXT}`,
@@ -562,16 +619,16 @@ export const domainMeta = {
     description: `${CHANGE_CONTEXT} A card moved into this list from another one. {list} is the source's rendered name. ${ANNOTATION_CONTEXT}`,
   },
   'domain.change.addSection': {
-    description: `${CHANGE_CONTEXT} A section (a named group of cards within one list) was created. {section} is the user's own section name.`,
+    description: `${CHANGE_CONTEXT} A section (a named group of cards within one list) was created. {section} is its name. A standard deck board (Commander, Main, Sideboard, Maybeboard) arrives already in the reader's language (domain.board.*); any other section name is the user's own text.`,
   },
   'domain.change.removeSection': {
-    description: `${CHANGE_CONTEXT} A section was deleted. {section} is the user's own section name.`,
+    description: `${CHANGE_CONTEXT} A section was deleted. {section} is its name. A standard deck board (Commander, Main, Sideboard, Maybeboard) arrives already in the reader's language (domain.board.*); any other section name is the user's own text.`,
   },
   'domain.change.renameSection': {
-    description: `${CHANGE_CONTEXT} A section was renamed. Both names are the user's own text.`,
+    description: `${CHANGE_CONTEXT} A section was renamed. A standard deck board (Commander, Main, Sideboard, Maybeboard) arrives already in the reader's language (domain.board.*); any other section name is the user's own text.`,
   },
   'domain.change.setSection': {
-    description: `${CHANGE_CONTEXT} A card moved into a different section of the same list. ${ID_CONTEXT}`,
+    description: `${CHANGE_CONTEXT} A card moved into a different section of the same list. {section} is its name. A standard deck board (Commander, Main, Sideboard, Maybeboard) arrives already in the reader's language (domain.board.*); any other section name is the user's own text. ${ID_CONTEXT}`,
   },
   'domain.change.setCategories': {
     description: `${CHANGE_CONTEXT} A card's categories — its roles in this one list, e.g. Ramp or Removal — were set. {categories} is the user's own comma-joined list in their chosen order (the first is the primary category) and is never translated.`,

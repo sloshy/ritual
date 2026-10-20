@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test'
-import prompts from 'prompts'
+import { describe, expect, spyOn, test } from 'bun:test'
+import prompts, { type Choice, type PromptObject } from 'prompts'
 import {
   applyDeckChange,
   applyDeckFieldEdit,
@@ -33,6 +33,9 @@ import {
 import { createSessionArtChanges, pendingSessionArt } from '../../src/commands/session/art'
 import { createSessionCategories } from '../../src/commands/session/categories'
 import { scratchListPath, stubTty } from '../test-utils'
+import { promptNewSectionName } from '../../src/commands/session/deck-prompts'
+import { serializeDeckToMarkdown } from '../../src/list/deck-file'
+import { pseudoCatalog, pseudoString, withSyntheticLocaleAsync } from '../helpers/sync-text'
 
 // The Set Custom Art prompts go through `ask`, which refuses to open without a
 // terminal; these tests answer them with prompts.inject instead.
@@ -882,5 +885,95 @@ describe('deck edit-mode — Edit Categories', () => {
     prompts.inject(['categories', ''])
     await editDeckCard(state, ctx, 1, deps)
     expect(ctx.sessionChanges).toHaveLength(0)
+  })
+})
+
+/** One select prompt as the user saw it: every row's title and value. */
+type CapturedSelect = { title: string; value: string }[]
+
+type SelectElement = (question: PromptObject) => unknown
+
+/**
+ * Run `action` answering its select prompts in order from `answers`, recording
+ * each prompt's rows. `prompts.inject` cannot observe a menu — an injected
+ * answer skips the element entirely — so the select element itself is swapped.
+ */
+async function answerSelects(
+  answers: readonly string[],
+  action: () => Promise<void>,
+): Promise<CapturedSelect[]> {
+  const queue = prompts as unknown as { _injected?: unknown[] }
+  const injected = queue._injected
+  // Even a drained injection queue bypasses the element.
+  queue._injected = undefined
+  const elements = prompts.prompts as unknown as Record<string, SelectElement>
+  const original = elements.select
+  if (!original) throw new Error('prompts has no select element')
+  const captured: CapturedSelect[] = []
+  elements.select = (question) => {
+    const choices = (question.choices ?? []) as Choice[]
+    captured.push(choices.map((c) => ({ title: c.title, value: String(c.value) })))
+    return answers[captured.length - 1]
+  }
+  try {
+    await action()
+  } finally {
+    elements.select = original
+    queue._injected = injected
+  }
+  return captured
+}
+
+describe('deck edit-mode — Move to Section in another UI language', () => {
+  test('the board reads in the UI language while the saved deck keeps its English heading', async () => {
+    const state = stateOf({
+      name: 'Test',
+      sections: [
+        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] },
+        { name: 'Sideboard', cards: [] },
+      ],
+    })
+    const ctx = contextOf()
+    const log = spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      await withSyntheticLocaleAsync('en-XA', pseudoCatalog(), async () => {
+        const board = pseudoString('domain.board.sideboard')
+        const menus = await answerSelects(['move', 'Sideboard'], () =>
+          editDeckCard(state, ctx, 1, { sessionConfig: {}, excludeDigitalOnly: true }),
+        )
+        // The section picker titles the board in the UI language; its value is
+        // the deck's own heading.
+        expect(menus).toHaveLength(2)
+        expect(menus[1]).toContainEqual({ title: board, value: 'Sideboard' })
+        const printed = log.mock.calls.map((call) => String(call[0])).join('\n')
+        expect(printed).toContain(`— ${board} &1`)
+
+        // Saved while the pseudo-locale is still in force: the bytes are English.
+        expect(ctx.sessionChanges).toMatchObject([{ action: 'set-section', section: 'Sideboard' }])
+        const saved = serializeDeckToMarkdown(state.deck, {})
+        expect(saved).toBe('\n# Test\n\n## Main\n\n## Sideboard\n- 1 Sol Ring &1\n')
+        expect(saved).not.toContain(board)
+      })
+    } finally {
+      log.mockRestore()
+    }
+  })
+})
+
+describe('promptNewSectionName under German', () => {
+  test('typing "Sideboard" beside a custom `## Seitenboard` names the Sideboard', async () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        { name: 'Main', cards: [] },
+        { name: 'Seitenboard', cards: [] },
+      ],
+    }
+    await withSyntheticLocaleAsync('de', { 'domain.board.sideboard': 'Seitenboard' }, async () => {
+      prompts.inject(['Sideboard'])
+      expect(await promptNewSectionName(deck)).toBe('Sideboard')
+      prompts.inject(['seitenboard'])
+      expect(await promptNewSectionName(deck)).toBe('Seitenboard')
+    })
   })
 })

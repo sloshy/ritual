@@ -7,6 +7,7 @@
 import type { ArchidektClient } from '../clients/ArchidektClient'
 import type { SelectBranch } from '../i18n/t'
 import { isSyncMessage, syncList, syncMessage, type SyncMessage } from '../sync/message'
+import { sectionNameParam } from '../list/deck-format'
 import type { Card } from '../card/card'
 import type { Board, DeckSection } from '../list/deck'
 import type { Finish } from '../card/finish-condition'
@@ -584,7 +585,7 @@ export async function buildUploadPlan(
         syncMessage('domain.sync.boardMoveShortfall', {
           count: missing,
           card: printingLabel(move.name, move.printing),
-          board: move.from,
+          board: sectionNameParam(move.from),
         }),
       )
     }
