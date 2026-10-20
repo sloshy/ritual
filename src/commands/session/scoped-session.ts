@@ -143,7 +143,7 @@ async function promptAddTarget(
   return ask<AddTarget>({
     type: 'autocomplete',
     message: t('cli.edit.promptAddTarget'),
-    subjectKey: 'cli.prompt.subject.addTarget',
+    subject: 'cli.prompt.subject.addTarget',
     choices: buildAddTargetChoices(lists, scope),
     suggest: suggestByTitleTerms,
   })

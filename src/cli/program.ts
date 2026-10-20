@@ -37,6 +37,7 @@ import { isMessageParseError } from '../sync/message'
 import { PreActionFailure } from './action'
 import { messageArgParser } from './options'
 import { OUTPUT_FORMATS, type OutputFormat, type ScriptingOptions } from './output'
+import { ENV_VAR } from '../util/cli-tokens'
 
 /** Registers one command tree onto a program, e.g. `registerImportCommand`. */
 export type CommandRegistrar = (program: Command) => void
@@ -525,7 +526,7 @@ async function prepareAction(build: BuildProgramOptions, actionCommand: Command)
   // `--no-input` can only turn prompting off; when absent (`input` stays true),
   // RITUAL_NO_INPUT decides.
   setNoInputOverride(
-    resolveNoInput(options.input === false ? true : undefined, process.env.RITUAL_NO_INPUT),
+    resolveNoInput(options.input === false ? true : undefined, process.env[ENV_VAR.noInput]),
   )
 
   // Needs the base dir (whose config it reads) and the no-input state (whether

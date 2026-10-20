@@ -21,7 +21,7 @@ export const errorsI18nMeta = {
       'An internal consistency failure: an exhaustive switch met a value none of its cases handles (a programming error, not a user mistake). {value} is that value as raw data — a quoted token, an object’s kind, or JSON, capped at 200 characters — and is never translated.',
   },
   'errors.i18n.strict.frame': {
-    description: `${STRICT} The outer frame: {reason} is one of the other strict-mode diagnostics, already worded. "i18n" and "RITUAL_I18N_STRICT=1" are literal — keep them exactly.`,
+    description: `${STRICT} The outer frame: {reason} is one of the other strict-mode diagnostics, already worded. "i18n" and the "=1" after {envVar} are literal — keep them exactly. {envVar} is the \`RITUAL_I18N_STRICT\` environment variable. It is typed or matched exactly by the user, so never translate it.`,
   },
   'errors.i18n.strict.missingKey': {
     description: `${STRICT} The message key {key} exists in no loaded catalog. A "namespace" is the key’s first segment (e.g. "cli"), which each program registers separately.`,

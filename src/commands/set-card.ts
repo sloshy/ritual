@@ -93,6 +93,7 @@ import {
   type Finish,
 } from '../card/finish-condition'
 import type { ListType } from '../list/list-type'
+import { COMMAND, CONFIG_KEY, FLAG, commandLine } from '../util/cli-tokens'
 
 /**
  * `--art none`: remove whatever custom art the card carries. Spelled as an
@@ -188,15 +189,20 @@ export function registerSetCardCommand(program: Command): void {
         .argument('[cardName...]', t('help.setCard.cardName')),
     )
       .option('--card-id <id>', t('help.cardId.disambiguate'))
-      .option('--set <code>', t('help.setCard.set'), parseSetFlag)
-      .option('--collector-number <cn>', t('help.setCard.collectorNumber'))
+      .option('--set <code>', t('help.setCard.set', { flag: FLAG.collectorNumber }), parseSetFlag)
+      .option('--collector-number <cn>', t('help.setCard.collectorNumber', { flag: FLAG.set }))
       .option(
         '--finish <finish>',
         t('help.setCard.finish', { finishes: VALID_FINISHES.join(', ') }),
         parseFinishFlag,
       )
-      .option('--language <code>', t('help.setCard.language'), (value: string) =>
-        parseLanguageFlag(value, 'set'),
+      .option(
+        '--language <code>',
+        t('help.setCard.language', {
+          setFlag: FLAG.set,
+          collectorNumberFlag: FLAG.collectorNumber,
+        }),
+        (value: string) => parseLanguageFlag(value, 'set'),
       )
       .option(
         '--condition <condition>',
@@ -204,12 +210,12 @@ export function registerSetCardCommand(program: Command): void {
         parseConditionFlag,
       )
       .option('--label <labels>', t('help.setCard.label'), parseLabelFlag)
-      .option('--tag <tags>', t('help.setCard.tag'), tagsFlagParser('--tag'))
-      .option('--untag <tags>', t('help.setCard.untag'), tagsFlagParser('--untag'))
+      .option('--tag <tags>', t('help.setCard.tag'), tagsFlagParser(FLAG.tag))
+      .option('--untag <tags>', t('help.setCard.untag'), tagsFlagParser(FLAG.untag))
       .option(
         '--categories <categories>',
         t('help.setCard.categories'),
-        categoriesFlagParser('--categories'),
+        categoriesFlagParser(FLAG.categories),
       )
       .option('--no-categories', t('help.setCard.noCategories'))
       .option('--art <value>', t('help.setCard.art'), parseArtFlag)
@@ -343,7 +349,11 @@ function describeSkippedFinishCheck(
       name: target.name,
     })
   }
-  return t('cli.setCard.finishCheckCacheMiss', { finish, entry })
+  return t('cli.setCard.finishCheckCacheMiss', {
+    finish,
+    entry,
+    command: commandLine(COMMAND.cachePreloadAll),
+  })
 }
 
 /**
@@ -364,6 +374,7 @@ async function ensureArtFileExists(ref: CardArtFileRef): Promise<void> {
       ? localizedCommandError(errorCode, exitCode, 'cli.setCard.artFileMissing', {
           path: filePath,
           dir: artDir,
+          command: commandLine(COMMAND.configSet, CONFIG_KEY.artDir, '<dir>'),
         })
       : localizedCommandError(errorCode, exitCode, 'cli.setCard.artFileUnreadable', {
           path: filePath,
@@ -430,7 +441,10 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   const cardId = input.cardId !== undefined ? parseCardIdFlag(input.cardId) : undefined
 
   if ((input.set !== undefined) !== (input.collectorNumber !== undefined)) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.pinNeedsBoth')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.pinNeedsBoth', {
+      setFlag: FLAG.set,
+      collectorNumberFlag: FLAG.collectorNumber,
+    })
   }
   const hasMutation =
     input.set !== undefined ||
@@ -445,7 +459,22 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     input.section !== undefined ||
     input.commander !== undefined
   if (!hasMutation) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setCard.noChangeGiven')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setCard.noChangeGiven', {
+      setFlag: FLAG.set,
+      collectorNumberFlag: FLAG.collectorNumber,
+      finishFlag: FLAG.finish,
+      conditionFlag: FLAG.condition,
+      languageFlag: FLAG.language,
+      labelFlag: FLAG.label,
+      tagFlag: FLAG.tag,
+      untagFlag: FLAG.untag,
+      categoriesFlag: FLAG.categories,
+      noCategoriesFlag: FLAG.noCategories,
+      artFlag: FLAG.art,
+      sectionFlag: FLAG.section,
+      commanderFlag: FLAG.commander,
+      noCommanderFlag: FLAG.noCommander,
+    })
   }
   if (input.tag !== undefined && input.untag !== undefined) {
     const untag = new Set(input.untag)
@@ -453,6 +482,8 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     if (bothWays.length > 0) {
       throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setCard.tagBothWays', {
         tags: formatCardTags(bothWays),
+        tagFlag: FLAG.tag,
+        untagFlag: FLAG.untag,
       })
     }
   }
@@ -461,10 +492,20 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   const listSlug = path.basename(filePath, '.md')
 
   if (type === 'wanted' && input.condition !== undefined) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.wantedNoCondition')
+    throw localizedCommandError(
+      'usage_error',
+      ExitCode.UsageError,
+      'cli.cardOps.wantedNoCondition',
+      { flag: FLAG.condition },
+    )
   }
   if (type !== 'deck' && input.section !== undefined) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setCard.sectionDecksOnly')
+    throw localizedCommandError(
+      'usage_error',
+      ExitCode.UsageError,
+      'cli.setCard.sectionDecksOnly',
+      { flag: FLAG.section },
+    )
   }
   if (input.label !== undefined) ensureLabelsSupported(type, input.label)
   // Checked before the target is resolved: a path with no image behind it is
@@ -477,6 +518,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
       'usage_error',
       ExitCode.UsageError,
       'cli.setCard.commanderDecksOnly',
+      { commanderFlag: FLAG.commander, noCommanderFlag: FLAG.noCommander },
     )
   }
 

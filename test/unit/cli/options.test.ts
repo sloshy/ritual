@@ -22,13 +22,13 @@ registerCliMessages()
 
 describe('parseEnumFlag', () => {
   test('lowercases and returns a member', () => {
-    expect(parseEnumFlag('PUSH', ['push', 'pull'], 'direction')).toBe('push')
-    expect(parseEnumFlag('pull', ['push', 'pull'], 'direction')).toBe('pull')
+    expect(parseEnumFlag('PUSH', ['push', 'pull'], '<direction>')).toBe('push')
+    expect(parseEnumFlag('pull', ['push', 'pull'], '<direction>')).toBe('pull')
   })
 
   test('rejects non-members with the unified message', () => {
-    expect(() => parseEnumFlag('sideways', ['push', 'pull'], 'direction')).toThrow(
-      "Invalid direction 'sideways'. Use one of: push, pull.",
+    expect(() => parseEnumFlag('sideways', ['push', 'pull'], '<direction>')).toThrow(
+      "Invalid <direction> 'sideways'. Use one of: push, pull.",
     )
   })
 })

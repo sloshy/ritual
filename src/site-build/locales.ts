@@ -17,6 +17,7 @@ import type { LocaleCatalog, LocaleTag } from '../i18n/types'
 import { isConfigParseError, parseUiLocale } from '../config/ritual-config'
 import { getErrorMessage } from '../util/errors'
 import { renderSyncMessage } from '../sync/message'
+import { ENV_VAR, FLAG, flagValue } from '../util/cli-tokens'
 
 /** One dictionary this build can publish, ready to write. */
 export type BuildLocale = {
@@ -69,6 +70,7 @@ export async function loadLocaleFiles(paths: readonly string[]): Promise<BuildLo
       return t('cli.buildSite.localeFileBadTag', {
         path: filePath,
         reason: describeLocaleTagError(tag),
+        flag: FLAG.localeFile,
       })
     }
     let raw: string
@@ -78,11 +80,16 @@ export async function loadLocaleFiles(paths: readonly string[]): Promise<BuildLo
       return t('cli.buildSite.localeFileUnreadable', {
         path: filePath,
         reason: getErrorMessage(err),
+        flag: FLAG.localeFile,
       })
     }
     const parsed = parseLocaleFile(raw)
     if (typeof parsed === 'string') {
-      return t('cli.buildSite.localeFileInvalid', { path: filePath, reason: parsed })
+      return t('cli.buildSite.localeFileInvalid', {
+        path: filePath,
+        reason: parsed,
+        flag: FLAG.localeFile,
+      })
     }
     locales.push({ tag, catalog: parsed })
   }
@@ -125,6 +132,7 @@ export function planLocales(input: LocalePlanInput): LocaleBuildPlan | string {
     return t('cli.buildSite.localeInvalid', {
       value: bakedRaw,
       reason: renderSyncMessage(baked.error),
+      flag: FLAG.locale,
     })
   }
 
@@ -146,10 +154,16 @@ export function planLocales(input: LocalePlanInput): LocaleBuildPlan | string {
       return t('cli.buildSite.localesInvalid', {
         value: requested,
         reason: renderSyncMessage(tag.error),
+        flag: FLAG.locales,
       })
     }
     if (tag !== DEFAULT_LOCALE && !byTag.has(tag.toLowerCase())) {
-      return t('cli.buildSite.localesUnknown', { tag })
+      return t('cli.buildSite.localesUnknown', {
+        tag,
+        localesFlag: FLAG.locales,
+        localeFileFlag: flagValue(FLAG.localeFile, '<path>'),
+        envVar: ENV_VAR.bundledLocales,
+      })
     }
     addTag(tag)
   }
@@ -160,7 +174,12 @@ export function planLocales(input: LocalePlanInput): LocaleBuildPlan | string {
   if (baked !== DEFAULT_LOCALE) {
     if (byTag.has(baked.toLowerCase())) addTag(baked)
     else {
-      warnings.push(t('cli.buildSite.bakedLocaleUndictionaried', { tag: baked }))
+      warnings.push(
+        t('cli.buildSite.bakedLocaleUndictionaried', {
+          tag: baked,
+          flag: flagValue(FLAG.localeFile, '<path>'),
+        }),
+      )
     }
   }
 

@@ -34,7 +34,7 @@ export async function promptMoveDestination(
   return ask<ListEntry>({
     type: 'autocomplete',
     message,
-    subjectKey: 'cli.prompt.subject.moveDestination',
+    subject: 'cli.prompt.subject.moveDestination',
     choices,
     suggest: suggestByTitleTerms,
   })
@@ -77,7 +77,7 @@ export async function promptDestinationSection(dest: ListEntry): Promise<Section
   const picked = await ask<string>({
     type: 'select',
     message: t('cli.move.sectionPrompt', { list: listRefDisplay(dest.ref) }),
-    subjectKey: 'cli.prompt.subject.deckSection',
+    subject: 'cli.prompt.subject.deckSection',
     choices,
     initial,
   })
@@ -99,7 +99,7 @@ async function promptNewSection(names: readonly string[]): Promise<SectionSelect
   const typed = await ask<string>({
     type: 'text',
     message: t('cli.move.sectionNewPrompt'),
-    subjectKey: 'cli.prompt.subject.deckSection',
+    subject: 'cli.prompt.subject.deckSection',
   })
   if (typed === undefined || sectionNameProblem(typed) !== undefined) return { kind: 'cancelled' }
   return { kind: 'section', section: resolveTypedSectionName(names, typed).name }

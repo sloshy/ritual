@@ -6,6 +6,7 @@ import { t } from '../i18n/t'
 import { runCommandAction, lifecycleErrorToCommandError } from '../cli/action'
 import { addScriptingOptions } from '../cli/options'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { FLAG } from '../util/cli-tokens'
 
 type NewOptions = { format?: string } & Partial<ScriptingOptions>
 
@@ -45,7 +46,9 @@ async function runNew(
     })
   }
   if (format !== undefined && rawType !== 'deck') {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.new.formatDecksOnly')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.new.formatDecksOnly', {
+      flag: FLAG.format,
+    })
   }
 
   const result = await createList(rawType, name, format)

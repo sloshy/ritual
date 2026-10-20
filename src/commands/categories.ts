@@ -42,6 +42,7 @@ import type { ListType } from '../list/list-type'
 import { ExitCode, localizedCommandError, messageCommandError } from '../util/errors'
 import { t } from '../i18n/t'
 import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
+import { COMMAND, bareCommandLine } from '../util/cli-tokens'
 
 /**
  * `ritual categories` — inspect and edit a list's card categories, the third
@@ -410,6 +411,7 @@ function registerCategoriesOrderSubcommand(categories: Command): void {
             'usage_error',
             ExitCode.UsageError,
             'cli.categories.orderEmpty',
+            { command: bareCommandLine(COMMAND.categoriesOrder) },
           )
         }
         const loaded = await loadTargetCategories(target)

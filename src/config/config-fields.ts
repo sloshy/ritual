@@ -23,6 +23,7 @@ import { parseDefaultPriceSource, parsePriceSources } from '../pricing/price-sou
 import { normalizeLanguageValue } from '../card/card-language'
 import { getAtPath } from '../util/object'
 import { syncList, syncMessage, syncRef, type SyncMessageRef } from '../sync/message'
+import { bareCommandLine, COMMAND, commandLine, CONFIG_KEY, FLAG } from '../util/cli-tokens'
 
 type ConfigFieldType = 'string' | 'boolean' | 'number' | 'string[]'
 
@@ -250,11 +251,27 @@ function isSiteDeployManagedPath(property: string): boolean {
 /** The subcommand a guard refuses — the `verb` branch of its message. */
 type ConfigWriteVerb = 'set' | 'unset'
 
+/** The commands a Ritual-owned-block refusal names. */
+type GuardTokens = {
+  configCommand: string
+  initSiteCommand: string
+}
+
+/** The command the refused write was (`config set` / `config unset`), and the one that owns the block. */
+function guardTokens(verb: ConfigWriteVerb): GuardTokens {
+  return {
+    configCommand: bareCommandLine(verb === 'set' ? COMMAND.configSet : COMMAND.configUnset),
+    initSiteCommand: commandLine(COMMAND.initSite),
+  }
+}
+
 function siteDeployGuardError(verb: ConfigWriteVerb): ConfigSetError {
   return {
     error: syncMessage('cli.config.siteManaged', {
       verb,
       properties: syncList(Object.keys(SETTABLE_SITE_FIELDS), 'unit'),
+      configKey: CONFIG_KEY.site,
+      ...guardTokens(verb),
     }),
   }
 }
@@ -268,7 +285,14 @@ function isManagedPath(property: string): boolean {
 }
 
 function managedGuardError(verb: ConfigWriteVerb): ConfigSetError {
-  return { error: syncMessage('cli.config.managedOwned', { verb }) }
+  return {
+    error: syncMessage('cli.config.managedOwned', {
+      verb,
+      configKey: CONFIG_KEY.managed,
+      migrateCommand: commandLine(COMMAND.migrate),
+      ...guardTokens(verb),
+    }),
+  }
 }
 
 /** The refusal of a property no settable (or, for `config get`, readable) key has. */
@@ -371,6 +395,8 @@ export function applyConfigSet(
       error: syncMessage('cli.config.addRemoveScalar', {
         property,
         typeName: fieldTypeName(fieldType),
+        addFlag: FLAG.add,
+        removeFlag: FLAG.remove,
       }),
     }
   }

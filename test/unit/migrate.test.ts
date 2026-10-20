@@ -25,6 +25,8 @@ import type { RitualSkill } from '../../src/skills/types'
 import { CardCommandError, hasErrorCode } from '../../src/util/errors'
 import { fileExists } from '../../src/util/fs'
 import { bindWorkspace, snapshotTree, type BoundWorkspace } from '../helpers/workspace'
+import { renderSyncParam, syncRef } from '../../src/sync/message'
+import { DEFAULT_LOCALE } from '../../src/i18n/runtime'
 
 const DEV_BUILD: BuildIdentity = { version: '0.0.0-dev.abc', release: false }
 
@@ -64,7 +66,7 @@ async function plan(options: MigrateOptions = {}): Promise<MigrationPlan> {
 function fixedMigration(id: number, ops: MigrationOp[]): Migration {
   return {
     id,
-    descriptionKey: 'cli.migrate.migration.dropSiteVersion',
+    description: syncRef('cli.migrate.planHeading'),
     applies: () => true,
     plan: () => Promise.resolve(ops),
   }
@@ -134,6 +136,13 @@ describe('migration 1: drop site.version', () => {
 })
 
 describe('migration 2: drop site.prerelease', () => {
+  test('its plan line names both config keys and the file as typed', () => {
+    const migration = MIGRATIONS.find((candidate) => candidate.id === 2)
+    expect(migration && renderSyncParam(migration.description, DEFAULT_LOCALE)).toBe(
+      'Remove site.prerelease from ritual.config.json (the deploy workflow now downloads the release pinned in managed.version)',
+    )
+  })
+
   test.each([true, false, null])(
     'plans the delete when the key is present, whatever its value (%p)',
     async (prerelease) => {

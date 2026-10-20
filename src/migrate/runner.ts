@@ -59,6 +59,7 @@ import {
   type MigrationOp,
   type RawConfig,
 } from './types'
+import { COMMAND, FILE, FLAG, bareCommandLine, commandLine } from '../util/cli-tokens'
 
 /** The build doing the migrating — what may be recorded as `managed.version`. */
 export type BuildIdentity = {
@@ -157,17 +158,35 @@ export function refusalError(outcome: AheadOutcome | InvalidOutcome): CardComman
     return messageCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
-      syncMessage('cli.migrate.invalid', { error: nestSync(outcome.error) }),
+      syncMessage('cli.migrate.invalid', {
+        error: nestSync(outcome.error),
+        file: FILE.config,
+        command: commandLine(COMMAND.migrate),
+      }),
     )
   }
+  const command = aheadRemedyCommand(outcome)
   return outcome.version === undefined
     ? localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.migrate.aheadNoVersion', {
         applied: outcome.applied,
         latest: outcome.latest,
+        command,
       })
     : localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.migrate.ahead', {
         version: outcome.version,
+        command,
       })
+}
+
+/**
+ * The command that brings a newer Ritual to a workspace one updated: `self-update
+ * --tag` (the message appends the version) when the release is known, or a plain
+ * `self-update` when only its migration number is.
+ */
+export function aheadRemedyCommand(outcome: AheadOutcome): string {
+  return outcome.version === undefined
+    ? commandLine(COMMAND.selfUpdate)
+    : commandLine(COMMAND.selfUpdate, FLAG.tag)
 }
 
 /**
@@ -481,6 +500,11 @@ export async function applyMigration(
       'runtime_error',
       ExitCode.RuntimeError,
       'cli.migrate.changedSincePlan',
+      {
+        file: FILE.config,
+        commandName: bareCommandLine(COMMAND.migrate),
+        command: commandLine(COMMAND.migrate),
+      },
     )
   }
 

@@ -78,6 +78,7 @@ import type { EntryRef } from './entry-ref'
 import { loadDefaultCategories } from '../config/ritual-config'
 import { headingName, sectionHeading } from './heading'
 import { nestSync, syncMessage, SyncMessageError } from '../sync/message'
+import { FLAG } from '../util/cli-tokens'
 
 /** Options for {@link applyTargetedChanges}. */
 export type TargetedMutateOptions = {
@@ -495,7 +496,7 @@ function finishWithoutPrinting(finish: Finish): CardCommandError {
     'usage_error',
     ExitCode.UsageError,
     'cli.lineMutate.finishWithoutPrinting',
-    { finish },
+    { finish, setFlag: FLAG.set, collectorNumberFlag: FLAG.collectorNumber },
   )
 }
 

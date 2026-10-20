@@ -15,6 +15,7 @@ import {
   TEXT_ONLY,
   type ScriptingOptions,
 } from '../cli/output'
+import { COMMAND, FLAG, commandLine } from '../util/cli-tokens'
 
 type LoginArchidektOptions = {
   forceLogin?: boolean
@@ -103,6 +104,7 @@ async function runArchidektLogin(options: LoginArchidektOptions): Promise<void> 
         'usage_error',
         ExitCode.UsageError,
         'cli.login.needsCredentialFlags',
+        { usernameFlag: FLAG.username, passwordStdinFlag: FLAG.passwordStdin },
       )
     }
     const password = await readPasswordFromStdin()
@@ -145,7 +147,7 @@ export function describeLoginStatus(status: ArchidektLoginStatus): string {
   if (!status.loggedIn) return t('cli.login.notLoggedIn')
   const account = describeAccount(status)
   if (status.loginRequired) {
-    return t('cli.login.statusExpired', { account })
+    return t('cli.login.statusExpired', { account, command: commandLine(COMMAND.loginArchidekt) })
   }
   if (!status.accessTokenValid) {
     return t('cli.login.statusRefreshable', { account })

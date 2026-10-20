@@ -26,6 +26,7 @@ import {
 } from '../update/release-source'
 import { writeFileAtomic } from '../util/atomic-write'
 import { BACKUPS_DIR, TRASH_DIR } from '../util/safekeeping'
+import { ENV_VAR } from '../util/cli-tokens'
 
 /**
  * The `if:` guard stamped on every build/deploy step of the detect-changes
@@ -76,7 +77,7 @@ const DETECT_AND_COMMIT_STEP = `
 const RITUAL_VERSION_STEP = `      - name: Get Ritual version
         id: ritual-version
         run: |
-          VERSION="$RITUAL_VERSION"
+          VERSION="$${ENV_VAR.version}"
           if [ -z "$VERSION" ]; then
             VERSION=$(jq -r '.managed.version // empty' ritual.config.json)
           fi
@@ -94,7 +95,7 @@ const RITUAL_VERSION_STEP = `      - name: Get Ritual version
             fi
           fi
           if [ -z "$VERSION" ]; then
-            echo "::error::Could not resolve a Ritual release to download. Pin one with 'ritual migrate' or set the RITUAL_VERSION repository variable."
+            echo "::error::Could not resolve a Ritual release to download. Pin one with 'ritual migrate' or set the ${ENV_VAR.version} repository variable."
             exit 1
           fi
           case "$VERSION" in
@@ -103,7 +104,7 @@ const RITUAL_VERSION_STEP = `      - name: Get Ritual version
           esac
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         env:
-          RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}`
+          ${ENV_VAR.version}: \${{ vars.${ENV_VAR.version} }}`
 
 /**
  * The trailing Setup Pages / Upload artifact / Deploy steps shared by every

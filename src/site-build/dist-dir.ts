@@ -16,6 +16,7 @@ import path from 'node:path'
 import { getBaseDir } from '../config/base-dir'
 import { isRunningFromSource } from '../config/runtime'
 import { t } from '../i18n/t'
+import { FLAG } from '../util/cli-tokens'
 
 /** The directory a build publishes to when `--out-dir` is not given. */
 export function defaultDistDir(): string {
@@ -59,17 +60,24 @@ export function resolveOutDir(raw: string | undefined): OutDirResolution {
   if (raw === undefined) return { ok: true, dir: path.join(baseDir, 'dist') }
 
   const trimmed = raw.trim()
-  if (trimmed === '') return { ok: false, error: t('cli.buildSite.outDirBlank') }
+  if (trimmed === '')
+    return { ok: false, error: t('cli.buildSite.outDirBlank', { flag: FLAG.outDir }) }
 
   const dir = path.resolve(baseDir, trimmed)
   if (dir === baseDir) {
-    return { ok: false, error: t('cli.buildSite.outDirIsBase', { base: baseDir }) }
+    return {
+      ok: false,
+      error: t('cli.buildSite.outDirIsBase', { base: baseDir, flag: FLAG.outDir }),
+    }
   }
   // `path.relative(dir, baseDir)` never starts with `..` when `dir` contains
   // `baseDir`, which is exactly the ancestor test (a filesystem root included).
   const fromOutDir = path.relative(dir, baseDir)
   if (fromOutDir !== '' && !fromOutDir.startsWith('..') && !path.isAbsolute(fromOutDir)) {
-    return { ok: false, error: t('cli.buildSite.outDirContainsBase', { dir, base: baseDir }) }
+    return {
+      ok: false,
+      error: t('cli.buildSite.outDirContainsBase', { dir, base: baseDir, flag: FLAG.outDir }),
+    }
   }
   return { ok: true, dir }
 }

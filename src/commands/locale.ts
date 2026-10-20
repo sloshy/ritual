@@ -51,10 +51,10 @@ import {
 import {
   currentUiLocaleResolution,
   ignoredReason,
-  LOCALE_ENV_VAR,
   type IgnoredLocale,
   type LocaleSource,
 } from '../cli/locale'
+import { CONFIG_KEY, ENV_VAR, FILE, FLAG } from '../util/cli-tokens'
 
 /** The `ritual locale --output json` payload. Keys and values are locale-invariant. */
 export type LocaleReport = {
@@ -101,11 +101,11 @@ export type LocaleReport = {
 function sourceLabel(source: LocaleSource): string {
   switch (source) {
     case 'flag':
-      return '--locale'
+      return FLAG.locale
     case 'env':
-      return LOCALE_ENV_VAR
+      return ENV_VAR.locale
     case 'config':
-      return t('cli.locale.sourceConfig')
+      return t('cli.locale.sourceConfig', { configKey: CONFIG_KEY.uiLocale, file: FILE.config })
     case 'detected':
       return t('cli.locale.sourceDetected')
     case 'default':
@@ -118,7 +118,10 @@ function renderLocaleText(report: LocaleReport): string {
     t('cli.locale.uiLocale', { locale: report.uiLocale, source: sourceLabel(report.source) }),
     t('cli.locale.available', { locales: report.availableLocales.join(', ') }),
     t('cli.locale.detected', { locale: report.detectedOsLocale ?? t('cli.locale.detectedNone') }),
-    t('cli.locale.cardLanguage', { language: report.defaultLanguage }),
+    t('cli.locale.cardLanguage', {
+      language: report.defaultLanguage,
+      configKey: CONFIG_KEY.defaultLanguage,
+    }),
   ].join('\n')
 }
 
@@ -217,16 +220,27 @@ async function offerDetectedLocale(
 
   const accepted = await ask<boolean>({
     type: 'confirm',
-    message: t('cli.locale.detectPrompt', { locale: detected }),
-    subjectKey: 'cli.prompt.subject.uiLocale',
+    message: t('cli.locale.detectPrompt', {
+      locale: detected,
+      configKey: CONFIG_KEY.uiLocale,
+      file: FILE.config,
+    }),
+    subject: 'cli.prompt.subject.uiLocale',
     initial: true,
   })
   if (accepted !== true) {
-    emitOutput(t('cli.locale.detectDeclined'), scripting)
+    emitOutput(t('cli.locale.detectDeclined', { configKey: CONFIG_KEY.uiLocale }), scripting)
     return
   }
   await saveUiLocale(detected)
-  emitOutput(t('cli.locale.detectSaved', { locale: detected }), scripting)
+  emitOutput(
+    t('cli.locale.detectSaved', {
+      locale: detected,
+      configKey: CONFIG_KEY.uiLocale,
+      file: FILE.config,
+    }),
+    scripting,
+  )
 }
 
 /**
@@ -254,7 +268,9 @@ export function registerLocaleCommand(program: Command): void {
     program
       .command('locale')
       .description(t('help.locale.summary'))
-      .addOption(new Option('--detect', t('help.locale.detect'))),
+      .addOption(
+        new Option('--detect', t('help.locale.detect', { configKey: CONFIG_KEY.uiLocale })),
+      ),
   ).action(async (options: LocaleCommandOptions) => {
     const scripting = normalizeScriptingOptions(options)
     const config = await loadRitualConfig()

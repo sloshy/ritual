@@ -34,6 +34,7 @@ import {
 } from '../sync/message'
 import { isUnknownArray } from '../util/guards'
 import { parseEnumField } from '../util/parse-enum'
+import { FLAG } from '../util/cli-tokens'
 
 /** Every label, in canonical serialization order (`sale` before `trade`). */
 export const CARD_LABELS = ['sale', 'trade', 'keep', 'proxy'] as const
@@ -727,7 +728,7 @@ export function parseLabelOverrideToken(raw: string): LabelOverrideTokenResult {
   }
   const labels: SignedCardLabel[] = []
   for (const part of parts) {
-    const parsed = parseEnumField(part, SIGNED_CARD_LABELS, '--label')
+    const parsed = parseEnumField(part, SIGNED_CARD_LABELS, FLAG.label)
     if (!parsed.ok) return parsed
     labels.push(parsed.value)
   }

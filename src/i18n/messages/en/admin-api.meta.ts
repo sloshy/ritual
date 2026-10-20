@@ -10,7 +10,7 @@ export const adminApiMeta = {
   },
   'admin.api.setup.tokenInvalid': {
     description:
-      'Refusal when the first-run account form was submitted without the one-time setup token the server printed, or with a wrong one. `ritual admin` and `ritual admin setup` are command names and stay verbatim.',
+      'Refusal when the first-run account form was submitted without the one-time setup token the server printed, or with a wrong one. {adminCommand} is the `ritual admin` command line; {adminSetupCommand} is the `ritual admin setup` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'admin.api.list.created': {
     description:
@@ -321,11 +321,11 @@ export const adminApiMeta = {
   // ── The local card cache ──────────────────────────────────────────────
   'admin.api.cache.empty': {
     description:
-      'Error body (HTTP 503) when a route that reads card data only from the local cache finds it empty. {need} selects what is missing: prices, or buylist matching. refresh_cache (an MCP tool) and `ritual cache preload-all` (a command) stay verbatim.',
+      'Error body (HTTP 503) when a route that reads card data only from the local cache finds it empty. {need} selects what is missing: prices, or buylist matching. refresh_cache is an MCP tool name and stays verbatim. {command} is the `ritual cache preload-all` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'admin.api.cardNames.coldCache': {
     description:
-      'Refusal of a write that asked for its card names to be checked (validateCardNames) while the local card cache is empty. refresh_cache, `ritual cache preload-all` and validateCardNames stay verbatim.',
+      'Refusal of a write that asked for its card names to be checked (validateCardNames) while the local card cache is empty. refresh_cache (an MCP tool) and validateCardNames (a request field) stay verbatim. {command} is the `ritual cache preload-all` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'admin.api.cardNames.unknown': {
     description:
@@ -614,7 +614,7 @@ export const adminApiMeta = {
   },
   'admin.api.buildSite.stepPublishing': {
     description:
-      'Progress note while the built site is moved into place. dist/ is a folder name and stays verbatim.',
+      'Progress note while the built site is moved into place. {file} is the `dist/` directory. It is typed or matched exactly by the user, so never translate it.',
   },
   'admin.api.buildSite.failed': {
     description:
@@ -804,6 +804,6 @@ export const adminApiMeta = {
   },
   'admin.api.collectionSync.csvFileUnsupported': {
     description:
-      'Refusal of a collection sync request that asks for a CSV file to be written, which only the command line can do. csvFile, --csv-file and csv: true are request and command vocabulary and stay verbatim.',
+      'Refusal of a collection sync request that asks for a CSV file to be written, which only the command line can do. csvFile and csv: true are request vocabulary and stay verbatim. {flag} is the `--csv-file` flag. It is typed or matched exactly by the user, so never translate it.',
   },
 } as const satisfies MetaFor<typeof adminApiMessages>

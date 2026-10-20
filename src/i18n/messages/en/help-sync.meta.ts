@@ -27,7 +27,8 @@ export const helpSyncMeta = {
   'help.collectionSync.description': { description: 'Summary of the `collection-sync` command.' },
   'help.collectionSync.lists': { description: 'The `[lists...]` argument of `collection-sync`.' },
   'help.collectionSync.into': {
-    description: '`collection-sync --into`. collectionSync.pullTarget is a config key.',
+    description:
+      '`collection-sync --into`. collectionSync.pullTarget is a config key. {configKey} is the `collectionSync.pullTarget` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.collectionSync.removalPriority': {
     description:
@@ -50,7 +51,8 @@ export const helpSyncMeta = {
     description: 'The `[decks...]` argument of `deck-sync push` and `deck-sync pull`.',
   },
   'help.deckSync.force': {
-    description: '`deck-sync push --force`. `deck-sync status` is a command name.',
+    description:
+      '`deck-sync push --force`. `deck-sync status` is a command name. {command} is the `deck-sync status` command name. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.deckSync.syncPrintings': {
     description:
@@ -63,7 +65,8 @@ export const helpSyncMeta = {
   'help.deckSync.link': { description: 'Summary of `deck-sync link`.' },
   'help.deckSync.linkDeck': { description: 'The `<deck>` argument of `deck-sync link`.' },
   'help.deckSync.linkUrl': {
-    description: 'The `<url>` argument of `deck-sync link`. The example URL stays as-is.',
+    description:
+      'The `<url>` argument of `deck-sync link`. {url} is the example URL `https://archidekt.com/decks/123456`. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.deckSync.linkDryRun': { description: '`deck-sync link --dry-run`.' },
   'help.deckSync.status': { description: 'Summary of `deck-sync status`.' },
@@ -112,7 +115,7 @@ export const helpSyncMeta = {
   },
   'help.import.moxfieldUserAgent': {
     description:
-      '`import --moxfield-user-agent`. User-Agent is an HTTP header and MOXFIELD_USER_AGENT an environment variable — both stay as-is.',
+      '`import --moxfield-user-agent`. User-Agent is an HTTP header and stays as-is. {envVar} is the `MOXFIELD_USER_AGENT` environment variable. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.import.dryRun': { description: '`import --dry-run`.' },
 
@@ -138,7 +141,10 @@ export const helpSyncMeta = {
     description:
       'The `[lists...]` argument of `export`. The three prefixes are literal spellings, colon included.',
   },
-  'help.export.all': { description: '`export --all`. --card is a flag spelling.' },
+  'help.export.all': {
+    description:
+      '`export --all`. --card is a flag spelling. {flag} is the `--card` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.export.card': { description: '`export --card`.' },
   'help.export.name': { description: '`export --name`.' },
   'help.export.set': { description: '`export --set`. A set code is a short code such as MKM.' },

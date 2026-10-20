@@ -1,5 +1,5 @@
-/** Environment variable that supplies the MCP bearer token when no CLI flag is given. */
-export const MCP_TOKEN_ENV = 'RITUAL_MCP_TOKEN'
+import { resolveStringOverride } from '../config/env-override'
+import { ENV_VAR } from '../util/cli-tokens'
 
 /**
  * Resolve the MCP bearer token. An explicit CLI value takes precedence; otherwise
@@ -12,10 +12,7 @@ export const MCP_TOKEN_ENV = 'RITUAL_MCP_TOKEN'
  */
 export function resolveMcpToken(
   cliToken?: string,
-  envToken: string | undefined = process.env[MCP_TOKEN_ENV],
+  envToken: string | undefined = process.env[ENV_VAR.mcpToken],
 ): string | undefined {
-  const cli = cliToken?.trim()
-  if (cli) return cli
-  const env = envToken?.trim()
-  return env ? env : undefined
+  return resolveStringOverride(cliToken, envToken)
 }

@@ -61,6 +61,7 @@ import {
   type BooleanFieldsOf,
   type SyncRequestCore,
 } from './sync-request'
+import { FLAG } from '../../util/cli-tokens'
 
 /**
  * Shown whenever the stored Archidekt token cannot be used or refreshed.
@@ -291,7 +292,7 @@ export function parseCollectionSyncBody(value: unknown): CollectionSyncRequest |
   // request names is not something this API offers; `csv: true` is the field
   // that gets a large batch of additions to Archidekt over HTTP.
   if (value.csvFile !== undefined && value.csvFile !== null) {
-    return apiMessage('admin.api.collectionSync.csvFileUnsupported')
+    return apiMessage('admin.api.collectionSync.csvFileUnsupported', { flag: FLAG.csvFile })
   }
 
   const request: CollectionSyncRequest = { ...core, lists }

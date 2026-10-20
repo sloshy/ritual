@@ -40,6 +40,7 @@ import { refusalError } from '../../src/migrate/runner'
 import { DEFAULT_LOCALE } from '../../src/i18n/runtime'
 import { tIn } from '../../src/i18n/t'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
+import { COMMAND, FILE, commandLine } from '../../src/util/cli-tokens'
 
 /**
  * Every refusal the config validator, `config set`/`get`/`unset` and the
@@ -320,11 +321,17 @@ describe('config refusals are keyed, and their English is unchanged', () => {
       // The envelope's params are English, flattened, whatever the CLI's language…
       expect(error.messageRef).toEqual({
         key: 'cli.migrate.invalid',
-        params: { error: 'cacheSource: "cacheSource" must be one of: scryfall, feed' },
+        params: {
+          error: 'cacheSource: "cacheSource" must be one of: scryfall, feed',
+          file: 'ritual.config.json',
+          command: 'ritual migrate',
+        },
       })
       // …while the message the CLI prints is worded in it, nested part included.
       const english = tIn(DEFAULT_LOCALE, 'cli.migrate.invalid', {
         error: 'cacheSource: "cacheSource" must be one of: scryfall, feed',
+        file: FILE.config,
+        command: commandLine(COMMAND.migrate),
       })
       expect(error.message).not.toBe(english)
       expect(error.message).not.toContain('must be one of')

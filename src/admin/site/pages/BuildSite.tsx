@@ -8,6 +8,7 @@ import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { PageHeading } from '../components/PageHeading'
 import { openSyncStream, type SyncStream } from '../sync-stream'
+import { FILE } from '../../../util/cli-tokens'
 
 /**
  * The names of the build stream's structural steps, by their `progress` value.
@@ -163,7 +164,7 @@ export function BuildSite(): JSX.Element {
           <div class="progress-section">
             <div class="progress-label">
               <span class="text-accent">
-                {t('admin.buildSite.step', { step: stepName(current()) })}
+                {t('admin.buildSite.step', { step: stepName(current()), file: FILE.distDir })}
               </span>
               <span class="text-secondary">{percent()}%</span>
             </div>

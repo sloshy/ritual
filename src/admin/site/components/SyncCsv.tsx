@@ -11,6 +11,7 @@ import type { MessageSegment } from '../../../i18n/types'
 import type { TranslateFn } from '../../../i18n/t'
 import { useSyncText } from '../sync-text'
 import { useT, useTSegments } from '../../../ui/i18n'
+import { COMMAND, commandLine } from '../../../util/cli-tokens'
 
 /**
  * The Sync Collection page's two surfaces for how a push's **new cards** reach
@@ -187,7 +188,7 @@ function leadFor(
       return withCode(
         tSegments('admin.csvOutcome.empty', {
           count: csv.uncached,
-          command: t('admin.csvOutcome.emptyCommand'),
+          command: commandLine(COMMAND.cachePreloadAll),
         }),
       )
     default: {

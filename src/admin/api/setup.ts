@@ -4,6 +4,7 @@ import { apiMessage, type ApiMessage } from '../../api/result'
 import { apiError, readJsonObjectBody } from '../../api/http'
 import { isSetupToken } from '../setup-token'
 import { MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '../validation'
+import { COMMAND, commandLine } from '../../util/cli-tokens'
 
 interface SetupRequest {
   username: string
@@ -41,7 +42,13 @@ export function handleSetup(req: Request): Promise<Response> {
 
     // Before any field rule, so a caller without the token learns nothing about them.
     if (!isSetupToken(body.setupToken)) {
-      return apiError(apiMessage('admin.api.setup.tokenInvalid'), 403)
+      return apiError(
+        apiMessage('admin.api.setup.tokenInvalid', {
+          adminCommand: commandLine(COMMAND.admin),
+          adminSetupCommand: commandLine(COMMAND.adminSetup),
+        }),
+        403,
+      )
     }
 
     const { username, password } = body

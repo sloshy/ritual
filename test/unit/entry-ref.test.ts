@@ -70,7 +70,11 @@ describe('findTargetEntry', () => {
     expect(error.message.endsWith('\n  ... and 2 more')).toBeTrue()
     expect(error.messageRef).toEqual({
       key: 'cli.cardOps.ambiguousCard',
-      params: { name: 'bolt', matches: expect.stringContaining('... and 2 more') },
+      params: {
+        name: 'bolt',
+        matches: expect.stringContaining('... and 2 more'),
+        flag: '--card-id <id>',
+      },
     })
   })
 })

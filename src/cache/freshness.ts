@@ -25,6 +25,7 @@ import {
   type SyncMessageRef,
   type SyncText,
 } from '../sync/message'
+import { COMMAND, CONFIG_KEY, FLAG, commandLine, flagValue } from '../util/cli-tokens'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
@@ -65,12 +66,24 @@ async function preloadOrReport(preload: () => Promise<void>): Promise<boolean> {
   return failure === null
 }
 
+/** The two ways to fill the card cache, as every empty-cache remedy names them. */
+type RefreshRemedy = {
+  command: string
+  flag: string
+}
+
+/** The command that downloads the card cache, and the flag that lets a run do it. */
+const REFRESH_REMEDY: RefreshRemedy = {
+  command: commandLine(COMMAND.cachePreloadAll),
+  flag: flagValue(FLAG.refresh, 'auto'),
+}
+
 /**
  * The standard remedy line for an unusable (empty) card cache, appended to a
  * caller-specific lead-in so every command surfaces the same advice.
  */
 export function emptyCacheAdvice(lead: string): string {
-  return t('cli.cacheGate.emptyAdvice', { lead })
+  return t('cli.cacheGate.emptyAdvice', { lead, ...REFRESH_REMEDY })
 }
 
 type CacheFreshnessResult = {
@@ -106,7 +119,7 @@ export function bulkTypeMismatchMessage(mismatch: BulkTypeMismatch): string {
   return t('cli.cacheGate.bulkMismatch', {
     required: mismatch.required,
     recorded: mismatch.recorded,
-    language: getDefaultLanguage(),
+    language: getDefaultLanguage(), configKey: CONFIG_KEY.defaultLanguage,
   })
 }
 
@@ -347,7 +360,7 @@ export async function ensureCardCacheForUpload(
     : syncRef('domain.cache.uploadNeedsFreshCache', { age: syncDuration(age ?? 0) })
   // The refusal appends the remedy to why: the requirement, or the failed download.
   const refusal = (reason: SyncText): SyncMessage =>
-    syncMessage('domain.cache.uploadRemedy', { reason })
+    syncMessage('domain.cache.uploadRemedy', { reason, ...REFRESH_REMEDY })
   const failed = (failure: SyncMessage): SyncMessage => refusal(nestSync(failure))
 
   if (policy.mode === 'auto') {
@@ -524,7 +537,7 @@ export async function offerTagDownload(
     initial: true,
   })
   if (!accepted) {
-    console.log(t('cli.cacheGate.tagsSkipped'))
+    console.log(t('cli.cacheGate.tagsSkipped', { command: commandLine(COMMAND.cacheRefreshTags) }))
     return null
   }
 

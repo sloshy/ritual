@@ -30,6 +30,7 @@ import {
 // nothing — the *values* arrive through `registerMessages`.
 import type { EnglishCatalog, MessageKey } from './messages/en'
 import type { errorsI18nMessages } from './messages/en/errors-i18n'
+import { ENV_VAR } from '../util/cli-tokens'
 import {
   isPluralForms,
   isSelectForms,
@@ -237,7 +238,12 @@ export function tDiagnosticIn<K extends DiagnosticKey>(
 
 function strictFailure(locale: LocaleTag, reason: StrictReason): never {
   const detail = renderDiagnostic(locale, reason.key, reason.params)
-  throw new Error(renderDiagnostic(locale, 'errors.i18n.strict.frame', { reason: detail }))
+  throw new Error(
+    renderDiagnostic(locale, 'errors.i18n.strict.frame', {
+      reason: detail,
+      envVar: ENV_VAR.i18nStrict,
+    }),
+  )
 }
 
 /**

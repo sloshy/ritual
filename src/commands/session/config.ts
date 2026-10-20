@@ -22,6 +22,7 @@ import type { CardLanguage } from '../../card/card-language'
 import { t } from '../../i18n/t'
 import { ExitCode } from '../../util/errors'
 import type { CollectorChoice } from './menu'
+import { CONFIG_KEY } from '../../util/cli-tokens'
 
 /**
  * Session-wide configuration for the unified `edit` command's card-entry
@@ -108,7 +109,10 @@ async function offerSessionPreload(
   const scope =
     configuredCardBulkType() === 'default_cards'
       ? t('cli.session.preloadScopeEnglish')
-      : t('cli.session.preloadScopeAllLanguages', { language: getDefaultLanguage() })
+      : t('cli.session.preloadScopeAllLanguages', {
+          language: getDefaultLanguage(),
+          configKey: CONFIG_KEY.defaultLanguage,
+        })
   const accepted = await decideBulkRefresh(policy, {
     message: t('cli.session.preloadPrompt', { scope }),
     initial: true,
@@ -196,7 +200,7 @@ export function buildSessionConfigQuestions(
       type: 'text',
       name: 'sets',
       message: t('cli.session.promptSetFilter'),
-      subjectKey: 'cli.prompt.subject.setFilter',
+      subject: 'cli.prompt.subject.setFilter',
       initial: config.sets ? formatSetCodesForDisplay(config.sets) : '',
       format: (val: string) => parseSetCodesInput(val),
     },

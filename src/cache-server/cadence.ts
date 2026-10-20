@@ -7,6 +7,7 @@ import { fail } from '../cli/action'
 import { TEXT_ONLY } from '../cli/output'
 import type { RefreshCadence } from './types'
 import { parsePort } from '../cli/options'
+import { FLAG } from '../util/cli-tokens'
 
 export function parseRefreshCadence(value: string): RefreshCadence {
   const normalized = value.trim().toLowerCase()
@@ -59,11 +60,7 @@ export function scheduleRecurringTask(
 /** Commander argParser for feed-URL flags: fail at parse time, not first fetch. */
 export function parseFeedUrlFlag(value: string): string {
   const parsed = parseCacheFeedUrl(value)
-  if (typeof parsed !== 'string') {
-    throw new InvalidArgumentError(
-      parsed === undefined ? t('cli.cache.feedUrlEmpty') : renderSyncMessage(parsed.error),
-    )
-  }
+  if (typeof parsed !== 'string') throw new InvalidArgumentError(renderSyncMessage(parsed.error))
   return parsed
 }
 
@@ -98,6 +95,6 @@ export function rejectFeedUrlSourceConflict(
 ): boolean {
   if (source === undefined || source === 'feed' || url === undefined) return false
   // Neither command takes `--output`: the refusal is text on stderr.
-  fail(TEXT_ONLY, 'usage_error', 'cli.cache.feedUrlNeedsFeedSource')
+  fail(TEXT_ONLY, 'usage_error', 'cli.cache.feedUrlNeedsFeedSource', { flag: FLAG.url })
   return true
 }

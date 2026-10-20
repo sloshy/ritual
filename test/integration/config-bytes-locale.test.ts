@@ -14,7 +14,7 @@ import { saveExportPreset } from '../../src/export/output'
 import { resolveExportSettings } from '../../src/export/presets'
 import { applyMigration, planMigration } from '../../src/migrate/runner'
 import type { Migration } from '../../src/migrate/types'
-import { renderSyncMessage, type SyncMessage } from '../../src/sync/message'
+import { renderSyncMessage, syncRef, type SyncMessage } from '../../src/sync/message'
 import { currentLocale, DEFAULT_LOCALE } from '../../src/i18n/runtime'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { putConfig } from '../helpers/config-api'
@@ -62,7 +62,7 @@ const HAND_WRITTEN = `${JSON.stringify(
 const MOVE_WANTED: Migration = {
   id: 1,
   // A test migration: any params-free key will do for a description nobody reads.
-  descriptionKey: 'cli.migrate.planHeading',
+  description: syncRef('cli.migrate.planHeading'),
   applies: () => true,
   plan: () => Promise.resolve([{ type: 'config-set', path: ['wantedDir'], value: './wants' }]),
 }

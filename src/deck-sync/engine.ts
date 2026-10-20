@@ -88,6 +88,7 @@ import {
   describeMoveShortfall,
 } from './describe'
 import { deckSyncCardChanges } from './card-changes'
+import { FLAG } from '../util/cli-tokens'
 
 export { listSyncableDecks } from './targets'
 
@@ -377,7 +378,10 @@ function emitPrintingMismatches(
       kind: 'log',
       level: 'warn',
       item: deck,
-      ...syncMessage('domain.sync.printingsUnaligned', { card: mismatch.name }),
+      ...syncMessage('domain.sync.printingsUnaligned', {
+        card: mismatch.name,
+        flag: FLAG.syncPrintings,
+      }),
     })
   }
 }
@@ -750,7 +754,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
           kind: 'log',
           level: 'warn',
           item: name,
-          ...syncMessage('domain.sync.noLocalCategories'),
+          ...syncMessage('domain.sync.noLocalCategories', { flag: FLAG.syncCategories }),
         })
       } else {
         localCategoriesOf = localCategoriesFor(loaded, target.deck)

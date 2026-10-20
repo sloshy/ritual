@@ -4,6 +4,7 @@ import { buildFailure } from '../../../src/commands/build-site'
 import { CancelledError, CardCommandError, ExitCode } from '../../../src/util/errors'
 import { SyncMessageError, syncMessage } from '../../../src/sync/message'
 import { pseudoCatalog, pseudoString, withSyntheticLocale } from '../../helpers/sync-text'
+import { COMMAND, commandLine } from '../../../src/util/cli-tokens'
 
 /** What a cold network throws from inside the build: system text, no key. */
 const OFFLINE = new Error('getaddrinfo ENOTFOUND api.scryfall.com')
@@ -45,9 +46,24 @@ describe('buildFailure', () => {
     ['a catalog-worded refusal', () => new CardCommandError('usage_error', 'worded', 2)],
     [
       'an engine failure raised from a key',
-      () => new SyncMessageError(syncMessage('cli.buildSite.nothingToBuild')),
+      () =>
+        new SyncMessageError(
+          syncMessage('cli.buildSite.nothingToBuild', {
+            newDeckCommand: commandLine(COMMAND.new, 'deck'),
+            editCommand: commandLine(COMMAND.edit),
+          }),
+        ),
     ],
-    ['a cancellation', () => new CancelledError(syncMessage('cli.buildSite.nothingToBuild'))],
+    [
+      'a cancellation',
+      () =>
+        new CancelledError(
+          syncMessage('cli.buildSite.nothingToBuild', {
+            newDeckCommand: commandLine(COMMAND.new, 'deck'),
+            editCommand: commandLine(COMMAND.edit),
+          }),
+        ),
+    ],
     ['an error Commander raised', () => new CommanderError(2, 'commander.error', 'printed')],
     ['a broken pipe', brokenPipe],
   ]

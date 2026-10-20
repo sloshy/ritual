@@ -19,12 +19,20 @@
 
 import { describeAmbiguousLists, type AmbiguousRemoval } from '../collection-sync/describe'
 import { describeSyncCard } from '../sync/describe'
-import { syncMessage, syncRef } from '../sync/message'
+import { syncMessage, syncRef, type SyncMessageRef } from '../sync/message'
 import type { AmbiguityResolutionOutcome } from '../collection-sync/engine'
 import type { RemovalAssignment, RemovalChoice } from '../collection-sync/diff'
 import type { Logger } from '../util/logger'
 import { ask, type AskPrompt } from '../cli/prompts'
 import { t } from '../i18n/t'
+import { FLAG, flagValue } from '../util/cli-tokens'
+
+/** How to settle ambiguous removals without a terminal: the priority flag. */
+function priorityAdvice(): SyncMessageRef {
+  return syncRef('cli.resolveAmbiguity.priorityAdvice', {
+    flag: flagValue(FLAG.removalPriority, '<list>'),
+  })
+}
 
 export type AmbiguityResolutionRequest = {
   /** The removals the engine could not place, in plan order. */
@@ -60,7 +68,7 @@ export async function resolveAmbiguousRemovals(
       // surface renders it in its own language.
       message: syncMessage('cli.resolveAmbiguity.needsDecision', {
         count: ambiguous.length,
-        advice: syncRef('cli.resolveAmbiguity.priorityAdvice'),
+        advice: priorityAdvice(),
       }),
     }
   }
@@ -75,7 +83,7 @@ export async function resolveAmbiguousRemovals(
       ok: false,
       message: syncMessage('cli.resolveAmbiguity.leftUnresolved', {
         counted: syncRef('domain.count.ambiguousRemovals', { count: ambiguous.length }),
-        advice: syncRef('cli.resolveAmbiguity.priorityAdvice'),
+        advice: priorityAdvice(),
       }),
     }
   }

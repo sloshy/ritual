@@ -13,6 +13,7 @@ import { isReleaseBuild, version } from '../config/version'
 import type { HttpClient } from '../util/interfaces'
 import { defaultHttpClient } from '../util/http'
 import { GITHUB_RELEASES_API } from './release-source'
+import { ENV_VAR } from '../util/cli-tokens'
 
 /** The running build, as `self-update` judges it. */
 export type BuildIdentity = {
@@ -70,7 +71,7 @@ const SMOKE_TEST_TIMEOUT_MS = 30_000
  */
 function smokeTestEnv(): NodeJS.ProcessEnv {
   const { RITUAL_BASE_DIR: _baseDir, ...rest } = process.env
-  return { ...rest, RITUAL_NO_INPUT: '1' }
+  return { ...rest, [ENV_VAR.noInput]: '1' }
 }
 
 function runCaptured(file: string, args: readonly string[]): Promise<BinaryRunResult> {
@@ -131,7 +132,7 @@ export function defaultSelfUpdateEnv(): SelfUpdateEnv {
     arch: process.arch,
     build: { version, release: isReleaseBuild },
     installKind: parseInstallKind(process.env.RITUAL_INSTALL),
-    githubToken: nonEmpty(process.env.GITHUB_TOKEN),
+    githubToken: nonEmpty(process.env[ENV_VAR.githubToken]),
     apiBase: GITHUB_RELEASES_API,
     runBinary: runCaptured,
     runInherited: runWithTerminal,

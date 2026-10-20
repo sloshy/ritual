@@ -111,7 +111,7 @@ export const domainCacheMeta = {
     description: `${UPLOAD_CONTEXT} {reason} is one of the two "Archidekt CSV uploads are configured…" sentences; this adds that the cache is being refreshed now. "it" is the card cache.`,
   },
   'domain.cache.uploadRemedy': {
-    description: `${UPLOAD_CONTEXT} The push is refused. {reason} is the sentence saying why (the cache is empty or stale, or the download failed); this appends what to do. The command and the flag are literal and are not translated.`,
+    description: `${UPLOAD_CONTEXT} The push is refused. {reason} is the sentence saying why (the cache is empty or stale, or the download failed); this appends what to do. {command} is the \`ritual cache preload-all\` command line; {flag} is \`--refresh auto\`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.`,
   },
   'domain.cache.uploadStillEmpty': {
     description: `${UPLOAD_CONTEXT} The push is refused because the cache refresh finished but left no cards, so no CSV row could be identified.`,
@@ -189,7 +189,7 @@ export const domainCacheMeta = {
     description: `${REPLY_CONTEXT} A write of one cache entry had no value to store. 'value' is a JSON field name and stays literal.`,
   },
   'domain.cache.serverReply.httpDenied': {
-    description: `${REPLY_CONTEXT} The cache server was started with --deny-http (a test mode that forbids it from downloading anything), and a price read needed a download — a price not in its cache. "Pre-populate" means fill the cache in advance. --deny-http is a literal flag.`,
+    description: `${REPLY_CONTEXT} The cache server was started with --deny-http (a test mode that forbids it from downloading anything), and a price read needed a download — a price not in its cache. "Pre-populate" means fill the cache in advance. {flag} is the \`--deny-http\` flag. It is typed or matched exactly by the user, so never translate it.`,
   },
   'domain.cache.feedReply.notFound': {
     description: `${FEED_REPLY_CONTEXT} The request was for a path the feed host does not serve at all (it serves /feed.json, /files/…, /torrents/… and /health).`,

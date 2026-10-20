@@ -12,6 +12,7 @@ import { cardArtInputOf, parseCardArtInput, type CardArtInput } from '../../list
 import type { ListType } from '../../list/list-type'
 import { useT } from '../../ui/i18n'
 import { renderSyncMessage } from '../../sync/message'
+import { EXAMPLE } from '../../util/cli-tokens'
 
 /**
  * The optional per-card choices the add dialog offers alongside the printing:
@@ -170,7 +171,10 @@ export const AddCardOptions: Component<AddCardOptionsProps> = (props) => {
               type="text"
               class={`form-input${artError() !== null ? ' form-input--invalid' : ''}`}
               value={props.art}
-              placeholder={t('ui.addCard.artPlaceholder')}
+              placeholder={t('ui.addCard.artPlaceholder', {
+                file: EXAMPLE.artFile,
+                url: EXAMPLE.artUrl,
+              })}
               // The field that blocks the commit announces itself: the buttons
               // it disables are far enough down the dialog that a screen reader
               // would otherwise meet a dead Add with no stated reason.

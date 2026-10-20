@@ -20,7 +20,7 @@ export const errorsI18nMessages = {
     'Internal error: no case handles the value {value}. This is a bug in Ritual.',
 
   // ── t() under RITUAL_I18N_STRICT=1 ────────────────────────────────────
-  'errors.i18n.strict.frame': 'i18n: {reason} (RITUAL_I18N_STRICT=1)',
+  'errors.i18n.strict.frame': 'i18n: {reason} ({envVar}=1)',
   'errors.i18n.strict.missingKey': 'missing message key "{key}" — is its namespace registered?',
   'errors.i18n.strict.missingParam': 'message "{key}" is missing the "{param}" param',
   'errors.i18n.strict.notNumeric': 'message "{key}" needs a numeric "{param}" param',

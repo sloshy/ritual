@@ -17,6 +17,7 @@ import { getArtDir } from '../../config/ritual-config'
 import { ask, suggestByTitleTerms } from '../../cli/prompts'
 import { currentSessionArt, noteArtSet, type CardArtEdit, type SessionArtChanges } from './art'
 import type { EditUndoEntry } from './edit-undo'
+import { COMMAND, CONFIG_KEY, commandLine } from '../../util/cli-tokens'
 
 /**
  * The edit-mode **Set Custom Art** action, shared by the deck and flat-list
@@ -150,7 +151,10 @@ export async function browseArtFile(): Promise<string | null> {
         !hasErrorCode(error, 'ENOENT')
           ? t('cli.art.dirUnreadable', { dir: absolute, reason: getErrorMessage(error) })
           : dir === ''
-            ? t('cli.art.dirMissing', { dir: artDir })
+            ? t('cli.art.dirMissing', {
+                dir: artDir,
+                command: commandLine(COMMAND.configSet, CONFIG_KEY.artDir, '<dir>'),
+              })
             : t('cli.art.dirGone', { dir: absolute }),
       )
       return null
@@ -169,7 +173,7 @@ export async function browseArtFile(): Promise<string | null> {
     const choice = await ask<ArtBrowseChoice>({
       type: 'autocomplete',
       message: t('cli.art.promptPickFile', { dir: absolute }),
-      subjectKey: 'cli.prompt.subject.artFile',
+      subject: 'cli.prompt.subject.artFile',
       choices: [...rows, { title: `← ${t('cli.menu.cancel')}`, value: { kind: 'cancel' } }],
       suggest: suggestByTitleTerms,
     })
@@ -236,7 +240,7 @@ export async function promptArtUrl(initial: string): Promise<string | null> {
   const value = await ask<string>({
     type: 'text',
     message: t('cli.art.promptUrl'),
-    subjectKey: 'cli.prompt.subject.artUrl',
+    subject: 'cli.prompt.subject.artUrl',
     initial,
   })
   if (value === undefined || value.trim() === '') return null
@@ -256,7 +260,7 @@ export async function promptCardArt(current: CardArtRef | null): Promise<CardArt
     message: t('cli.art.promptAction', {
       art: current === null ? t('cli.art.none') : cardArtDisplay(current),
     }),
-    subjectKey: 'cli.prompt.subject.artChoice',
+    subject: 'cli.prompt.subject.artChoice',
     choices: cardArtActionRows(current),
   })
   if (action === undefined || action === 'cancel') return null

@@ -14,10 +14,11 @@ export const helpInfraMeta = {
   'help.cache.preloadAll': { description: 'Summary of `cache preload-all`.' },
   'help.cache.preloadAllSource': {
     description:
-      "`cache preload-all --source`. 'scryfall' and 'feed' are literal values; cacheSource is a config key.",
+      "`cache preload-all --source`. 'scryfall' and 'feed' are literal values. {configKey} is the `cacheSource` config key. It is typed or matched exactly by the user, so never translate it.",
   },
   'help.cache.preloadAllFeedUrl': {
-    description: '`cache preload-all --url`. cacheFeedUrl is a config key.',
+    description:
+      '`cache preload-all --url`. cacheFeedUrl is a config key. {flag} is `--source feed`, a flag and its value; {configKey} is the `cacheFeedUrl` config key. Each is typed or matched exactly by the user, so never translate them.',
   },
   'help.cache.preloadAllForce': { description: '`cache preload-all --force`.' },
   'help.cache.refreshTags': { description: 'Summary of `cache refresh-tags`.' },
@@ -36,10 +37,12 @@ export const helpInfraMeta = {
     description: '`cache server --prices-refresh`. The quoted cadences are literal flag values.',
   },
   'help.cacheServer.cacheSource': {
-    description: '`cache server --cache-source`. cacheSource is a config key.',
+    description:
+      '`cache server --cache-source`. cacheSource is a config key. {configKey} is the `cacheSource` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.cacheServer.feedUrl': {
-    description: '`cache server --url`. cacheFeedUrl is a config key.',
+    description:
+      '`cache server --url`. cacheFeedUrl is a config key. {configKey} is the `cacheFeedUrl` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.cacheServer.torrentPort': { description: '`cache server --torrent-port`.' },
   'help.cacheServer.noSeed': { description: '`cache server --no-seed`.' },
@@ -57,16 +60,19 @@ export const helpInfraMeta = {
   },
   'help.cacheFeed.hostPort': { description: '`cache feed host --port`.' },
   'help.cacheFeed.hostHost': { description: '`cache feed host --host`.' },
-  'help.cacheFeed.publicUrl': { description: '`cache feed host --public-url`.' },
+  'help.cacheFeed.publicUrl': {
+    description:
+      '`cache feed host --public-url`. {url} is the example URL `http://<host>:<port>`. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.cacheFeed.hostRefresh': {
     description:
-      '`cache feed host --refresh`. RITUAL_CACHE_FEED_REFRESH is an environment variable name.',
+      '`cache feed host --refresh`. RITUAL_CACHE_FEED_REFRESH is an environment variable name. {envVar} is the `RITUAL_CACHE_FEED_REFRESH` environment variable. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.cacheFeed.upstream': { description: '`cache feed host --upstream`.' },
   'help.cacheFeed.dir': { description: '`cache feed host --dir`.' },
   'help.cacheFeed.cards': {
     description:
-      "`cache feed host --cards`. 'default'/'all'/'both' are literal flag values; default_cards and all_cards are Scryfall bulk names; defaultLanguage is a config key.",
+      "`cache feed host --cards`. 'default'/'all'/'both' are literal flag values; default_cards and all_cards are Scryfall bulk names. {configKey} is the `defaultLanguage` config key. It is typed or matched exactly by the user, so never translate it.",
   },
   'help.cacheFeed.hostNoSeed': { description: '`cache feed host --no-seed`.' },
   'help.cacheFeed.torrentPort': {
@@ -78,14 +84,15 @@ export const helpInfraMeta = {
       'Summary of `cache feed fetch`. "Experimental" marks a feature that may change or be removed in any release.',
   },
   'help.cacheFeed.fetchFeedUrl': {
-    description: '`cache feed fetch --url`. cacheFeedUrl is a config key.',
+    description:
+      '`cache feed fetch --url`. cacheFeedUrl is a config key. {configKey} is the `cacheFeedUrl` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.cacheFeed.fetchNoP2p': { description: '`cache feed fetch --no-p2p`.' },
   'help.cacheFeed.fetchNoSeed': { description: '`cache feed fetch --no-seed`.' },
   'help.cacheFeed.fetchForce': { description: '`cache feed fetch --force`.' },
   'help.cacheFeed.fetchRefresh': {
     description:
-      '`cache feed fetch --refresh`. RITUAL_CACHE_FEED_REFRESH is an environment variable name.',
+      '`cache feed fetch --refresh`. RITUAL_CACHE_FEED_REFRESH is an environment variable name. {envVar} is the `RITUAL_CACHE_FEED_REFRESH` environment variable. It is typed or matched exactly by the user, so never translate it.',
   },
 
   // ── config ────────────────────────────────────────────────────────────
@@ -120,35 +127,46 @@ export const helpInfraMeta = {
   'help.buildSite.verbose': { description: '`build-site --verbose`.' },
   'help.buildSite.cacheImages': { description: '`build-site --cache-images`.' },
   'help.buildSite.decks': {
-    description: '`build-site --decks`. site.includeDecks is a config key.',
+    description:
+      '`build-site --decks`. site.includeDecks is a config key. {configKey} is the `site.includeDecks` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.buildSite.collections': {
-    description: '`build-site --collections`. site.includeCollections is a config key.',
+    description:
+      '`build-site --collections`. site.includeCollections is a config key. {configKey} is the `site.includeCollections` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.buildSite.wantedLists': {
-    description: '`build-site --wanted-lists`. site.includeWantedLists is a config key.',
+    description:
+      '`build-site --wanted-lists`. site.includeWantedLists is a config key. {configKey} is the `site.includeWantedLists` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.buildSite.priceSources': {
     description:
-      '`build-site --price-sources`. The store names and priceSources are literal tokens and must not be translated.',
+      '`build-site --price-sources`. The store names are literal tokens and must not be translated. {configKey} is the `priceSources` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.buildSite.theme': {
-    description: '`build-site --theme`. {themes} is the comma-separated list of built-in themes.',
+    description:
+      '`build-site --theme`. {themes} is the comma-separated list of built-in themes. {flag} is the `--theme-file` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.buildSite.themeFile': { description: '`build-site --theme-file`.' },
   'help.buildSite.locale': {
     description:
-      '`build-site --locale` — the UI locale, deliberately distinguished from the card language.',
+      '`build-site --locale` — the UI locale, deliberately distinguished from the card language. {configKey} is the `uiLocale` config key. It is typed or matched exactly by the user, so never translate it.',
   },
-  'help.buildSite.locales': { description: '`build-site --locales`.' },
+  'help.buildSite.locales': {
+    description:
+      '`build-site --locales`. {file} is the `dist/locales/` directory. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.buildSite.localeFile': { description: '`build-site --locale-file`.' },
   'help.buildSite.moxfieldUserAgent': {
-    description: '`build-site --moxfield-user-agent`. MOXFIELD_USER_AGENT is an env var name.',
+    description:
+      '`build-site --moxfield-user-agent`. MOXFIELD_USER_AGENT is an env var name. {envVar} is the `MOXFIELD_USER_AGENT` environment variable. It is typed or matched exactly by the user, so never translate it.',
   },
-  'help.buildSite.outDir': { description: '`build-site --out-dir`.' },
+  'help.buildSite.outDir': {
+    description:
+      '`build-site --out-dir`. {file} is the `dist/` directory; {command} is the `serve` command name; {flag} is the `--build` flag. Each is typed or matched exactly by the user, so never translate them.',
+  },
   'help.buildSite.sellMode': {
     description:
-      '"(Beta)" marks the sell mode of the web sites as a feature that may still change between releases. `--sell-mode`, shared by `build-site` and `serve`. site.sellMode is a config key name; Card Kingdom is a company name.',
+      '"(Beta)" marks the sell mode of the web sites as a feature that may still change between releases. `--sell-mode`, shared by `build-site` and `serve`. site.sellMode is a config key name; Card Kingdom is a company name. {configKey} is the `site.sellMode` config key. It is typed or matched exactly by the user, so never translate it.',
   },
 
   // ── init-site ─────────────────────────────────────────────────────────
@@ -166,9 +184,18 @@ export const helpInfraMeta = {
   'help.initSite.priceSource': {
     description: '`init-site --price-source`. The quoted store names are literal values.',
   },
-  'help.initSite.overwriteReadme': { description: '`init-site --overwrite-readme`.' },
-  'help.initSite.noOverwriteReadme': { description: '`init-site --no-overwrite-readme`.' },
-  'help.initSite.skills': { description: '`init-site --skills`.' },
+  'help.initSite.overwriteReadme': {
+    description:
+      '`init-site --overwrite-readme`. {file} is the `README.md` file name. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'help.initSite.noOverwriteReadme': {
+    description:
+      '`init-site --no-overwrite-readme`. {file} is the `README.md` file name. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'help.initSite.skills': {
+    description:
+      '`init-site --skills`. {file} is the `.claude/skills` directory. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.initSite.noSkills': { description: '`init-site --no-skills`.' },
 
   // ── migrate ───────────────────────────────────────────────────────────
@@ -199,14 +226,21 @@ export const helpInfraMeta = {
   'help.admin.theme': {
     description: '`admin --theme`. {themes} is the comma-separated list of built-in themes.',
   },
-  'help.admin.mcp': { description: '`admin --mcp`.' },
-  'help.admin.mcpPort': { description: '`admin --mcp-port`.' },
+  'help.admin.mcp': {
+    description:
+      '`admin --mcp`. {flag} is the `--mcp-token` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'help.admin.mcpPort': {
+    description:
+      '`admin --mcp-port`. {flag} is the `--mcp` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.admin.mcpToken': {
-    description: '`admin --mcp-token`. RITUAL_MCP_TOKEN is an environment variable name.',
+    description:
+      '`admin --mcp-token`. RITUAL_MCP_TOKEN is an environment variable name. {flag} is the `--mcp` flag; {envVar} is the `RITUAL_MCP_TOKEN` environment variable. Each is typed or matched exactly by the user, so never translate them.',
   },
   'help.admin.sellMode': {
     description:
-      '"(Beta)" marks the sell mode of the web sites as a feature that may still change between releases. `admin --sell-mode`. site.sellMode is a config key name; Card Kingdom is a company name.',
+      '"(Beta)" marks the sell mode of the web sites as a feature that may still change between releases. `admin --sell-mode`. site.sellMode is a config key name; Card Kingdom is a company name. {configKey} is the `site.sellMode` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.admin.setup': { description: 'Summary of `admin setup`.' },
   'help.admin.setupUsername': { description: '`admin setup --username`.' },
@@ -222,21 +256,31 @@ export const helpInfraMeta = {
   'help.mcp.port': { description: '`mcp --port`.' },
   'help.mcp.host': { description: '`mcp --host`.' },
   'help.mcp.token': {
-    description: '`mcp --token`. RITUAL_MCP_TOKEN is an environment variable name.',
+    description:
+      '`mcp --token`. RITUAL_MCP_TOKEN is an environment variable name. {envVar} is the `RITUAL_MCP_TOKEN` environment variable. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.mcp.allowUnauthenticated': { description: '`mcp --allow-unauthenticated`.' },
   'help.mcp.sellMode': {
     description:
-      '`mcp --sell-mode`. site.sellMode is a config key name; Card Kingdom is a company name. "sell and buylist tools" refers to the get_sell_report, get_sell_cart, get_buylist_quotes and refresh_buylist MCP tools.',
+      '`mcp --sell-mode`. site.sellMode is a config key name; Card Kingdom is a company name. "sell and buylist tools" refers to the get_sell_report, get_sell_cart, get_buylist_quotes and refresh_buylist MCP tools. {configKey} is the `site.sellMode` config key. It is typed or matched exactly by the user, so never translate it.',
   },
 
   // ── skills ────────────────────────────────────────────────────────────
   'help.skills.description': { description: 'Summary of the `skills` command group.' },
   'help.skills.list': { description: 'Summary of `skills list`.' },
-  'help.skills.install': { description: 'Summary of `skills install`.' },
+  'help.skills.install': {
+    description:
+      'Summary of `skills install`. {skillsDirFile} is the `.claude/skills` directory; {globalSkillsDirFile} is the `~/.claude/skills` directory; {flag} is the `--global` flag. Each is typed or matched exactly by the user, so never translate them.',
+  },
   'help.skills.update': { description: 'Summary of `skills update`.' },
-  'help.skills.global': { description: '`skills install|update --global`.' },
-  'help.skills.dir': { description: '`skills install|update --dir`.' },
+  'help.skills.global': {
+    description:
+      '`skills install|update --global`. {file} is the `~/.claude/skills` directory. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'help.skills.dir': {
+    description:
+      '`skills install|update --dir`. {file} is the `.claude/skills` directory. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.skills.force': { description: '`skills install|update --force`.' },
 
   // ── price ─────────────────────────────────────────────────────────────
@@ -244,7 +288,7 @@ export const helpInfraMeta = {
   'help.price.listArg': { description: 'The `[listName]` argument of `price`.' },
   'help.price.source': {
     description:
-      'Help text for the --source flag choosing which store prices come from. The store tokens (tcgplayer, cardmarket, cardkingdom, cardhoarder) and the defaultPriceSource config key are literal values and must not be translated.',
+      'Help text for the --source flag choosing which store prices come from. The store tokens (tcgplayer, cardmarket, cardkingdom, cardhoarder) are literal values and must not be translated. {configKey} is the `defaultPriceSource` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.price.name': { description: '`price --name`.' },
   'help.price.set': { description: '`price --set`.' },
@@ -286,7 +330,8 @@ export const helpInfraMeta = {
       'Summary of the `locale` command. "Card language" is the Scryfall printing language, a different setting from the interface locale.',
   },
   'help.locale.detect': {
-    description: '`locale --detect`. uiLocale is a literal config key.',
+    description:
+      '`locale --detect`. {configKey} is the `uiLocale` config key. It is typed or matched exactly by the user, so never translate it.',
   },
 
   // ── license / dep-license ─────────────────────────────────────────────

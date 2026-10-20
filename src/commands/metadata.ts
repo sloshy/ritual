@@ -45,6 +45,7 @@ import { fail } from '../cli/action'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
 import { emitOutput, type ScriptingOptions } from '../cli/output'
+import { COMMAND, FLAG, commandLine } from '../util/cli-tokens'
 
 /**
  * `ritual metadata` — inspect and modify a list's front-matter metadata from
@@ -157,7 +158,12 @@ function unknownKeyError(type: ListType, property: string): CardCommandError {
   // cannot spell. Point at the command that can rather than claiming the key
   // does not exist; `list`/`get` still show what is stored.
   if (property === 'image') {
-    return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.metadata.useSetListImage')
+    return localizedCommandError(
+      'usage_error',
+      ExitCode.UsageError,
+      'cli.metadata.useSetListImage',
+      { command: commandLine(COMMAND.setListImage) },
+    )
   }
   const rejected = REJECTED_KEY_MESSAGES[property]
   if (rejected !== undefined) {
@@ -233,7 +239,7 @@ export function buildDeckSetBody(
   mode: ArrayMode,
 ): Record<string, unknown> | string {
   if (mode !== 'replace' && property !== 'tags' && property !== 'labels') {
-    return t('cli.metadata.arrayOnly', { type: 'deck' })
+    return t('cli.metadata.arrayOnly', { type: 'deck', addFlag: FLAG.add, removeFlag: FLAG.remove })
   }
   if (property === 'tags') {
     return { tags: mergeArrayValues(current.tags, splitCommaTokens(values), mode) }
@@ -264,7 +270,8 @@ export function buildFlatListSetBody(
   currentLabels: readonly string[],
   mode: ArrayMode,
 ): Record<string, unknown> | string {
-  if (mode !== 'replace' && property !== 'labels') return t('cli.metadata.arrayOnly', { type })
+  if (mode !== 'replace' && property !== 'labels')
+    return t('cli.metadata.arrayOnly', { type, addFlag: FLAG.add, removeFlag: FLAG.remove })
   if (property === 'description') return { description: values.join(' ') }
   return buildLabelsSetBody(type, values, currentLabels, mode)
 }
@@ -287,7 +294,8 @@ function buildLabelsSetBody(
   if (unknown !== undefined) {
     return t('cli.metadata.invalidLabel', { value: unknown, choices: supported.join(', ') })
   }
-  if (mode === 'replace' && tokens.length === 0) return t('cli.metadata.noLabels')
+  if (mode === 'replace' && tokens.length === 0)
+    return t('cli.metadata.noLabels', { command: commandLine(COMMAND.metadataUnset) })
   return { labels: mergeArrayValues(currentLabels, tokens, mode) }
 }
 

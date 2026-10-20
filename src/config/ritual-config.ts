@@ -47,7 +47,9 @@ import {
   type MessageParseError,
   type SyncArgs,
   type SyncText,
+  type SyncMessageParamsFor,
 } from '../sync/message'
+import { CONFIG_KEY, EXAMPLE, FILE } from '../util/cli-tokens'
 
 export { INCLUDE_ALL } from './list-selection'
 export type { SiteSelectionConfig } from './list-selection'
@@ -306,8 +308,6 @@ const DEFAULT_CONFIG = {
   updateCheck: true,
 } satisfies Omit<RitualConfig, 'admin' | 'collectionSync' | 'site' | 'managed' | 'cacheFeedUrl'>
 
-const CONFIG_FILENAME = 'ritual.config.json'
-
 /**
  * Everything the last config read produced. The declared-key flag rides on the
  * same value as the config itself rather than in a variable beside it, so a
@@ -329,7 +329,7 @@ type LoadedRitualConfig = {
 let loaded: LoadedRitualConfig | null = null
 
 export function getRitualConfigPath(): string {
-  return path.join(getBaseDir(), CONFIG_FILENAME)
+  return path.join(getBaseDir(), FILE.config)
 }
 
 export function getDefaultRitualConfig(): RitualConfig {
@@ -448,17 +448,27 @@ export type ParsedBannedPrinting = { set: string; collectorNumber: string; key: 
  * Returns the parsed pieces plus the canonical `set:collectorNumber` key, or a
  * parse error when the entry is malformed.
  */
+/** The refused entry, and the shape and example a banned printing must follow. */
+function bannedPrintingParams(raw: string): SyncMessageParamsFor<'domain.config.bannedPrinting'> {
+  return {
+    value: raw,
+    format: EXAMPLE.bannedPrintingFormat,
+    // Lowercase, as the config file stores set codes.
+    example: EXAMPLE.bannedPrinting.toLowerCase(),
+  }
+}
+
 export function parseBannedPrinting(raw: string): ParsedBannedPrinting | ConfigParseError {
   const trimmed = raw.trim()
   const colon = trimmed.indexOf(':')
   // Require exactly one ':' with non-empty text on each side.
   if (colon <= 0 || trimmed.indexOf(':', colon + 1) !== -1) {
-    return configError('domain.config.bannedPrinting', { value: raw })
+    return configError('domain.config.bannedPrinting', bannedPrintingParams(raw))
   }
   const set = trimmed.slice(0, colon).toLowerCase()
   const collectorNumber = trimmed.slice(colon + 1).trim()
   if (set.length === 0 || collectorNumber.length === 0) {
-    return configError('domain.config.bannedPrinting', { value: raw })
+    return configError('domain.config.bannedPrinting', bannedPrintingParams(raw))
   }
   return { set, collectorNumber, key: printingKey(set, collectorNumber) }
 }
@@ -889,6 +899,7 @@ export function invalidDefaultLanguage(value: unknown): ConfigParseError {
     // `String` keeps `undefined`'s spelling, which `JSON.stringify` drops.
     value: String(JSON.stringify(value)),
     languages: syncList(CARD_LANGUAGES, 'unit'),
+    configKey: CONFIG_KEY.defaultLanguage,
   })
 }
 
@@ -1057,6 +1068,7 @@ const warnAndDefault: FieldPolicy = (parsed, key, fallback) => {
         syncRef('domain.config.ignoringInvalid', {
           field: keyLabel(key),
           reason: nestSync(parsed.error),
+          file: FILE.config,
         }),
       ),
     )
@@ -1187,7 +1199,7 @@ export class RitualConfigParseError extends SyncMessageError {
   readonly configPath: string
   /** `reason` is the JSON parser's own message, or the catalog's "not an object". */
   constructor(configPath: string, reason: SyncText) {
-    super(syncMessage('domain.config.fileNotJson', { path: configPath, reason }))
+    super(syncMessage('domain.config.fileNotJson', { path: configPath, reason, file: FILE.config }))
     this.name = 'RitualConfigParseError'
     this.configPath = configPath
   }

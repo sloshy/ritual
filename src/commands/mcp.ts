@@ -5,6 +5,7 @@ import { resolveMcpToken } from '../mcp/token'
 import { t } from '../i18n/t'
 import { addSellModeOption, applySellModeOverride, parsePort } from '../cli/options'
 import { ExitCode } from '../util/errors'
+import { CONFIG_KEY, ENV_VAR, FLAG, flagValue } from '../util/cli-tokens'
 
 type McpTransport = 'stdio' | 'http'
 
@@ -27,10 +28,10 @@ type HttpOnlyOption = { name: string; flag: string }
 
 /** Option names that only apply to the HTTP transport, with their flag spellings. */
 const HTTP_ONLY_OPTIONS: readonly HttpOnlyOption[] = [
-  { name: 'port', flag: '--port' },
-  { name: 'host', flag: '--host' },
-  { name: 'token', flag: '--token' },
-  { name: 'allowUnauthenticated', flag: '--allow-unauthenticated' },
+  { name: 'port', flag: FLAG.port },
+  { name: 'host', flag: FLAG.host },
+  { name: 'token', flag: FLAG.token },
+  { name: 'allowUnauthenticated', flag: FLAG.allowUnauthenticated },
 ]
 
 export function registerMcpCommand(program: Command): void {
@@ -44,7 +45,7 @@ export function registerMcpCommand(program: Command): void {
     )
     .option('-p, --port <number>', t('help.mcp.port'), parsePort, 8765)
     .option('--host <address>', t('help.mcp.host'), '127.0.0.1')
-    .option('--token <secret>', t('help.mcp.token'))
+    .option('--token <secret>', t('help.mcp.token', { envVar: ENV_VAR.mcpToken }))
     .option('--allow-unauthenticated', t('help.mcp.allowUnauthenticated'))
     .action(async (options: McpCommandOptions, command: Command) => {
       // Set before either transport starts serving, so the gated sell routes
@@ -57,11 +58,23 @@ export function registerMcpCommand(program: Command): void {
         if (!token) {
           if (!isLoopbackHost(options.host)) {
             if (!options.allowUnauthenticated) {
-              console.error(t('cli.mcp.refusingUnauthenticated', { host: options.host }))
+              console.error(
+                t('cli.mcp.refusingUnauthenticated', {
+                  host: options.host,
+                  tokenFlag: flagValue(FLAG.token, '<secret>'),
+                  envVar: ENV_VAR.mcpToken,
+                  allowUnauthenticatedFlag: FLAG.allowUnauthenticated,
+                }),
+              )
               process.exitCode = ExitCode.UsageError
               return
             }
-            console.error(t('cli.mcp.unauthenticatedWarning', { host: options.host }))
+            console.error(
+              t('cli.mcp.unauthenticatedWarning', {
+                host: options.host,
+                flag: FLAG.allowUnauthenticated,
+              }),
+            )
           } else {
             console.error(t('cli.mcp.unauthenticatedLoopback', { host: options.host }))
           }
@@ -89,7 +102,12 @@ export function registerMcpCommand(program: Command): void {
         ({ name }) => command.getOptionValueSource(name) === 'cli',
       ).map(({ flag }) => flag)
       if (ignoredFlags.length > 0) {
-        console.error(t('cli.mcp.stdioIgnoredFlags', { flags: ignoredFlags.join(', ') }))
+        console.error(
+          t('cli.mcp.stdioIgnoredFlags', {
+            flags: ignoredFlags.join(', '),
+            flag: flagValue(FLAG.transport, 'http'),
+          }),
+        )
       }
       runStdioServer()
     })
@@ -97,5 +115,5 @@ export function registerMcpCommand(program: Command): void {
   // `build-site`, `serve` and `admin` so the four can never describe the same
   // switch differently. Commander collects options at parse time, so this sits
   // beside the built command rather than mid-chain.
-  addSellModeOption(mcp, t('help.mcp.sellMode'))
+  addSellModeOption(mcp, t('help.mcp.sellMode', { configKey: CONFIG_KEY.siteSellMode }))
 }

@@ -4,7 +4,6 @@ import os from 'node:os'
 import path from 'node:path'
 import { buildProgram, type CommandRegistrar } from '../../../src/cli/program'
 import { addOutputOption, addQuietOption } from '../../../src/cli/options'
-import { COMMAND_GROUPS } from '../../../src/commands/registry'
 import {
   createUpdateNotice,
   defaultUpdateNoticeEnv,
@@ -24,11 +23,13 @@ import {
 } from '../../../src/util/user-state'
 import { captureConsole, type ConsoleCapture } from '../../helpers/capture'
 import { FAKE_API, fakeRelease, fakeReleaseApiEnv, hangingFetch } from '../../helpers/fake-release'
-import { captureExitCode, NO_UPDATE_NOTICE } from '../../helpers/cli'
+import { captureExitCode } from '../../helpers/cli'
 import { rejectionOf } from '../../helpers/rejection'
 import { setNoInputOverride } from '../../../src/util/no-input'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { stubTty } from '../../test-utils'
+import { COMMAND, commandLine } from '../../../src/util/cli-tokens'
+import { realProgram } from '../../helpers/program'
 
 const HOUR = 60 * 60 * 1000
 
@@ -69,13 +70,7 @@ describe('updateNoticeMode', () => {
   })
 
   test('every exempt and long-running name except Commander’s own help is a registered command', () => {
-    const program = buildProgram({
-      groups: COMMAND_GROUPS,
-      backfill: () => false,
-      workspaceCheck: () => Promise.resolve(),
-      updateNotice: NO_UPDATE_NOTICE,
-    })
-    const registered = new Set(program.commands.map((command) => command.name()))
+    const registered = new Set(realProgram().commands.map((command) => command.name()))
     const named = [...UPDATE_NOTICE_EXEMPT, ...LONG_RUNNING_COMMANDS]
     expect(named.filter((name) => name !== 'help' && !registered.has(name))).toEqual([])
   })
@@ -109,7 +104,11 @@ describe('the update notice around a command', () => {
   stubTty({ stderr: true })
 
   const NOW = 1_000_000_000_000
-  const NOTICE = t('cli.updateNotice.available', { latest: '1.2.0', current: '1.0.0' })
+  const NOTICE = t('cli.updateNotice.available', {
+    latest: '1.2.0',
+    current: '1.0.0',
+    command: commandLine(COMMAND.selfUpdate),
+  })
   const AMBIENT = ['CI', 'RITUAL_STATE_DIR', 'RITUAL_NO_UPDATE_CHECK', 'RITUAL_INSTALL'] as const
   const original = new Map(AMBIENT.map((name) => [name, process.env[name]]))
   let ws: BoundWorkspace
@@ -314,7 +313,11 @@ describe('the update notice around a command', () => {
     expect(requests.map((request) => request.url)).toEqual([`${FAKE_API}/releases?per_page=30`])
     expect(all).toEqual([
       'probe ran',
-      t('cli.updateNotice.available', { latest: '1.2.0', current: '1.2.0-beta1' }),
+      t('cli.updateNotice.available', {
+        latest: '1.2.0',
+        current: '1.2.0-beta1',
+        command: commandLine(COMMAND.selfUpdate),
+      }),
     ])
     expect((await readUserState()).updateCheck).toMatchObject({ channel: 'prerelease' })
   })

@@ -44,6 +44,7 @@
 import type { ConfigParseError } from '../config/ritual-config'
 import { syncMessage, syncRef, type SyncMessage, type SyncMessageRef } from '../sync/message'
 import { isUnknownArray } from '../util/guards'
+import { CONFIG_KEY } from '../util/cli-tokens'
 
 /**
  * One category in canonical form — trimmed and single-spaced, in its author's
@@ -298,7 +299,11 @@ export function foldCategoryCardName(name: string): string {
 export function parseDefaultCategories(value: unknown): CardCategory[] | ConfigParseError {
   if (value === undefined) return [...DEFAULT_CARD_CATEGORIES]
   if (!isUnknownArray(value)) {
-    return { error: syncMessage('domain.config.defaultCategoriesNotArray') }
+    return {
+      error: syncMessage('domain.config.defaultCategoriesNotArray', {
+        configKey: CONFIG_KEY.defaultCategories,
+      }),
+    }
   }
   const categories: CardCategory[] = []
   for (const element of value) {
@@ -306,6 +311,7 @@ export function parseDefaultCategories(value: unknown): CardCategory[] | ConfigP
       return {
         error: syncMessage('domain.config.defaultCategoriesNotText', {
           value: String(JSON.stringify(element)),
+          configKey: CONFIG_KEY.defaultCategories,
         }),
       }
     }

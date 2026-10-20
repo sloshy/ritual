@@ -5,9 +5,11 @@
  * be converted independently without contending for one file. Every key still
  * begins with `help.`, and a translator sees one flat catalog.
  *
- * Flag names, argument placeholders (`<n>`, `<code>`), file extensions, and the
- * `deck:`/`collection:`/`wanted:` prefixes are all machine vocabulary: they
- * appear verbatim in these strings and never translate.
+ * A help string that names another flag takes it as a `{placeholder}` from
+ * `src/util/cli-tokens.ts`, so a translation cannot alter it. Argument
+ * placeholders (`<n>`, `<code>`), file extensions and the
+ * `deck:`/`collection:`/`wanted:` prefixes are still written inline: they are
+ * machine vocabulary and never translate.
  */
 
 import type { MessageCatalogShape } from '../../types'
@@ -40,7 +42,7 @@ export const helpCardsMessages = {
   'help.addCard.condition':
     'Card condition: NM, LP, MP, HP, DMG, or NONE to record no condition (decks and collections only)',
   'help.addCard.language':
-    "Card language (e.g. ja); overrides the configured defaultLanguage. Never prompted — en is a bare line's default",
+    "Card language (e.g. ja); overrides the configured {configKey}. Never prompted — en is a bare line's default",
   'help.addCard.label':
     'Adjust the list default for the new card: sale,trade (combinable), keep or proxy, or no-<label> to drop an inherited one (trade,no-sale); decks take proxy and no-proxy only',
   'help.addCard.tag':
@@ -48,11 +50,11 @@ export const helpCardsMessages = {
   'help.addCard.section': 'Deck section to add to, created if missing (decks only)',
   'help.addCard.commander': "Add the card to the deck's Commander section (decks only)",
   'help.addCard.exact': 'Use exact matching (skip interactive selection if name matches)',
-  'help.addCard.set': 'Pin an exact printing by set code (requires --collector-number)',
-  'help.addCard.collectorNumber': 'Pin an exact printing by collector number (requires --set)',
+  'help.addCard.set': 'Pin an exact printing by set code (requires {flag})',
+  'help.addCard.collectorNumber': 'Pin an exact printing by collector number (requires {flag})',
   'help.addCard.nameOnly': 'Wanted lists: add the card by name without choosing a printing',
   'help.addCard.specific':
-    'Wanted lists: record a specific printing (via --set/--collector-number or interactive selection)',
+    'Wanted lists: record a specific printing (via {setFlag}/{collectorNumberFlag} or interactive selection)',
   'help.addCard.dryRun': 'Report what would be added without writing anything',
 
   // ── remove-card ───────────────────────────────────────────────────────
@@ -66,11 +68,11 @@ export const helpCardsMessages = {
   'help.setCard.description':
     "Update a card's printing, finish, condition, language, label, tags, art, section, or commander status in place",
   'help.setCard.cardName': 'Name of the card to update (fuzzy match)',
-  'help.setCard.set': 'New set code — requires --collector-number',
-  'help.setCard.collectorNumber': 'New collector number — requires --set',
+  'help.setCard.set': 'New set code — requires {flag}',
+  'help.setCard.collectorNumber': 'New collector number — requires {flag}',
   'help.setCard.finish': 'New finish: {finishes}',
   'help.setCard.language':
-    'New language (e.g. ja); en clears the token — a bare line means English. Recorded as its own change, even alongside --set/--collector-number',
+    'New language (e.g. ja); en clears the token — a bare line means English. Recorded as its own change, even alongside {setFlag}/{collectorNumberFlag}',
   'help.setCard.condition':
     'New condition: {choices}, or NONE to clear it (decks and collections only)',
   'help.setCard.label':
@@ -109,12 +111,12 @@ export const helpCardsMessages = {
 
   // ── move ──────────────────────────────────────────────────────────────
   'help.move.description':
-    'Move cards between decks, collections, and wanted lists — interactively, or scripted with --from/--to',
-  'help.move.cardName': 'Card to move (fuzzy match; requires --from and --to)',
+    'Move cards between decks, collections, and wanted lists — interactively, or scripted with {fromFlag}/{toFlag}',
+  'help.move.cardName': 'Card to move (fuzzy match; requires {fromFlag} and {toFlag})',
   'help.move.from':
     "Source list; accepts a 'deck:'/'collection:'/'wanted:' prefix. Alone, launches the interactive session filtered to this source",
   'help.move.to':
-    'Destination list (same prefix convention). Together with --from, moves without prompts',
+    'Destination list (same prefix convention). Together with {flag}, moves without prompts',
   'help.move.quantity': 'Number of copies to move (default 1)',
   'help.move.cardId': 'Select the source card by ID (the &N suffix in list files)',
   'help.move.set':
@@ -135,11 +137,11 @@ export const helpCardsMessages = {
 
   // ── scry ──────────────────────────────────────────────────────────────
   'help.scry.description': 'Run a raw Scryfall card search or fetch random cards',
-  'help.scry.query': 'Scryfall search query (with --random, filters the random pick)',
+  'help.scry.query': 'Scryfall search query (with {flag}, filters the random pick)',
   'help.scry.pages':
     'Fetch up to this many pages without prompting (default 1 when prompts are unavailable, max {max})',
   'help.scry.random': 'Fetch random cards instead of searching',
-  'help.scry.count': 'Number of random cards to fetch with --random (default 1, max {max})',
+  'help.scry.count': 'Number of random cards to fetch with {flag} (default 1, max {max})',
 
   // ── diff ──────────────────────────────────────────────────────────────
   'help.diff.description': 'Compare two lists by card name or exact printing',
@@ -200,12 +202,12 @@ export const helpCardsMessages = {
   'help.cleanup.dryRun': 'Report what would change without writing anything',
   'help.cleanup.skipFormats':
     'Never prompt for deck formats; leave formatless decks untouched and report them',
-  'help.cleanup.check': 'Like --dry-run, but exit 1 when any file would change (for hooks and CI)',
+  'help.cleanup.check': 'Like {flag}, but exit 1 when any file would change (for hooks and CI)',
 
   // ── get-primer ────────────────────────────────────────────────────────
   'help.getPrimer.description': 'Extract and output the primer for a deck as Markdown',
   'help.getPrimer.source':
     'Local deck name (e.g. winota-snowball-stax) or Moxfield URL to fetch from',
   'help.getPrimer.moxfieldUserAgent':
-    'Moxfield-approved unique User-Agent string (required for Moxfield URL sources unless MOXFIELD_USER_AGENT is set)',
+    'Moxfield-approved unique User-Agent string (required for Moxfield URL sources unless {envVar} is set)',
 } as const satisfies MessageCatalogShape

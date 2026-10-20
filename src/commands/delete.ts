@@ -23,6 +23,7 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
+import { FLAG, flagValue } from '../util/cli-tokens'
 
 type DeleteOptions = ListTypeFlags & { confirm?: string } & Partial<ScriptingOptions>
 
@@ -67,7 +68,7 @@ export async function runDelete(
   let confirmed = confirm
   if (confirmed === undefined) {
     // Deletion is destructive: without a terminal, --confirm is mandatory.
-    requireFlag('--confirm <name>')
+    requireFlag(flagValue(FLAG.confirm, '<name>'))
     // <list> resolves by substring and by folded name, so what the user typed
     // need not be what they are about to destroy. Name the resolved target
     // *before* asking — a mismatch error after the fact is too late to be

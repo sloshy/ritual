@@ -41,6 +41,7 @@ import {
   type SyncMessage,
 } from '../sync/message'
 import { importCategoryAdvisories } from '../importers/import-categories'
+import { COMMAND, FLAG, commandLine } from '../util/cli-tokens'
 
 type ImportAccountOptions = {
   all?: boolean
@@ -105,7 +106,10 @@ type ImportAccountJsonResult = {
  */
 function noDecksMessage(username: string | undefined): string {
   if (username === undefined) return t('cli.importAccount.noDecksSelf')
-  return t('cli.importAccount.noDecksPublic', { username })
+  return t('cli.importAccount.noDecksPublic', {
+    username,
+    command: commandLine(COMMAND.loginArchidekt),
+  })
 }
 
 /**
@@ -171,6 +175,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
         if (options.all !== true && promptsUnavailable()) {
           fail(scripting, 'usage_error', 'cli.importAccount.selectionNeedsPrompt', {
             reason: promptsUnavailableReason(),
+            flag: FLAG.all,
           })
           return
         }
@@ -205,7 +210,11 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
           token = (await auth.getToken()) ?? undefined
           if (!token) {
             if (promptsUnavailable()) {
-              info(t('cli.importAccount.sessionExpiredNoPrompt'))
+              info(
+                t('cli.importAccount.sessionExpiredNoPrompt', {
+                  command: commandLine(COMMAND.loginArchidekt),
+                }),
+              )
               return undefined
             }
             info(t('cli.importAccount.sessionExpiredRelogin'))

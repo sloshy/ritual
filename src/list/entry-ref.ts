@@ -14,6 +14,7 @@ import type { LabelOverride } from '../card/card-labels'
 import type { CardTag } from '../card/card-tags'
 import type { CardLanguage } from '../card/card-language'
 import type { Condition, Finish } from '../card/finish-condition'
+import { FLAG, flagValue } from '../util/cli-tokens'
 
 /** Unified summary for a card entry across all list types. */
 export type EntryRef = {
@@ -133,6 +134,7 @@ export function ensureCardIdMatchesName(check: CardIdNameCheck): void {
   if (requestedName === undefined) return
   if (matchByNormalizedName([entryName], requestedName, (name) => name).length > 0) return
   const params: MessageParams<'cli.cardOps.cardIdNameMismatch'> = {
+    flag: FLAG.cardId,
     cardId,
     entryName,
     requestedName,
@@ -167,7 +169,7 @@ function ambiguityParams(
     .join('\n')
   const suffix =
     matches.length > 10 ? `\n${t('cli.cardOps.andMore', { count: matches.length - 10 })}` : ''
-  return { name: search, matches: `${lines}${suffix}` }
+  return { name: search, matches: `${lines}${suffix}`, flag: flagValue(FLAG.cardId, '<id>') }
 }
 
 /** One-line human description of an entry: name, printing annotation, `&id`. */

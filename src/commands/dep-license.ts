@@ -8,6 +8,7 @@ import { addOutputOption } from '../cli/options'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import { fail } from '../cli/action'
 import { ask } from '../cli/prompts'
+import { COMMAND, FLAG, commandLine } from '../util/cli-tokens'
 
 type DepLicenseOptions = {
   plain: boolean
@@ -83,7 +84,7 @@ export function registerDepLicenseCommand(program: Command): void {
 
     if (options.list) {
       if (packageArg) {
-        fail(scripting, 'usage_error', 'cli.depLicense.listWithPackage')
+        fail(scripting, 'usage_error', 'cli.depLicense.listWithPackage', { flag: FLAG.list })
         return
       }
       if (scripting.output === 'text') {
@@ -99,6 +100,7 @@ export function registerDepLicenseCommand(program: Command): void {
       if (!entry) {
         fail(scripting, 'not_found', 'cli.depLicense.packageNotFound', {
           name: packageArg,
+          command: commandLine(COMMAND.depLicense, FLAG.list),
         })
         return
       }
@@ -111,6 +113,7 @@ export function registerDepLicenseCommand(program: Command): void {
     if (promptsUnavailable() || !process.stdout.isTTY) {
       fail(scripting, 'usage_error', 'cli.depLicense.needsPackage', {
         reason: promptsUnavailableReason(),
+        flag: FLAG.list,
       })
       return
     }

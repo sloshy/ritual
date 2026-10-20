@@ -58,6 +58,7 @@ import { parseEnumField } from '../util/parse-enum'
 import { isSyncMessage, syncList, syncMessage } from '../sync/message'
 import { exportWarningLine, runExportWizard } from './export-wizard'
 import { t } from '../i18n/t'
+import { FLAG } from '../util/cli-tokens'
 
 /** Raw commander option values; format/columns/finish/condition are validated in the action. */
 type ExportCommandOptions = {
@@ -135,7 +136,7 @@ export function shouldRunExportInteractive(
 function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | undefined {
   const filters: ExportFilters = { name: options.name, set: options.set }
   if (options.finish !== undefined) {
-    const finish = parseEnumField(options.finish, VALID_FINISHES, '--finish')
+    const finish = parseEnumField(options.finish, VALID_FINISHES, FLAG.finish)
     if (!finish.ok) {
       failWith(TEXT_ONLY, 'usage_error', finish.message, {
         key: finish.messageKey,
@@ -193,7 +194,7 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
 
   let dialect: ExportDialect | undefined
   if (options.dialect !== undefined) {
-    const parsed = parseEnumField(options.dialect, EXPORT_DIALECTS, '--dialect')
+    const parsed = parseEnumField(options.dialect, EXPORT_DIALECTS, FLAG.dialect)
     if (!parsed.ok) {
       failWith(TEXT_ONLY, 'usage_error', parsed.message, {
         key: parsed.messageKey,
@@ -214,12 +215,12 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
   if (format !== undefined) {
     const conflicting: string[] = []
     if (!exportFormatUsesColumns(format)) {
-      if (options.columns !== undefined) conflicting.push('--columns')
-      if (!options.header) conflicting.push('--no-header')
-      if (options.quoteAll) conflicting.push('--quote-all')
+      if (options.columns !== undefined) conflicting.push(FLAG.columns)
+      if (!options.header) conflicting.push(FLAG.noHeader)
+      if (options.quoteAll) conflicting.push(FLAG.quoteAll)
     }
     if (!exportFormatUsesDialect(format) && options.dialect !== undefined) {
-      conflicting.push('--dialect')
+      conflicting.push(FLAG.dialect)
     }
     if (conflicting.length > 0) {
       failWithMessage(
@@ -228,6 +229,8 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
         syncMessage('cli.export.formatFlagConflict', {
           flags: syncList(conflicting, 'and'),
           format,
+          formatFlag: FLAG.format,
+          dialectFlag: FLAG.dialect,
         }),
       )
       return undefined
@@ -368,7 +371,7 @@ export function registerExportCommand(program: Command): void {
         .description(t('help.export.description'))
         .argument('[lists...]', t('help.export.lists')),
     )
-      .option('--all', t('help.export.all'))
+      .option('--all', t('help.export.all', { flag: FLAG.card }))
       .option(
         '--card <terms>',
         t('help.export.card'),
@@ -396,7 +399,7 @@ export function registerExportCommand(program: Command): void {
       .option(
         '--format <format>',
         t('help.export.format', { formats: EXPORT_FORMATS.join(', ') }),
-        (value: string) => parseEnumFlag(value, EXPORT_FORMATS, '--format'),
+        (value: string) => parseEnumFlag(value, EXPORT_FORMATS, FLAG.format),
       )
       .option(
         '--columns <list>',
@@ -425,7 +428,10 @@ export function registerExportCommand(program: Command): void {
         return
       }
       if (!hasExportRunSignal(flags, listArgs)) {
-        fail(TEXT_ONLY, 'usage_error', 'cli.export.wizardNeedsTerminal')
+        fail(TEXT_ONLY, 'usage_error', 'cli.export.wizardNeedsTerminal', {
+          allFlag: FLAG.all,
+          cardFlag: FLAG.card,
+        })
         return
       }
       await runFlagExport(listArgs, type, flags)

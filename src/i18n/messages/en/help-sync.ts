@@ -42,7 +42,7 @@ export const helpSyncMessages = {
   'help.collectionSync.lists':
     'Collection lists to sync (defaults to every collection list); the remote side is always the whole Archidekt collection',
   'help.collectionSync.into':
-    'Collection list a pull adds new cards to, created if needed (default: the collectionSync.pullTarget config key)',
+    'Collection list a pull adds new cards to, created if needed (default: the {configKey} config key)',
   'help.collectionSync.removalPriority':
     'Collection list an ambiguous removal may take copies from, in the order given (repeatable)',
   'help.collectionSync.csv':
@@ -57,15 +57,14 @@ export const helpSyncMessages = {
   'help.deckSync.pull': 'Apply Archidekt deck changes to the local deck files',
   'help.deckSync.push': 'Send local deck changes to the decks you own on Archidekt',
   'help.deckSync.decks': 'Deck names to sync (defaults to all Archidekt decks)',
-  'help.deckSync.force':
-    'Overwrite a remote deck that changed since its last sync (see deck-sync status)',
+  'help.deckSync.force': 'Overwrite a remote deck that changed since its last sync (see {command})',
   'help.deckSync.syncPrintings':
     "Also sync each card's exact printing (set, collector number, and foil/etched finish)",
   'help.deckSync.syncCategories':
     "Also sync each card's categories (its role in the deck, such as Ramp or Removal)",
   'help.deckSync.link': 'Link a local deck to a deck that already exists on Archidekt',
   'help.deckSync.linkDeck': 'Deck name to link',
-  'help.deckSync.linkUrl': 'Archidekt deck URL, e.g. https://archidekt.com/decks/123456',
+  'help.deckSync.linkUrl': 'Archidekt deck URL, e.g. {url}',
   'help.deckSync.linkDryRun': 'Report what would be linked without writing the deck file',
   'help.deckSync.status': 'Show which decks are linked to Archidekt, and when each last synced',
 
@@ -97,7 +96,7 @@ export const helpSyncMessages = {
     'Keep the exact printings (set, collector number, finish) the source lists, without asking',
   'help.import.noSyncPrintings': 'Import bare card names, dropping the printings the source lists',
   'help.import.moxfieldUserAgent':
-    'Moxfield-approved unique User-Agent string (required for Moxfield imports unless MOXFIELD_USER_AGENT is set)',
+    'Moxfield-approved unique User-Agent string (required for Moxfield imports unless {envVar} is set)',
   'help.import.dryRun': 'Preview actions without writing files',
 
   // ── import-account ────────────────────────────────────────────────────
@@ -120,7 +119,7 @@ export const helpSyncMessages = {
     'Export cards from decks, collections, and wanted lists as CSV, JSON, plain text, or Markdown',
   'help.export.lists':
     'Lists to export; an optional deck:/collection:/wanted: prefix pins the type',
-  'help.export.all': 'Export every list (the default when no lists or --card are given)',
+  'help.export.all': 'Export every list (the default when no lists or {flag} are given)',
   'help.export.card': 'Add cards whose name matches every term (repeatable)',
   'help.export.name': 'Only cards whose name contains every term',
   'help.export.set': 'Only cards from this set code',

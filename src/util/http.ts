@@ -1,5 +1,6 @@
 import type { HttpClient } from './interfaces'
 import { version } from '../config/version'
+import { ENV_VAR } from './cli-tokens'
 
 function isMoxfieldApiRequest(url: string | URL | Request): boolean {
   const rawUrl = url instanceof Request ? url.url : String(url)
@@ -18,7 +19,7 @@ export function setupGlobalFetch(): void {
     const options = init || {}
 
     const headers = new Headers(options.headers)
-    const moxfieldUserAgent = process.env.MOXFIELD_USER_AGENT?.trim()
+    const moxfieldUserAgent = process.env[ENV_VAR.moxfieldUserAgent]?.trim()
 
     // Set User-Agent so that APIs know who's calling them
     // For Moxfield, use a per-user configured user agent when provided.

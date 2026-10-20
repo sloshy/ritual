@@ -62,6 +62,7 @@ import {
   type ScriptingOptions,
 } from '../cli/output'
 import { failWith, failWithMessage, runCommandAction } from '../cli/action'
+import { COMMAND, FILE, FLAG, commandLine } from '../util/cli-tokens'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -861,7 +862,12 @@ async function runVerify(baseDir: string, scripting: ScriptingOptions): Promise<
     })}`,
   )
   if (drifted > 0) {
-    console.log(t('cli.detectChanges.verifyAdvice'))
+    console.log(
+      t('cli.detectChanges.verifyAdvice', {
+        detectChangesCommand: commandLine(COMMAND.detectChanges, '<commit>'),
+        detectChangesHashOnlyCommand: commandLine(COMMAND.detectChanges, FLAG.hashOnly),
+      }),
+    )
   }
 }
 
@@ -913,7 +919,15 @@ async function runDetect(
     return
   }
   if (!repoProbe.present) {
-    failWith(scripting, 'runtime_error', t('cli.detectChanges.notGitRepo', { path: cwd }))
+    failWith(
+      scripting,
+      'runtime_error',
+      t('cli.detectChanges.notGitRepo', {
+        path: cwd,
+        command: commandLine(COMMAND.detectChanges, FLAG.hashOnly),
+        file: FILE.hashSidecar,
+      }),
+    )
     return
   }
 
@@ -1032,19 +1046,37 @@ export function selectDetectChangesMode(
   const verify = options.verify === true
 
   if (hashOnly && verify) {
-    return { ok: false, message: t('cli.detectChanges.modesExclusive') }
+    return {
+      ok: false,
+      message: t('cli.detectChanges.modesExclusive', {
+        hashOnlyFlag: FLAG.hashOnly,
+        verifyFlag: FLAG.verify,
+      }),
+    }
   }
   if (verify && options.dryRun === true) {
-    return { ok: false, message: t('cli.detectChanges.verifyNoDryRun') }
+    return {
+      ok: false,
+      message: t('cli.detectChanges.verifyNoDryRun', {
+        verifyFlag: FLAG.verify,
+        dryRunFlag: FLAG.dryRun,
+      }),
+    }
   }
   if (!hashOnly && !verify) {
     if (commit === undefined) {
-      return { ok: false, message: t('cli.detectChanges.missingCommit') }
+      return {
+        ok: false,
+        message: t('cli.detectChanges.missingCommit', {
+          hashOnlyFlag: FLAG.hashOnly,
+          verifyFlag: FLAG.verify,
+        }),
+      }
     }
     return { ok: true, mode: 'detect', commit }
   }
   if (commit !== undefined) {
-    const flag = hashOnly ? '--hash-only' : '--verify'
+    const flag = hashOnly ? FLAG.hashOnly : FLAG.verify
     return { ok: false, message: t('cli.detectChanges.commitNotUsed', { flag }) }
   }
   return { ok: true, mode: hashOnly ? 'hash-only' : 'verify' }
@@ -1057,9 +1089,9 @@ export function registerDetectChangesCommand(program: Command): void {
     addDryRunOption(
       program
         .command('detect-changes')
-        .description(t('help.detectChanges.description'))
+        .description(t('help.detectChanges.description', { file: FILE.hashSidecar }))
         .argument('[commit]', t('help.detectChanges.commit'))
-        .option('--hash-only', t('help.detectChanges.hashOnly'))
+        .option('--hash-only', t('help.detectChanges.hashOnly', { file: FILE.hashSidecar }))
         .option('--verify', t('help.detectChanges.verify')),
       t('help.detectChanges.dryRun'),
     ),

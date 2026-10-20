@@ -331,7 +331,7 @@ export const cliEditMeta = {
   },
   'cli.edit.noConfiguredLanguage': {
     description:
-      'Startup warning when ritual.config.json declares no defaultLanguage, so new cards are stamped English. {language} is the `en` code; `defaultLanguage`, `ritual config set` and the code itself are literals that never translate.',
+      'Startup warning when ritual.config.json declares no defaultLanguage, so new cards are stamped English. {language} is the `en` code, a literal that never translates. {configKey} is the `defaultLanguage` config key; {command} is the `ritual config set defaultLanguage <code>` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.edit.noPrintings': {
     description:
@@ -525,7 +525,7 @@ export const cliEditMeta = {
   },
   'cli.art.dirMissing': {
     description:
-      "Refusal when the configured art directory does not exist. {dir} is its path; the 'ritual config set artDir' command never translates.",
+      'Refusal when the configured art directory does not exist. {dir} is its path. {command} is the `ritual config set artDir <dir>` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.art.dirGone': {
     description:
@@ -642,14 +642,15 @@ export const cliEditMeta = {
 
   'cli.history.limitInvalid': {
     description:
-      'Usage error from `ritual history --limit`. The flag name never translates. Exits 2.',
+      'Usage error from `ritual history --limit`. Exits 2. {flag} is the `--limit` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.history.limitRequiresShow': {
-    description: 'Usage error: --limit only means something together with --show.',
+    description:
+      'Usage error: --limit only means something together with --show. {limitFlag} is the `--limit` flag; {showFlag} is the `--show` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.history.outputRequiresShow': {
     description:
-      'Usage error: structured output is only produced by the read-only --show fork. {output} is the format the user asked for (json or ndjson).',
+      'Usage error: structured output is only produced by the read-only --show fork. {output} is the format the user asked for (json or ndjson). {outputFlag} is the `--output` flag; {showFlag} is the `--show` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.history.noHistory': {
     description: 'Printed by `history --show` when the list has never recorded a change.',
@@ -806,12 +807,12 @@ export const cliEditMeta = {
   },
   'cli.lineMutate.finishWithoutPrinting': {
     description:
-      'Refusal to write a foil or etched finish onto a card line that names no specific printing. {finish} is the finish slug (foil/etched) and never translates, as do the two flag names.',
+      'Refusal to write a foil or etched finish onto a card line that names no specific printing. {finish} is the finish slug (foil/etched) and never translates. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
 
   'cli.csvUpload.flagAdvice': {
     description:
-      'How to settle the CSV question without a terminal. Spliced onto the end of the two messages below; the flag names never translate.',
+      'How to settle the CSV question without a terminal. Spliced onto the end of the two messages below. {csvFlag} is the `--csv` flag; {csvFileFlag} is `--csv-file <path>`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.csvUpload.tooMany': {
     description:

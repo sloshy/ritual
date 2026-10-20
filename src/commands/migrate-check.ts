@@ -29,6 +29,7 @@ import {
   checkPendingWork,
   hasPendingWork,
   planMigration,
+  aheadRemedyCommand,
   type AheadOutcome,
   type MigrationPlan,
   type PlanOutcome,
@@ -37,6 +38,7 @@ import { getErrorMessage } from '../util/errors'
 import { isCiEnvironment } from '../util/no-input'
 import { readUserState, writeUserStateSection } from '../util/user-state'
 import { applyAndReport, printPlan } from './migrate'
+import { COMMAND, FILE, FLAG, commandLine } from '../util/cli-tokens'
 
 /**
  * Commands that never run the check, matched by qualified name (`config` also
@@ -101,8 +103,13 @@ function warnAhead(outcome: AheadOutcome): void {
       ? t('cli.migrate.notice.aheadNoVersion', {
           applied: outcome.applied,
           latest: outcome.latest,
+          command: aheadRemedyCommand(outcome),
         })
-      : t('cli.migrate.notice.ahead', { version: outcome.version, current: ritualVersion }),
+      : t('cli.migrate.notice.ahead', {
+          version: outcome.version,
+          current: ritualVersion,
+          command: aheadRemedyCommand(outcome),
+        }),
   )
 }
 
@@ -113,7 +120,13 @@ function warnAhead(outcome: AheadOutcome): void {
  */
 function printPendingNotice(plan: MigrationPlan | null): void {
   const loadWillWarn = plan !== null && isConfigParseError(parseRitualConfig(plan.raw))
-  console.warn(t(loadWillWarn ? 'cli.migrate.notice.pendingConfig' : 'cli.migrate.notice.pending'))
+  console.warn(
+    t(loadWillWarn ? 'cli.migrate.notice.pendingConfig' : 'cli.migrate.notice.pending', {
+      file: FILE.config,
+      migrateDryRunCommand: commandLine(COMMAND.migrate, FLAG.dryRun),
+      migrateCommand: commandLine(COMMAND.migrate),
+    }),
+  )
 }
 
 /**
@@ -135,7 +148,7 @@ async function offerMigration(plan: MigrationPlan): Promise<void> {
   printPlan(plan)
   const confirmed = await ask<boolean>({
     type: 'confirm',
-    message: t('cli.migrate.offer'),
+    message: t('cli.migrate.offer', { command: commandLine(COMMAND.migrate) }),
     initial: true,
   })
   if (confirmed === true) {
@@ -148,7 +161,7 @@ async function offerMigration(plan: MigrationPlan): Promise<void> {
       console.error(getErrorMessage(error))
     }
   } else {
-    console.warn(t('cli.migrate.offerDeclined'))
+    console.warn(t('cli.migrate.offerDeclined', { command: commandLine(COMMAND.migrate) }))
   }
 }
 

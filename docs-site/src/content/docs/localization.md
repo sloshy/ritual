@@ -245,19 +245,25 @@ A message value is a plain string with `{named}` placeholders, a plural object, 
 
 Placeholders are named, not positional, so you can **reorder them freely**.
 
+Some placeholders hold a **token the user types or matches exactly**: a flag (`{flag}`, `{dryRunFlag}`), a command line (`{command}`), an environment variable (`{envVar}`), a config key (`{configKey}`), a file name (`{file}`) or an example value (`{example}`, `{url}`). Move them wherever your sentence needs them, but keep every one — the key's description says which token each holds. That is why `--dry-run` or `ritual migrate` never appears inside the English text itself.
+
 `check-locales.ts` runs as part of `bun run test` and `bun run verify`, and enforces:
 
-| Check                                                                                               | Severity                                                      |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| A key in English that your file is missing                                                          | **Warning** — a partial locale must stay shippable            |
-| A key your file has that English does not                                                           | Error — stale or dead weight                                  |
-| Placeholder set differs from English                                                                | Error — the placeholder would render as literal text          |
-| A `$plural` entry whose categories are not exactly the ones the language has                        | Error — Russian without `few` is wrong for 2–4                |
-| A `$select` entry switching on a different parameter, or with different branches                    | Error                                                         |
-| Unbalanced or literal `{` / `}`                                                                     | Error                                                         |
-| An invalid BCP-47 tag                                                                               | Error                                                         |
-| A value exceeding its `maxLen` budget                                                               | Error — the interactive session menu has a hard row budget    |
-| A CSV header spelling list (`domain.import.csv.headers.*`) with an empty or space-padded `\|` entry | Error — the importer splits it on `\|` and matches each entry |
+| Check                                                                                                                                                                                | Severity                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| A key in English that your file is missing                                                                                                                                           | **Warning** — a partial locale must stay shippable                                              |
+| A key your file has that English does not                                                                                                                                            | Error — stale or dead weight                                                                    |
+| Placeholder set differs from English                                                                                                                                                 | Error — the placeholder would render as literal text                                            |
+| A `$plural` entry whose categories are not exactly the ones the language has                                                                                                         | Error — Russian without `few` is wrong for 2–4                                                  |
+| A `$select` entry switching on a different parameter, or with different branches                                                                                                     | Error                                                                                           |
+| Unbalanced or literal `{` / `}`                                                                                                                                                      | Error                                                                                           |
+| An invalid BCP-47 tag                                                                                                                                                                | Error                                                                                           |
+| A value exceeding its `maxLen` budget                                                                                                                                                | Error — the interactive session menu has a hard row budget                                      |
+| A CSV header spelling list (`domain.import.csv.headers.*`) with an empty or space-padded `\|` entry                                                                                  | Error — the importer splits it on `\|` and matches each entry                                   |
+| An English key no source file references (a dead key)                                                                                                                                | Error — a translator would be asked to translate dead weight; `--allow-dead-keys` downgrades it |
+| A browser surface (`src/site/**`, `src/admin/site/**`) using or registering a CLI-only namespace                                                                                     | Error — the strings would never reach that bundle                                               |
+| An English string writing a plural as `word(s)` / `word(es)` / `entr(y/ies)`                                                                                                         | Error — only `$plural` translates into a language with more than two forms                      |
+| An English string writing a machine token inline: a `--flag`, a `ritual <command>` line or a bare one (`config set`), an environment variable, or a file name, link or example value | Error — a translator would read it as prose; it must arrive as a `{placeholder}`                |
 
 Missing keys are only a warning because **`t()` falls back to English per key**. A pull request with 200 of 2,000 keys translated ships and renders correctly. Coverage is a number, not a gate.
 

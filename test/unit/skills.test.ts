@@ -16,6 +16,7 @@ import { version } from '../../src/config/version'
 import { SECTION_ROLES } from '../../src/list/deck-format'
 import { t } from '../../src/i18n/t'
 import { MIGRATION_CHECK_EXEMPT } from '../../src/commands/migrate-check'
+import { COMMAND, FLAG, commandLine } from '../../src/util/cli-tokens'
 
 describe('skill catalog invariants', () => {
   test('every skill is structurally valid and renders without throwing', () => {
@@ -182,7 +183,12 @@ describe('skill bodies name only tools that exist', () => {
     const site = SKILLS.find((skill) => skill.name === 'ritual-site')
     // The quote is a wrapped Markdown blockquote; unwrap it before comparing.
     const unwrapped = site?.body.replaceAll('\n> ', ' ')
-    expect(unwrapped).toContain(t('cli.migrate.notice.pending'))
+    expect(unwrapped).toContain(
+      t('cli.migrate.notice.pending', {
+        migrateDryRunCommand: commandLine(COMMAND.migrate, FLAG.dryRun),
+        migrateCommand: commandLine(COMMAND.migrate),
+      }),
+    )
   })
 
   test('the overview skill teaches checking before self-update and asking first', () => {

@@ -62,7 +62,7 @@ export const helpCardsMeta = {
   },
   'help.addCard.language': {
     description:
-      'Help for add-card --language. This is the *card printing* language (a Scryfall code), never the interface locale. "defaultLanguage" is a config key and "en" a language code; neither translates.',
+      'Help for add-card --language. This is the *card printing* language (a Scryfall code), never the interface locale. "defaultLanguage" is a config key and "en" a language code; neither translates. {configKey} is the `defaultLanguage` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.addCard.label': {
     description:
@@ -78,15 +78,20 @@ export const helpCardsMeta = {
       'Help for add-card --commander. "Commander" is the deck section\'s literal name in the file.',
   },
   'help.addCard.exact': { description: 'Help for add-card --exact (skip the card picker).' },
-  'help.addCard.set': { description: 'Help for add-card --set, which pins a printing.' },
+  'help.addCard.set': {
+    description:
+      'Help for add-card --set, which pins a printing. {flag} is the `--collector-number` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.addCard.collectorNumber': {
-    description: 'Help for add-card --collector-number, which pins a printing.',
+    description:
+      'Help for add-card --collector-number, which pins a printing. {flag} is the `--set` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.addCard.nameOnly': {
     description: 'Help for add-card --name-only, a wanted-list-only specificity choice.',
   },
   'help.addCard.specific': {
-    description: 'Help for add-card --specific, a wanted-list-only specificity choice.',
+    description:
+      'Help for add-card --specific, a wanted-list-only specificity choice. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'help.addCard.dryRun': { description: 'Help for add-card --dry-run.' },
 
@@ -100,15 +105,21 @@ export const helpCardsMeta = {
 
   'help.setCard.description': { description: 'One-line summary of the `set-card` command.' },
   'help.setCard.cardName': { description: "Help for set-card's card-name argument." },
-  'help.setCard.set': { description: 'Help for set-card --set.' },
-  'help.setCard.collectorNumber': { description: 'Help for set-card --collector-number.' },
+  'help.setCard.set': {
+    description:
+      'Help for set-card --set. {flag} is the `--collector-number` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'help.setCard.collectorNumber': {
+    description:
+      'Help for set-card --collector-number. {flag} is the `--set` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.setCard.finish': {
     description:
       'Help for set-card --finish. {finishes} is the comma-joined list of finish names, which are machine values.',
   },
   'help.setCard.language': {
     description:
-      'Help for set-card --language: the card printing language, not the interface locale. "en" is a language code.',
+      'Help for set-card --language: the card printing language, not the interface locale. "en" is a language code. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'help.setCard.condition': {
     description:
@@ -169,13 +180,22 @@ export const helpCardsMeta = {
   },
   'help.setListImage.dryRun': { description: 'Help for set-list-image --dry-run.' },
 
-  'help.move.description': { description: 'One-line summary of the `move` command.' },
-  'help.move.cardName': { description: "Help for move's card-name argument." },
+  'help.move.description': {
+    description:
+      'One-line summary of the `move` command. {fromFlag} is the `--from` flag; {toFlag} is the `--to` flag. Each is typed or matched exactly by the user, so never translate them.',
+  },
+  'help.move.cardName': {
+    description:
+      "Help for move's card-name argument. {fromFlag} is the `--from` flag; {toFlag} is the `--to` flag. Each is typed or matched exactly by the user, so never translate them.",
+  },
   'help.move.from': {
     description:
       'Help for move --from. The three prefixes are file-format vocabulary; "Session Filters" names the screen the interactive session shows.',
   },
-  'help.move.to': { description: 'Help for move --to, the destination list.' },
+  'help.move.to': {
+    description:
+      'Help for move --to, the destination list. {flag} is the `--from` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.move.quantity': { description: 'Help for move --quantity.' },
   'help.move.cardId': {
     description:
@@ -199,13 +219,17 @@ export const helpCardsMeta = {
 
   'help.scry.description': { description: 'One-line summary of the `scry` command.' },
   'help.scry.query': {
-    description: "Help for scry's query argument. Scryfall's query syntax itself never translates.",
+    description:
+      "Help for scry's query argument. Scryfall's query syntax itself never translates. {flag} is the `--random` flag. It is typed or matched exactly by the user, so never translate it.",
   },
   'help.scry.pages': {
     description: 'Help for scry --pages. {max} is the hard page cap, a courtesy bound on the API.',
   },
   'help.scry.random': { description: 'Help for scry --random.' },
-  'help.scry.count': { description: 'Help for scry --count. {max} is the hard cap.' },
+  'help.scry.count': {
+    description:
+      'Help for scry --count. {max} is the hard cap. {flag} is the `--random` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
 
   'help.diff.description': { description: 'One-line summary of the `diff` command.' },
   'help.diff.listA': {
@@ -308,7 +332,7 @@ export const helpCardsMeta = {
   'help.cleanup.skipFormats': { description: 'Help for cleanup --skip-formats.' },
   'help.cleanup.check': {
     description:
-      'Help for cleanup --check. "exit 1" names the process exit code, which is locale-invariant.',
+      'Help for cleanup --check. "exit 1" names the process exit code, which is locale-invariant. {flag} is the `--dry-run` flag. It is typed or matched exactly by the user, so never translate it.',
   },
 
   'help.getPrimer.description': { description: 'One-line summary of the `get-primer` command.' },
@@ -318,6 +342,6 @@ export const helpCardsMeta = {
   },
   'help.getPrimer.moxfieldUserAgent': {
     description:
-      'Help for get-primer --moxfield-user-agent. "Moxfield", "User-Agent" and the env var name never translate.',
+      'Help for get-primer --moxfield-user-agent. "Moxfield" and "User-Agent" never translate. {envVar} is the `MOXFIELD_USER_AGENT` environment variable. It is typed or matched exactly by the user, so never translate it.',
   },
 } as const satisfies MetaFor<typeof helpCardsMessages>

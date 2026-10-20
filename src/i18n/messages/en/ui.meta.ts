@@ -603,7 +603,7 @@ export const uiMeta = {
   },
   'ui.addCard.artPlaceholder': {
     description:
-      'Placeholder showing both accepted forms of a custom-art reference. The example path and URL are sample data and are not translated.',
+      'Placeholder showing both accepted forms of a custom-art reference. {file} is the example value `proxies/sol-ring.jpg`; {url} is the example URL `https://example.com/sol-ring.jpg`. Each is typed or matched exactly by the user, so never translate them.',
   },
   'ui.addCard.artInvalid': {
     description:

@@ -16,6 +16,7 @@ import { captureExitCode } from '../helpers/cli'
 import { captureConsole } from '../helpers/capture'
 import { describeCatalogEntryError } from '../../src/i18n/catalog-message'
 import { t } from '../../src/i18n/t'
+import { FLAG } from '../../src/util/cli-tokens'
 
 /**
  * Locale plumbing through the site pipeline: which dictionaries a build
@@ -165,6 +166,7 @@ describe('site locales (Integration)', () => {
           key: 'site.toolbar.sortLabel',
           reason: describeCatalogEntryError({ problem: 'notAMessage' }),
         }),
+        flag: FLAG.localeFile,
       }),
     ])
   }, 120_000)

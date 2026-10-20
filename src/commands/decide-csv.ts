@@ -17,7 +17,16 @@ import { ARCHIDEKT_IMPORT_URL } from '../collection-sync/csv'
 import type { CsvUploadDecision, CsvUploadQuestion } from '../collection-sync/engine'
 import { ask, type AskPrompt } from '../cli/prompts'
 import { t } from '../i18n/t'
-import { syncMessage, syncRef } from '../sync/message'
+import { syncMessage, syncRef, type SyncMessageRef } from '../sync/message'
+import { FLAG, flagValue } from '../util/cli-tokens'
+
+/** How to settle the CSV question without a terminal: the two flags that answer it. */
+function csvFlagAdvice(): SyncMessageRef {
+  return syncRef('cli.csvUpload.flagAdvice', {
+    csvFlag: FLAG.csv,
+    csvFileFlag: flagValue(FLAG.csvFile, '<path>'),
+  })
+}
 
 export type CsvUploadRequest = {
   /** What the engine is asking about: how many additions, and the threshold they passed. */
@@ -67,7 +76,7 @@ export async function decideCsvUpload(request: CsvUploadRequest): Promise<CsvUpl
         cards: cardsRef,
         threshold: question.threshold,
         searches: question.additions,
-        advice: syncRef('cli.csvUpload.flagAdvice'),
+        advice: csvFlagAdvice(),
       }),
     }
   }
@@ -92,7 +101,7 @@ export async function decideCsvUpload(request: CsvUploadRequest): Promise<CsvUpl
       kind: 'abort',
       message: syncMessage('cli.csvUpload.cancelled', {
         cards: cardsRef,
-        advice: syncRef('cli.csvUpload.flagAdvice'),
+        advice: csvFlagAdvice(),
       }),
     }
   }
@@ -110,7 +119,7 @@ export async function decideCsvUpload(request: CsvUploadRequest): Promise<CsvUpl
       kind: 'abort',
       message: syncMessage('cli.csvUpload.cancelled', {
         cards: cardsRef,
-        advice: syncRef('cli.csvUpload.flagAdvice'),
+        advice: csvFlagAdvice(),
       }),
     }
   }

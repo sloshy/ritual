@@ -12,6 +12,7 @@ import { tDynamic, type RenderParams } from '../../../src/i18n/t'
 import { withSyntheticLocale } from '../../helpers/sync-text'
 import {
   checkCatalogs,
+  inlineTokens,
   messagePlaceholders,
   pluralShortcuts,
   validateBraces,
@@ -284,6 +285,76 @@ describe('checkCatalogs', () => {
       expect(pluralShortcuts(form)).toEqual([])
     },
   )
+
+  test('13. an English flag, command line or other machine token written inline fails', () => {
+    const inline = (value: MessageCatalogShape[string]): CatalogIssue[] => {
+      const key = 'cli.edit.badgeUnsaved'
+      return issuesOfKind(
+        checkCatalogs({
+          english: { ...ENGLISH, [key]: value },
+          meta: { ...META, [key]: { description: 'Refusal.' } },
+        }),
+        'inline-token',
+      )
+    }
+    const [found] = inline('Run `ritual migrate --dry-run` or pass --yes.')
+    expect(found).toMatchObject({ locale: 'en', key: 'cli.edit.badgeUnsaved', severity: 'error' })
+    expect(found?.message).toContain('"ritual migrate", "--dry-run", "--yes"')
+    // Every branch of a table is read.
+    expect(inline({ $select: 'type', deck: 'Set RITUAL_NO_INPUT.', other: 'ok' })).toHaveLength(1)
+    // The fix: the same sentence with the tokens as params.
+    expect(inline('Run `{command}` or pass {flag}; set {envVar}.')).toEqual([])
+    // A translation is never judged by it: it is held to English's placeholders
+    // by check 3 instead, which is what keeps a token a translator moved intact.
+    const translated = checkCatalogs({
+      english: ENGLISH,
+      meta: META,
+      translations: [withKey('de', 'cli.menu.saveAndExit', 'Speichern mit --yes')],
+    })
+    expect(issuesOfKind(translated, 'inline-token')).toEqual([])
+  })
+
+  const inlineFlagged: [string, string[]][] = [
+    ['--set and --collector-number must be given together.', ['--set', '--collector-number']],
+    ['Narrow with --set/--collector-number.', ['--set', '--collector-number']],
+    ['(pass --no-sync-printings)', ['--no-sync-printings']],
+    ["Run 'ritual cache preload-all' first.", ['ritual cache', 'cache preload-all']],
+    ['Set RITUAL_MCP_TOKEN or RITUAL_I18N_STRICT=1.', ['RITUAL_MCP_TOKEN', 'RITUAL_I18N_STRICT']],
+    // After a separator, too.
+    ['a=--x; b:--y |--z *--w —--v <--u', ['--x', '--y', '--z', '--w', '--v', '--u']],
+    // The binary name beside a placeholder half-writes a command line.
+    ['Run `ritual {command}` again.', ['ritual {']],
+    // A bare multi-word command line names no binary but is still typed.
+    ['It cannot be set with "config set".', ['config set']],
+    // Any variable, file, link or example the tokens module spells.
+    ['Set MOXFIELD_USER_AGENT or GITHUB_TOKEN.', ['MOXFIELD_USER_AGENT', 'GITHUB_TOKEN']],
+    ['Fix ritual.config.json and .gitignore.', ['ritual.config.json', '.gitignore']],
+    ['See https://scryfall.com/sets.', ['https://scryfall.com/sets']],
+    ['e.g. localhost:4000', ['localhost:4000']],
+    ['Pull it (docker pull ghcr.io/sloshy/ritual).', ['docker pull ghcr.io/sloshy/ritual']],
+  ]
+  test.each(inlineFlagged)('inlineTokens flags %p', (form, expected) => {
+    expect(inlineTokens(form)).toEqual(expected)
+  })
+
+  test.each([
+    'An em dash -- between words is prose.',
+    'If no other ritual process is running, delete the lock file.',
+    'Not a ritual change bundle.',
+    'Inspect the ritual configuration file.',
+    // A placeholder is the fix, not a finding.
+    'Pass {flag} to {command} with {envVar}.',
+    // One-word command names are prose words too ("the add-card search").
+    'The add-card search waits for a pause.',
+    'x--y is no flag, and neither is ---',
+  ])('inlineTokens leaves prose alone in %p', (form) => {
+    expect(inlineTokens(form)).toEqual([])
+  })
+
+  test('inlineTokens reads the binary name lowercase only: "Ritual" is the product', () => {
+    expect(inlineTokens('Ritual migrates the workspace.')).toEqual([])
+    expect(inlineTokens('ritual migrate the workspace.')).toEqual(['ritual migrate'])
+  })
 
   test('9. dead keys fail by default and are downgraded by --allow-dead-keys', () => {
     // `check-locales.ts` passes `deadKeySeverity: 'error'` unless `--allow-dead-keys`

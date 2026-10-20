@@ -55,7 +55,7 @@ export const domainConfigMeta = {
     description: `${REFUSAL} ${FIELD} The value must name a list (a collection of cards the user keeps) and cannot be blank.`,
   },
   'domain.config.bannedPrinting': {
-    description: `${REFUSAL} One entry of the banned-printings setting is not a printing. {value} is the entry as the user wrote it. "SET:COLLECTOR" is the literal shape a printing takes (a set code, a colon, a collector number) and "sld:123" an example; keep both exactly.`,
+    description: `${REFUSAL} One entry of the banned-printings setting is not a printing. {value} is the entry as the user wrote it. {format} is the shape a printing takes, \`SET:COLLECTOR\` (a set code, a colon, a collector number), and {example} an example entry, \`sld:123\`. Each is typed or matched exactly by the user, so never translate them.`,
   },
   'domain.config.uiLocaleMalformed': {
     description: `${REFUSAL} The interface-language setting (a language tag such as "de-AT") is not a valid tag at all. {reason} is the tag parser’s explanation, already translated (e.g. “invalid locale tag: de_DE”).`,
@@ -64,13 +64,13 @@ export const domainConfigMeta = {
     description: `${REFUSAL} The interface-language setting is a well-formed tag, but for no language this system knows. {tag} is the tag. "BCP-47" is the name of the tag standard; "en" and "de-AT" are example tags; keep all three exactly.`,
   },
   'domain.config.defaultLanguage': {
-    description: `${SETTINGS_FILE} The "defaultLanguage" setting (the language newly added cards are printed in, e.g. Japanese cards) names no known card language. {value} is the value as given, already in quotes; {languages} is the list of accepted card-language codes ("en", "ja", …), already joined in the reader's language. "defaultLanguage" is the setting's key; never translate it or the codes.`,
+    description: `${SETTINGS_FILE} The "defaultLanguage" setting (the language newly added cards are printed in, e.g. Japanese cards) names no known card language. {value} is the value as given, already in quotes; {languages} is the list of accepted card-language codes ("en", "ja", …), already joined in the reader's language. Never translate the codes. {configKey} is the \`defaultLanguage\` config key. It is typed or matched exactly by the user, so never translate it.`,
   },
   'domain.config.defaultCategoriesNotArray': {
-    description: `${SETTINGS_FILE} The "defaultCategories" setting — the card categories (a card's role in a deck, like "Ramp") the program suggests — is not a JSON array of names. "defaultCategories" is the setting's key; never translate it. Shown on its own, and also after a prefix.`,
+    description: `${SETTINGS_FILE} The "defaultCategories" setting — the card categories (a card's role in a deck, like "Ramp") the program suggests — is not a JSON array of names. Shown on its own, and also after a prefix. {configKey} is the \`defaultCategories\` config key. It is typed or matched exactly by the user, so never translate it.`,
   },
   'domain.config.defaultCategoriesNotText': {
-    description: `${SETTINGS_FILE} An entry of the "defaultCategories" setting — the card categories (a card's role in a deck, like "Ramp") the program suggests — is not text. {value} is that entry as JSON; leave it as it is. "defaultCategories" is the setting's key; never translate it.`,
+    description: `${SETTINGS_FILE} An entry of the "defaultCategories" setting — the card categories (a card's role in a deck, like "Ramp") the program suggests — is not text. {value} is that entry as JSON; leave it as it is. {configKey} is the \`defaultCategories\` config key. It is typed or matched exactly by the user, so never translate it.`,
   },
   'domain.config.section': {
     description: `${SETTINGS_FILE} The name of one block of settings, shown as the subject of a warning ("ignoring invalid admin config"). {section} is the block's key in the file ("admin", "site", "managed", "collectionSync"); never translate it.`,
@@ -85,10 +85,10 @@ export const domainConfigMeta = {
     description: `${REFUSAL} The refusal of one setting, headed by the setting it is about. {field} is the setting's key exactly as in the file (e.g. "updateCheck"); never translate it. {reason} is the refusal, a phrase of its own. Keep the colon layout.`,
   },
   'domain.config.ignoringInvalid': {
-    description: `${SETTINGS_FILE} A warning the server or CLI console prints while loading the file: one setting holds a value Ritual cannot use, so it is ignored and its built-in default applies until the file is fixed. {field} is the setting's key (e.g. "cacheSource") or the name of a block of settings (domain.config.section, e.g. "admin config"); {reason} is why, a phrase of its own. Keep the file name and the colon layout.`,
+    description: `${SETTINGS_FILE} A warning the server or CLI console prints while loading the file: one setting holds a value Ritual cannot use, so it is ignored and its built-in default applies until the file is fixed. {field} is the setting's key (e.g. "cacheSource") or the name of a block of settings (domain.config.section, e.g. "admin config"); {reason} is why, a phrase of its own. Keep the file name and the colon layout. {file} is the \`ritual.config.json\` file name. It is typed or matched exactly by the user, so never translate it.`,
   },
   'domain.config.fileNotJson': {
-    description: `${SETTINGS_FILE} The file could not be read as settings at all, so the command stopped without changing it. {path} is the file's full path; {reason} is why, either the JSON parser's own message (usually English) or a phrase of its own. Keep the three lines, the two-space indent of the reason, and the file name exactly.`,
+    description: `${SETTINGS_FILE} The file could not be read as settings at all, so the command stopped without changing it. {path} is the file's full path; {reason} is why, either the JSON parser's own message (usually English) or a phrase of its own. Keep the three lines, the two-space indent of the reason, and the file name exactly. {file} is the \`ritual.config.json\` file name. It is typed or matched exactly by the user, so never translate it.`,
   },
   'domain.config.fileNotObject': {
     description: `${SETTINGS_FILE} The file is valid JSON but not an object ({ … }) of settings. Starts lowercase and has no closing period: it is shown indented under "ritual.config.json is not valid JSON: <path>".`,

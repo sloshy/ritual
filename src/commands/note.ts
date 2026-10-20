@@ -22,6 +22,7 @@ import type { EntryRef } from '../list/entry-ref'
 import { cancelledError, runCommandAction } from '../cli/action'
 import type { ListTypeFlags } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
+import { FLAG, flagValue } from '../util/cli-tokens'
 
 type NoteOptions = {
   note?: string
@@ -208,14 +209,17 @@ function cardIdLabel(target: EntryRef): string {
 // ── Note text resolution ──────────────────────────────────────────────────────
 
 async function resolveNoteText(
-  flagValue: string | undefined,
+  noteFlag: string | undefined,
   existingNote: string | undefined,
 ): Promise<string> {
-  if (flagValue !== undefined) return validateOrThrow(flagValue)
+  if (noteFlag !== undefined) return validateOrThrow(noteFlag)
 
   // The note-text prompt is only available interactively — a run without a
   // terminal, or with prompts disabled via --no-input, must say what to pass.
-  requireInteractive('cli.prompt.subject.passEither', { first: '--note <text>', second: '--clear' })
+  requireInteractive('cli.prompt.subject.passEither', {
+    first: flagValue(FLAG.note, '<text>'),
+    second: FLAG.clear,
+  })
 
   const note = await ask<string>({
     type: 'text',
@@ -238,7 +242,9 @@ function validateOrThrow(raw: string): string {
     throw messageCommandError('usage_error', ExitCode.UsageError, result.error)
   }
   if (result.note === '') {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.note.emptyNote')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.note.emptyNote', {
+      flag: FLAG.clear,
+    })
   }
   return result.note
 }

@@ -31,6 +31,7 @@ import {
 } from '../list/entry-ref'
 import { requireInteractive } from '../util/no-input'
 import { t } from '../i18n/t'
+import { FLAG, flagValue } from '../util/cli-tokens'
 
 /** Options for {@link resolveListSelection}'s interactive fallback. */
 export type ResolveListSelectionOptions = {
@@ -173,7 +174,7 @@ export async function resolveTarget(
 }
 
 async function promptCardSelection(entries: EntryRef[]): Promise<EntryRef> {
-  requireInteractive('cli.prompt.subject.passCardOrId', { flag: '--card-id <id>' })
+  requireInteractive('cli.prompt.subject.passCardOrId', { flag: flagValue(FLAG.cardId, '<id>') })
   const choices = entries.map((e, i) => ({
     title: e.note
       ? t('cli.cardOps.cardChoiceWithNote', { entry: describeEntry(e), note: e.note })

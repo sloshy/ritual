@@ -32,7 +32,7 @@ export const cliSyncMeta = {
   },
   'cli.login.needsCredentialFlags': {
     description:
-      'Usage error: a scripted login gave one of --username / --password-stdin but not both.',
+      'Usage error: a scripted login gave one of --username / --password-stdin but not both. {usernameFlag} is the `--username` flag; {passwordStdinFlag} is the `--password-stdin` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.login.usernamePrompt': {
     description: 'Text prompt for the Archidekt account name or e-mail address.',
@@ -54,7 +54,7 @@ export const cliSyncMeta = {
   },
   'cli.prompt.subject.loginCredentials': {
     description:
-      'Noun phrase naming what the interactive login wanted, spliced into "Input required: {subject} ({reason})". The two flags are CLI option names — leave them untranslated.',
+      'Noun phrase naming what the interactive login wanted, spliced into "Input required: {subject} ({reason})". {usernameFlag} is the `--username` flag; {passwordStdinFlag} is the `--password-stdin` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.login.emptyPassword': {
     description: 'Usage error: --password-stdin was given but stdin held no password.',
@@ -72,7 +72,7 @@ export const cliSyncMeta = {
   },
   'cli.login.statusExpired': {
     description:
-      '`ritual login status` for a login that can no longer authenticate. {account} is cli.login.accountNamed or cli.login.accountUnnamed.',
+      '`ritual login status` for a login that can no longer authenticate. {account} is cli.login.accountNamed or cli.login.accountUnnamed. {command} is the `ritual login archidekt` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.login.statusRefreshable': {
     description:
@@ -96,11 +96,11 @@ export const cliSyncMeta = {
   },
   'cli.import.conflict': {
     description:
-      'Usage error: an import would replace an existing list and was not told it may. {target} is a file name.',
+      'Usage error: an import would replace an existing list and was not told it may. {target} is a file name. {overwriteFlag} is the `--overwrite` flag; {yesFlag} is the `--yes` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.import.conflictCsv': {
     description:
-      'The CSV flavour of cli.import.conflict — CSV imports can also append, so the advice names one more flag.',
+      'The CSV flavour of cli.import.conflict — CSV imports can also append, so the advice names one more flag. {appendFlag} is the `--append` flag; {overwriteFlag} is the `--overwrite` flag; {yesFlag} is the `--yes` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.import.conflictAction': {
     description:
@@ -176,7 +176,7 @@ export const cliSyncMeta = {
   // ── `import` — source and flag validation ─────────────────────────────
   'cli.import.defaultedToDeck': {
     description:
-      'Under --no-input the import cannot ask which kind of list to create, so it keeps the historical deck behaviour and says so.',
+      'Under --no-input the import cannot ask which kind of list to create, so it keeps the historical deck behaviour and says so. {flag} is the `--type` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.import.promptSyncPrintings': {
     description:
@@ -184,21 +184,22 @@ export const cliSyncMeta = {
   },
   'cli.import.defaultedToPrintings': {
     description:
-      'Under --no-input the import cannot ask about keeping printings, so it keeps them (the historical behaviour) and says so. --no-sync-printings is a flag name.',
+      'Under --no-input the import cannot ask about keeping printings, so it keeps them (the historical behaviour) and says so. --no-sync-printings is a flag name. {flag} is the `--no-sync-printings` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.import.flagNotForUrl': {
     description: 'Usage error: {flag} is a CSV-only flag and the source is a URL.',
   },
   'cli.import.flagNeedsCsv': {
-    description: 'Usage error: {flag} is a CSV-only flag and the source was not read as CSV.',
+    description:
+      'Usage error: {flag} is a CSV-only flag and the source was not read as CSV. {csvFlag} is the `--csv` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.import.moxfieldAgentSourceOnly': {
     description:
-      'Usage error: --moxfield-user-agent was given for a local file. Branch on the source kind that was resolved: "csv" or "text".',
+      'Usage error: --moxfield-user-agent was given for a local file. Branch on the source kind that was resolved: "csv" or "text". {flag} is the `--moxfield-user-agent` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.import.syncPrintingsUrlOnly': {
     description:
-      'Usage error: --sync-printings or --no-sync-printings was given for a local file, whose printings come from the file itself. Branch on the resolved source kind: "csv" or "text". The flag names stay as-is.',
+      'Usage error: --sync-printings or --no-sync-printings was given for a local file, whose printings come from the file itself. Branch on the resolved source kind: "csv" or "text". {syncPrintingsFlag} is the `--sync-printings` flag; {noSyncPrintingsFlag} is the `--no-sync-printings` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.import.invalidListType': {
     description:
@@ -237,7 +238,8 @@ export const cliSyncMeta = {
 
   // ── `import` — CSV flow ───────────────────────────────────────────────
   'cli.import.overwriteAppendExclusive': {
-    description: 'Usage error: --overwrite and --append ask for opposite things.',
+    description:
+      'Usage error: --overwrite and --append ask for opposite things. {overwriteFlag} is the `--overwrite` flag; {appendFlag} is the `--append` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.import.csvUnreadable': { description: 'The CSV source could not be read from disk.' },
   'cli.import.csvParseFailed': {
@@ -260,11 +262,12 @@ export const cliSyncMeta = {
       'Usage error: prompts are unavailable, so every answer had to arrive as a flag. {flags} is a comma-separated list of the missing flag names.',
   },
   'cli.import.deckFormatDeckOnly': {
-    description: 'Usage error: --deck-format was given for a collection or wanted list import.',
+    description:
+      'Usage error: --deck-format was given for a collection or wanted list import. {flag} is the `--deck-format` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.import.deckFormatNotAppend': {
     description:
-      'Usage error: --deck-format was given alongside --append, which never creates a deck.',
+      'Usage error: --deck-format was given alongside --append, which never creates a deck. {flag} is the `--deck-format` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.import.promptListName': {
     description:
@@ -291,7 +294,7 @@ export const cliSyncMeta = {
   },
   'cli.import.headerLooksLikeData': {
     description:
-      'Essential warning: a scripted import skipped a first row that does not look like a header, so a card was probably lost.',
+      'Essential warning: a scripted import skipped a first row that does not look like a header, so a card was probably lost. {flag} is the `--no-header` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.import.repeatHint': {
     description:
@@ -336,11 +339,11 @@ export const cliSyncMeta = {
   },
   'cli.importAccount.noDecksPublic': {
     description:
-      'Archidekt answers an unknown username exactly like an account with no public decks, so the message names both possibilities rather than guessing.',
+      'Archidekt answers an unknown username exactly like an account with no public decks, so the message names both possibilities rather than guessing. {command} is the `ritual login archidekt` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.importAccount.selectionNeedsPrompt': {
     description:
-      'Usage error raised before any network work: deck selection is a prompt and prompts are unavailable. {reason} explains why (no terminal, or --no-input).',
+      'Usage error raised before any network work: deck selection is a prompt and prompts are unavailable. {reason} explains why (no terminal, or --no-input). {flag} is the `--all` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.importAccount.needUsernameOrLogin': {
     description: 'Usage error: no username argument and no stored login to take one from.',
@@ -360,7 +363,7 @@ export const cliSyncMeta = {
   },
   'cli.importAccount.sessionExpiredNoPrompt': {
     description:
-      'The session expired and prompts are unavailable, so the user must log in separately.',
+      'The session expired and prompts are unavailable, so the user must log in separately. {command} is the `ritual login archidekt` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.importAccount.sessionExpiredRelogin': {
     description: 'The session expired and a login prompt is about to open.',
@@ -412,7 +415,7 @@ export const cliSyncMeta = {
   'cli.importChanges.empty': { description: 'The bundle parsed but holds no changes.' },
   'cli.importChanges.confirmationRequired': {
     description:
-      'Usage error: nothing can be asked (piped stdin or --no-input), so --yes is required.',
+      'Usage error: nothing can be asked (piped stdin or --no-input), so --yes is required. {flag} is the `--yes` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.importChanges.reasonCount': {
     description:
@@ -524,7 +527,7 @@ export const cliSyncMeta = {
   },
   'cli.detectChanges.notGitRepo': {
     description:
-      'Detection needs git history. The second line points at --hash-only, which works without git but forfeits changelog entries.',
+      'Detection needs git history. The second line points at --hash-only, which works without git but forfeits changelog entries. {command} is the `ritual detect-changes --hash-only` command line; {file} is the `.sha256` file suffix. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.detectChanges.resolveRefFailed': {
     description: 'Prefix for a failure to resolve the given commit; git’s own detail follows.',
@@ -579,20 +582,22 @@ export const cliSyncMeta = {
       'Closing tally of --verify. {files} arrives already counted; the three numbers are the per-state counts.',
   },
   'cli.detectChanges.verifyAdvice': {
-    description: 'Printed after --verify found drift: the two commands that resolve it.',
+    description:
+      'Printed after --verify found drift: the two commands that resolve it. {detectChangesCommand} is the `ritual detect-changes <commit>` command line; {detectChangesHashOnlyCommand} is the `ritual detect-changes --hash-only` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
 
   // ── `detect-changes` — mode selection ─────────────────────────────────
   'cli.detectChanges.modesExclusive': {
-    description: 'Usage error: the two sidecar modes are mutually exclusive.',
+    description:
+      'Usage error: the two sidecar modes are mutually exclusive. {hashOnlyFlag} is the `--hash-only` flag; {verifyFlag} is the `--verify` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.detectChanges.verifyNoDryRun': {
     description:
-      'Usage error: --verify writes nothing, so there is nothing for --dry-run to preview.',
+      'Usage error: --verify writes nothing, so there is nothing for --dry-run to preview. {verifyFlag} is the `--verify` flag; {dryRunFlag} is the `--dry-run` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.detectChanges.missingCommit': {
     description:
-      'Usage error: git detection needs a commit, and neither sidecar mode was requested.',
+      'Usage error: git detection needs a commit, and neither sidecar mode was requested. {hashOnlyFlag} is the `--hash-only` flag; {verifyFlag} is the `--verify` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.detectChanges.commitNotUsed': {
     description: 'Usage error: a commit was given alongside a sidecar mode, which never reads git.',
@@ -605,15 +610,15 @@ export const cliSyncMeta = {
   },
   'cli.sync.verboseHint': {
     description:
-      'Printed once at the end of a sync run that had card changes but was not given --verbose, so the per-card listing was not shown. `--verbose` is a literal flag name and must not be translated.',
+      'Printed once at the end of a sync run that had card changes but was not given --verbose, so the per-card listing was not shown. {flag} is the `--verbose` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.sync.notSignedIn': {
     description:
-      'Both sync commands refuse an unauthenticated run with this line. The quoted command is typed verbatim and is never translated.',
+      'Both sync commands refuse an unauthenticated run with this line. {command} is the `ritual login archidekt` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.sync.accountUnnamed': {
     description:
-      'A collection sync needs the numeric account id the login records, and this stored login has none — so it asks for a fresh sign-in rather than guessing.',
+      'A collection sync needs the numeric account id the login records, and this stored login has none — so it asks for a fresh sign-in rather than guessing. {command} is the `ritual login archidekt` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.sync.costRemoveLines': {
     description:
@@ -647,7 +652,10 @@ export const cliSyncMeta = {
   'cli.deckSync.deckRef': {
     description: 'Names a deck by its numeric Archidekt id when no URL was recorded for it.',
   },
-  'cli.deckSync.noLinkedDecks': { description: '`deck-sync status` with nothing linked yet.' },
+  'cli.deckSync.noLinkedDecks': {
+    description:
+      '`deck-sync status` with nothing linked yet. {command} is the `ritual deck-sync link <deck> <url>` command line. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.deckSync.linkedHeading': {
     description: 'Heading over the `deck-sync status` deck list. {decks} arrives already counted.',
   },
@@ -669,28 +677,36 @@ export const cliSyncMeta = {
 
   // ── `collection-sync` ─────────────────────────────────────────────────
   'cli.collectionSync.intoRequiresName': {
-    description: 'Usage error: --into was given as an empty string.',
+    description:
+      'Usage error: --into was given as an empty string. {flag} is the `--into` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.collectionSync.removalPriorityRequiresName': {
-    description: 'Usage error: --removal-priority was given as an empty string.',
+    description:
+      'Usage error: --removal-priority was given as an empty string. {flag} is the `--removal-priority` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.collectionSync.csvFileRequiresPath': {
-    description: 'Usage error: --csv-file was given as an empty string.',
+    description:
+      'Usage error: --csv-file was given as an empty string. {flag} is the `--csv-file` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.collectionSync.csvFlagsExclusive': {
-    description: 'Usage error: the two CSV flags ask for opposite things.',
+    description:
+      'Usage error: the two CSV flags ask for opposite things. {csvFlag} is the `--csv` flag; {csvFileFlag} is the `--csv-file` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.collectionSync.ignoringInto': {
-    description: 'Warning: a pull-only flag was given on a push.',
+    description:
+      'Warning: a pull-only flag was given on a push. {flag} is the `--into` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.collectionSync.ignoringRemovalPriority': {
-    description: 'Warning: a pull-only flag was given on a push.',
+    description:
+      'Warning: a pull-only flag was given on a push. {flag} is the `--removal-priority` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.collectionSync.ignoringCsv': {
-    description: 'Warning: a push-only flag was given on a pull.',
+    description:
+      'Warning: a push-only flag was given on a pull. {flag} is the `--csv` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.collectionSync.ignoringCsvFile': {
-    description: 'Warning: a push-only flag was given on a pull.',
+    description:
+      'Warning: a push-only flag was given on a pull. {flag} is the `--csv-file` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.collectionSync.tally': {
     description:
@@ -726,7 +742,7 @@ export const cliSyncMeta = {
   // ── `export` (flag mode) ──────────────────────────────────────────────
   'cli.export.formatFlagConflict': {
     description:
-      'Usage error: output-shape flags were combined with a format that does not read them — column/CSV flags with text or md, or --dialect with md. {flags} is an "and"-joined list of flag names; {format} is an export format slug.',
+      'Usage error: output-shape flags were combined with a format that does not read them — column/CSV flags with text or md, or --dialect with md. {flags} is an "and"-joined list of flag names; {format} is an export format slug. {formatFlag} is the `--format` flag; {dialectFlag} is the `--dialect` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.export.unknownPreset': {
     description:
@@ -745,7 +761,7 @@ export const cliSyncMeta = {
   },
   'cli.export.wizardNeedsTerminal': {
     description:
-      'Usage error: a bare `ritual export` wants the wizard, which needs a terminal. The examples name flags and are not translated.',
+      'Usage error: a bare `ritual export` wants the wizard, which needs a terminal. {allFlag} is the `--all` flag; {cardFlag} is the `--card` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
 
   // ── `export` wizard — header and menu ─────────────────────────────────

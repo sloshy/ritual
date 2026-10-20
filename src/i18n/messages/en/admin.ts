@@ -69,7 +69,7 @@ export const adminMessages = {
   'admin.auth.passwordHint': 'Password must be at least {count} characters.',
   'admin.auth.setupToken': 'Setup Token',
   'admin.auth.setupTokenHint':
-    'Printed in the terminal where `ritual admin` started. Opening the link it printed fills this in.',
+    'Printed in the terminal where `{command}` started. Opening the link it printed fills this in.',
   'admin.auth.setupTokenRequired': 'Enter the setup token',
   'admin.auth.credentialsRequired': 'Username and password are required',
   'admin.auth.passwordTooShort': 'Password must be at least {count} characters',
@@ -162,7 +162,7 @@ export const adminMessages = {
     $select: 'step',
     starting: 'Starting the build',
     building: 'Building the site',
-    publishing: 'Publishing to dist/',
+    publishing: 'Publishing to {file}',
     done: 'Site published',
     other: 'Building the site',
   },
@@ -188,7 +188,6 @@ export const adminMessages = {
   'admin.buylist.title': 'Card Kingdom buylist',
   'admin.buylist.desc':
     'Card Kingdom’s pricelist feed (~70 MB), used by {command} and the public site’s sell mode. No page load downloads it; server startup refreshes a day-old copy, and this button forces one now.',
-  'admin.buylist.command': 'ritual sell',
   'admin.buylist.empty':
     'No buylist has been downloaded yet. Refresh to fetch it for the first time.',
   'admin.buylist.statusFailed': 'Failed to read the buylist status',
@@ -244,8 +243,6 @@ export const adminMessages = {
   'admin.art.modeUrl': 'Image on the web',
   'admin.art.fileLabel': 'Path inside the art directory',
   'admin.art.urlLabel': 'Image URL',
-  'admin.art.filePlaceholder': 'proxies/sol-ring.jpg',
-  'admin.art.urlPlaceholder': 'https://example.com/sol-ring.jpg',
   'admin.art.previewAlt': 'Custom art preview for {name}',
   'admin.art.previewFailed': 'That image could not be loaded.',
   'admin.art.invalid': 'That custom art is not usable: {reason}',
@@ -386,9 +383,9 @@ export const adminMessages = {
   'admin.importCsv.chooseNameColumn': 'Choose which column holds the card name',
   'admin.importCsv.rowsHint': {
     $plural: 'count',
-    one: '{count} data row detected. Conditions, finishes, and sections are normalized on import (e.g. “Near Mint” → NM, “F” → foil, “side” → Sideboard).',
+    one: '{count} data row detected. Conditions, finishes, and sections are normalized on import (e.g. {example}).',
     other:
-      '{count} data rows detected. Conditions, finishes, and sections are normalized on import (e.g. “Near Mint” → NM, “F” → foil, “side” → Sideboard).',
+      '{count} data rows detected. Conditions, finishes, and sections are normalized on import (e.g. {example}).',
   },
   'admin.importCsv.column': 'Column {index}',
   'admin.importCsv.columnWithHeader': 'Column {index}: {header}',
@@ -777,7 +774,6 @@ export const adminMessages = {
   'admin.collectionSync.intoDesc':
     'A card that appeared on Archidekt belongs in {emphasis} list and only you know which, so every addition lands in this one. It defaults to the {setting} setting, and is created if it does not exist yet.',
   'admin.collectionSync.intoDescEmphasis': 'some',
-  'admin.collectionSync.intoSetting': 'collectionSync.pullTarget',
   'admin.collectionSync.intoLabel': 'List a pull adds new cards to',
   'admin.collectionSync.willBeCreated': '{name} (will be created)',
   'admin.collectionSync.dryRun':
@@ -830,7 +826,6 @@ export const adminMessages = {
     'The CSV import failed: {message} Those cards were not added; the rest of the run applied.',
   'admin.csvOutcome.empty':
     'No CSV was built: not one of the {count} new cards has a printing in your Scryfall cache, so no row could be keyed by a Scryfall ID. Refresh the cache ({command}) and run again.',
-  'admin.csvOutcome.emptyCommand': 'ritual cache preload-all',
   'admin.csvOutcome.failuresLead':
     'Archidekt did not import {dropped} of {total} rows ({reasons}). The lists holding those cards are reported as failed.',
   'admin.csvOutcome.failure': '{card} — {reason}',
@@ -874,8 +869,7 @@ export const adminMessages = {
   'admin.settings.cacheSourceScryfall': 'Scryfall (direct bulk download)',
   'admin.settings.cacheSourceFeed': 'Cache feed (peer-to-peer)',
   'admin.settings.cacheFeedUrl': 'Cache Feed URL',
-  'admin.settings.cacheFeedUrlPlaceholder':
-    'https://feed.example.com/feed.json (uses the built-in default when empty)',
+  'admin.settings.cacheFeedUrlPlaceholder': '{url} (uses the built-in default when empty)',
   'admin.settings.cacheLockTimeout': 'Cache Lock Timeout (seconds)',
   'admin.settings.cacheLockTimeoutPlaceholder': 'e.g. 300',
   'admin.settings.searchDebounce': 'Card Search Debounce (ms)',
@@ -932,18 +926,13 @@ export const adminMessages = {
   'admin.settings.excludeWanted': 'Wanted lists to exclude',
   'admin.settings.apiBaseUrlHint':
     'Optional live backend for a split deployment: a statically deployed site fetches live list data and cache-backed card search from a separately hosted {command} instance at this URL (baked in by the next site build). Leave empty for a fully static site.',
-  'admin.settings.apiBaseUrlCommand': 'ritual serve --api',
   'admin.settings.apiBaseUrl': 'API base URL',
-  'admin.settings.apiBaseUrlPlaceholder': 'https://ritual-api.example.com',
   'admin.settings.sellMode': 'Offer sell mode',
   'admin.settings.sellModeHint':
     'Show Card Kingdom buy prices, the buylist filters and groupings, and the sell-cart export — both on the published site and in this admin’s editors, Move Cards panes and Refresh Cache page. Off by default: turning it on makes every site build and cache refresh download and index Card Kingdom’s ~70 MB buylist. Saving applies immediately, with no reload or restart; a server started with {flag} offers sell mode whatever this is set to.',
-  'admin.settings.sellModeFlag': '--sell-mode',
   'admin.settings.printingsHeading': 'Default Printings',
   'admin.settings.printingsHint':
     "Printings that may never be auto-selected as a card's default (featured) printing, one per line as {format} (e.g. {example}). When a banned printing would be chosen, the next eligible printing is featured instead. Banned printings can still be viewed and entered manually.",
-  'admin.settings.printingsFormat': 'SET:COLLECTOR',
-  'admin.settings.printingsExample': 'SLD:123',
   'admin.settings.bannedPrintings': 'Banned default printings',
-  'admin.settings.bannedPrintingsPlaceholder': 'e.g. SLD:123',
+  'admin.settings.bannedPrintingsPlaceholder': 'e.g. {example}',
 } as const satisfies MessageCatalogShape

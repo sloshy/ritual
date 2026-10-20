@@ -117,7 +117,8 @@ export const cliInfraMeta = {
     description: '`cache preload-set` failed. {reason} is an underlying error message.',
   },
   'cli.cache.preloadSetNotFound': {
-    description: 'The set code matched nothing on Scryfall — almost always a typo.',
+    description:
+      'The set code matched nothing on Scryfall — almost always a typo. {url} is the example URL `https://scryfall.com/sets`. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cache.preloadSetNoPrintings': {
     description:
@@ -133,7 +134,8 @@ export const cliInfraMeta = {
 
   // ── cache feed ────────────────────────────────────────────────────────
   'cli.cacheFeed.invalidCards': {
-    description: 'Usage error for `cache feed host --cards`. The quoted words are literal values.',
+    description:
+      'Usage error for `cache feed host --cards`. The quoted words are literal values. {flag} is the `--cards` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cacheFeed.initialFeedFailed': {
     description:
@@ -166,7 +168,8 @@ export const cliInfraMeta = {
     description: 'The base URL peers will reach this feed host at.',
   },
   'cli.cacheFeed.seedingDisabled': {
-    description: 'The feed host was started with --no-seed.',
+    description:
+      'The feed host was started with --no-seed. {flag} is the `--no-seed` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cacheFeed.syncing': { description: '`cache feed fetch` is contacting the feed.' },
   'cli.cacheFeed.syncFailed': {
@@ -262,7 +265,7 @@ export const cliInfraMeta = {
   },
   'cli.cacheFeed.missingAllCardsEntry': {
     description:
-      'The feed lacks the every-language card artifact the configured card language needs. {kind} is the literal "all-cards". `defaultLanguage`, `all_cards`, the command and the flag are literal and are not translated.',
+      'The feed lacks the every-language card artifact the configured card language needs. {kind} is the literal "all-cards". `all_cards` is a Scryfall bulk name and is not translated. {configKey} is the `defaultLanguage` config key; {hostCommand} is the `cache feed host --cards all` command line (without the `ritual` prefix); {sourceFlag} is `--source scryfall`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.cacheFeed.reusing': {
     description:
@@ -370,11 +373,11 @@ export const cliInfraMeta = {
   // ── cache freshness gates ─────────────────────────────────────────────
   'cli.cacheGate.emptyAdvice': {
     description:
-      'Appended to a command\'s own "the card cache is empty" sentence ({lead}) to say how to fill it. The command and the flag are literal.',
+      'Appended to a command\'s own "the card cache is empty" sentence ({lead}) to say how to fill it. {command} is the `ritual cache preload-all` command line; {flag} is `--refresh auto`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.cacheGate.bulkMismatch': {
     description:
-      'The card cache was downloaded for a different card language setting than the configured one. {recorded} is the Scryfall bulk it was built from ("default_cards" or "all_cards", literal); {language} is the configured card language code (e.g. "ja"). The form is chosen by {required}, the bulk the configuration needs ("all_cards" or "default_cards"), which is not itself printed; {language} appears only in the all_cards form. "defaultLanguage" is a config key and the quoted bulk names are literal. Followed by a question or a progress note.',
+      'The card cache was downloaded for a different card language setting than the configured one. {recorded} is the Scryfall bulk it was built from ("default_cards" or "all_cards", literal); {language} is the configured card language code (e.g. "ja"). The form is chosen by {required}, the bulk the configuration needs ("all_cards" or "default_cards"), which is not itself printed; {language} appears only in the all_cards form. Followed by a question or a progress note. {configKey} is the `defaultLanguage` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cacheGate.bulkMismatchConfirm': {
     description:
@@ -434,7 +437,8 @@ export const cliInfraMeta = {
       'Yes/no prompt before building or serving a site. "Oracle/art tags" are Scryfall\'s community card tags, which power the site\'s tag filters.',
   },
   'cli.cacheGate.tagsSkipped': {
-    description: 'The tag download was declined. The command is literal.',
+    description:
+      'The tag download was declined. {command} is the `ritual cache refresh-tags` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cacheGate.tagsFetching': { description: 'Progress line: the tag download has started.' },
   'cli.cacheGate.tagsFailed': {
@@ -644,11 +648,11 @@ export const cliInfraMeta = {
   // ── --cache-server ────────────────────────────────────────────────────
   'cli.cacheServer.addressEmpty': {
     description:
-      'Usage error: the --cache-server flag or RITUAL_CACHE_SERVER environment variable is blank. The example address is literal.',
+      'Usage error: the --cache-server flag or RITUAL_CACHE_SERVER environment variable is blank. {example} is the example value `localhost:4000`. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cacheServer.addressInvalid': {
     description:
-      'Usage error: the --cache-server flag or RITUAL_CACHE_SERVER environment variable is not a host name with a port. The example addresses are literal.',
+      'Usage error: the --cache-server flag or RITUAL_CACHE_SERVER environment variable is not a host name with a port. {example} is the example value `localhost:4000`; {exampleUrl} is the example URL `http://localhost:4000`. Each is typed or matched exactly by the user, so never translate them.',
   },
 
   // ── cache server / cache feed flags ───────────────────────────────────
@@ -656,13 +660,9 @@ export const cliInfraMeta = {
     description:
       "Usage error: a refresh-interval flag (`cache server --cards-refresh`/`--prices-refresh`, `cache feed host`/`fetch --refresh`) or its environment variable named an unknown interval. 'daily', 'weekly' and 'monthly' are the literal values the flag accepts.",
   },
-  'cli.cache.feedUrlEmpty': {
-    description:
-      'Usage error: the --url flag (the cache feed\'s address) was given an empty value. "--url" is a literal flag. No closing period.',
-  },
   'cli.cache.feedUrlNeedsFeedSource': {
     description:
-      "Usage error: --url (a cache feed's address) was combined with a cache source other than the feed, so it would be ignored. --url and 'feed' (the cache-source value) are literal.",
+      "Usage error: --url (a cache feed's address) was combined with a cache source other than the feed, so it would be ignored. 'feed' (the cache-source value) is literal. {flag} is the `--url` flag. It is typed or matched exactly by the user, so never translate it.",
   },
 
   // ── cache server (operator log) ───────────────────────────────────────
@@ -709,10 +709,10 @@ export const cliInfraMeta = {
     description: `${CACHE_SERVER_LOG} The server could not start listening — usually the port is already in use.`,
   },
   'cli.cacheServer.httpDenied': {
-    description: `${CACHE_SERVER_LOG} The server was started with --deny-http (a test mode): it will not download anything. --deny-http is a literal flag.`,
+    description: `${CACHE_SERVER_LOG} The server was started with --deny-http (a test mode): it will not download anything. {flag} is the \`--deny-http\` flag. It is typed or matched exactly by the user, so never translate it.`,
   },
   'cli.cacheServer.feedDisabled': {
-    description: `${CACHE_SERVER_LOG} The cache source is the feed, but --deny-http forbids downloading it, so the feed is not used. --deny-http is a literal flag.`,
+    description: `${CACHE_SERVER_LOG} The cache source is the feed, but --deny-http forbids downloading it, so the feed is not used. {flag} is the \`--deny-http\` flag. It is typed or matched exactly by the user, so never translate it.`,
   },
   'cli.cacheServer.verbose': {
     description: `${CACHE_SERVER_LOG} The server was started with --verbose and will log every request it serves.`,
@@ -769,7 +769,7 @@ export const cliInfraMeta = {
   },
   'cli.config.addRemoveScalar': {
     description:
-      'Usage error from `ritual config set`: --add and --remove (flags, literal) add to or remove from a list-valued setting, and this setting holds a single value. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name. {property} is the property name the user typed (a config key such as "cacheSource" or a dotted path such as "admin.gitEnabled"); never translate it. Keep the straight quotes around it. {typeName} is the kind of value it holds (cli.config.fieldType: string, boolean or number).',
+      'Usage error from `ritual config set`: --add and --remove add to or remove from a list-valued setting, and this setting holds a single value. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name. {property} is the property name the user typed (a config key such as "cacheSource" or a dotted path such as "admin.gitEnabled"); Keep the straight quotes around it. {typeName} is the kind of value it holds (cli.config.fieldType: string, boolean or number). {addFlag} is the `--add` flag; {removeFlag} is the `--remove` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.config.tooManyValues': {
     description:
@@ -797,21 +797,22 @@ export const cliInfraMeta = {
   },
   'cli.config.siteManaged': {
     description:
-      'Usage error from `ritual config set`/`unset`: the deployment part of the "site" settings block is written by the `ritual init-site` command, so it cannot be changed this way; only the public-site selection lists can. One branch per command (set, unset): the participle and the quoted command in a branch are the same word, and only the participle is translated — "config set", "config unset", "site" and "ritual init-site" are literal. {properties} is the list of property names that may be changed, already joined in the reader\'s language; never translate them.',
+      'Usage error from `ritual config set`/`unset`: the deployment part of the "site" settings block is written by the `ritual init-site` command, so it cannot be changed this way; only the public-site selection lists can. One branch per command (set, unset): the participle and the quoted command in a branch are the same word, and only the participle is translated. {properties} is the list of property names that may be changed, already joined in the reader\'s language. {configKey} is the `site` config key; {initSiteCommand} is the `ritual init-site` command line; {configCommand} is the `config set` or `config unset` command name, matching the branch. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.config.managedOwned': {
     description:
-      'Usage error from `ritual config set`/`unset`: the "managed" settings block is Ritual\'s own bookkeeping, kept current by the `ritual init-site` and `ritual migrate` commands. One branch per command (set, unset): the participle and the quoted command in a branch are the same word, and only the participle is translated — "config set", "config unset", "managed", "ritual init-site" and "ritual migrate" are literal.',
+      'Usage error from `ritual config set`/`unset`: the "managed" settings block is Ritual\'s own bookkeeping, kept current by the `ritual init-site` and `ritual migrate` commands. One branch per command (set, unset): the participle and the quoted command in a branch are the same word, and only the participle is translated. {configKey} is the `managed` config key; {configCommand} is the `config set` or `config unset` command name, matching the branch; {initSiteCommand} is the `ritual init-site` command line; {migrateCommand} is the `ritual migrate` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
 
   // ── serve ─────────────────────────────────────────────────────────────
   'cli.serve.building': { description: '`serve --build` is building the site first.' },
   'cli.serve.noBuiltSite': {
     description:
-      'Nothing to serve. {outDirFlag} is either empty or a ready-to-paste " --out-dir <path>" fragment.',
+      'Nothing to serve. {command} is the `ritual build-site` command line, with `--out-dir <path>` appended when one was given; {flag} is the `--build` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.serve.cacheImagesNote': {
-    description: '--cache-images has no effect on the live data served by `serve --api`.',
+    description:
+      '--cache-images has no effect on the live data served by `serve --api`. {flag} is the `--cache-images` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.serve.emptyCardCache': {
     description:
@@ -829,9 +830,13 @@ export const cliInfraMeta = {
   },
 
   // ── admin ─────────────────────────────────────────────────────────────
-  'cli.admin.mcpTokenRequired': { description: '`admin --mcp` was given without a bearer token.' },
+  'cli.admin.mcpTokenRequired': {
+    description:
+      '`admin --mcp` was given without a bearer token. {mcpFlag} is the `--mcp` flag; {mcpTokenFlag} is `--mcp-token <secret>`, a flag and its value; {envVar} is the `RITUAL_MCP_TOKEN` environment variable. Each is typed or matched exactly by the user, so never translate them.',
+  },
   'cli.admin.mcpPortConflict': {
-    description: 'The embedded MCP endpoint was pointed at the admin server’s own port.',
+    description:
+      'The embedded MCP endpoint was pointed at the admin server’s own port. {mcpPortFlag} is the `--mcp-port` flag; {portFlag} is the `--port` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.admin.preparing': { description: '`admin` is bundling assets before listening.' },
   'cli.admin.ready': { description: 'The admin assets are written; the server is about to start.' },
@@ -861,7 +866,7 @@ export const cliInfraMeta = {
   },
   'cli.admin.setupRequired': {
     description:
-      'Printed at startup while no admin account exists. {url} is the setup link carrying the one-time setup token; the account can only be created through it (or the `ritual admin setup` command, kept verbatim).',
+      'Printed at startup while no admin account exists. {url} is the setup link carrying the one-time setup token; the account can only be created through it (or the {command} command). {command} is the `ritual admin setup` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.admin.teardownFailedMcp': {
     description:
@@ -891,9 +896,13 @@ export const cliInfraMeta = {
     description: 'The given admin password is below the minimum length. {min} is that minimum.',
   },
   'cli.admin.noUser': {
-    description: 'An account subcommand needs an existing admin user and there is none.',
+    description:
+      'An account subcommand needs an existing admin user and there is none. {command} is the `ritual admin setup` command line. It is typed or matched exactly by the user, so never translate it.',
   },
-  'cli.admin.usernameRequired': { description: '`admin setup` was run without --username.' },
+  'cli.admin.usernameRequired': {
+    description:
+      '`admin setup` was run without --username. {flag} is the `--username` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.admin.userExists': { description: '`admin setup` was run but an account already exists.' },
   'cli.admin.userCreated': { description: '`admin setup` succeeded.' },
   'cli.admin.passwordReset': { description: '`admin reset-password` succeeded.' },
@@ -907,10 +916,17 @@ export const cliInfraMeta = {
     description:
       'Usage error of `build-site --theme` / `admin --theme`: the named colour theme does not exist. {value} is what the user typed; {choices} is the list of built-in theme names (slugs such as "izzet", never translated), already joined in the reader\'s language.',
   },
-  'cli.buildSite.themeFileUnreadable': { description: 'A --theme-file path could not be read.' },
-  'cli.buildSite.themeFileNotJson': { description: 'A --theme-file is not valid JSON.' },
+  'cli.buildSite.themeFileUnreadable': {
+    description:
+      'A --theme-file path could not be read. {flag} is the `--theme-file` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'cli.buildSite.themeFileNotJson': {
+    description:
+      'A --theme-file is not valid JSON. {flag} is the `--theme-file` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.buildSite.themeFileInvalid': {
-    description: 'A --theme-file parsed but is not a valid theme. {reason} explains why.',
+    description:
+      'A --theme-file parsed but is not a valid theme. {reason} explains why. {flag} is the `--theme-file` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.buildSite.spaBuildFailed': {
     description:
@@ -922,15 +938,15 @@ export const cliInfraMeta = {
   },
   'cli.buildSite.outDirBlank': {
     description:
-      'Usage error of `build-site` / `serve`: --out-dir was given an empty value. "--out-dir" is the flag and is never translated.',
+      'Usage error of `build-site` / `serve`: --out-dir was given an empty value. {flag} is the `--out-dir` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.buildSite.outDirIsBase': {
     description:
-      'Usage error: --out-dir points at the Ritual directory that holds the user\'s lists. A build deletes and replaces its output directory, and `serve` publishes it, so this would destroy or publish the lists. {base} is that directory\'s path. "--out-dir" is the flag and is never translated.',
+      "Usage error: --out-dir points at the Ritual directory that holds the user's lists. A build deletes and replaces its output directory, and `serve` publishes it, so this would destroy or publish the lists. {base} is that directory's path. {flag} is the `--out-dir` flag. It is typed or matched exactly by the user, so never translate it.",
   },
   'cli.buildSite.outDirContainsBase': {
     description:
-      'Usage error: --out-dir points at a directory that contains the Ritual directory (a parent of it), with the same danger as cli.buildSite.outDirIsBase. {dir} is the given output directory, {base} the Ritual directory, both paths. "--out-dir" is the flag and is never translated.',
+      'Usage error: --out-dir points at a directory that contains the Ritual directory (a parent of it), with the same danger as cli.buildSite.outDirIsBase. {dir} is the given output directory, {base} the Ritual directory, both paths. {flag} is the `--out-dir` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.buildSite.previousBuildNotRemoved': {
     description:
@@ -949,29 +965,39 @@ export const cliInfraMeta = {
   },
   'cli.buildSite.localeFileBadTag': {
     description:
-      'A --locale-file is named for something that is not a BCP-47 tag. {path} is the file as given; {reason} is the tag parser’s explanation, already translated (e.g. "invalid locale tag: de_DE").',
+      'A --locale-file is named for something that is not a BCP-47 tag. {path} is the file as given; {reason} is the tag parser’s explanation, already translated (e.g. "invalid locale tag: de_DE"). {flag} is the `--locale-file` flag. It is typed or matched exactly by the user, so never translate it.',
   },
-  'cli.buildSite.localeFileUnreadable': { description: 'A --locale-file path could not be read.' },
+  'cli.buildSite.localeFileUnreadable': {
+    description:
+      'A --locale-file path could not be read. {flag} is the `--locale-file` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.buildSite.localeFileInvalid': {
-    description: 'A --locale-file failed validation. {reason} is one of the fragments above.',
+    description:
+      'A --locale-file failed validation. {reason} is one of the fragments above. {flag} is the `--locale-file` flag. It is typed or matched exactly by the user, so never translate it.',
   },
-  'cli.buildSite.localeInvalid': { description: 'The --locale value is not a valid BCP-47 tag.' },
-  'cli.buildSite.localesInvalid': { description: 'A --locales value is not a valid BCP-47 tag.' },
+  'cli.buildSite.localeInvalid': {
+    description:
+      'The --locale value is not a valid BCP-47 tag. {flag} is the `--locale` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'cli.buildSite.localesInvalid': {
+    description:
+      'A --locales value is not a valid BCP-47 tag. {flag} is the `--locales` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.buildSite.localesUnknown': {
     description:
-      'A --locales tag names a locale this build has no dictionary for. RITUAL_BUNDLED_LOCALES is an env var name.',
+      'A --locales tag names a locale this build has no dictionary for. RITUAL_BUNDLED_LOCALES is an env var name. {localesFlag} is the `--locales` flag; {localeFileFlag} is `--locale-file <path>`, a flag and its value; {envVar} is the `RITUAL_BUNDLED_LOCALES` environment variable. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.buildSite.bakedLocaleUndictionaried': {
     description:
-      'Warning: the baked-in locale has no dictionary, so the site renders English under a non-English html lang.',
+      'Warning: the baked-in locale has no dictionary, so the site renders English under a non-English html lang. {flag} is `--locale-file <path>`, a flag and its value. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.buildSite.storesNotEnabled': {
     description:
-      "Usage error: no store given to `build-site --price-sources` is enabled in priceSources. {stores} is the list of store tokens asked for, {sources} the enabled ones, both already joined in the reader's language; the tokens, `--price-sources`, `priceSources` and the quoted command are literal and must not be translated.",
+      "Usage error: no store given to `build-site --price-sources` is enabled in priceSources. {stores} is the list of store tokens asked for, {sources} the enabled ones, both already joined in the reader's language. {flag} is the `--price-sources` flag; {configKey} is the `priceSources` config key; {command} is the `ritual config set priceSources --add cardhoarder` command line. Each is typed or matched exactly by the user, so never translate them.",
   },
   'cli.buildSite.storesNoneEnabled': {
     description:
-      'The same usage error when priceSources enables no store at all (the config sets it to an empty list, meaning "show no prices"). {stores} is the list of store tokens asked for, already joined in the reader\'s language; the tokens, `--price-sources`, `priceSources` and the quoted command are literal and must not be translated.',
+      'The same usage error when priceSources enables no store at all (the config sets it to an empty list, meaning "show no prices"). {stores} is the list of store tokens asked for, already joined in the reader\'s language. {flag} is the `--price-sources` flag; {configKey} is the `priceSources` config key; {command} is the `ritual config set priceSources --add cardhoarder` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.buildSite.selectionFlagEmpty': {
     description: 'A --decks/--collections/--wanted-lists flag was given with no names.',
@@ -994,7 +1020,7 @@ export const cliInfraMeta = {
   },
   'cli.buildSite.includeUnmatched': {
     description:
-      'Warning: the site selection config names a list that no longer exists. {configKey} is a literal config key.',
+      "Warning: the site selection config names a list that no longer exists. {configKey} is the include list's config key path, e.g. `site.includeDecks`. It is typed or matched exactly by the user, so never translate it.",
   },
   'cli.buildSite.foundSources': {
     description:
@@ -1013,14 +1039,16 @@ export const cliInfraMeta = {
     description: 'The build failed, so the previously published site is untouched.',
   },
   'cli.buildSite.nothingToBuild': {
-    description: 'There are no lists at all. The backticked commands are literal.',
+    description:
+      'There are no lists at all. {newDeckCommand} is the `ritual new deck` command line; {editCommand} is the `ritual edit` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.buildSite.starting': { description: 'First line of a build.' },
   'cli.buildSite.cachingImages': { description: 'Progress line under --cache-images.' },
   'cli.buildSite.usingImageUrls': { description: 'Progress line without --cache-images.' },
   'cli.buildSite.fetchingSymbols': { description: 'Progress line: mana symbol download phase.' },
   'cli.buildSite.noSymbology': {
-    description: 'Warning: --refresh never left the symbology uncached, so symbols will be absent.',
+    description:
+      'Warning: --refresh never left the symbology uncached, so symbols will be absent. {refreshNeverFlag} is `--refresh never`, a flag and its value; {refreshAutoFlag} is `--refresh auto`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.buildSite.symbolDownloadFailed': {
     description: 'One mana symbol failed to download. The error is printed after this line.',
@@ -1110,12 +1138,16 @@ export const cliInfraMeta = {
 
   // ── init-site ─────────────────────────────────────────────────────────
   'cli.initSite.cancelled': { description: 'A prompt was cancelled, so nothing was written.' },
-  'cli.initSite.distDirRequired': { description: '--dist-dir was given an empty value.' },
+  'cli.initSite.distDirRequired': {
+    description:
+      '--dist-dir was given an empty value. {flag} is the `--dist-dir` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.initSite.promptOverwrite': {
     description: 'Confirm prompt before overwriting a generated file. {path} is repo-relative.',
   },
   'cli.initSite.promptSkills': {
-    description: 'Confirm prompt: install the Ritual agent skills into this repository?',
+    description:
+      'Confirm prompt: install the Ritual agent skills into this repository? {file} is the `.claude/skills` directory. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.initSite.promptPriceSource': {
     description:
@@ -1137,46 +1169,68 @@ export const cliInfraMeta = {
   'cli.initSite.deployPublish': { description: 'Choice title: Ritual builds and deploys for you.' },
   'cli.initSite.deployPublishHint': { description: 'Choice hint under the publish-for-me row.' },
   'cli.initSite.deployLocal': { description: 'Choice title: you build, the action deploys.' },
-  'cli.initSite.deployLocalHint': { description: 'Choice hint under the local-build row.' },
+  'cli.initSite.deployLocalHint': {
+    description:
+      'Choice hint under the local-build row. {command} is the `build-site` command name. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.initSite.promptDistDir': { description: 'Text prompt: the built-site directory.' },
   'cli.initSite.promptChangeDetection': {
     description: 'Confirm prompt: add the changelog-committing step to the workflow?',
   },
   'cli.initSite.readmeExists': {
-    description: 'README.md exists, prompts are unavailable, and no explicit decision was given.',
+    description:
+      'README.md exists, prompts are unavailable, and no explicit decision was given. {file} is the `README.md` file name; {overwriteReadmeFlag} is the `--overwrite-readme` flag; {noOverwriteReadmeFlag} is the `--no-overwrite-readme` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.initSite.fileExists': {
-    description: 'A generated file exists and prompts are unavailable.',
+    description:
+      'A generated file exists and prompts are unavailable. {flag} is the `--force` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.initSite.alreadyInitializedFlags': {
-    description: 'Fresh-init flags were given in an already-initialized repository.',
+    description:
+      'Fresh-init flags were given in an already-initialized repository. {ciFlag} is the `--ci` flag; {deployFlag} is the `--deploy` flag; {distDirFlag} is the `--dist-dir` flag; {changeDetectionFlag} is the `--change-detection` flag; {priceSourceFlag} is the `--price-source` flag; {overwriteReadmeFlag} is the `--overwrite-readme` flag; {forceFlag} is the `--force` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.initSite.manualOnlyFlags': {
-    description: 'GitHub-Actions-only flags were combined with --ci manual.',
+    description:
+      'GitHub-Actions-only flags were combined with --ci manual. {deployFlag} is the `--deploy` flag; {distDirFlag} is the `--dist-dir` flag; {changeDetectionFlag} is the `--change-detection` flag; {ciGithubActionsFlag} is `--ci github-actions`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.initSite.changeDetectionScope': {
-    description: '--change-detection was combined with a deploy mode that has no such step.',
+    description:
+      '--change-detection was combined with a deploy mode that has no such step. {changeDetectionFlag} is the `--change-detection` flag; {noChangeDetectionFlag} is the `--no-change-detection` flag; {deployPublishForMeFlag} is `--deploy publish-for-me`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.initSite.distDirScope': {
-    description: '--dist-dir was combined with a deploy mode that does not build locally.',
+    description:
+      '--dist-dir was combined with a deploy mode that does not build locally. {distDirFlag} is the `--dist-dir` flag; {deployLocalBuildFlag} is `--deploy local-build`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.initSite.alreadyCurrent': {
     description:
       'Re-running init-site on an initialized repository with no pending `ritual migrate` work. This is a success, not an error.',
   },
-  'cli.initSite.configWriteFailed': { description: 'ritual.config.json could not be written.' },
+  'cli.initSite.configWriteFailed': {
+    description:
+      'ritual.config.json could not be written. {file} is the `ritual.config.json` file name. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.initSite.created': { description: 'A generated file was written.' },
   'cli.initSite.skipped': { description: 'A generated file was left as the user had it.' },
-  'cli.initSite.gitignoreCreated': { description: '.gitignore did not exist and was written.' },
-  'cli.initSite.gitignoreUpdated': { description: '.gitignore gained the missing Ritual entries.' },
-  'cli.initSite.gitignoreUnchanged': { description: '.gitignore already had every entry.' },
+  'cli.initSite.gitignoreCreated': {
+    description:
+      '.gitignore did not exist and was written. {file} is the `.gitignore` file name. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'cli.initSite.gitignoreUpdated': {
+    description:
+      '.gitignore gained the missing Ritual entries. {file} is the `.gitignore` file name. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'cli.initSite.gitignoreUnchanged': {
+    description:
+      '.gitignore already had every entry. {file} is the `.gitignore` file name. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.initSite.gitignoreStillIgnores': {
     description:
-      'Warning: an existing .gitignore pattern still hides the built site this deploy mode must commit. {patterns} lists the offending lines, verbatim, joined the way your language lists independent items (no conjunction).',
+      'Warning: an existing .gitignore pattern still hides the built site this deploy mode must commit. {patterns} lists the offending lines, verbatim, joined the way your language lists independent items (no conjunction). {file} is the `.gitignore` file name. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.initSite.nextSteps': { description: 'Header of the closing checklist.' },
   'cli.initSite.stepAddDecks': {
-    description: 'Checklist step 1. The parenthesized command is literal. Keep the numbering.',
+    description:
+      'Checklist step 1. Keep the numbering. {file} is the `decks/` directory; {command} is the `ritual new deck` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.initSite.stepPreview': {
     description: 'Checklist step 2. {command} is a ready-to-paste shell command.',
@@ -1193,20 +1247,20 @@ export const cliInfraMeta = {
   'cli.initSite.stepPush': { description: 'Checklist step 4 for a publish-for-me deploy.' },
   'cli.initSite.pinVersionTip': {
     description:
-      'Closing tip after a publish-for-me init. "ritual.config.json", "managed.version" and RITUAL_VERSION (a GitHub Actions variable name) are literal and must not be translated, nor the backticked command.',
+      'Closing tip after a publish-for-me init. {envVar} names a GitHub Actions repository variable. {file} is the `ritual.config.json` file name; {configKey} is the `managed.version` config key; {command} is the `ritual migrate` command line; {envVar} is the `RITUAL_VERSION` environment variable. Each is typed or matched exactly by the user, so never translate them.',
   },
 
   // ── migrate ───────────────────────────────────────────────────────────
   'cli.migrate.noConfig': {
     description:
-      '`ritual migrate` ran where there is no ritual.config.json (the file name is literal). A success.',
+      '`ritual migrate` ran where there is no config file. A success. {file} is the `ritual.config.json` file name. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.migrate.upToDate': {
     description: '`ritual migrate`: no migrations or file refreshes are pending. A success.',
   },
   'cli.migrate.pending': {
     description:
-      'Shown by `migrate --check` and by re-running `init-site` when the workspace needs `ritual migrate` (a literal command).',
+      'Shown by `migrate --check` and by re-running `init-site` when the workspace needs migrating. {command} is the `ritual migrate` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.migrate.planHeading': {
     description: 'Heading above the list of changes `ritual migrate` is about to make.',
@@ -1217,18 +1271,19 @@ export const cliInfraMeta = {
   },
   'cli.migrate.migration.dropSiteVersion': {
     description:
-      'What migration 1 does. "site.version", "ritual.config.json" and "managed" are literal config names and must not be translated.',
+      'What migration 1 does. "managed" is a literal config block name and must not be translated. {configKey} is the `site.version` config key; {file} is the `ritual.config.json` file name. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.migrate.migration.dropSitePrerelease': {
     description:
-      'What migration 2 does. "site.prerelease", "ritual.config.json" and "managed.version" are literal config names and must not be translated.',
+      'What migration 2 does. {sitePrereleaseConfigKey} is the `site.prerelease` config key; {file} is the `ritual.config.json` file name; {managedVersionConfigKey} is the `managed.version` config key. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.migrate.opConfigSet': {
     description:
-      'Plan line (indented): a config key will be set. {path} is a dotted key path, {value} its JSON value.',
+      'Plan line (indented): a config key will be set. {path} is a dotted key path, {value} its JSON value. {file} is the `ritual.config.json` file name. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.migrate.opConfigDelete': {
-    description: 'Plan line (indented): a config key will be removed. {path} is a dotted key path.',
+    description:
+      'Plan line (indented): a config key will be removed. {path} is a dotted key path. {file} is the `ritual.config.json` file name. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.migrate.opWrite': {
     description: 'Plan line (indented): a workspace file will be written. {path} is relative.',
@@ -1245,7 +1300,7 @@ export const cliInfraMeta = {
   },
   'cli.migrate.refreshGitignore': {
     description:
-      'Plan line (indented): {entries} is a comma-separated list of .gitignore patterns to append.',
+      'Plan line (indented): {entries} is a comma-separated list of .gitignore patterns to append. {file} is the `.gitignore` file name. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.migrate.refreshSkill': {
     description: 'Plan line (indented): an installed agent skill {name} is rewritten.',
@@ -1290,51 +1345,51 @@ export const cliInfraMeta = {
   'cli.migrate.done': { description: 'Closing line after `ritual migrate` applied everything.' },
   'cli.migrate.devBuild': {
     description:
-      'Warning after a development build applied migrations. {version} is the running version; {pinned} is the release CI keeps downloading. "managed.version" is a literal config key; the backticked command is literal.',
+      'Warning after a development build applied migrations. {version} is the running version; {pinned} is the release CI keeps downloading. {configKey} is the `managed.version` config key; {command} is the `ritual migrate` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.migrate.devBuildNoPin': {
     description:
-      'The same warning when the workspace has no pinned release, so CI falls back to the newest release (latest stable, else newest prerelease). {version} is the running version; "managed.version" and the backticked command are literal.',
+      'The same warning when the workspace has no pinned release, so CI falls back to the newest release (latest stable, else newest prerelease). {version} is the running version. {configKey} is the `managed.version` config key; {command} is the `ritual migrate` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.migrate.ahead': {
     description:
-      'Refusal: a newer Ritual release last updated the workspace. {version} is that release (appears twice); the backticked command is literal apart from {version}.',
+      'Refusal: a newer Ritual release last updated the workspace. {version} is that release (appears twice; the second completes the backticked command). {command} is the `ritual self-update --tag` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.migrate.aheadNoVersion': {
     description:
-      'The same refusal when no release was recorded. {applied}/{latest} are migration numbers; the backticked command is literal.',
+      'The same refusal when no release was recorded. {applied}/{latest} are migration numbers. {command} is the `ritual self-update` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.migrate.changedSincePlan': {
     description:
-      'Refusal: the config file changed between planning and applying. "ritual.config.json" and the backticked command are literal.',
+      'Refusal: the config file changed between planning and applying. {file} is the `ritual.config.json` file name; {commandName} is the `migrate` command name; {command} is the `ritual migrate` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.migrate.invalid': {
     description:
-      'Refusal: the migrated config still fails validation. {error} is the validation message, a phrase of its own already in the reader\'s language; "ritual.config.json" and the backticked command are literal.',
+      "Refusal: the migrated config still fails validation. {error} is the validation message, a phrase of its own already in the reader's language. {file} is the `ritual.config.json` file name; {command} is the `ritual migrate` command line. Each is typed or matched exactly by the user, so never translate them.",
   },
   'cli.migrate.offer': {
     description:
-      'Yes/no question asked before an ordinary command runs, after the list of pending workspace updates. The backticked command is literal. Yes applies the updates and then the command continues.',
+      'Yes/no question asked before an ordinary command runs, after the list of pending workspace updates. Yes applies the updates and then the command continues. {command} is the `ritual migrate` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.migrate.offerDeclined': {
     description:
-      'Printed after the user answers no to cli.migrate.offer; the command then continues. Ritual asks at most once a day per workspace. The backticked command is literal.',
+      'Printed after the user answers no to cli.migrate.offer; the command then continues. Ritual asks at most once a day per workspace. {command} is the `ritual migrate` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.migrate.notice.pending': {
     description:
-      'One stderr line printed before an ordinary command when the workspace has updates `ritual migrate` would apply and Ritual cannot (or already did today) ask. The command still runs. Backticked commands are literal.',
+      'One stderr line printed before an ordinary command when the workspace has updates `ritual migrate` would apply and Ritual cannot (or already did today) ask. The command still runs. {migrateDryRunCommand} is the `ritual migrate --dry-run` command line; {migrateCommand} is the `ritual migrate` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.migrate.notice.pendingConfig': {
     description:
-      'Variant of cli.migrate.notice.pending when the config file will also print validation warnings that applying the updates fixes. "ritual.config.json" and the backticked commands are literal.',
+      'Variant of cli.migrate.notice.pending when the config file will also print validation warnings that applying the updates fixes. {file} is the `ritual.config.json` file name; {migrateDryRunCommand} is the `ritual migrate --dry-run` command line; {migrateCommand} is the `ritual migrate` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.migrate.notice.ahead': {
     description:
-      'One stderr warning before a command when a newer Ritual release last updated the workspace; the command still runs. {version} is that release (appears twice), {current} is the running build; the backticked command is literal apart from {version}.',
+      'One stderr warning before a command when a newer Ritual release last updated the workspace; the command still runs. {version} is that release (appears twice), {current} is the running build; the second {version} completes the backticked command. {command} is the `ritual self-update --tag` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.migrate.notice.aheadNoVersion': {
     description:
-      'The same warning when no release was recorded. {applied}/{latest} are migration numbers; the backticked command is literal.',
+      'The same warning when no release was recorded. {applied}/{latest} are migration numbers. {command} is the `ritual self-update` command line. It is typed or matched exactly by the user, so never translate it.',
   },
 
   // ── self-update ───────────────────────────────────────────────────────
@@ -1379,15 +1434,15 @@ export const cliInfraMeta = {
   },
   'cli.selfUpdate.workspaceCheckFailed': {
     description:
-      'Warning when the new binary could not be started to preview workspace updates; the update itself succeeded. {error} is the English system error; the backticked command is literal.',
+      'Warning when the new binary could not be started to preview workspace updates; the update itself succeeded. {error} is the English system error. {command} is the `ritual migrate --dry-run` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.selfUpdate.refuse.notRelease': {
     description:
-      'Refusal: the running Ritual is not a downloaded release binary (a source checkout or local build), so there is nothing self-update can safely replace. {version} is its version string. "self-update" is the literal command name.',
+      'Refusal: the running Ritual is not a downloaded release binary (a source checkout or local build), so there is nothing self-update can safely replace. {version} is its version string. {command} is the `self-update` command name. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.selfUpdate.refuse.docker': {
     description:
-      'Refusal inside the Docker image: the image must be updated, not the binary. The `docker pull` command is literal.',
+      'Refusal inside the Docker image: the image must be updated, not the binary. {command} is the `self-update` command name; {dockerCommand} is the `docker pull ghcr.io/sloshy/ritual` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.selfUpdate.refuse.notWritable': {
     description:
@@ -1411,11 +1466,11 @@ export const cliInfraMeta = {
   },
   'cli.selfUpdate.error.rateLimited': {
     description:
-      'GitHub refused the request (HTTP {status}), most likely its API rate limit for anonymous callers. {url} is the address; GITHUB_TOKEN is a literal environment variable name.',
+      'GitHub refused the request (HTTP {status}), most likely its API rate limit for anonymous callers. {url} is the address. {envVar} is the `GITHUB_TOKEN` environment variable. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.selfUpdate.error.redirectRefused': {
     description:
-      'Refusal: an authenticated GitHub API request was redirected to a different site, which would have received the token. {url} and {location} are addresses; GITHUB_TOKEN is a literal environment variable name.',
+      'Refusal: an authenticated GitHub API request was redirected to a different site, which would have received the token. {url} and {location} are addresses. {envVar} is the `GITHUB_TOKEN` environment variable (it appears twice). It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.selfUpdate.error.badResponse': {
     description:
@@ -1423,7 +1478,7 @@ export const cliInfraMeta = {
   },
   'cli.selfUpdate.error.noStableRelease': {
     description:
-      'Only prereleases exist so far, so the stable channel has nothing to install. The backticked command is literal.',
+      'Only prereleases exist so far, so the stable channel has nothing to install. {command} is the `ritual self-update --prerelease` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.selfUpdate.error.noRelease': {
     description: 'The prerelease channel found no release at all.',
@@ -1528,7 +1583,7 @@ export const cliInfraMeta = {
   // ── update-available notice ───────────────────────────────────────────
   'cli.updateNotice.available': {
     description:
-      "One stderr line printed after a command's own output, at most once a day per release, when a newer Ritual release exists. {latest} is that release's version, {current} the running one. The backticked command is literal.",
+      "One stderr line printed after a command's own output, at most once a day per release, when a newer Ritual release exists. {latest} is that release's version, {current} the running one. {command} is the `ritual self-update` command line. It is typed or matched exactly by the user, so never translate it.",
   },
 
   // ── the per-user state file ───────────────────────────────────────────
@@ -1554,18 +1609,21 @@ export const cliInfraMeta = {
   },
   'cli.skills.forceHintRerun': {
     description:
-      'How to overwrite locally edited skills, phrased for the `skills` subcommands. Spliced into cli.skills.skipped as {forceHint}.',
+      'How to overwrite locally edited skills, phrased for the `skills` subcommands. Spliced into cli.skills.skipped as {forceHint}. {flag} is the `--force` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.skills.forceHintInit': {
-    description: 'The same hint phrased for a fresh `init-site`, whose flag is --force.',
+    description:
+      'The same hint phrased for a fresh `init-site`, whose flag is --force. {flag} is the `--force` flag. It is typed or matched exactly by the user, so never translate it.',
   },
 
   // ── mcp ───────────────────────────────────────────────────────────────
   'cli.mcp.refusingUnauthenticated': {
-    description: 'The HTTP transport was pointed at a public interface with no bearer token.',
+    description:
+      'The HTTP transport was pointed at a public interface with no bearer token. {tokenFlag} is `--token <secret>`, a flag and its value; {envVar} is the `RITUAL_MCP_TOKEN` environment variable; {allowUnauthenticatedFlag} is the `--allow-unauthenticated` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.mcp.unauthenticatedWarning': {
-    description: 'The above refusal was overridden with --allow-unauthenticated.',
+    description:
+      'The above refusal was overridden with --allow-unauthenticated. {flag} is the `--allow-unauthenticated` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.mcp.unauthenticatedLoopback': {
     description: 'Serving without a token, which is tolerable because the host is loopback-only.',
@@ -1610,7 +1668,8 @@ export const cliInfraMeta = {
       'The help text under one number field of the collection-sync question above: how many copies to take out of the list {list}, which currently holds {copies} copies.',
   },
   'cli.mcp.stdioIgnoredFlags': {
-    description: 'HTTP-only flags were passed under --transport stdio. {flags} is a flag list.',
+    description:
+      'HTTP-only flags were passed under --transport stdio. {flags} is a flag list. {flag} is `--transport http`, a flag and its value. It is typed or matched exactly by the user, so never translate it.',
   },
 
   // ── dep-license ───────────────────────────────────────────────────────
@@ -1625,11 +1684,16 @@ export const cliInfraMeta = {
     description: 'Section header of `dep-license --list`: indirect dependencies.',
   },
   'cli.depLicense.listWithPackage': {
-    description: '`dep-license` was given both a package name and --list.',
+    description:
+      '`dep-license` was given both a package name and --list. {flag} is the `--list` flag. It is typed or matched exactly by the user, so never translate it.',
   },
-  'cli.depLicense.packageNotFound': { description: 'No bundled dependency has that name.' },
+  'cli.depLicense.packageNotFound': {
+    description:
+      'No bundled dependency has that name. {command} is the `ritual dep-license --list` command line. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.depLicense.needsPackage': {
-    description: 'The dependency picker needs a terminal. {reason} explains which half is missing.',
+    description:
+      'The dependency picker needs a terminal. {reason} explains which half is missing. {flag} is the `--list` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.depLicense.promptSelect': { description: 'Autocomplete prompt of the dependency picker.' },
   'cli.depLicense.primarySeparator': {
@@ -1874,7 +1938,8 @@ export const cliInfraMeta = {
     description: 'Grand total. {counted} is a pre-rendered "N lists" fragment.',
   },
   'cli.sell.unsoldSummary': {
-    description: 'Counts the entries hidden without --all. Keep the indentation.',
+    description:
+      'Counts the entries hidden without --all. Keep the indentation. {flag} is the `--all` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.sell.cacheRequirement': {
     description: 'Why the cache refresh prompt is being shown before a sell report.',
@@ -1888,7 +1953,7 @@ export const cliInfraMeta = {
   // ── locale ────────────────────────────────────────────────────────────
   'cli.locale.sourceConfig': {
     description:
-      'Names the tier that won: the config file. uiLocale and ritual.config.json are literal.',
+      'Names the tier that won: the config file. {configKey} is the `uiLocale` config key; {file} is the `ritual.config.json` file name. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.locale.sourceDetected': {
     description: 'Names the tier that won: OS environment detection.',
@@ -1905,7 +1970,7 @@ export const cliInfraMeta = {
   'cli.locale.detectedNone': { description: 'The environment named no usable language.' },
   'cli.locale.cardLanguage': {
     description:
-      'The card language, printed beside the UI locale precisely so the two are not confused. defaultLanguage is a config key.',
+      'The card language, printed beside the UI locale precisely so the two are not confused. defaultLanguage is a config key. {configKey} is the `defaultLanguage` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.locale.ignoring': { description: 'A locale value was present but unusable.' },
   'cli.locale.envIgnored': {
@@ -1960,10 +2025,16 @@ export const cliInfraMeta = {
   },
   'cli.locale.detectPrompt': {
     description:
-      'The yes/no question offering to persist the detected locale. uiLocale and ritual.config.json are literal.',
+      'The yes/no question offering to persist the detected locale. {configKey} is the `uiLocale` config key; {file} is the `ritual.config.json` file name. Each is typed or matched exactly by the user, so never translate them.',
   },
-  'cli.locale.detectSaved': { description: 'The detected locale was written to the config file.' },
-  'cli.locale.detectDeclined': { description: 'The offer was declined; nothing was written.' },
+  'cli.locale.detectSaved': {
+    description:
+      'The detected locale was written to the config file. {configKey} is the `uiLocale` config key; {file} is the `ritual.config.json` file name. Each is typed or matched exactly by the user, so never translate them.',
+  },
+  'cli.locale.detectDeclined': {
+    description:
+      'The offer was declined; nothing was written. {configKey} is the `uiLocale` config key. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.locale.detectNoPrompt': {
     description:
       'Prompting was impossible, so the equivalent command is printed instead. {reason} is the shared "prompts are disabled" / "stdin is not a terminal" phrase; {command} is a literal command line.',

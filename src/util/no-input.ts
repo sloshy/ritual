@@ -23,6 +23,7 @@ import {
   type SyncMessageRef,
   type SyncParam,
 } from '../sync/message'
+import { ENV_VAR, FLAG, type FlagToken } from './cli-tokens'
 
 let noInputOverride: boolean | undefined
 
@@ -58,7 +59,7 @@ export function isCiEnvironment(envValue: string | undefined = process.env.CI): 
  */
 export function resolveNoInput(
   cliValue: boolean | undefined,
-  envValue: string | undefined = process.env.RITUAL_NO_INPUT,
+  envValue: string | undefined = process.env[ENV_VAR.noInput],
 ): boolean {
   if (cliValue !== undefined) return cliValue
   return envFlagSet(envValue)
@@ -76,7 +77,7 @@ export function setNoInputOverride(value: boolean | undefined): void {
  */
 export function isNoInput(): boolean {
   if (noInputOverride !== undefined) return noInputOverride
-  return envFlagSet(process.env.RITUAL_NO_INPUT)
+  return envFlagSet(process.env[ENV_VAR.noInput])
 }
 
 /**
@@ -103,7 +104,10 @@ export function promptsUnavailableReason(): string {
 
 /** {@link promptsUnavailableReason} unrendered, to nest in a message. */
 function promptsUnavailableReasonRef(): SyncMessageRef {
-  return syncRef(isNoInput() ? 'cli.prompt.reason.noInput' : 'cli.prompt.reason.noTty')
+  return syncRef(isNoInput() ? 'cli.prompt.reason.noInput' : 'cli.prompt.reason.noTty', {
+    flag: FLAG.noInput,
+    envVar: ENV_VAR.noInput,
+  })
 }
 
 /**
@@ -121,9 +125,32 @@ export type PromptSubjectKey = Extract<MessageKey, `cli.prompt.subject.${string}
 
 /**
  * A {@link PromptSubjectKey} that takes no params — what a question names as
- * its `subjectKey`, since `ask` has nowhere to carry params for it.
+ * its `subject`, since `ask` has nowhere to carry params for it.
  */
 export type QuestionSubjectKey = Extract<PromptSubjectKey, ParameterlessKey>
+
+/** A {@link PromptSubjectKey} together with its params, built by {@link promptSubject}. */
+export type PromptSubjectRef = SyncMessageRef & { messageKey: PromptSubjectKey }
+
+/**
+ * What a question names as its subject: a params-free key, or — for a subject
+ * that names the flags to pass instead, which arrive as params — the key with
+ * its params.
+ */
+export type QuestionSubject = QuestionSubjectKey | PromptSubjectRef
+
+/** A prompt subject that takes params, checked against its key like `syncRef`. */
+export function promptSubject<K extends PromptSubjectKey>(
+  key: K,
+  ...args: SyncArgs<K>
+): PromptSubjectRef {
+  return { ...syncRef(key, ...args), messageKey: key }
+}
+
+/** {@link inputRequiredError} for a question's {@link QuestionSubject}. */
+export function questionInputRequiredError(subject: QuestionSubject): CardCommandError {
+  return inputRequired(typeof subject === 'string' ? syncRef(subject) : subject)
+}
 
 /**
  * The one "a prompt was needed and could not run" error: a usage error naming
@@ -144,7 +171,7 @@ export function inputRequiredError<K extends PromptSubjectKey>(
 
 /**
  * The transitional form of {@link inputRequiredError} for a prompt that has
- * not been given a `subjectKey` yet: its own question, already worded, spliced
+ * not been given a `subject` yet: its own question, already worded, spliced
  * in as the subject (in the envelope too — there is no English to carry).
  */
 export function inputRequiredForQuestion(question: string): CardCommandError {
@@ -178,12 +205,6 @@ export function requireInteractive<K extends PromptSubjectKey>(
 }
 
 /**
- * A flag spelling, refused at compile time when it is shaped like a subject key
- * — so a key passed here by mistake cannot be spliced in as if it were a flag.
- */
-type FlagSpelling<S extends string> = S extends `cli.${string}` ? never : S
-
-/**
  * {@link requireInteractive} for a remedy that is one flag or argument, spelled
  * exactly as it is typed (`--yes`, `--finish <foil|nonfoil>`): a command-line
  * token with no words in it, never translated, spliced into the localized
@@ -191,6 +212,6 @@ type FlagSpelling<S extends string> = S extends `cli.${string}` ? never : S
  * own (`cli.prompt.subject.passEither` / `passBoth`), because the conjunction is
  * a word.
  */
-export function requireFlag<S extends string>(flag: FlagSpelling<S>): void {
+export function requireFlag(flag: FlagToken): void {
   requireInteractive('cli.prompt.subject.pass', { what: flag })
 }

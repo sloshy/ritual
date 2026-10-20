@@ -34,12 +34,13 @@ import {
 } from './sync-helpers'
 import { createSyncEventRenderer, printVerboseHint } from './sync-render-event'
 import { t } from '../i18n/t'
+import { CONFIG_KEY, FLAG } from '../util/cli-tokens'
 
 /** Commander argParser for `--into`: the name of the list a pull adds cards to. */
 export function parsePullTarget(value: string): string {
   const trimmed = value.trim()
   if (trimmed === '') {
-    throw new InvalidArgumentError(t('cli.collectionSync.intoRequiresName'))
+    throw new InvalidArgumentError(t('cli.collectionSync.intoRequiresName', { flag: FLAG.into }))
   }
   return trimmed
 }
@@ -51,7 +52,9 @@ export function parsePullTarget(value: string): string {
 export function parseRemovalPriority(value: string, previous: string[]): string[] {
   const trimmed = value.trim()
   if (trimmed === '') {
-    throw new InvalidArgumentError(t('cli.collectionSync.removalPriorityRequiresName'))
+    throw new InvalidArgumentError(
+      t('cli.collectionSync.removalPriorityRequiresName', { flag: FLAG.removalPriority }),
+    )
   }
   return [...previous, trimmed]
 }
@@ -60,7 +63,9 @@ export function parseRemovalPriority(value: string, previous: string[]): string[
 export function parseCsvFile(value: string): string {
   const trimmed = value.trim()
   if (trimmed === '') {
-    throw new InvalidArgumentError(t('cli.collectionSync.csvFileRequiresPath'))
+    throw new InvalidArgumentError(
+      t('cli.collectionSync.csvFileRequiresPath', { flag: FLAG.csvFile }),
+    )
   }
   return trimmed
 }
@@ -163,7 +168,11 @@ export function registerCollectionSyncCommand(program: Command): void {
         'collectionLists',
       )
         .argument('[lists...]', t('help.collectionSync.lists'))
-        .option('--into <list>', t('help.collectionSync.into'), parsePullTarget)
+        .option(
+          '--into <list>',
+          t('help.collectionSync.into', { configKey: CONFIG_KEY.collectionSyncPullTarget }),
+          parsePullTarget,
+        )
         .option(
           '--removal-priority <list>',
           t('help.collectionSync.removalPriority'),
@@ -201,7 +210,10 @@ async function runSync(
   // at all" — there is no reading of the two together, so it is a usage
   // error rather than a precedence rule.
   if (options.csv === true && options.csvFile !== undefined) {
-    fail(scripting, 'usage_error', 'cli.collectionSync.csvFlagsExclusive')
+    fail(scripting, 'usage_error', 'cli.collectionSync.csvFlagsExclusive', {
+      csvFlag: FLAG.csv,
+      csvFileFlag: FLAG.csvFile,
+    })
     return
   }
 
@@ -209,18 +221,18 @@ async function runSync(
   if (!session) return
 
   if (direction === 'push' && options.into !== undefined) {
-    logger.warn(t('cli.collectionSync.ignoringInto'))
+    logger.warn(t('cli.collectionSync.ignoringInto', { flag: FLAG.into }))
   }
 
   const removalPriority = options.removalPriority ?? []
   if (direction === 'push' && removalPriority.length > 0) {
-    logger.warn(t('cli.collectionSync.ignoringRemovalPriority'))
+    logger.warn(t('cli.collectionSync.ignoringRemovalPriority', { flag: FLAG.removalPriority }))
   }
 
   if (direction === 'pull') {
-    if (options.csv === true) logger.warn(t('cli.collectionSync.ignoringCsv'))
+    if (options.csv === true) logger.warn(t('cli.collectionSync.ignoringCsv', { flag: FLAG.csv }))
     if (options.csvFile !== undefined) {
-      logger.warn(t('cli.collectionSync.ignoringCsvFile'))
+      logger.warn(t('cli.collectionSync.ignoringCsvFile', { flag: FLAG.csvFile }))
     }
   }
 

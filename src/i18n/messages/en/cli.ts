@@ -15,8 +15,8 @@ export const cliMessages = {
   // interpolated into the declarative frame `errors.input.required`
   // ("Input required: {subject} ({reason}).") and a question spliced into that
   // frame is ungrammatical in most languages. A prompt names its subject with a
-  // `subjectKey`; the prompt's own question text is never reused here.
-  'cli.prompt.reason.noInput': 'prompts are disabled by --no-input / RITUAL_NO_INPUT',
+  // `subject`; the prompt's own question text is never reused here.
+  'cli.prompt.reason.noInput': 'prompts are disabled by {flag} / {envVar}',
   'cli.prompt.reason.noTty': 'no terminal available for prompts',
   'cli.prompt.subject.pass': 'pass {what}',
   'cli.prompt.subject.interactiveInput': 'interactive input',
@@ -24,16 +24,16 @@ export const cliMessages = {
   'cli.prompt.subject.passEither': 'pass {first} or {second}',
   'cli.prompt.subject.passBoth': 'pass {first} and {second}',
   'cli.prompt.subject.noInteractiveEditor':
-    'the interactive editor is unavailable — use the one-shot commands (add-card, remove-card, set-card, note, move) to edit lists from scripts',
+    'the interactive editor is unavailable — use the one-shot commands ({addCardCommand}, {removeCardCommand}, {setCardCommand}, {noteCommand}, {moveCommand}) to edit lists from scripts',
   'cli.prompt.subject.noHistoryEditor':
-    'the interactive history editor is unavailable — use --show to print the change history from a script',
+    'the interactive history editor is unavailable — use {flag} to print the change history from a script',
   'cli.prompt.subject.passCardOrId': 'pass a card name or {flag}',
   'cli.prompt.subject.listType': 'the kind of list to import into',
   'cli.prompt.subject.deckSection': 'the deck section to move into',
   'cli.prompt.subject.moveDestination': 'the list to move the cards into',
   'cli.prompt.subject.cardsToMove': 'a card to move, or a menu option',
   'cli.prompt.subject.syncPrintings':
-    'whether to import the exact printings (pass --sync-printings or --no-sync-printings)',
+    'whether to import the exact printings (pass {syncPrintingsFlag} or {noSyncPrintingsFlag})',
   'cli.prompt.subject.filterValue': 'a filter value',
   'cli.prompt.subject.exitChoice': 'a choice of what to do with the unsaved changes',
   'cli.prompt.subject.artChoice': "a choice of what to do with the card's custom art",
@@ -141,7 +141,7 @@ export const cliMessages = {
     'Ritual runs faster and hits rate limits less often if data is cached up front. Would you like to pre-cache Scryfall data for {scope}?',
   'cli.session.preloadScopeEnglish': 'all English MTG cards',
   'cli.session.preloadScopeAllLanguages':
-    "all MTG cards in every language (defaultLanguage '{language}' needs the larger all_cards bulk)",
+    "all MTG cards in every language ({configKey} '{language}' needs the larger all_cards bulk)",
   'cli.session.preloadFailed': '\nFailed to preload all cards:',
   'cli.session.createdFile': 'Created new {label} file: {file}',
   'cli.session.usingFile': 'Using {label} file: {file}',
@@ -238,9 +238,9 @@ export const cliMessages = {
   },
   'cli.cleanup.decksNeedFormat': {
     $plural: 'count',
-    one: '{count} deck still needs a format (run interactively to choose, or pass --skip-formats to leave as-is).',
+    one: '{count} deck still needs a format (run interactively to choose, or pass {flag} to leave as-is).',
     other:
-      '{count} decks still need a format (run interactively to choose, or pass --skip-formats to leave as-is).',
+      '{count} decks still need a format (run interactively to choose, or pass {flag} to leave as-is).',
   },
   'cli.resolveAmbiguity.needsDecision': {
     $plural: 'count',
@@ -268,11 +268,11 @@ export const cliMessages = {
     other: 'pages 1-{count}',
   },
   'cli.serve.priceSourcesUnderApi':
-    '--price-sources has no effect under --api: the live server offers the enabled priceSources. Change priceSources instead.',
+    '{priceSourcesFlag} has no effect under {apiFlag}: the live server offers the enabled {configKey}. Change {configKey} instead.',
   'cli.serve.buildFlagsIgnored': {
     $plural: 'count',
-    one: '{flags} only applies when building; add --build to build the site before serving.',
-    other: '{flags} only apply when building; add --build to build the site before serving.',
+    one: '{flags} only applies when building; add {flag} to build the site before serving.',
+    other: '{flags} only apply when building; add {flag} to build the site before serving.',
   },
 
   // ── Skill install/update summary ──────────────────────────────────────
@@ -290,8 +290,8 @@ export const cliMessages = {
   'cli.skills.skipped': '⊘ {counted} with local edits left untouched ({forceHint})',
   'cli.skills.absent': {
     $plural: 'count',
-    one: '• {counted} not installed; use `ritual skills install` to add it',
-    other: '• {counted} not installed; use `ritual skills install` to add them',
+    one: '• {counted} not installed; use `{command}` to add it',
+    other: '• {counted} not installed; use `{command}` to add them',
   },
 
   // ── Unreadable-line gate, shared by deck sync and collection sync ─────
@@ -322,7 +322,7 @@ export const cliMessages = {
     other: 'Sync {count} collection lists anyway, {cost}?',
   },
   'cli.sync.refuseDecks':
-    'Confirmation required: pass --yes to sync these decks non-interactively ({cost}), or fix the lines first.',
+    'Confirmation required: pass {flag} to sync these decks non-interactively ({cost}), or fix the lines first.',
   'cli.sync.refuseCollectionLists':
-    'Confirmation required: pass --yes to sync these collection lists non-interactively ({cost}), or fix the lines first.',
+    'Confirmation required: pass {flag} to sync these collection lists non-interactively ({cost}), or fix the lines first.',
 } as const satisfies MessageCatalogShape

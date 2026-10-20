@@ -9,10 +9,11 @@
  * `buildProgram()` constructs the tree, which is why the locale is resolved from
  * the tolerant argv pre-scan before registration (see `src/cli/locale.ts`).
  *
- * Flag spellings (`--refresh`, `--out-dir`), config keys (`cacheSource`,
- * `site.includeDecks`), enum values (`'scryfall'`, `'daily'`) and environment
- * variables are machine vocabulary and stay English inside the sentences that
- * mention them.
+ * A help string that names another flag, a config key (`cacheSource`,
+ * `site.includeDecks`), an environment variable or a file takes it as a
+ * `{placeholder}` from `src/util/cli-tokens.ts`, so a translation cannot alter
+ * it. Enum values (`'scryfall'`, `'daily'`) are still written inline and stay
+ * English. An option's own spelling is never here: commander prints it.
  */
 
 import type { MessageCatalogShape } from '../../types'
@@ -27,9 +28,9 @@ export const helpInfraMessages = {
   'help.cache.preloadAll':
     'Download and cache all Scryfall card data (bulk), including oracle and art tags',
   'help.cache.preloadAllSource':
-    "Where to download from: 'scryfall' or 'feed' (overrides the cacheSource config key for this run)",
+    "Where to download from: 'scryfall' or 'feed' (overrides the {configKey} config key for this run)",
   'help.cache.preloadAllFeedUrl':
-    'Feed URL for a feed-sourced refresh (implies --source feed; defaults to the cacheFeedUrl config key)',
+    'Feed URL for a feed-sourced refresh (implies {flag}; defaults to the {configKey} config key)',
   'help.cache.preloadAllForce': 'Re-download and re-ingest even when the feed is unchanged',
   'help.cache.refreshTags':
     'Re-download oracle and art tag bulks and re-attach them to cached cards (no full card re-download)',
@@ -44,9 +45,9 @@ export const helpInfraMessages = {
   'help.cacheServer.pricesRefresh':
     "Run prices cache refresh on an interval (supported: 'daily', 'weekly', 'monthly')",
   'help.cacheServer.cacheSource':
-    "Where card refreshes download from: 'scryfall' or 'feed' (defaults to the cacheSource config key)",
+    "Where card refreshes download from: 'scryfall' or 'feed' (defaults to the {configKey} config key)",
   'help.cacheServer.feedUrl':
-    'Cache feed URL for feed-sourced refreshes (defaults to the cacheFeedUrl config key)',
+    'Cache feed URL for feed-sourced refreshes (defaults to the {configKey} config key)',
   'help.cacheServer.torrentPort':
     'Fixed TCP port for incoming torrent peers while seeding feed artifacts',
   'help.cacheServer.noSeed':
@@ -62,13 +63,13 @@ export const helpInfraMessages = {
   'help.cacheFeed.hostPort': 'Port for the feed HTTP server',
   'help.cacheFeed.hostHost': 'Host interface for the feed HTTP server',
   'help.cacheFeed.publicUrl':
-    'Public base URL peers reach this host at (embedded in the feed and web-seed URLs; defaults to http://<host>:<port>)',
+    'Public base URL peers reach this host at (embedded in the feed and web-seed URLs; defaults to {url})',
   'help.cacheFeed.hostRefresh':
-    "Re-check Scryfall for new bulk data on an interval (supported: 'daily', 'weekly', 'monthly'; falls back to RITUAL_CACHE_FEED_REFRESH, then 'daily')",
+    "Re-check Scryfall for new bulk data on an interval (supported: 'daily', 'weekly', 'monthly'; falls back to {envVar}, then 'daily')",
   'help.cacheFeed.upstream': 'Bulk manifest URL to source artifacts from',
   'help.cacheFeed.dir': 'Feed data directory (defaults to <cache>/feed)',
   'help.cacheFeed.cards':
-    "Which card bulks to publish: 'default' (English-only default_cards), 'all' (every-language all_cards), or 'both' (defaults to whichever the defaultLanguage config key demands)",
+    "Which card bulks to publish: 'default' (English-only default_cards), 'all' (every-language all_cards), or 'both' (defaults to whichever the {configKey} config key demands)",
   'help.cacheFeed.hostNoSeed':
     'Serve the feed and files over HTTP only, without BitTorrent seeding',
   'help.cacheFeed.torrentPort': 'Fixed TCP port for incoming torrent peers',
@@ -76,12 +77,12 @@ export const helpInfraMessages = {
   'help.cacheFeed.fetch':
     'Experimental: sync the card cache from a cache feed, then stay open seeding the artifacts to other peers (Ctrl+C to stop)',
   'help.cacheFeed.fetchFeedUrl':
-    'Feed URL (defaults to the cacheFeedUrl config key, then the built-in default)',
+    'Feed URL (defaults to the {configKey} config key, then the built-in default)',
   'help.cacheFeed.fetchNoP2p': 'Download over plain HTTP instead of BitTorrent',
   'help.cacheFeed.fetchNoSeed': 'Exit after ingesting instead of staying open to seed',
   'help.cacheFeed.fetchForce': 'Re-download and re-ingest even when the feed is unchanged',
   'help.cacheFeed.fetchRefresh':
-    "Re-check the feed while seeding (supported: 'daily', 'weekly', 'monthly'; falls back to RITUAL_CACHE_FEED_REFRESH, then 'daily')",
+    "Re-check the feed while seeding (supported: 'daily', 'weekly', 'monthly'; falls back to {envVar}, then 'daily')",
 
   // ── config ────────────────────────────────────────────────────────────
   'help.config.description': 'Inspect and modify the ritual configuration file',
@@ -113,30 +114,29 @@ export const helpInfraMessages = {
   'help.buildSite.verbose': 'Show list of cards to be fetched',
   'help.buildSite.cacheImages':
     'Download and use local deck card images instead of Scryfall image URLs',
-  'help.buildSite.decks':
-    'Deck names or URLs to build (default: the site.includeDecks config selection)',
+  'help.buildSite.decks': 'Deck names or URLs to build (default: the {configKey} config selection)',
   'help.buildSite.collections':
-    'Collection names to build (default: the site.includeCollections config selection)',
+    'Collection names to build (default: the {configKey} config selection)',
   'help.buildSite.wantedLists':
-    'Wanted list names to build (default: the site.includeWantedLists config selection)',
+    'Wanted list names to build (default: the {configKey} config selection)',
   'help.buildSite.priceSources':
-    'Comma-separated price stores to offer: tcgplayer, cardmarket, cardkingdom, cardhoarder (default: every enabled priceSources store; this can only narrow them). Each store brings its own currency',
+    'Comma-separated price stores to offer: tcgplayer, cardmarket, cardkingdom, cardhoarder (default: every enabled {configKey} store; this can only narrow them). Each store brings its own currency',
   'help.buildSite.theme':
-    'Initial theme baked into the generated HTML ({themes}, or a custom theme name loaded via --theme-file)',
+    'Initial theme baked into the generated HTML ({themes}, or a custom theme name loaded via {flag})',
   'help.buildSite.themeFile':
     'Load one or more custom theme JSON files; their names become selectable alongside the built-ins',
   'help.buildSite.locale':
-    "UI locale baked into the generated site (BCP-47, e.g. de-AT): the html lang/dir and the language the site opens in (default: the uiLocale config value). Ritual's own text, not the card language",
+    "UI locale baked into the generated site (BCP-47, e.g. de-AT): the html lang/dir and the language the site opens in (default: the {configKey} config value). Ritual's own text, not the card language",
   'help.buildSite.locales':
-    'Locales to publish dictionaries for in dist/locales/, which is what the in-app language switcher offers (default: en; "all" publishes every locale this build has)',
+    'Locales to publish dictionaries for in {file}, which is what the in-app language switcher offers (default: en; "all" publishes every locale this build has)',
   'help.buildSite.localeFile':
     'Load one or more locale dictionary JSON files, named for their tag (de-AT.json); their locales become selectable alongside the built-in ones',
   'help.buildSite.moxfieldUserAgent':
-    'Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless MOXFIELD_USER_AGENT is set)',
+    'Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless {envVar} is set)',
   'help.buildSite.outDir':
-    'Publish into this directory instead of dist/ (relative paths resolve against the Ritual directory); `serve` without --build serves it instead',
+    'Publish into this directory instead of {file} (relative paths resolve against the Ritual directory); `{command}` without {flag} serves it instead',
   'help.buildSite.sellMode':
-    '(Beta) Offer sell mode for this run even when the site.sellMode config is off: update the Card Kingdom buylist (~70 MB) and include its buy prices',
+    '(Beta) Offer sell mode for this run even when the {configKey} config is off: update the Card Kingdom buylist (~70 MB) and include its buy prices',
 
   // ── init-site ─────────────────────────────────────────────────────────
   'help.initSite.description': 'Initialize the current directory for publishing a Ritual site',
@@ -152,9 +152,9 @@ export const helpInfraMessages = {
   'help.initSite.noChangeDetection': 'Disable automatic change detection (no prompt)',
   'help.initSite.priceSource':
     "Default price store (its currency follows): 'tcgplayer', 'cardkingdom', 'cardmarket', or 'cardhoarder'",
-  'help.initSite.overwriteReadme': 'Overwrite an existing README.md without prompting',
-  'help.initSite.noOverwriteReadme': 'Keep an existing README.md as-is (no prompt)',
-  'help.initSite.skills': 'Install Ritual agent skills into .claude/skills without prompting',
+  'help.initSite.overwriteReadme': 'Overwrite an existing {file} without prompting',
+  'help.initSite.noOverwriteReadme': 'Keep an existing {file} as-is (no prompt)',
+  'help.initSite.skills': 'Install Ritual agent skills into {file} without prompting',
   'help.initSite.noSkills': 'Skip installing Ritual agent skills (no prompt)',
 
   // ── migrate ───────────────────────────────────────────────────────────
@@ -179,12 +179,12 @@ export const helpInfraMessages = {
   'help.admin.host': 'Host address to bind to',
   'help.admin.theme': 'Initial theme baked into the served HTML ({themes})',
   'help.admin.mcp':
-    'Also serve an MCP (Model Context Protocol) endpoint in this process (requires --mcp-token)',
-  'help.admin.mcpPort': 'Port for the embedded MCP server (with --mcp)',
+    'Also serve an MCP (Model Context Protocol) endpoint in this process (requires {flag})',
+  'help.admin.mcpPort': 'Port for the embedded MCP server (with {flag})',
   'help.admin.mcpToken':
-    'Bearer token required on the embedded MCP endpoint (with --mcp; or set RITUAL_MCP_TOKEN)',
+    'Bearer token required on the embedded MCP endpoint (with {flag}; or set {envVar})',
   'help.admin.sellMode':
-    '(Beta) Offer sell mode for this run even when the site.sellMode config is off: update the Card Kingdom buylist (~70 MB) and serve its buy prices',
+    '(Beta) Offer sell mode for this run even when the {configKey} config is off: update the Card Kingdom buylist (~70 MB) and serve its buy prices',
   'help.admin.setup': 'Create the admin account without starting the server',
   'help.admin.setupUsername': 'Username for the new admin account',
   'help.admin.setupPasswordStdin': 'Read the password from stdin (for scripting)',
@@ -203,11 +203,11 @@ export const helpInfraMessages = {
   'help.mcp.transport': 'Transport to use',
   'help.mcp.port': 'Port for the HTTP transport',
   'help.mcp.host': 'Host to bind for the HTTP transport',
-  'help.mcp.token': 'Require this bearer token on the HTTP transport (or set RITUAL_MCP_TOKEN)',
+  'help.mcp.token': 'Require this bearer token on the HTTP transport (or set {envVar})',
   'help.mcp.allowUnauthenticated':
     'Serve the HTTP transport without a bearer token on a non-loopback host',
   'help.mcp.sellMode':
-    'Answer the sell and buylist tools for this run even when the site.sellMode config is off (they use the locally cached Card Kingdom buylist)',
+    'Answer the sell and buylist tools for this run even when the {configKey} config is off (they use the locally cached Card Kingdom buylist)',
 
   // ── skills ────────────────────────────────────────────────────────────
   //
@@ -217,19 +217,18 @@ export const helpInfraMessages = {
     'Install Claude Code agent skills that teach AI agents how to drive Ritual from a local workspace',
   'help.skills.list': 'List the available Ritual skills',
   'help.skills.install':
-    'Install Ritual skills into .claude/skills (or ~/.claude/skills with --global). Installs every skill when no names are given.',
+    'Install Ritual skills into {skillsDirFile} (or {globalSkillsDirFile} with {flag}). Installs every skill when no names are given.',
   'help.skills.update':
     'Refresh already-installed Ritual skills to the current version. Never installs skills that are not present; use install for that.',
-  'help.skills.global': 'Target ~/.claude/skills instead of the project directory',
-  'help.skills.dir':
-    'Project directory that should contain .claude/skills (defaults to the base dir)',
+  'help.skills.global': 'Target {file} instead of the project directory',
+  'help.skills.dir': 'Project directory that should contain {file} (defaults to the base dir)',
   'help.skills.force': 'Overwrite skill files even when they have local edits',
 
   // ── price ─────────────────────────────────────────────────────────────
   'help.price.description': 'Browse prices of every deck, collection, and wanted list',
   'help.price.listArg': 'Open (or print) a single list instead of all lists',
   'help.price.source':
-    'Price store, which sets the currency: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), cardkingdom (NM retail from the Card Kingdom feed), or cardhoarder (Scryfall MTGO tix). Default: the configured defaultPriceSource',
+    'Price store, which sets the currency: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), cardkingdom (NM retail from the Card Kingdom feed), or cardhoarder (Scryfall MTGO tix). Default: the configured {configKey}',
   'help.price.name': 'Print cards whose name contains every term',
   'help.price.set': 'Print cards from this set code',
   'help.price.collector': 'Print cards with this collector number',
@@ -263,7 +262,7 @@ export const helpInfraMessages = {
   'help.locale.summary':
     'Show the resolved interface locale, where it came from, and the card language',
   'help.locale.detect':
-    'Ask the OS directly (spawns a subprocess) and offer to save what it says as uiLocale',
+    'Ask the OS directly (spawns a subprocess) and offer to save what it says as {configKey}',
 
   // ── license / dep-license ─────────────────────────────────────────────
   'help.license.description': 'Display the Ritual project license (AGPLv3)',

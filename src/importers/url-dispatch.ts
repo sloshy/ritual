@@ -6,6 +6,8 @@ import { displayLanguage } from '../card/card-language'
 import type { Card } from '../card/card'
 import type { DeckData, DeckSection, ImportedDeck } from '../list/deck'
 import { syncMessage, type SyncMessage } from '../sync/message'
+import { resolveStringOverride } from '../config/env-override'
+import { ENV_VAR, FLAG, flagValue } from '../util/cli-tokens'
 
 /**
  * Whether any card in the deck states a printing or finish — what a URL import
@@ -127,19 +129,9 @@ export function resolveImportSourceUrl(source: string): string | undefined {
  */
 export function resolveMoxfieldUserAgent(
   cliOptionValue?: string,
-  envValue: string | undefined = process.env.MOXFIELD_USER_AGENT,
+  envValue: string | undefined = process.env[ENV_VAR.moxfieldUserAgent],
 ): string | undefined {
-  const trimmedCliOption = cliOptionValue?.trim()
-  if (trimmedCliOption) {
-    return trimmedCliOption
-  }
-
-  const trimmedEnvValue = envValue?.trim()
-  if (trimmedEnvValue) {
-    return trimmedEnvValue
-  }
-
-  return undefined
+  return resolveStringOverride(cliOptionValue, envValue)
 }
 
 /** Run `run` with `MOXFIELD_USER_AGENT` temporarily set, restoring it afterward. */
@@ -147,16 +139,16 @@ export async function withMoxfieldUserAgent<T>(
   userAgent: string,
   run: () => Promise<T>,
 ): Promise<T> {
-  const previousUserAgent = process.env.MOXFIELD_USER_AGENT
-  process.env.MOXFIELD_USER_AGENT = userAgent
+  const previousUserAgent = process.env[ENV_VAR.moxfieldUserAgent]
+  process.env[ENV_VAR.moxfieldUserAgent] = userAgent
 
   try {
     return await run()
   } finally {
     if (previousUserAgent === undefined) {
-      delete process.env.MOXFIELD_USER_AGENT
+      delete process.env[ENV_VAR.moxfieldUserAgent]
     } else {
-      process.env.MOXFIELD_USER_AGENT = previousUserAgent
+      process.env[ENV_VAR.moxfieldUserAgent] = previousUserAgent
     }
   }
 }
@@ -190,7 +182,11 @@ export async function fetchDeckFromUrl(
       return new ArchidektClient().fetchImportedDeck(match.deckId)
     case 'moxfield': {
       const userAgent = resolveMoxfieldUserAgent(options.moxfieldUserAgent)
-      if (!userAgent) return syncMessage('domain.import.url.moxfieldUserAgent')
+      if (!userAgent)
+        return syncMessage('domain.import.url.moxfieldUserAgent', {
+          envVar: ENV_VAR.moxfieldUserAgent,
+          flag: flagValue(FLAG.moxfieldUserAgent, '<agent>'),
+        })
       options.onProgress?.(syncMessage('domain.import.url.fetchingMoxfield', { id: match.deckId }))
       return withMoxfieldUserAgent(userAgent, () => fetchMoxfieldDeck(match.deckId))
     }

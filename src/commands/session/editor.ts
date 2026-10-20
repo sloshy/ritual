@@ -124,7 +124,7 @@ async function promptListToEdit(choices: Choice[]): Promise<UnifiedSelection | u
   return ask<UnifiedSelection>({
     type: 'autocomplete',
     message: t('cli.edit.promptSelectList'),
-    subjectKey: 'cli.prompt.subject.listToEdit',
+    subject: 'cli.prompt.subject.listToEdit',
     choices,
     suggest: suggestByTitleTerms,
   })
@@ -139,7 +139,7 @@ async function promptNewListName(type: ListType): Promise<string | null> {
   const name = await ask<string>({
     type: 'text',
     message: t('cli.edit.promptNewListName', { type }),
-    subjectKey: 'cli.prompt.subject.newListName',
+    subject: 'cli.prompt.subject.newListName',
     validate: (value: string) => {
       if (value.trim().length === 0) return t('cli.edit.nameEmpty')
       if (!isUsableFileName(value)) return renderSyncMessage(unusableFileNameMessage(value))

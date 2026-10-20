@@ -377,7 +377,7 @@ async function promptListImage(
       list,
       current: describeCurrent(current),
     }),
-    subjectKey: 'cli.prompt.subject.listImageMode',
+    subject: 'cli.prompt.subject.listImageMode',
     choices: [
       ...listImageModeChoices(current),
       { title: `← ${t('cli.menu.cancel')}`, value: 'cancel' as const },
@@ -429,7 +429,7 @@ async function promptListImageCard(
   const cardId = await ask<number>({
     type: 'autocomplete',
     message: t('cli.setListImage.cardPrompt'),
-    subjectKey: 'cli.prompt.subject.listImageCard',
+    subject: 'cli.prompt.subject.listImageCard',
     choices: rows.map((row) => ({ title: row.title, value: row.cardId })),
     suggest: suggestByTitleTerms,
   })

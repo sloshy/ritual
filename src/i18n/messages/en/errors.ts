@@ -35,8 +35,8 @@ export const errorMessages = {
 
   // ── Scripting envelope ────────────────────────────────────────────────
   'errors.scripting.fieldsNeedStructuredOutput':
-    '--fields requires --output json or --output ndjson.',
-  'errors.scripting.fieldsEmpty': 'Expected at least one field for --fields.',
+    '{fieldsFlag} requires {outputJsonFlag} or {outputNdjsonFlag}.',
+  'errors.scripting.fieldsEmpty': 'Expected at least one field for {flag}.',
   'errors.scripting.portRange': 'Port must be an integer between 1 and 65535.',
 
   // ── List resolution ───────────────────────────────────────────────────
@@ -70,7 +70,8 @@ export const errorMessages = {
     "Type more of the name to narrow the match (e.g. '{name}').",
   'errors.resolveList.adviceExactName':
     "Type one list's exact full name, spelled and capitalized as its file is (e.g. '{name}').",
-  'errors.resolveList.adviceTypeFlags': 'Disambiguate with --deck, --collection, or --wanted.',
+  'errors.resolveList.adviceTypeFlags':
+    'Disambiguate with {deckFlag}, {collectionFlag}, or {wantedFlag}.',
   'errors.resolveList.adviceTypePrefix': 'Disambiguate with a type prefix, e.g. {prefixes}.',
   'errors.resolveList.adviceTypeField': "Set the list's type to {types}.",
   'errors.resolveList.alternative': '{first} or {second}',

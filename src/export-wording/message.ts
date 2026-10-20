@@ -38,6 +38,7 @@ import type {
 } from '../export/text'
 import type { MessageKey } from '../i18n/messages/en'
 import { sectionNameParam } from '../list/deck-format'
+import { CONFIG_KEY } from '../util/cli-tokens'
 import type { LocaleTag } from '../i18n/types'
 import {
   allUsed,
@@ -106,7 +107,7 @@ function exportProblemRef(problem: ExportProblem): SyncMessageRef {
       return syncRef(PROBLEM_KEYS[problem.code], { values: offered(LABEL_FILTER_VALUES) })
     case 'presets-not-object':
       allUsed(problem.params)
-      return syncRef(PROBLEM_KEYS[problem.code])
+      return syncRef(PROBLEM_KEYS[problem.code], { configKey: CONFIG_KEY.exportPresets })
     case 'column-unknown': {
       const { column, ...rest } = problem.params
       allUsed(rest)

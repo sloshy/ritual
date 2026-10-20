@@ -21,6 +21,7 @@ import type { SyncMessage } from '../../sync/message'
 import { findLineBreak } from '../../util/single-line'
 import type { ListSaveResponse } from './list-save'
 import type { MovesOutcome } from '../../list/move-prepare'
+import { COMMAND, commandLine } from '../../util/cli-tokens'
 
 /** What a cache-only route needs the card cache for — the refusal's wording follows it. */
 export type CardCacheNeed = SelectBranch<'admin.api.cache.empty'>
@@ -32,7 +33,11 @@ export type CardCacheNeed = SelectBranch<'admin.api.cache.empty'>
  * the CLI freshness gates do. `need` names what the cache is needed for.
  */
 export async function requireCardCache(need: CardCacheNeed): Promise<Response | null> {
-  if (await cardCache.isEmpty()) return apiError(apiMessage('admin.api.cache.empty', { need }), 503)
+  if (await cardCache.isEmpty())
+    return apiError(
+      apiMessage('admin.api.cache.empty', { need, command: commandLine(COMMAND.cachePreloadAll) }),
+      503,
+    )
   return null
 }
 

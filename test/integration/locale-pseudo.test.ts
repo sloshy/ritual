@@ -91,8 +91,9 @@ const DENIED_PRICE = {
   status: 500,
   body: {
     success: false,
-    message: en['domain.cache.serverReply.httpDenied'],
+    message: en['domain.cache.serverReply.httpDenied'].replace('{flag}', '--deny-http'),
     messageKey: 'domain.cache.serverReply.httpDenied',
+    messageParams: { flag: '--deny-http' },
   },
 }
 
@@ -331,10 +332,10 @@ describe('pseudo-locale (Integration)', () => {
       const result = await runCli(['price', '--refresh', 'never'], dir, PSEUDO_ENV)
 
       expect(result.exitCode).toBe(1)
-      const advice = (await pseudoText('cli.cacheGate.emptyAdvice')).replace(
-        '{lead}',
-        await pseudoText('cli.price.emptyCache'),
-      )
+      const advice = (await pseudoText('cli.cacheGate.emptyAdvice'))
+        .replace('{lead}', await pseudoText('cli.price.emptyCache'))
+        .replace('{command}', 'ritual cache preload-all')
+        .replace('{flag}', '--refresh auto')
       expect(unwrap(result.stderr)).toContain(unwrap(advice))
     })
   })
@@ -348,7 +349,11 @@ describe('pseudo-locale (Integration)', () => {
 
       expect(result.exitCode).toBe(2)
       expect(unwrap(result.stderr)).toContain(
-        unwrap(await pseudoText('cli.cacheServer.addressInvalid')),
+        unwrap(
+          (await pseudoText('cli.cacheServer.addressInvalid'))
+            .replace('{example}', 'localhost:4000')
+            .replace('{exampleUrl}', 'http://localhost:4000'),
+        ),
       )
     })
   })
@@ -389,7 +394,9 @@ describe('pseudo-locale (Integration)', () => {
       expect(price).toEqual(DENIED_PRICE)
       // The operator log is this server's, read in its language behind the
       // untranslated `[cache-server]` marker; the access log is machine fields.
-      expect(log).toContain(`[cache-server] ${await pseudoText('cli.cacheServer.httpDenied')}`)
+      expect(log).toContain(
+        `[cache-server] ${(await pseudoText('cli.cacheServer.httpDenied')).replace('{flag}', '--deny-http')}`,
+      )
       expect(log).toContain(
         (await pseudoText('cli.cacheServer.listening')).replace('{url}', server.url),
       )
@@ -437,7 +444,9 @@ describe('pseudo-locale (Integration)', () => {
       expect(log).toContain(
         `[cache-feed] ${(await pseudoBranch('cli.cacheFeed.published', 'other')).replace('{count}', '3')}`,
       )
-      expect(log).toContain(`[cache-feed] ${await pseudoText('cli.cacheFeed.seedingDisabled')}`)
+      expect(log).toContain(
+        `[cache-feed] ${(await pseudoText('cli.cacheFeed.seedingDisabled')).replace('{flag}', '--no-seed')}`,
+      )
       // The access log is machine fields, never words.
       expect(log).toMatch(/^\[cache-feed\] method=GET path=\/elsewhere status=404 durationMs=\d+$/m)
     })
@@ -512,8 +521,26 @@ describe('pseudo-locale (Integration)', () => {
 
       expect(result.exitCode).toBe(2)
       expect(unwrap(result.stderr)).toContain(
-        unwrap(await pseudoText('cli.cache.feedUrlNeedsFeedSource')),
+        unwrap((await pseudoText('cli.cache.feedUrlNeedsFeedSource')).replace('{flag}', '--url')),
       )
+    })
+  })
+
+  test('a refusal naming flags keeps them verbatim inside the translated text', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['scry', 'sol ring', '--count', '2'], dir, {
+        ...PSEUDO_ENV,
+        ...OFFLINE_ENV,
+      })
+
+      expect(result.exitCode).toBe(2)
+      // The flags are params: the translation moves them, never accents them.
+      const refusal = (await pseudoText('cli.scry.countNeedsRandom'))
+        .replace('{countFlag}', '--count')
+        .replace('{randomFlag}', '--random')
+      expect(unwrap(result.stderr)).toContain(unwrap(refusal))
+      // …and the prose around them is translated.
+      expect(result.stderr).not.toContain('requires')
     })
   })
 
@@ -958,6 +985,7 @@ describe('pseudo-locale (Integration)', () => {
       // The parser's reason nests as a message of its own, so both halves are
       // in the pseudo-locale.
       const refusal = (await pseudoText('domain.config.fileNotJson'))
+        .replace('{file}', 'ritual.config.json')
         .replace('{path}', configPath)
         .replace('{reason}', await pseudoText('domain.config.fileNotObject'))
       expect(result.stderr).toContain(refusal)
@@ -981,7 +1009,10 @@ describe('pseudo-locale (Integration)', () => {
       // An environment naming the pseudo-locale: the refusal follows it.
       const detected = await runCli(['lists'], dir, { ...noLocale, LANG: 'en_XA.UTF-8' })
       expect(detected.exitCode).toBe(1)
-      const prefix = (await pseudoText('domain.config.fileNotJson')).split('{path}')[0] ?? ''
+      const prefix =
+        (await pseudoText('domain.config.fileNotJson'))
+          .replace('{file}', 'ritual.config.json')
+          .split('{path}')[0] ?? ''
       expect(prefix).not.toBe('')
       expect(detected.stderr).toStartWith(`${prefix}${configPath}`)
     })
@@ -1013,6 +1044,7 @@ describe('pseudo-locale (Integration)', () => {
       const result = await runCli(['lists'], dir, { ...LOCALE_ENV, RITUAL_LOCALE: undefined })
 
       const warning = (await pseudoText('domain.config.ignoringInvalid'))
+        .replace('{file}', 'ritual.config.json')
         .replace('{field}', 'searchDebounceMs')
         .replace(
           '{reason}',
@@ -1149,6 +1181,8 @@ describe('pseudo-locale (Integration)', () => {
     const THREE = [...TWO, '--quote-all']
     const DE_ENV: Record<string, string | undefined> = { ...LOCALE_ENV, RITUAL_LOCALE: 'de' }
     const frame = en['cli.export.formatFlagConflict']
+      .replace('{formatFlag}', '--format')
+      .replace('{dialectFlag}', '--dialect')
 
     /** The refusal `export --format text` prints for these flags, under `env`. */
     async function refusalFor(
@@ -1189,6 +1223,8 @@ describe('pseudo-locale (Integration)', () => {
       const stderr = await refusalFor(THREE, PSEUDO_ENV)
       const expected = (await pseudoText('cli.export.formatFlagConflict'))
         .replace('{flags}', '--columns, --no-header, and --quote-all')
+        .replace('{formatFlag}', '--format')
+        .replace('{dialectFlag}', '--dialect')
         .replaceAll('{format}', 'text')
       expect(stderr).toContain(unwrap(expected))
     })

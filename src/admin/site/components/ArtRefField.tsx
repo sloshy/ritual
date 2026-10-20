@@ -4,6 +4,7 @@ import { cardArtInputOf, parseCardArtRef, type CardArtInput } from '../../../lis
 import { cardArtDisplayUrl } from '../../../list/art-url'
 import { renderSyncMessage, type SyncMessage } from '../../../sync/message'
 import { useDebouncedInput, type DebouncedInput } from '../../../site/useDebouncedInput'
+import { EXAMPLE } from '../../../util/cli-tokens'
 
 /**
  * The one text field that names an image by reference: a path inside the art
@@ -130,9 +131,7 @@ export const ArtRefField: Component<ArtRefFieldProps> = (props) => {
           type="text"
           class={`form-input${refError() !== null ? ' form-input--invalid' : ''}`}
           value={props.field.input.draft()}
-          placeholder={
-            props.mode === 'file' ? t('admin.art.filePlaceholder') : t('admin.art.urlPlaceholder')
-          }
+          placeholder={props.mode === 'file' ? EXAMPLE.artFile : EXAMPLE.artUrl}
           aria-invalid={refError() !== null}
           aria-describedby={refError() !== null ? noteId() : undefined}
           onInput={(e) => props.field.input.onInput(e.currentTarget.value)}

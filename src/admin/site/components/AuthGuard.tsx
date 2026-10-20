@@ -8,6 +8,7 @@ import { isRecord } from '../../../util/json'
 import { useApiText } from '../hooks/useApiAction'
 import type { ApiActionMessage } from '../../../api/result'
 import { MIN_PASSWORD_LENGTH, SETUP_TOKEN_PARAM } from '../../validation'
+import { COMMAND, commandLine } from '../../../util/cli-tokens'
 
 interface AuthGuardSetupProps {
   onSetupComplete: () => void
@@ -239,7 +240,7 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
                 spellcheck={false}
               />
               <p id="setup-token-hint" class="form-hint">
-                {t('admin.auth.setupTokenHint')}
+                {t('admin.auth.setupTokenHint', { command: commandLine(COMMAND.admin) })}
               </p>
             </div>
           </Show>

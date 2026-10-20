@@ -24,6 +24,7 @@ import { parsePositiveInteger } from '../util/parse-number'
 import { ask } from '../cli/prompts'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
+import { FLAG, flagValue } from '../util/cli-tokens'
 
 /**
  * `scry` speaks the shared csv-widened vocabulary; its `csv` is rendered by
@@ -92,12 +93,18 @@ export type ScryUsageInput = {
  */
 export function validateScryUsage(input: ScryUsageInput): string | null {
   if (input.random) {
-    if (input.pagesFlag !== undefined) return t('cli.scry.pagesWithRandom')
-    if (input.output === 'csv') return t('cli.scry.csvWithRandom')
+    if (input.pagesFlag !== undefined)
+      return t('cli.scry.pagesWithRandom', { pagesFlag: FLAG.pages, randomFlag: FLAG.random })
+    if (input.output === 'csv')
+      return t('cli.scry.csvWithRandom', {
+        outputCsvFlag: flagValue(FLAG.output, 'csv'),
+        randomFlag: FLAG.random,
+      })
     return null
   }
-  if (input.countFlag !== undefined) return t('cli.scry.countNeedsRandom')
-  if (input.query === undefined) return t('cli.scry.queryRequired')
+  if (input.countFlag !== undefined)
+    return t('cli.scry.countNeedsRandom', { countFlag: FLAG.count, randomFlag: FLAG.random })
+  if (input.query === undefined) return t('cli.scry.queryRequired', { flag: FLAG.random })
   return null
 }
 
@@ -119,12 +126,12 @@ export function registerScryCommand(program: Command): void {
       program
         .command('scry')
         .description(t('help.scry.description'))
-        .argument('[query]', t('help.scry.query'))
+        .argument('[query]', t('help.scry.query', { flag: FLAG.random }))
         .option('--pages <number>', t('help.scry.pages', { max: MAX_SCRY_PAGES }), parseScryPages)
         .option('--random', t('help.scry.random'), false)
         .option(
           '--count <number>',
-          t('help.scry.count', { max: MAX_SCRY_RANDOM_COUNT }),
+          t('help.scry.count', { max: MAX_SCRY_RANDOM_COUNT, flag: FLAG.random }),
           parseScryCount,
         ),
     ),
@@ -146,7 +153,10 @@ export function registerScryCommand(program: Command): void {
       return
     }
     if (options.fields && options.fields.length > 0 && format === 'csv') {
-      fail(scriptingOptions, 'usage_error', 'cli.scry.fieldsWithCsv')
+      fail(scriptingOptions, 'usage_error', 'cli.scry.fieldsWithCsv', {
+        fieldsFlag: FLAG.fields,
+        outputCsvFlag: flagValue(FLAG.output, 'csv'),
+      })
       return
     }
     if (rejectFieldsWithTextOutput(options.fields, scriptingOptions)) {
@@ -312,9 +322,14 @@ export function formatTruncationNotice(
 ): string {
   const pageLabel = t('cli.scry.pageRange', { count: pages })
   if (fetched === undefined || total === undefined) {
-    return t('cli.scry.truncatedUnknown', { pages: pageLabel })
+    return t('cli.scry.truncatedUnknown', { pages: pageLabel, flag: flagValue(FLAG.pages, '<n>') })
   }
-  return t('cli.scry.truncated', { fetched, total, pages: pageLabel })
+  return t('cli.scry.truncated', {
+    fetched,
+    total,
+    pages: pageLabel,
+    flag: flagValue(FLAG.pages, '<n>'),
+  })
 }
 
 /**

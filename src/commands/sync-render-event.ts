@@ -22,6 +22,7 @@ import { describeUnreadable, type ScopedIndenter, type UnreadableSubject } from 
 import { t } from '../i18n/t'
 import { assertNever } from '../util/assert-never'
 import { renderSyncMessage } from '../sync/message'
+import { FLAG } from '../util/cli-tokens'
 
 /** What each engine calls the things it syncs, in the unreadable-lines warning. */
 const UNREADABLE_SUBJECT = {
@@ -62,7 +63,7 @@ export function printVerboseHint<TResult>(
   renderer: SyncEventRenderer<TResult>,
   logger: Logger,
 ): void {
-  if (renderer.detailHidden()) logger.info(t('cli.sync.verboseHint'))
+  if (renderer.detailHidden()) logger.info(t('cli.sync.verboseHint', { flag: FLAG.verbose }))
 }
 
 /**

@@ -30,6 +30,7 @@ import {
 } from '../cache/feed'
 import type { FeedSyncResult } from '../cache/feed-client'
 import { createCacheFeedClient, resolveFeedUrl } from '../cache/refresh-source'
+import { CONFIG_KEY, ENV_VAR, EXAMPLE, FLAG } from '../util/cli-tokens'
 
 type CacheFeedFetchCommandOptions = {
   url?: string
@@ -65,7 +66,7 @@ type CacheFeedHostCommandOptions = {
 function parseHostCardsChoice(value: string): HostCardsChoice {
   const lower = value.toLowerCase()
   if (isHostCardsChoice(lower)) return lower
-  throw new InvalidArgumentError(t('cli.cacheFeed.invalidCards'))
+  throw new InvalidArgumentError(t('cli.cacheFeed.invalidCards', { flag: FLAG.cards }))
 }
 
 /**
@@ -119,11 +120,19 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       .description(t('help.cacheFeed.host'))
       .option('-p, --port <number>', t('help.cacheFeed.hostPort'), parsePort, 4010)
       .option('--host <hostname>', t('help.cacheFeed.hostHost'), '127.0.0.1')
-      .option('--public-url <url>', t('help.cacheFeed.publicUrl'))
-      .option('--refresh <interval>', t('help.cacheFeed.hostRefresh'), parseRefreshCadence)
+      .option('--public-url <url>', t('help.cacheFeed.publicUrl', { url: EXAMPLE.feedPublicUrl }))
+      .option(
+        '--refresh <interval>',
+        t('help.cacheFeed.hostRefresh', { envVar: ENV_VAR.cacheFeedRefresh }),
+        parseRefreshCadence,
+      )
       .option('--upstream <url>', t('help.cacheFeed.upstream'), DEFAULT_BULK_API_URL)
       .option('--dir <path>', t('help.cacheFeed.dir'))
-      .option('--cards <which>', t('help.cacheFeed.cards'), parseHostCardsChoice)
+      .option(
+        '--cards <which>',
+        t('help.cacheFeed.cards', { configKey: CONFIG_KEY.defaultLanguage }),
+        parseHostCardsChoice,
+      )
       .option('--no-seed', t('help.cacheFeed.hostNoSeed')),
     t('help.cacheFeed.torrentPort'),
   )
@@ -203,7 +212,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       }
 
       const refreshMs =
-        resolveRefreshMs(options.refresh, 'RITUAL_CACHE_FEED_REFRESH') ?? DAY_REFRESH_MS
+        resolveRefreshMs(options.refresh, ENV_VAR.cacheFeedRefresh) ?? DAY_REFRESH_MS
       scheduleRecurringTask(
         refreshMs,
         async () => {
@@ -222,21 +231,25 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       )
       log(t('cli.cacheFeed.publicUrl', { url: publicUrl }))
       if (!options.seed) {
-        log(t('cli.cacheFeed.seedingDisabled'))
+        log(t('cli.cacheFeed.seedingDisabled', { flag: FLAG.noSeed }))
       }
     })
 
   addTorrentPortOption(
     addFeedUrlOption(
       feed.command('fetch').description(t('help.cacheFeed.fetch')),
-      t('help.cacheFeed.fetchFeedUrl'),
+      t('help.cacheFeed.fetchFeedUrl', { configKey: CONFIG_KEY.cacheFeedUrl }),
     )
       .option('--no-p2p', t('help.cacheFeed.fetchNoP2p'))
       .option('--no-seed', t('help.cacheFeed.fetchNoSeed')),
     t('help.cacheFeed.torrentPort'),
   )
     .option('--force', t('help.cacheFeed.fetchForce'), false)
-    .option('--refresh <interval>', t('help.cacheFeed.fetchRefresh'), parseRefreshCadence)
+    .option(
+      '--refresh <interval>',
+      t('help.cacheFeed.fetchRefresh', { envVar: ENV_VAR.cacheFeedRefresh }),
+      parseRefreshCadence,
+    )
     .action(async (options: CacheFeedFetchCommandOptions) => {
       const feedUrl = resolveFeedUrl(options.url)
       const client = createCacheFeedClient({
@@ -282,7 +295,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       )
 
       const refreshMs =
-        resolveRefreshMs(options.refresh, 'RITUAL_CACHE_FEED_REFRESH') ?? DAY_REFRESH_MS
+        resolveRefreshMs(options.refresh, ENV_VAR.cacheFeedRefresh) ?? DAY_REFRESH_MS
       const refreshTimer = scheduleRecurringTask(
         refreshMs,
         async () => {

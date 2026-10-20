@@ -8,7 +8,6 @@
 
 import { compareVersions, isPrereleaseVersion, type UpdateChannel } from '../config/semver'
 import { isReleaseTag, normalizeVersion } from '../config/version'
-import type { MessageKey } from '../i18n/messages/en'
 import {
   errorParam,
   isMessageParseError,
@@ -27,6 +26,7 @@ import {
 import { isRecord } from '../util/json'
 import { quotedReply } from '../util/reply-text'
 import type { ReleaseApiEnv } from './env'
+import { COMMAND, ENV_VAR, FLAG, commandLine } from '../util/cli-tokens'
 
 /** One downloadable file attached to a release. */
 export type ReleaseAsset = {
@@ -271,7 +271,7 @@ export async function request(
         'runtime_error',
         ExitCode.RuntimeError,
         'cli.selfUpdate.error.redirectRefused',
-        { url: current, location: next.href },
+        { url: current, location: next.href, envVar: ENV_VAR.githubToken },
       )
     }
     current = next.href
@@ -287,13 +287,23 @@ export function httpError(response: Response, url: string): CardCommandError {
   const rateLimited =
     response.status === 429 ||
     (response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0')
-  const key: MessageKey = rateLimited
-    ? 'cli.selfUpdate.error.rateLimited'
-    : 'cli.selfUpdate.error.http'
-  return localizedCommandError('runtime_error', ExitCode.RuntimeError, key, {
-    url,
-    status: response.status,
-  })
+  const params = { url, status: response.status }
+  return rateLimited
+    ? localizedCommandError(
+        'runtime_error',
+        ExitCode.RuntimeError,
+        'cli.selfUpdate.error.rateLimited',
+        {
+          ...params,
+          envVar: ENV_VAR.githubToken,
+        },
+      )
+    : localizedCommandError(
+        'runtime_error',
+        ExitCode.RuntimeError,
+        'cli.selfUpdate.error.http',
+        params,
+      )
 }
 
 /** A document GitHub sent that is not what Ritual expects; `error` says why, nested. */
@@ -369,6 +379,7 @@ export async function fetchRelease(
         'not_found',
         ExitCode.NotFound,
         'cli.selfUpdate.error.noStableRelease',
+        { command: commandLine(COMMAND.selfUpdate, FLAG.prerelease) },
       )
     }
     const release = parsedOrThrow(url, parseRelease(lookup.json))
@@ -379,6 +390,7 @@ export async function fetchRelease(
         'not_found',
         ExitCode.NotFound,
         'cli.selfUpdate.error.noStableRelease',
+        { command: commandLine(COMMAND.selfUpdate, FLAG.prerelease) },
       )
     }
     return release

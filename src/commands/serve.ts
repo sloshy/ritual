@@ -22,6 +22,7 @@ import {
 import { serveStaticSite, serveUrl } from '../serve/static'
 import { tryStartServer } from '../util/start-server'
 import { t } from '../i18n/t'
+import { COMMAND, commandLine, CONFIG_KEY, FLAG, flagValue } from '../util/cli-tokens'
 
 export type ServeCliOptions = BuildSiteOptions & {
   port: number
@@ -92,6 +93,7 @@ export function registerServeCommand(program: Command): void {
           t('cli.serve.buildFlagsIgnored', {
             count: givenBuildFlags.length,
             flags: givenBuildFlags.join(', '),
+            flag: FLAG.build,
           }),
         )
         process.exitCode = ExitCode.UsageError
@@ -102,7 +104,13 @@ export function registerServeCommand(program: Command): void {
     // The live server answers index.json and every list itself, from config, so
     // a `--price-sources` override baked by the build would never reach a browser.
     if (options.api === true && command.getOptionValueSource('priceSources') === 'cli') {
-      console.error(t('cli.serve.priceSourcesUnderApi'))
+      console.error(
+        t('cli.serve.priceSourcesUnderApi', {
+          priceSourcesFlag: FLAG.priceSources,
+          apiFlag: FLAG.api,
+          configKey: CONFIG_KEY.priceSources,
+        }),
+      )
       process.exitCode = ExitCode.UsageError
       return
     }
@@ -152,7 +160,11 @@ export function registerServeCommand(program: Command): void {
       console.error(
         t('cli.serve.noBuiltSite', {
           dir: distDir,
-          outDirFlag: options.outDir === undefined ? '' : ` --out-dir ${options.outDir}`,
+          command: commandLine(
+            COMMAND.buildSite,
+            ...(options.outDir === undefined ? [] : [flagValue(FLAG.outDir, options.outDir)]),
+          ),
+          flag: FLAG.build,
         }),
       )
       process.exitCode = ExitCode.RuntimeError
@@ -162,7 +174,7 @@ export function registerServeCommand(program: Command): void {
     const api = options.api === true
     if (api) {
       if (options.cacheImages === true) {
-        console.warn(t('cli.serve.cacheImagesNote'))
+        console.warn(t('cli.serve.cacheImagesNote', { flag: FLAG.cacheImages }))
       }
       // Live payloads are computed from the card cache with no Scryfall
       // fallback, so the server holds itself to the same cache freshness a build

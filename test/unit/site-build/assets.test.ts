@@ -55,6 +55,7 @@ describe('loadCustomThemes', () => {
         const reason = pseudoString('site.theme.file.variableName').replace('{name}', 'bg')
         expect(result).toBe(
           pseudoString('cli.buildSite.themeFileInvalid')
+            .replace('{flag}', '--theme-file')
             .replace('{path}', file)
             .replace('{reason}', reason),
         )

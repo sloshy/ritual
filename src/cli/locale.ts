@@ -45,9 +45,7 @@ import {
   type SyncMessage,
   type SyncMessageParams,
 } from '../sync/message'
-
-/** The environment variable naming the UI locale — never the card language. */
-export const LOCALE_ENV_VAR = 'RITUAL_LOCALE'
+import { ENV_VAR } from '../util/cli-tokens'
 
 /**
  * Which precedence tier supplied the active UI locale. These are machine
@@ -291,11 +289,11 @@ export function initI18n(boot: LocaleBootEnvironment = {}): UiLocaleResolution {
   // this point only the same tolerant sources can supply.
   const baseDir = resolveStringOverride(prescanned.baseDir, env.RITUAL_BASE_DIR)
   const configured = prereadUiLocale(path.resolve(baseDir ?? process.cwd()))
-  const explicit = hasUsableExplicitLocale([prescanned.locale, env[LOCALE_ENV_VAR], configured])
+  const explicit = hasUsableExplicitLocale([prescanned.locale, env[ENV_VAR.locale], configured])
 
   const resolution = resolveUiLocale({
     flag: prescanned.locale,
-    env: env[LOCALE_ENV_VAR],
+    env: env[ENV_VAR.locale],
     config: configured,
     detected: osLocaleFor(env, platform, explicit, available, boot.probes),
     available,
@@ -333,11 +331,11 @@ export function applyCliLocale(options: CliLocaleOptions = {}): UiLocaleResoluti
   loadBundledDictionaries()
   const available = loadedLocales()
   const configured = prereadUiLocale(getBaseDir())
-  const explicit = hasUsableExplicitLocale([options.flag, env[LOCALE_ENV_VAR], configured])
+  const explicit = hasUsableExplicitLocale([options.flag, env[ENV_VAR.locale], configured])
 
   const resolution = resolveUiLocale({
     flag: options.flag,
-    env: env[LOCALE_ENV_VAR],
+    env: env[ENV_VAR.locale],
     config: configured,
     detected: osLocaleFor(env, platform, explicit, available, options.probes),
     available,
@@ -351,7 +349,7 @@ export function applyCliLocale(options: CliLocaleOptions = {}): UiLocaleResoluti
     if (entry.source === 'env') {
       console.warn(
         t('cli.locale.envIgnored', {
-          variable: LOCALE_ENV_VAR,
+          variable: ENV_VAR.locale,
           error: renderSyncMessage(ignoredReason(entry)),
         }),
       )

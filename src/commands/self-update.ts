@@ -20,6 +20,7 @@ import {
 import { ExitCode, getErrorMessage } from '../util/errors'
 import { fileExists } from '../util/fs'
 import { isNoInput, requireFlag } from '../util/no-input'
+import { COMMAND, FLAG, commandLine } from '../util/cli-tokens'
 
 /**
  * The exact-release flag is `--tag`, not `--version`: the root program owns
@@ -56,7 +57,7 @@ function reportCheck(plan: UpdatePlan): void {
 /** Whether the user agreed to the install; `--yes` agrees up front. */
 async function confirmInstall(plan: UpdatePlan, yes: boolean): Promise<boolean> {
   if (yes) return true
-  requireFlag('--yes')
+  requireFlag(FLAG.yes)
   const confirmed = await ask<boolean>({
     type: 'confirm',
     message: t(
@@ -80,8 +81,8 @@ async function previewWorkspace(
 ): Promise<void> {
   if (!(await fileExists(getRitualConfigPath()))) return
   console.log(t('cli.selfUpdate.checkingWorkspace', { version }))
-  const args = ['migrate', '--dry-run', '--base-dir', getBaseDir()]
-  if (isNoInput()) args.push('--no-input')
+  const args: string[] = [...COMMAND.migrate, FLAG.dryRun, FLAG.baseDir, getBaseDir()]
+  if (isNoInput()) args.push(FLAG.noInput)
   let failure: string | undefined
   try {
     const exitCode = await env.runInherited(binary, args)
@@ -91,7 +92,12 @@ async function previewWorkspace(
     failure = getErrorMessage(error)
   }
   if (failure !== undefined) {
-    console.warn(t('cli.selfUpdate.workspaceCheckFailed', { error: failure }))
+    console.warn(
+      t('cli.selfUpdate.workspaceCheckFailed', {
+        error: failure,
+        command: commandLine(COMMAND.migrate, FLAG.dryRun),
+      }),
+    )
   }
 }
 

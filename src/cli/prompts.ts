@@ -11,13 +11,16 @@ import {
   inputRequiredError,
   inputRequiredForQuestion,
   isNoInput,
+  promptSubject,
   promptsUnavailable,
-  type QuestionSubjectKey,
+  questionInputRequiredError,
+  type QuestionSubject,
 } from '../util/no-input'
 import { t } from '../i18n/t'
 import { getLogger } from '../util/logger'
 import { canPromptWithOutput, type ScriptingOptions } from './output'
 import { matchesChoiceTerms, matchesChoiceTitleTerms } from './menu-search'
+import { FLAG } from '../util/cli-tokens'
 
 /** Shared type for the `onState` callback parameter used with the `prompts` library. */
 export type PromptState = { exited: boolean }
@@ -95,7 +98,7 @@ export type PromptLibraryStrings = {
 /**
  * A question for {@link ask}: everything the
  * `prompts` library accepts (minus the `name`, which the helper owns), plus the
- * undeclared options above and Ritual's own `subjectKey`.
+ * undeclared options above and Ritual's own `subject`.
  */
 export type AskQuestion = Omit<prompts.PromptObject<'value'>, 'name'> &
   UndeclaredPromptOptions & {
@@ -106,10 +109,11 @@ export type AskQuestion = Omit<prompts.PromptObject<'value'>, 'name'> &
      * Not the prompt's own `message`. A question spliced into that declarative
      * frame is ungrammatical in most languages once translated — and often in
      * English too ("Input required: Which printing? (…)"). A prompt without a
-     * `subjectKey` still falls back to its `message`, which is what every
-     * unconverted prompt does today.
+     * `subject` still falls back to its `message`, which is what every
+     * unconverted prompt does today. A subject that names the flags to pass
+     * instead takes them as params, built with `promptSubject`.
      */
-    subjectKey?: QuestionSubjectKey
+    subject?: QuestionSubject
   }
 
 type PromptAnswer = { value?: unknown }
@@ -295,22 +299,22 @@ export function promptLibraryStrings(
  *
  * Every prompt in the CLI passes through here, which makes this the one place
  * the library's own English is overridden, list prompts are sized to the
- * terminal, and `--no-input` refusals are phrased. A question's `subjectKey` names what it wanted as a
+ * terminal, and `--no-input` refusals are phrased. A question's `subject` names what it wanted as a
  * noun phrase; without one the refusal falls back to splicing the question
  * itself, which is what every not-yet-converted prompt does.
  */
 export async function ask<T>(question: AskQuestion): Promise<T | undefined> {
   if (promptsUnavailable()) {
-    if (question.subjectKey !== undefined) throw inputRequiredError(question.subjectKey)
+    if (question.subject !== undefined) throw questionInputRequiredError(question.subject)
     throw typeof question.message === 'string'
       ? inputRequiredForQuestion(question.message)
       : inputRequiredError('cli.prompt.subject.interactiveInput')
   }
   let exited = false
-  const { subjectKey: _subjectKey, ...asked } = question
+  const { subject: _subject, ...asked } = question
   // Esc in a search clears what was typed before it backs out a level; a
   // question that wants otherwise passes `clearFirst: false`.
-  const libraryQuestion: Omit<AskQuestion, 'subjectKey'> = {
+  const libraryQuestion: Omit<AskQuestion, 'subject'> = {
     ...asked,
     clearFirst: asked.clearFirst ?? asked.type === 'autocomplete',
   }
@@ -379,7 +383,10 @@ export async function promptCredentials(): Promise<ArchidektCredentials | undefi
       type: 'text',
       name: 'username',
       message: t('cli.login.usernamePrompt'),
-      subjectKey: 'cli.prompt.subject.loginCredentials',
+      subject: promptSubject('cli.prompt.subject.loginCredentials', {
+        usernameFlag: FLAG.username,
+        passwordStdinFlag: FLAG.passwordStdin,
+      }),
     },
     { type: 'password', name: 'password', message: t('cli.login.passwordPrompt') },
   ])
@@ -411,7 +418,7 @@ export async function promptListType(): Promise<ListType | undefined> {
   return ask<ListType>({
     type: 'select',
     message: t('cli.import.promptListType'),
-    subjectKey: 'cli.prompt.subject.listType',
+    subject: 'cli.prompt.subject.listType',
     // The rows are the persisted type slugs themselves, not display names: the
     // answer is what gets written, and showing the slug is what makes the two
     // obviously the same thing.
@@ -459,19 +466,21 @@ export async function resolveImportPrintings(
   if (question.flag !== undefined) return question.flag
   if (!question.deckStatesPrintings) return true
   if (isNoInput()) {
-    getLogger().info(t('cli.import.defaultedToPrintings'))
+    getLogger().info(t('cli.import.defaultedToPrintings', { flag: FLAG.noSyncPrintings }))
     return true
   }
   // ask() itself refuses when prompts are unavailable; this adds the other
   // half of the shared rule — a machine-readable stream owns stdout, so a
   // prompt must not be drawn over it even on a TTY.
-  if (!canPromptWithOutput(question.scripting)) {
-    throw inputRequiredError('cli.prompt.subject.syncPrintings')
-  }
+  const subject = promptSubject('cli.prompt.subject.syncPrintings', {
+    syncPrintingsFlag: FLAG.syncPrintings,
+    noSyncPrintingsFlag: FLAG.noSyncPrintings,
+  })
+  if (!canPromptWithOutput(question.scripting)) throw questionInputRequiredError(subject)
   return ask<boolean>({
     type: 'confirm',
     message: t('cli.import.promptSyncPrintings'),
-    subjectKey: 'cli.prompt.subject.syncPrintings',
+    subject: subject,
     initial: true,
   })
 }
@@ -489,7 +498,7 @@ export async function promptTextFilter(
   const value = await ask<string>({
     type: 'text',
     message,
-    subjectKey: 'cli.prompt.subject.filterValue',
+    subject: 'cli.prompt.subject.filterValue',
     initial: current ?? '',
   })
   if (value === undefined) return current
@@ -516,7 +525,7 @@ export async function promptExitMenu(changeCount?: number): Promise<ExitMenuChoi
   const choice = await ask<ExitMenuChoice>({
     type: 'select',
     message,
-    subjectKey: 'cli.prompt.subject.exitChoice',
+    subject: 'cli.prompt.subject.exitChoice',
     choices: [
       { title: `✅ ${t('cli.menu.saveAndExit')}`, value: 'save' },
       { title: `🚪 ${t('cli.menu.exitWithoutSaving')}`, value: 'discard' },

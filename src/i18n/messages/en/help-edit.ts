@@ -35,14 +35,14 @@ export const helpEditMessages = {
   'help.history.listName':
     'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
   'help.history.show': 'Print the change history and exit instead of opening the editor',
-  'help.history.limit': 'With --show: print only the newest <n> change sets',
+  'help.history.limit': 'With {flag}: print only the newest <n> change sets',
 
   // ── detect-changes ────────────────────────────────────────────────────
   'help.detectChanges.description':
-    'Record changelog entries for hand-edited lists, or manage .sha256 sidecars',
+    'Record changelog entries for hand-edited lists, or manage {file} sidecars',
   'help.detectChanges.commit': 'Git commit hash or ref to diff against (e.g. HEAD~1, abc123)',
   'help.detectChanges.hashOnly':
-    'Stamp .sha256 sidecars from current content (no git, no changelog entries)',
+    'Stamp {file} sidecars from current content (no git, no changelog entries)',
   'help.detectChanges.verify': "Report each list file's sidecar status and write nothing",
   'help.detectChanges.dryRun': 'Preview what would change without writing files',
 } as const satisfies MessageCatalogShape

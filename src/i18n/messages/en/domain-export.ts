@@ -59,7 +59,7 @@ export const domainExportMessages = {
   'domain.export.problem.labelsEmpty': 'No labels given. Use one of: {values}.',
   'domain.export.problem.labelInvalid': "Invalid label '{value}'. Use one of: {values}.",
   'domain.export.problem.presetsNotObject':
-    '"exportPresets" must be an object mapping preset names to presets',
+    '"{configKey}" must be an object mapping preset names to presets',
   'domain.export.problem.presetNotObject': '{preset} must be an object',
   'domain.export.problem.presetFormatInvalid': '{preset}.format must be one of: {formats}',
   'domain.export.problem.presetColumnsNotArray':

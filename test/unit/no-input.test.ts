@@ -218,7 +218,10 @@ describe('the refusal in another language', () => {
       const subject = tDynamic(locale, 'cli.prompt.subject.passCardOrId', {
         flag: '--card-id <id>',
       })
-      const reason = tDynamic(locale, 'cli.prompt.reason.noInput')
+      const reason = tDynamic(locale, 'cli.prompt.reason.noInput', {
+        flag: '--no-input',
+        envVar: 'RITUAL_NO_INPUT',
+      })
       expect(error.message).toBe(tDynamic(locale, 'errors.input.required', { subject, reason }))
       expect(error.message).not.toContain('Input required')
       expect(error.messageKey).toBe('errors.input.required')

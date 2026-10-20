@@ -17,6 +17,7 @@
  */
 
 import { syncMessage, type SyncMessage } from '../sync/message'
+import { FLAG } from '../util/cli-tokens'
 
 /** A remote deck that changed after the local file's recorded sync. */
 export type DeckDivergence = {
@@ -101,5 +102,6 @@ export function describeDivergence(divergence: DeckDivergence): SyncMessage {
   return syncMessage('domain.sync.diverged', {
     remote: divergence.remoteUpdatedAt,
     synced: divergence.syncedUpdatedAt,
+    flag: FLAG.force,
   })
 }

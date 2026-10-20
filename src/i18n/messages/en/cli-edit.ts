@@ -216,7 +216,7 @@ export const cliEditMessages = {
   'cli.edit.categoriesReordered': 'Category order: {order}',
   'cli.edit.noPrintings': 'No printings found.',
   'cli.edit.noConfiguredLanguage':
-    'No defaultLanguage configured; adding cards as English ({language}). Change it for this session with the 🌐 Card Language menu action, or for good with `ritual config set defaultLanguage <code>`.',
+    'No {configKey} configured; adding cards as English ({language}). Change it for this session with the 🌐 Card Language menu action, or for good with `{command}`.',
   'cli.edit.noPrintingsNameOnly': 'No printings found. Adding name only.',
   'cli.edit.fileWarning': '{file}: {warning}',
 
@@ -280,7 +280,7 @@ export const cliEditMessages = {
   'cli.art.promptPickFile': 'Pick an image in {dir}:',
   'cli.art.rowUp': '.. (up one level)',
   'cli.art.dirMissing':
-    "No art directory at {dir}. Put your images there (or point somewhere else with 'ritual config set artDir <dir>') and try again.",
+    "No art directory at {dir}. Put your images there (or point somewhere else with '{command}') and try again.",
   'cli.art.dirGone': 'No directory at {dir} any more — it went away while you were browsing.',
   'cli.art.dirUnreadable': 'Could not read {dir}: {reason}',
   'cli.art.dirEmpty': 'No images in {dir}. Custom art files must be one of: {extensions}.',
@@ -325,9 +325,9 @@ export const cliEditMessages = {
     "Printing {printing} of '{name}' is not available in {finish}. Available finishes: {available}.",
 
   // ── `ritual history` ──────────────────────────────────────────────────
-  'cli.history.limitInvalid': "--limit must be a positive integer (got '{value}').",
-  'cli.history.limitRequiresShow': '--limit requires --show.',
-  'cli.history.outputRequiresShow': '--output {output} requires --show.',
+  'cli.history.limitInvalid': "{flag} must be a positive integer (got '{value}').",
+  'cli.history.limitRequiresShow': '{limitFlag} requires {showFlag}.',
+  'cli.history.outputRequiresShow': '{outputFlag} {output} requires {showFlag}.',
   'cli.history.noHistory': 'No change history recorded.',
   'cli.history.setCount': {
     $plural: 'count',
@@ -409,11 +409,11 @@ export const cliEditMessages = {
   'cli.lineMutate.conflictingLabels':
     'The target line carries a conflicting labels token [{token}], which a rewrite would drop. Fix the token in the file first.',
   'cli.lineMutate.finishWithoutPrinting':
-    'Cannot set the finish to {finish}: the card line names no printing, and a finish belongs to one. Pass --set and --collector-number to pin a printing first.',
+    'Cannot set the finish to {finish}: the card line names no printing, and a finish belongs to one. Pass {setFlag} and {collectorNumberFlag} to pin a printing first.',
 
   // ── The Archidekt CSV-upload decision ─────────────────────────────────
   'cli.csvUpload.flagAdvice':
-    'Pass --csv to upload them as one CSV import, or --csv-file <path> to write the CSV for a manual upload.',
+    'Pass {csvFlag} to upload them as one CSV import, or {csvFileFlag} to write the CSV for a manual upload.',
   'cli.csvUpload.tooMany':
     '{cards} would be added — more than {threshold}, so adding them one at a time would cost {searches} printing searches. {advice}',
   'cli.csvUpload.prompt': {

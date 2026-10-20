@@ -53,6 +53,7 @@ import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { requireFlag } from '../util/no-input'
 import { readPasswordFromStdin } from '../cli/prompts'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { COMMAND, CONFIG_KEY, ENV_VAR, FLAG, commandLine, flagValue } from '../util/cli-tokens'
 
 type AdminCommandOptions = {
   port: number
@@ -146,9 +147,12 @@ export function registerAdminCommand(program: Command): void {
     .option('-p, --port <number>', t('help.admin.port'), parsePort, 8080)
     .option('--host <address>', t('help.admin.host'), '0.0.0.0')
     .option('--theme <name>', t('help.admin.theme', { themes: themeNames.join(', ') }), 'default')
-    .option('--mcp', t('help.admin.mcp'))
-    .option('--mcp-port <number>', t('help.admin.mcpPort'), parsePort, 8765)
-    .option('--mcp-token <secret>', t('help.admin.mcpToken'))
+    .option('--mcp', t('help.admin.mcp', { flag: FLAG.mcpToken }))
+    .option('--mcp-port <number>', t('help.admin.mcpPort', { flag: FLAG.mcp }), parsePort, 8765)
+    .option(
+      '--mcp-token <secret>',
+      t('help.admin.mcpToken', { flag: FLAG.mcp, envVar: ENV_VAR.mcpToken }),
+    )
     .action(async (options: AdminCommandOptions) => {
       // Set before the buylist warm and before the server starts answering
       // requests, so the startup refresh and the sell/buylist routes agree.
@@ -171,12 +175,20 @@ export function registerAdminCommand(program: Command): void {
       if (options.mcp) {
         const mcpToken = resolveMcpToken(options.mcpToken)
         if (!mcpToken) {
-          console.error(t('cli.admin.mcpTokenRequired'))
+          console.error(
+            t('cli.admin.mcpTokenRequired', {
+              mcpFlag: FLAG.mcp,
+              mcpTokenFlag: flagValue(FLAG.mcpToken, '<secret>'),
+              envVar: ENV_VAR.mcpToken,
+            }),
+          )
           process.exitCode = ExitCode.UsageError
           return
         }
         if (options.mcpPort === port) {
-          console.error(t('cli.admin.mcpPortConflict'))
+          console.error(
+            t('cli.admin.mcpPortConflict', { mcpPortFlag: FLAG.mcpPort, portFlag: FLAG.port }),
+          )
           process.exitCode = ExitCode.UsageError
           return
         }
@@ -250,7 +262,12 @@ export function registerAdminCommand(program: Command): void {
       // A fresh workspace answers setup only to the holder of this token, which
       // is printed here and nowhere else; see `src/admin/setup-token.ts`.
       if (!(await adminUserExists())) {
-        console.log(t('cli.admin.setupRequired', { url: setupUrl(host, adminServer.port) }))
+        console.log(
+          t('cli.admin.setupRequired', {
+            url: setupUrl(host, adminServer.port),
+            command: commandLine(COMMAND.adminSetup),
+          }),
+        )
       }
 
       // Both listeners hold the process open, so Ctrl-C has to stop both; with
@@ -281,7 +298,7 @@ export function registerAdminCommand(program: Command): void {
   // `build-site`, `serve` and `mcp` so the four can never describe the same
   // switch differently. Commander collects options at parse time, so this sits
   // beside the built command rather than mid-chain.
-  addSellModeOption(admin, t('help.admin.sellMode'))
+  addSellModeOption(admin, t('help.admin.sellMode', { configKey: CONFIG_KEY.siteSellMode }))
 
   registerSetupSubcommand(admin)
   registerResetPasswordSubcommand(admin)
@@ -333,7 +350,7 @@ async function resolvePassword(options: AccountSubcommandOptions): Promise<strin
   if (options.passwordStdin) {
     return readPasswordFromStdin()
   }
-  requireFlag('--password-stdin')
+  requireFlag(FLAG.passwordStdin)
   return promptForPassword()
 }
 
@@ -364,7 +381,9 @@ async function auditAccountEvent(username: string, reason: AuditReason): Promise
 /** Fail with a not-found unless the admin credentials file exists. */
 async function requireAdminUser(): Promise<void> {
   if (!(await adminUserExists())) {
-    throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.admin.noUser')
+    throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.admin.noUser', {
+      command: commandLine(COMMAND.adminSetup),
+    })
   }
 }
 
@@ -385,6 +404,7 @@ function registerSetupSubcommand(admin: Command): void {
           'usage_error',
           ExitCode.UsageError,
           'cli.admin.usernameRequired',
+          { flag: FLAG.username },
         )
       }
       validateUsername(username)

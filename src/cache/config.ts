@@ -1,5 +1,6 @@
 import { resolveStringOverride } from '../config/env-override'
 import { t } from '../i18n/t'
+import { EXAMPLE } from '../util/cli-tokens'
 
 const CACHE_SERVER_PROTOCOL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//
 
@@ -36,7 +37,7 @@ export function isCacheServerAddressError(
 export function parseCacheServerBaseUrl(address: string): string | CacheServerAddressError {
   const normalizedAddress = normalizeCacheServerAddress(address)
   if (!normalizedAddress) {
-    return { error: t('cli.cacheServer.addressEmpty') }
+    return { error: t('cli.cacheServer.addressEmpty', { example: EXAMPLE.cacheServerHost }) }
   }
 
   const withProtocol = CACHE_SERVER_PROTOCOL_RE.test(normalizedAddress)
@@ -46,10 +47,10 @@ export function parseCacheServerBaseUrl(address: string): string | CacheServerAd
   try {
     parsed = new URL(withProtocol)
   } catch {
-    return { error: t('cli.cacheServer.addressInvalid') }
+    return { error: t('cli.cacheServer.addressInvalid', { example: EXAMPLE.cacheServerHost, exampleUrl: EXAMPLE.cacheServerUrl }) }
   }
   if (!parsed.hostname || !parsed.port) {
-    return { error: t('cli.cacheServer.addressInvalid') }
+    return { error: t('cli.cacheServer.addressInvalid', { example: EXAMPLE.cacheServerHost, exampleUrl: EXAMPLE.cacheServerUrl }) }
   }
 
   return `${parsed.protocol}//${parsed.host}`

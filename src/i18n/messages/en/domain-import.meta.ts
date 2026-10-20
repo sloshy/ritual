@@ -228,7 +228,7 @@ export const domainImportMeta = {
     description: `${URL_CONTEXT} Refusal: the URL is not one of those three websites’ deck pages.`,
   },
   'domain.import.url.moxfieldUserAgent': {
-    description: `${URL_CONTEXT} Refusal: Moxfield only answers programs that identify themselves with a user-agent string Moxfield approved. MOXFIELD_USER_AGENT (an environment variable) and --moxfield-user-agent <agent> (a command-line option) are literal and stay untranslated.`,
+    description: `${URL_CONTEXT} Refusal: Moxfield only answers programs that identify themselves with a user-agent string Moxfield approved. {envVar} is the \`MOXFIELD_USER_AGENT\` environment variable; {flag} is \`--moxfield-user-agent <agent>\`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.`,
   },
   'domain.import.url.fetchingArchidekt': {
     description: `${URL_CONTEXT} Progress line while the deck downloads. {id} is the deck’s number on Archidekt.`,

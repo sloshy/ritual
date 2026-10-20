@@ -21,7 +21,7 @@ import type { MessageCatalogShape } from '../../types'
 export const adminApiMessages = {
   // ── First-run setup ───────────────────────────────────────────────────
   'admin.api.setup.tokenInvalid':
-    'That setup token is not right. Use the setup link `ritual admin` printed when it started, or run `ritual admin setup`.',
+    'That setup token is not right. Use the setup link `{adminCommand}` printed when it started, or run `{adminSetupCommand}`.',
 
   // ── List lifecycle ────────────────────────────────────────────────────
   //
@@ -254,12 +254,12 @@ export const adminApiMessages = {
   'admin.api.cache.empty': {
     $select: 'need',
     prices:
-      'The card cache is empty; prices are unavailable. Refresh it first (MCP: the refresh_cache tool; CLI: `ritual cache preload-all`).',
+      'The card cache is empty; prices are unavailable. Refresh it first (MCP: the refresh_cache tool; CLI: `{command}`).',
     buylist:
-      'The card cache is empty; buylist matching requires it. Refresh it first (MCP: the refresh_cache tool; CLI: `ritual cache preload-all`).',
+      'The card cache is empty; buylist matching requires it. Refresh it first (MCP: the refresh_cache tool; CLI: `{command}`).',
   },
   'admin.api.cardNames.coldCache':
-    'The local card cache is empty, so card names cannot be validated. Refresh it first (MCP: the refresh_cache tool; CLI: `ritual cache preload-all`), or omit validateCardNames.',
+    'The local card cache is empty, so card names cannot be validated. Refresh it first (MCP: the refresh_cache tool; CLI: `{command}`), or omit validateCardNames.',
   'admin.api.cardNames.unknown': "'{name}' is not a card name the local cache knows.",
   'admin.api.cardNames.unknownSuggested':
     "'{name}' is not a card name the local cache knows. Did you mean: {candidates}?",
@@ -384,7 +384,7 @@ export const adminApiMessages = {
   'admin.api.buildSite.busy': 'A site build is already running; wait for it to finish.',
   'admin.api.buildSite.stepStarting': 'Starting site build…',
   'admin.api.buildSite.stepBuilding': 'Building…',
-  'admin.api.buildSite.stepPublishing': 'Publishing to dist/…',
+  'admin.api.buildSite.stepPublishing': 'Publishing to {file}…',
   'admin.api.buildSite.failed': 'Site build failed (exit {code}).',
   'admin.api.buildSite.failedWithOutput': 'Site build failed (exit {code}). {output}',
 
@@ -487,5 +487,5 @@ export const adminApiMessages = {
   'admin.api.collectionSync.strategyConflict':
     'removalPriority and removalAssignments are two ways to settle the same removals; send one or the other.',
   'admin.api.collectionSync.csvFileUnsupported':
-    'csvFile is not supported over HTTP: use the CLI’s --csv-file to write a CSV, or csv: true to upload the additions.',
+    'csvFile is not supported over HTTP: use the CLI’s {flag} to write a CSV, or csv: true to upload the additions.',
 } as const satisfies MessageCatalogShape

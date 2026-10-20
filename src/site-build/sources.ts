@@ -6,12 +6,8 @@ import { t } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
 import type { SiteSelectionConfig } from '../config/list-selection'
 import type { ListType } from '../list/list-type'
-import {
-  resolveSourceSelection,
-  SITE_SELECTION_KEYS,
-  type ListSourceEntry,
-  type SourceSelection,
-} from './list-sources'
+import { resolveSourceSelection, type ListSourceEntry, type SourceSelection } from './list-sources'
+import { CONFIG_KEY } from '../util/cli-tokens'
 
 /** A source the build asked for and could not use. */
 export type SkippedSource = {
@@ -102,6 +98,13 @@ export async function resolveBuildSources(input: BuildSourcesInput): Promise<Bui
   return { deckUrls, categories, skipped, skipSource }
 }
 
+/** The config key path whose selection a category's include list comes from. */
+const INCLUDE_CONFIG_KEYS = {
+  deck: CONFIG_KEY.siteIncludeDecks,
+  collection: CONFIG_KEY.siteIncludeCollections,
+  wanted: CONFIG_KEY.siteIncludeWantedLists,
+} as const satisfies Record<ListType, string>
+
 /** The reporting pass for one category; yields it with its `buildable` sources. */
 function reportCategory(
   kind: ListType,
@@ -123,7 +126,7 @@ function reportCategory(
     }
   } else {
     for (const name of resolved.unmatchedIncludes) {
-      const configKey = SITE_SELECTION_KEYS[kind].include
+      const configKey = INCLUDE_CONFIG_KEYS[kind]
       console.warn(t('cli.buildSite.includeUnmatched', { kind, configKey, name, dir }))
     }
     // "Found" describes discovery, so it is printed for the config selection

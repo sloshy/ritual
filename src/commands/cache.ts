@@ -19,6 +19,7 @@ import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '..
 import { t, type ParameterlessKey } from '../i18n/t'
 import { formatDateTime, formatNumber } from '../ui/format'
 import { displayWidth, padEndDisplay } from '../i18n/width'
+import { CONFIG_KEY, FLAG, LINK, flagValue } from '../util/cli-tokens'
 
 /** Flags for `cache preload-all`. */
 type CachePreloadAllOptions = {
@@ -130,7 +131,9 @@ export function registerCacheCommand(program: Command): void {
         if (result.matched === 0) {
           // Scryfall answers an unknown set code with "nothing matched"; there is
           // no such thing as a real, empty set.
-          console.error(t('cli.cache.preloadSetNotFound', { set: displayCode }))
+          console.error(
+            t('cli.cache.preloadSetNotFound', { set: displayCode, url: LINK.scryfallSets }),
+          )
           process.exitCode = ExitCode.NotFound
           return
         }
@@ -159,8 +162,15 @@ export function registerCacheCommand(program: Command): void {
     cache
       .command('preload-all')
       .description(t('help.cache.preloadAll'))
-      .option('--source <source>', t('help.cache.preloadAllSource'), parseCacheSourceFlag),
-    t('help.cache.preloadAllFeedUrl'),
+      .option(
+        '--source <source>',
+        t('help.cache.preloadAllSource', { configKey: CONFIG_KEY.cacheSource }),
+        parseCacheSourceFlag,
+      ),
+    t('help.cache.preloadAllFeedUrl', {
+      flag: flagValue(FLAG.source, 'feed'),
+      configKey: CONFIG_KEY.cacheFeedUrl,
+    }),
   )
     .option('--force', t('help.cache.preloadAllForce'), false)
     .action(async (options: CachePreloadAllOptions) => {

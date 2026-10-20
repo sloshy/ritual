@@ -456,7 +456,7 @@ export async function confirmRemoval<L, S extends EditSnapshot>(
   const confirmed = await ask<boolean>({
     type: 'confirm',
     message: t('cli.edit.confirmRemove', { line: model.render(located) }),
-    subjectKey: 'cli.prompt.subject.removeConfirm',
+    subject: 'cli.prompt.subject.removeConfirm',
     initial: false,
   })
   return confirmed === true

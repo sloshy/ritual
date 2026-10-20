@@ -37,25 +37,25 @@ export const domainConfigMessages = {
   'domain.config.mustBeHash': '"{field}" must be a "sha256:" hash string',
   'domain.config.mustBeListName': '"{field}" must be a non-empty list name',
   'domain.config.bannedPrinting':
-    'banned printing "{value}" must be in "SET:COLLECTOR" form (e.g. "sld:123")',
+    'banned printing "{value}" must be in "{format}" form (e.g. "{example}")',
   'domain.config.uiLocaleMalformed': 'invalid UI locale: {reason}',
   'domain.config.uiLocaleUnknown':
     'invalid UI locale "{tag}": no such language is known (expected a BCP-47 tag such as "en" or "de-AT")',
   'domain.config.defaultLanguage':
-    'Invalid language {value} for "defaultLanguage". Valid languages: {languages}',
-  'domain.config.defaultCategoriesNotArray': 'defaultCategories must be an array of category names',
+    'Invalid language {value} for "{configKey}". Valid languages: {languages}',
+  'domain.config.defaultCategoriesNotArray': '{configKey} must be an array of category names',
   'domain.config.defaultCategoriesNotText':
-    'defaultCategories must be an array of category names, got {value}',
+    '{configKey} must be an array of category names, got {value}',
 
   // ── Sections and fields ───────────────────────────────────────────────
   'domain.config.section': '{section} config',
   'domain.config.sectionNotObject': '{section} config must be a JSON object',
   'domain.config.inSection': '{section} config: {reason}',
   'domain.config.field': '{field}: {reason}',
-  'domain.config.ignoringInvalid': 'ritual.config.json: ignoring invalid {field} — {reason}',
+  'domain.config.ignoringInvalid': '{file}: ignoring invalid {field} — {reason}',
 
   // ── The file itself ───────────────────────────────────────────────────
   'domain.config.fileNotJson':
-    'ritual.config.json is not valid JSON: {path}\n  {reason}\nFix the file (or delete it to fall back to defaults) and try again.',
+    '{file} is not valid JSON: {path}\n  {reason}\nFix the file (or delete it to fall back to defaults) and try again.',
   'domain.config.fileNotObject': 'the file must contain a JSON object',
 } as const satisfies MessageCatalogShape

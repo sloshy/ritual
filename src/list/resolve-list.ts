@@ -48,6 +48,7 @@ import {
   type SyncMessageRef,
   type SyncParam,
 } from '../sync/message'
+import { FLAG } from '../util/cli-tokens'
 
 /**
  * The folding every tier below the byte-exact one matches in. Defined in
@@ -351,7 +352,11 @@ function ambiguityAdvice(error: AmbiguousError, hint: ResolveHint): SyncMessageR
   if (sameType) return typeMoreAdvice(error.matches)
   switch (hint) {
     case 'type-flags':
-      return syncRef('errors.resolveList.adviceTypeFlags')
+      return syncRef('errors.resolveList.adviceTypeFlags', {
+        deckFlag: FLAG.deck,
+        collectionFlag: FLAG.collection,
+        wantedFlag: FLAG.wanted,
+      })
     case 'type-prefix': {
       // Quoted: a name with a space must survive being pasted into a shell.
       const prefixes = resolvingTypes(error).map((type) => `'${type}:${error.query}'`)

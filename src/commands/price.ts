@@ -57,6 +57,7 @@ import { failWithMessage, runCommandAction } from '../cli/action'
 import { isSyncMessage, renderSyncMessage, type SyncMessage } from '../sync/message'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { ExitCode } from '../util/errors'
+import { CONFIG_KEY, FLAG } from '../util/cli-tokens'
 
 type PriceCommandOptions = Partial<ScriptingOptions> & {
   deck?: boolean
@@ -73,7 +74,7 @@ type PriceCommandOptions = Partial<ScriptingOptions> & {
 }
 
 function parseSortFlag(value: string): PriceSortField {
-  return parseEnumFlag(value, PRICE_SORT_FIELDS, '--sort')
+  return parseEnumFlag(value, PRICE_SORT_FIELDS, FLAG.sort)
 }
 
 /** The terminal facts the interactive-browser gate depends on. */
@@ -256,7 +257,11 @@ export function registerPriceCommand(program: Command): void {
           .description(t('help.price.description'))
           .argument('[listName]', t('help.price.listArg')),
       )
-        .option('--source <store>', t('help.price.source'), priceSourceFlagParser('--source'))
+        .option(
+          '--source <store>',
+          t('help.price.source', { configKey: CONFIG_KEY.defaultPriceSource }),
+          priceSourceFlagParser(FLAG.source),
+        )
         .option('--name <terms>', t('help.price.name'))
         .option('--set <code>', t('help.price.set'))
         .option('--collector <number>', t('help.price.collector'))

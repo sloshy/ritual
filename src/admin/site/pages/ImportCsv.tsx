@@ -42,6 +42,7 @@ import type { ApiActionMessage } from '../../../api/result'
 import { readSyncMessage, syncMessage, type SyncMessage } from '../../../sync/message'
 import type { ParameterlessKey } from '../../../i18n/t'
 import { useSyncText } from '../sync-text'
+import { EXAMPLE } from '../../../util/cli-tokens'
 
 type SourceMethod = 'upload' | 'text'
 
@@ -497,7 +498,10 @@ export function ImportCsv(): JSX.Element {
               )}
             </Show>
             <p class="form-hint form-hint-top">
-              {t('admin.importCsv.rowsHint', { count: dataRowCount() })}
+              {t('admin.importCsv.rowsHint', {
+                count: dataRowCount(),
+                example: EXAMPLE.importNormalization,
+              })}
             </p>
           </div>
         </Show>

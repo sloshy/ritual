@@ -14,6 +14,7 @@ import {
 import type { DeckData } from '../list/deck'
 import { formatResolveListError, isResolveListError, resolveList } from '../list/resolve-list'
 import { t } from '../i18n/t'
+import { ENV_VAR, FILE, FLAG, flagValue } from '../util/cli-tokens'
 
 type GetPrimerOptions = {
   moxfieldUserAgent?: string
@@ -24,7 +25,10 @@ export function registerGetPrimerCommand(program: Command): void {
     .command('get-primer')
     .description(t('help.getPrimer.description'))
     .argument('<source>', t('help.getPrimer.source'))
-    .option('--moxfield-user-agent <agent>', t('help.getPrimer.moxfieldUserAgent'))
+    .option(
+      '--moxfield-user-agent <agent>',
+      t('help.getPrimer.moxfieldUserAgent', { envVar: ENV_VAR.moxfieldUserAgent }),
+    )
     .action(async (source: string, options: GetPrimerOptions) => {
       const logger = getLogger()
 
@@ -34,7 +38,12 @@ export function registerGetPrimerCommand(program: Command): void {
         const deckId = urlMatch.deckId
         const userAgent = resolveMoxfieldUserAgent(options.moxfieldUserAgent)
         if (!userAgent) {
-          logger.error(t('cli.getPrimer.userAgentRequired'))
+          logger.error(
+            t('cli.getPrimer.userAgentRequired', {
+              envVar: ENV_VAR.moxfieldUserAgent,
+              flag: flagValue(FLAG.moxfieldUserAgent, '<agent>'),
+            }),
+          )
           process.exitCode = ExitCode.UsageError
           return
         }
@@ -79,7 +88,7 @@ export function registerGetPrimerCommand(program: Command): void {
       if (!primerText) {
         // The primer lives in a `.primer.md` sidecar, not in the deck's
         // frontmatter — an absent one is a missing resource (exit 3).
-        logger.error(t('cli.getPrimer.noPrimer', { name: deckData.name }))
+        logger.error(t('cli.getPrimer.noPrimer', { name: deckData.name, file: FILE.primer }))
         process.exitCode = ExitCode.NotFound
         return
       }

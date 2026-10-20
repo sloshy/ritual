@@ -36,6 +36,7 @@ import {
 import { ExitCode } from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
+import { COMMAND, EXAMPLE, bareCommandLine, commandLine } from '../util/cli-tokens'
 
 export type DeckSyncCommandOptions = {
   dryRun?: boolean
@@ -202,7 +203,11 @@ async function runDeckLink(
 export function describeSyncStatus(status: DeckSyncStatusOutput): string[] {
   const lines: string[] = []
   if (status.decks.length === 0) {
-    lines.push(t('cli.deckSync.noLinkedDecks'))
+    lines.push(
+      t('cli.deckSync.noLinkedDecks', {
+        command: commandLine(COMMAND.deckSyncLink, '<deck>', '<url>'),
+      }),
+    )
   } else {
     lines.push(
       t('cli.deckSync.linkedHeading', {
@@ -343,7 +348,11 @@ export function registerDeckSyncCommand(program: Command): void {
     // Only a push writes to Archidekt, so only a push has remote changes to
     // overwrite; a pull would have nothing to force.
     if (direction === 'push') {
-      command.option('--force', t('help.deckSync.force'), false)
+      command.option(
+        '--force',
+        t('help.deckSync.force', { command: bareCommandLine(COMMAND.deckSyncStatus) }),
+        false,
+      )
     }
     command.option('--sync-printings', t('help.deckSync.syncPrintings'), false)
     command.option('--sync-categories', t('help.deckSync.syncCategories'), false)
@@ -362,7 +371,7 @@ export function registerDeckSyncCommand(program: Command): void {
         .command('link')
         .description(t('help.deckSync.link'))
         .argument('<deck>', t('help.deckSync.linkDeck'))
-        .argument('<url>', t('help.deckSync.linkUrl')),
+        .argument('<url>', t('help.deckSync.linkUrl', { url: EXAMPLE.archidektDeckUrl })),
       t('help.deckSync.linkDryRun'),
     ),
   ).action(async (deckName: string, url: string, options: DeckLinkCommandOptions) => {

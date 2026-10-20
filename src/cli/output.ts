@@ -24,6 +24,7 @@ import {
 import { getAtPath } from '../util/object'
 import { promptsUnavailable } from '../util/no-input'
 import { QUIET_STDERR_LOGGER, setLogger, STDERR_LOGGER } from '../util/logger'
+import { FLAG, flagValue } from '../util/cli-tokens'
 
 export const OUTPUT_FORMATS = ['text', 'json', 'ndjson'] as const
 
@@ -281,12 +282,15 @@ export function rejectFieldsWithTextOutput(
   options: ScriptingOptions,
 ): boolean {
   if (fields !== undefined && fields.length > 0 && options.output === 'text') {
+    // Text mode only, so the refusal is printed and never an envelope: no ref.
     emitError(
       'usage_error',
-      t('errors.scripting.fieldsNeedStructuredOutput'),
+      t('errors.scripting.fieldsNeedStructuredOutput', {
+        fieldsFlag: FLAG.fields,
+        outputJsonFlag: flagValue(FLAG.output, 'json'),
+        outputNdjsonFlag: flagValue(FLAG.output, 'ndjson'),
+      }),
       options,
-      undefined,
-      'errors.scripting.fieldsNeedStructuredOutput',
     )
     process.exitCode = ExitCode.UsageError
     return true
@@ -429,7 +433,7 @@ export function parseFields(value: string): string[] {
     .filter((field) => field.length > 0)
 
   if (fields.length === 0) {
-    throw new InvalidArgumentError(t('errors.scripting.fieldsEmpty'))
+    throw new InvalidArgumentError(t('errors.scripting.fieldsEmpty', { flag: FLAG.fields }))
   }
 
   return fields

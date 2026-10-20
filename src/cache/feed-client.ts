@@ -31,6 +31,7 @@ import {
   type CardFeedKind,
 } from './feed'
 import { streamToFile } from './feed-download'
+import { COMMAND, CONFIG_KEY, FLAG, bareCommandLine, flagValue } from '../util/cli-tokens'
 
 /**
  * Default feed URL consulted when neither `--url` nor the `cacheFeedUrl`
@@ -288,7 +289,7 @@ export class CacheFeedClient {
       if (!entry) {
         throw new SyncMessageError(
           kind === 'all-cards'
-            ? syncMessage('cli.cacheFeed.missingAllCardsEntry', { kind })
+            ? syncMessage('cli.cacheFeed.missingAllCardsEntry', { kind, configKey: CONFIG_KEY.defaultLanguage, hostCommand: bareCommandLine(COMMAND.cacheFeedHost, FLAG.cards, 'all'), sourceFlag: flagValue(FLAG.source, 'scryfall') })
             : syncMessage('cli.cacheFeed.missingEntry', { kind }),
         )
       }

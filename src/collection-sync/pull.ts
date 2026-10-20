@@ -50,6 +50,7 @@ import {
   emitListLines,
   markCancelled,
 } from './types'
+import { CONFIG_KEY, FLAG } from '../util/cli-tokens'
 
 // ── Pull (Archidekt → local) ──────────────────────────────────────────
 
@@ -410,6 +411,8 @@ export async function validatePullDestinations(
     return syncMessage('domain.sync.pullTargetAmbiguous', {
       name: into,
       matches: listNames(matches),
+      flag: FLAG.into,
+      configKey: CONFIG_KEY.collectionSyncPullTarget,
     })
   }
   return null
@@ -435,6 +438,8 @@ async function resolveTarget(flow: SyncFlow): Promise<PullTarget | SyncMessage> 
     return syncMessage('domain.sync.pullTargetAmbiguous', {
       name: into,
       matches: listNames(matches),
+      flag: FLAG.into,
+      configKey: CONFIG_KEY.collectionSyncPullTarget,
     })
   }
 

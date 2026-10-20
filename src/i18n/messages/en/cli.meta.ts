@@ -31,7 +31,7 @@ export const cliMeta = {
   },
   'cli.cleanup.decksNeedFormat': {
     description:
-      '`ritual cleanup` found decks with no declared format and could not ask (no terminal). The flag name --skip-formats is never translated.',
+      '`ritual cleanup` found decks with no declared format and could not ask (no terminal). {flag} is the `--skip-formats` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.resolveAmbiguity.needsDecision': {
     description:
@@ -55,11 +55,11 @@ export const cliMeta = {
   },
   'cli.serve.priceSourcesUnderApi': {
     description:
-      'Usage error: `serve --api --build --price-sources` was given, but the live server takes its stores from config. `--price-sources`, `--api` and `priceSources` are literal and must not be translated.',
+      'Usage error: `serve --api --build --price-sources` was given, but the live server takes its stores from config. {priceSourcesFlag} is the `--price-sources` flag; {apiFlag} is the `--api` flag; {configKey} is the `priceSources` config key. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.serve.buildFlagsIgnored': {
     description:
-      'Flags that only mean something with --build were passed to a plain `ritual serve`. {flags} is a comma-joined list of flag names, never translated; the verb agrees with how many were given.',
+      'Flags that only mean something with --build were passed to a plain `ritual serve`. {flags} is a comma-joined list of flag names, never translated; the verb agrees with how many were given. {flag} is the `--build` flag. It is typed or matched exactly by the user, so never translate it.',
   },
 
   'cli.skills.written': {
@@ -76,7 +76,7 @@ export const cliMeta = {
   },
   'cli.skills.absent': {
     description:
-      'Summary line for skills that are not installed at all. The trailing pronoun agrees with the count; the backticked command is never translated.',
+      'Summary line for skills that are not installed at all. The trailing pronoun agrees with the count. {command} is the `ritual skills install` command line. It is typed or matched exactly by the user, so never translate it.',
   },
 
   'cli.sync.unreadableDecks': {
@@ -95,15 +95,16 @@ export const cliMeta = {
   },
   'cli.sync.refuseDecks': {
     description:
-      'Refusal shown when decks with unreadable lines need confirmation but there is no terminal to ask in. --yes is a flag name and is never translated.',
+      'Refusal shown when decks with unreadable lines need confirmation but there is no terminal to ask in. {flag} is the `--yes` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.sync.refuseCollectionLists': {
-    description: 'The collection-list wording of the previous key.',
+    description:
+      'The collection-list wording of the previous key. {flag} is the `--yes` flag. It is typed or matched exactly by the user, so never translate it.',
   },
 
   'cli.prompt.reason.noInput': {
     description:
-      'Why prompting is impossible, shown in the parenthetical of "Input required: … (…)". This branch means the user asked for it; the flag and variable names are never translated.',
+      'Why prompting is impossible, shown in the parenthetical of "Input required: … (…)". This branch means the user asked for it. {flag} is the `--no-input` flag; {envVar} is the `RITUAL_NO_INPUT` environment variable. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.prompt.reason.noTty': {
     description:
@@ -127,11 +128,11 @@ export const cliMeta = {
   },
   'cli.prompt.subject.noInteractiveEditor': {
     description:
-      'Why `ritual edit` refuses without a terminal. A noun phrase, not a sentence: it is spliced into "Input required: {subject} ({reason})." The command names are CLI identifiers and never translate.',
+      'Why `ritual edit` refuses without a terminal. A noun phrase, not a sentence: it is spliced into "Input required: {subject} ({reason})." {addCardCommand} is the `add-card` command name; {removeCardCommand} is the `remove-card` command name; {setCardCommand} is the `set-card` command name; {noteCommand} is the `note` command name; {moveCommand} is the `move` command name. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.prompt.subject.noHistoryEditor': {
     description:
-      'Why `ritual history` refuses without a terminal. A noun phrase spliced into "Input required: {subject} ({reason})."; --show is a flag name and never translates.',
+      'Why `ritual history` refuses without a terminal. A noun phrase spliced into "Input required: {subject} ({reason}).". {flag} is the `--show` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.prompt.subject.passCardOrId': {
     description:
@@ -159,7 +160,7 @@ export const cliMeta = {
   },
   'cli.prompt.subject.syncPrintings': {
     description:
-      'Noun phrase for the URL-import prompt asking whether to keep the exact printings. The two flag names stay as-is.',
+      'Noun phrase for the URL-import prompt asking whether to keep the exact printings. {syncPrintingsFlag} is the `--sync-printings` flag; {noSyncPrintingsFlag} is the `--no-sync-printings` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.prompt.subject.filterValue': {
     description:
@@ -512,7 +513,7 @@ export const cliMeta = {
   },
   'cli.session.preloadScopeAllLanguages': {
     description:
-      'The {scope} of cli.session.preloadPrompt when the every-language bulk is needed. {language} is the configured defaultLanguage code; "defaultLanguage" and "all_cards" are a config key and a Scryfall bulk name — leave both untranslated.',
+      'The {scope} of cli.session.preloadPrompt when the every-language bulk is needed. {language} is the configured defaultLanguage code; "all_cards" is a Scryfall bulk name — leave it untranslated. {configKey} is the `defaultLanguage` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.session.preloadFailed': {
     description:

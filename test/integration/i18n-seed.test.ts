@@ -16,7 +16,7 @@ const SCRIPT = `
 const { registeredMessageCount, DEFAULT_LOCALE } = await import('./src/i18n/runtime.ts')
 const { tIn } = await import('./src/i18n/t.ts')
 process.stdout.write(JSON.stringify({
-  frame: tIn(DEFAULT_LOCALE, 'errors.i18n.strict.frame', { reason: 'x' }),
+  frame: tIn(DEFAULT_LOCALE, 'errors.i18n.strict.frame', { reason: 'x', envVar: 'RITUAL_I18N_STRICT' }),
   unhandled: tIn(DEFAULT_LOCALE, 'errors.invariant.unhandled', { value: '"y"' }),
   unregistered: tIn(DEFAULT_LOCALE, 'cli.serve.pageNotFound'),
   count: registeredMessageCount(),

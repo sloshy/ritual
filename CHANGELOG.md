@@ -937,6 +937,23 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
   (`For sale, For trade`; they were joined with `·`). The parentheses and separators around a counted note (a deck cover's
   `(99 cards)`, the edit banner's change count) are part of the translation too. The price
   browser's list row reads "1 card" for one card (it read "1 cards").
+- **Translations can no longer alter a flag, a command or a file name.** Every machine token
+  a message tells you to type or match — a flag (`--dry-run`, `--refresh auto`), a command
+  line (`ritual migrate`, `ritual config set artDir <dir>`), an environment variable
+  (`RITUAL_NO_INPUT`), a config key (`defaultLanguage`), a file or directory name
+  (`ritual.config.json`, `.claude/skills`), an example URL or the CSV importer's example
+  spellings — now reaches the text as a `{placeholder}` param instead of being written into
+  the English catalog, so a translator can move it but not reword it. The English output is
+  unchanged. Option values (`'daily'`, `'scryfall'`), admin API field names and MCP tool
+  names still stay in the text. For translators: such a key's description names each
+  placeholder and the exact token it holds, and a translation must keep every placeholder
+  (`check-locales` already refuses one that drops it). Any keyed message in a JSON payload,
+  admin API body or MCP result now carries those tokens in its `messageParams` too
+  (`"flag": "--yes"`).
+- **`check-locales` refuses an English message that inlines a machine token** (check 13,
+  `inline-token`): a `--flag`, a `ritual <command>` line or a bare one (`config set`), an
+  environment variable, or a file name, link or example value `src/util/cli-tokens.ts`
+  spells, written into the text, is an error; pass it as a param from that module instead.
 - **`set-card --output json`'s `applied` entries are messages.** Each is now an object
   (`message` in English, `messageKey`, `messageParams`, a finish, label, language or standard
   board nested as a message) instead of a bare string, and the section entry names the heading

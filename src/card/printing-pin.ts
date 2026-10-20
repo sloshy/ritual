@@ -42,6 +42,7 @@ import {
   type SyncMessage,
   type SyncMessageRef,
 } from '../sync/message'
+import { COMMAND, FLAG, commandLine } from '../util/cli-tokens'
 
 /**
  * The language a freshly added entry records: the language the printing
@@ -241,7 +242,10 @@ function ensureSameCard(printing: ScryfallCard, cardName: string, printingLabel:
 async function verifyPinAgainstScryfall(cardName: string, pin: PrintingPin): Promise<ScryfallCard> {
   // Nested, like the reason: the message reads in the CLI's language, and the
   // `--output json` envelope flattens both to English (`envelopeRef`).
-  const advice = syncRef('cli.cardOps.noCachedPrintingList', { name: cardName })
+  const advice = syncRef('cli.cardOps.noCachedPrintingList', {
+    name: cardName,
+    command: commandLine(COMMAND.cachePreloadAll),
+  })
   const printingLabel = `${pin.set.toUpperCase()}:${pin.collectorNumber}`
   let printing: ScryfallCard | null
   try {
@@ -445,7 +449,11 @@ export function ensureFinishAvailable(
     // The refusal nests whole, so the envelope's `reason` is English like the
     // params beside it while the message reads in the reader's language.
     const refusal = carriedOver
-      ? syncRef('cli.cardOps.finishCarriedOver', { reason: match.reason, finish })
+      ? syncRef('cli.cardOps.finishCarriedOver', {
+          reason: match.reason,
+          finish,
+          flag: FLAG.finish,
+        })
       : match.reason
     throw refusalWithDetails(toSyncMessage(refusal), { availableFinishes: match.available })
   }

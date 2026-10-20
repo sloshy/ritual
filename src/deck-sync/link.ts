@@ -18,6 +18,7 @@ import { parseDeckFrontMatter } from '../list/deck-file'
 import { readDeckName } from '../importers/text-file'
 import { t } from '../i18n/t'
 import { isSyncMessage, syncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
+import { EXAMPLE } from '../util/cli-tokens'
 
 /** An Archidekt deck reference, as deck front matter records one. */
 export type ArchidektDeckLink = {
@@ -41,7 +42,7 @@ export function parseArchidektDeckUrl(value: string): ArchidektDeckLink | string
   const url = resolveImportSourceUrl(trimmed) ?? trimmed
   const match = matchDeckUrl(url)
   if (!match || match.service !== 'archidekt') {
-    return t('domain.sync.deckUrlInvalid', { value: trimmed })
+    return t('domain.sync.deckUrlInvalid', { value: trimmed, example: EXAMPLE.archidektDeckUrl })
   }
   return { sourceId: match.deckId, sourceUrl: `https://archidekt.com/decks/${match.deckId}` }
 }

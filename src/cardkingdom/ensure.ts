@@ -18,6 +18,7 @@ import {
 import { loadCardKingdomCache, saveCardKingdomCache, type CardKingdomCacheFile } from './cache'
 import { fetchCardKingdomFeed } from './client'
 import { loadEnsuredFeed } from './memo'
+import { FLAG, flagValue } from '../util/cli-tokens'
 
 /**
  * Roughly how many megabytes the pricelist download weighs, for the sentences
@@ -39,7 +40,7 @@ function noFeedLead(): SyncMessageRef {
 export function missingFeedAdvice(): SyncMessage {
   return syncMessage('domain.cache.cardKingdom.missingAdvice', {
     lead: noFeedLead(),
-    flag: '--refresh auto',
+    flag: flagValue(FLAG.refresh, 'auto'),
     size: FEED_DOWNLOAD_MB,
   })
 }

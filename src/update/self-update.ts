@@ -15,6 +15,7 @@ import {
   resolveTargetBinary,
 } from './install'
 import { fetchRelease, resolveChannel, type ChannelFlags, type Release } from './release'
+import { COMMAND, DOCKER_PULL_COMMAND, bareCommandLine } from '../util/cli-tokens'
 
 /** What the user asked for. */
 export type UpdateRequest = ChannelFlags & {
@@ -45,14 +46,19 @@ export type UpdatePlan = {
  */
 export function assertSelfUpdatable(env: SelfUpdateEnv): void {
   if (env.installKind === 'docker') {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.selfUpdate.refuse.docker')
+    throw localizedCommandError(
+      'usage_error',
+      ExitCode.UsageError,
+      'cli.selfUpdate.refuse.docker',
+      { command: bareCommandLine(COMMAND.selfUpdate), dockerCommand: DOCKER_PULL_COMMAND },
+    )
   }
   if (env.build.release) return
   throw localizedCommandError(
     'usage_error',
     ExitCode.UsageError,
     'cli.selfUpdate.refuse.notRelease',
-    { version: env.build.version },
+    { version: env.build.version, command: bareCommandLine(COMMAND.selfUpdate) },
   )
 }
 

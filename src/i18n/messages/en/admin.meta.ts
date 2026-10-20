@@ -284,7 +284,7 @@ export const adminMeta = {
   },
   'admin.auth.setupTokenHint': {
     description:
-      'Hint under the setup token field explaining where to find it. `ritual admin` is a command name and stays verbatim.',
+      'Hint under the setup token field explaining where to find it. {command} is the `ritual admin` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'admin.auth.setupTokenRequired': {
     description: 'Error when the first-run form is submitted with the setup token field empty.',
@@ -480,7 +480,7 @@ export const adminMeta = {
   },
   'admin.buildSite.step': {
     description:
-      'Label above the Build Site progress bar naming the current structural step; `step` is one of starting, building, publishing, done.',
+      'Label above the Build Site progress bar naming the current structural step; `step` is one of starting, building, publishing, done. {file} is the `dist/` directory. It is typed or matched exactly by the user, so never translate it.',
   },
   'admin.buildSite.output': {
     description:
@@ -527,10 +527,6 @@ export const adminMeta = {
   'admin.buylist.desc': {
     description:
       'What the buylist feed is and when it downloads. {command} is a CLI command rendered as code — do not translate it.',
-  },
-  'admin.buylist.command': {
-    description:
-      'The CLI command named by admin.buylist.desc. A literal command — never translate.',
   },
   'admin.buylist.empty': { description: 'Shown when no buylist has ever been downloaded.' },
   'admin.buylist.statusFailed': {
@@ -645,13 +641,6 @@ export const adminMeta = {
       'Label of the text field holding the image’s path relative to the art directory (e.g. proxies/sol-ring.jpg).',
   },
   'admin.art.urlLabel': { description: 'Label of the text field holding the image’s web address.' },
-  'admin.art.filePlaceholder': {
-    description:
-      'Example file path shown in the empty field. A path, not prose — translate only if the example would be clearer localized.',
-  },
-  'admin.art.urlPlaceholder': {
-    description: 'Example image URL shown in the empty field. A URL, not prose.',
-  },
   'admin.art.previewAlt': {
     description: 'Alt text of the preview image in the dialog. {name} is the card’s name.',
   },
@@ -939,7 +928,7 @@ export const adminMeta = {
   },
   'admin.importCsv.rowsHint': {
     description:
-      'How many data rows were found, plus a note that values are normalized. The arrows show example normalizations and are literal.',
+      'How many data rows were found, plus a note that values are normalized. {example} is a list of import spellings and what each one normalizes to (`“Near Mint” → NM, “F” → foil, “side” → Sideboard`). It is typed or matched exactly by the user, so never translate it.',
   },
   'admin.importCsv.column': {
     description: 'Dropdown option naming a column of a headerless file. {index} is 1-based.',
@@ -1302,10 +1291,6 @@ export const adminMeta = {
     description:
       'The italicised {emphasis} of admin.collectionSync.intoDesc: some list, but nobody can say which.',
   },
-  'admin.collectionSync.intoSetting': {
-    description:
-      'The config key named by admin.collectionSync.intoDesc. A literal key — never translate.',
-  },
   'admin.collectionSync.intoLabel': { description: 'Accessible name of the pull-target dropdown.' },
   'admin.collectionSync.willBeCreated': {
     description:
@@ -1404,10 +1389,6 @@ export const adminMeta = {
   'admin.csvOutcome.empty': {
     description:
       'Outcome: no row could be built because no new card has a printing in the local cache. {command} is a CLI command rendered as code.',
-  },
-  'admin.csvOutcome.emptyCommand': {
-    description:
-      'The CLI command named by admin.csvOutcome.empty. A literal command — never translate.',
   },
   'admin.csvOutcome.failuresLead': {
     description:
@@ -1511,7 +1492,8 @@ export const adminMeta = {
     description: 'Field label: the address of the peer-to-peer cache feed.',
   },
   'admin.settings.cacheFeedUrlPlaceholder': {
-    description: 'Placeholder for the feed address; only the parenthetical is prose.',
+    description:
+      'Placeholder for the feed address; only the parenthetical is prose. {url} is the example URL `https://feed.example.com/feed.json`. It is typed or matched exactly by the user, so never translate it.',
   },
   'admin.settings.cacheLockTimeout': {
     description: 'Field label: how long a cache write may hold its lock, in seconds.',
@@ -1616,12 +1598,7 @@ export const adminMeta = {
     description:
       'Explains the split deployment. {command} is a CLI command rendered as code — never translate it.',
   },
-  'admin.settings.apiBaseUrlCommand': {
-    description:
-      'The CLI command named by admin.settings.apiBaseUrlHint. A literal command — never translate.',
-  },
   'admin.settings.apiBaseUrl': { description: 'Field label: the address of the live backend.' },
-  'admin.settings.apiBaseUrlPlaceholder': { description: 'Example backend address.' },
   'admin.settings.sellMode': {
     description:
       'Checkbox label: whether the sites offer sell mode (Card Kingdom buy prices and the buylist controls).',
@@ -1630,23 +1607,18 @@ export const adminMeta = {
     description:
       'Explains what the sell mode checkbox governs, why it is off by default, and that it applies without a restart. {flag} is a CLI flag rendered as code — never translate it.',
   },
-  'admin.settings.sellModeFlag': {
-    description:
-      'The CLI flag named by admin.settings.sellModeHint. A literal flag — never translate.',
-  },
   'admin.settings.printingsHeading': {
     description: 'Section heading for printings that may never be chosen as a card’s default.',
   },
   'admin.settings.printingsHint': {
     description:
-      'Explains the banned-printings list. {format} and {example} are literal code samples.',
+      'Explains the banned-printings list. {format} is the entry format (`SET:COLLECTOR`) and {example} an example entry (`SLD:123`). Each is typed or matched exactly by the user, so never translate them.',
   },
-  'admin.settings.printingsFormat': {
-    description: 'The literal entry format named by admin.settings.printingsHint. Never translate.',
-  },
-  'admin.settings.printingsExample': { description: 'A literal example entry. Never translate.' },
   'admin.settings.bannedPrintings': {
     description: 'Field label: the banned default printings themselves.',
   },
-  'admin.settings.bannedPrintingsPlaceholder': { description: 'Example banned printing.' },
+  'admin.settings.bannedPrintingsPlaceholder': {
+    description:
+      'Placeholder of the banned-printings field. {example} is the example entry `SLD:123`. It is typed or matched exactly by the user, so never translate it.',
+  },
 } as const satisfies MetaFor<typeof adminMessages>

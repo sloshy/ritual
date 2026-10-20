@@ -95,6 +95,16 @@ import {
   prepareCardCache,
 } from '../site-build/card-fetch'
 import { writeSiteIndex, writeSiteShell } from '../site-build/write-shell'
+import {
+  bareCommandLine,
+  COMMAND,
+  commandLine,
+  CONFIG_KEY,
+  ENV_VAR,
+  FILE,
+  FLAG,
+  type FlagToken,
+} from '../util/cli-tokens'
 
 export interface BuildSiteOptions {
   verbose?: boolean
@@ -144,6 +154,13 @@ export type SelectionFlagValue = { ok: true; names: string[] | undefined }
 /** A selection flag given with no names, worded in the CLI's language. */
 export type SelectionFlagError = { ok: false; error: string }
 
+/** The tokens both store refusals name: the flag, the config key, and the command that enables a store. */
+type StoreAdviceTokens = {
+  flag: string
+  configKey: string
+  command: string
+}
+
 /**
  * The names an optional-variadic selection flag carries.
  *
@@ -155,7 +172,7 @@ export type SelectionFlagError = { ok: false; error: string }
  */
 export function selectionFlagNames(
   value: string[] | boolean | undefined,
-  flag: string,
+  flag: FlagToken,
 ): SelectionFlagResult {
   if (value === undefined || value === false) return { ok: true, names: undefined }
   if (value === true || (Array.isArray(value) && value.length === 0)) {
@@ -193,7 +210,7 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
     explicitStores = []
     for (const raw of options.priceSources.split(',')) {
       if (raw.trim() === '') continue
-      const parsed = parseEnumField(raw.trim(), VALID_PRICE_SOURCES, '--price-sources')
+      const parsed = parseEnumField(raw.trim(), VALID_PRICE_SOURCES, FLAG.priceSources)
       if (!parsed.ok) return refuse(parsed.message, ExitCode.UsageError)
       if (!explicitStores.includes(parsed.value)) explicitStores.push(parsed.value)
     }
@@ -203,12 +220,18 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
   if (isSiteStoresError(siteStores)) {
     const locale = currentLocale()
     const stores = formatUnitList(locale, siteStores.requested)
+    const storeTokens: StoreAdviceTokens = {
+      flag: FLAG.priceSources,
+      configKey: CONFIG_KEY.priceSources,
+      command: commandLine(COMMAND.configSet, CONFIG_KEY.priceSources, FLAG.add, 'cardhoarder'),
+    }
     return refuse(
       priceSources.length === 0
-        ? t('cli.buildSite.storesNoneEnabled', { stores })
+        ? t('cli.buildSite.storesNoneEnabled', { stores, ...storeTokens })
         : t('cli.buildSite.storesNotEnabled', {
             stores,
             sources: formatUnitList(locale, priceSources),
+            ...storeTokens,
           }),
       ExitCode.UsageError,
     )
@@ -264,9 +287,9 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
  */
 export function parseSelectionFlags(options: BuildSiteOptions): SelectionFlagNames | undefined {
   const parsed = {
-    deck: selectionFlagNames(options.decks, '--decks'),
-    collection: selectionFlagNames(options.collections, '--collections'),
-    wanted: selectionFlagNames(options.wantedLists, '--wanted-lists'),
+    deck: selectionFlagNames(options.decks, FLAG.decks),
+    collection: selectionFlagNames(options.collections, FLAG.collections),
+    wanted: selectionFlagNames(options.wantedLists, FLAG.wantedLists),
   }
   const flagError = Object.values(parsed).find(isFlagError)
   if (flagError) return refuse(flagError.error, ExitCode.UsageError)
@@ -524,7 +547,13 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     sources.deckUrls.length === 0 &&
     Object.values(sources.categories).every((category) => category.selection.sources.length === 0)
   ) {
-    return refuse(t('cli.buildSite.nothingToBuild'), ExitCode.RuntimeError)
+    return refuse(
+      t('cli.buildSite.nothingToBuild', {
+        newDeckCommand: commandLine(COMMAND.new, 'deck'),
+        editCommand: commandLine(COMMAND.edit),
+      }),
+      ExitCode.RuntimeError,
+    )
   }
 
   // How the cache refresh question is answered for this run (--refresh <mode>,
@@ -562,13 +591,25 @@ export function applyBuildSiteOptions(command: Command): Command {
   const withBuildFlags = addRefreshOption(command, t('help.buildSite.refresh'))
     .option('-v, --verbose', t('help.buildSite.verbose'))
     .option('--cache-images', t('help.buildSite.cacheImages'))
-    .option('--decks [names...]', t('help.buildSite.decks'))
-    .option('--collections [names...]', t('help.buildSite.collections'))
-    .option('--wanted-lists [names...]', t('help.buildSite.wantedLists'))
-    .option('--price-sources <list>', t('help.buildSite.priceSources'))
+    .option(
+      '--decks [names...]',
+      t('help.buildSite.decks', { configKey: CONFIG_KEY.siteIncludeDecks }),
+    )
+    .option(
+      '--collections [names...]',
+      t('help.buildSite.collections', { configKey: CONFIG_KEY.siteIncludeCollections }),
+    )
+    .option(
+      '--wanted-lists [names...]',
+      t('help.buildSite.wantedLists', { configKey: CONFIG_KEY.siteIncludeWantedLists }),
+    )
+    .option(
+      '--price-sources <list>',
+      t('help.buildSite.priceSources', { configKey: CONFIG_KEY.priceSources }),
+    )
     .option(
       '--theme <name>',
-      t('help.buildSite.theme', { themes: themeNames.join(', ') }),
+      t('help.buildSite.theme', { themes: themeNames.join(', '), flag: FLAG.themeFile }),
       'default',
     )
     .option('--theme-file <path...>', t('help.buildSite.themeFile'))
@@ -576,15 +617,28 @@ export function applyBuildSiteOptions(command: Command): Command {
     // belongs to — but see `resolveBuildLocale`: the root program declares
     // `--locale` too, and commander gives the root the value from either
     // position, so this declaration never receives one.
-    .option('--locale <tag>', t('help.buildSite.locale'))
-    .option('--locales <tags...>', t('help.buildSite.locales'))
+    .option('--locale <tag>', t('help.buildSite.locale', { configKey: CONFIG_KEY.uiLocale }))
+    .option('--locales <tags...>', t('help.buildSite.locales', { file: FILE.distLocalesDir }))
     .option('--locale-file <path...>', t('help.buildSite.localeFile'))
-    .option('--moxfield-user-agent <agent>', t('help.buildSite.moxfieldUserAgent'))
-    .option('--out-dir <path>', t('help.buildSite.outDir'))
+    .option(
+      '--moxfield-user-agent <agent>',
+      t('help.buildSite.moxfieldUserAgent', { envVar: ENV_VAR.moxfieldUserAgent }),
+    )
+    .option(
+      '--out-dir <path>',
+      t('help.buildSite.outDir', {
+        file: FILE.distDir,
+        command: bareCommandLine(COMMAND.serve),
+        flag: FLAG.build,
+      }),
+    )
   // Registered here so `serve` inherits it too, but it is *not* build-only:
   // `serve --api` reads sell mode per request, which is why serve's
   // build-only-flags guard exempts it there alongside --refresh.
-  return addSellModeOption(withBuildFlags, t('help.buildSite.sellMode'))
+  return addSellModeOption(
+    withBuildFlags,
+    t('help.buildSite.sellMode', { configKey: CONFIG_KEY.siteSellMode }),
+  )
 }
 
 export function registerBuildSiteCommand(program: Command): void {

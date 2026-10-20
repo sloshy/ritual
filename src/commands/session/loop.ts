@@ -230,7 +230,7 @@ async function promptChangeAction(item: SessionChangeItem): Promise<ChangeAction
   const action = await ask<string>({
     type: 'select',
     message: t('cli.session.promptChangeAction', { label: item.label }),
-    subjectKey: 'cli.prompt.subject.changeAction',
+    subject: 'cli.prompt.subject.changeAction',
     choices: changeActionChoices(item),
   })
   return isChangeAction(action) ? action : null
@@ -258,7 +258,7 @@ async function viewSessionChanges(
     const index = await ask<number | null>({
       type: 'select',
       message: t('cli.session.promptPickChange', { count: items.length }),
-      subjectKey: 'cli.prompt.subject.sessionChange',
+      subject: 'cli.prompt.subject.sessionChange',
       choices: sessionChangeRows(items),
     })
     if (index == null) return
@@ -358,7 +358,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
     const picked = await ask<CardSelection | typeof NO_MATCH>({
       type: 'autocomplete',
       message: promptMessage,
-      subjectKey: 'cli.prompt.subject.sessionCard',
+      subject: 'cli.prompt.subject.sessionCard',
       choices,
       limit: Math.max(SESSION_MENU_LIMIT, menuPageSize()),
       suggest: async (rawInput, suggestChoices) =>
@@ -450,7 +450,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         await ask<string>({
           type: 'text',
           message: t('cli.session.promptNote'),
-          subjectKey: 'cli.prompt.subject.noteText',
+          subject: 'cli.prompt.subject.noteText',
         })
       )?.trim()
       if (note) {

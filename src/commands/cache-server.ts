@@ -10,6 +10,7 @@ import { runCacheServer } from '../cache-server/server'
 import type { CacheServerCommandOptions } from '../cache-server/types'
 import { t } from '../i18n/t'
 import { parsePort } from '../cli/options'
+import { CONFIG_KEY } from '../util/cli-tokens'
 
 /** Wire `cache server` under the parent `cache` command. */
 export function registerCacheServerSubcommand(cache: Command): void {
@@ -30,8 +31,12 @@ export function registerCacheServerSubcommand(cache: Command): void {
           t('help.cacheServer.pricesRefresh'),
           parseRefreshCadence,
         )
-        .option('--cache-source <source>', t('help.cacheServer.cacheSource'), parseCacheSourceFlag),
-      t('help.cacheServer.feedUrl'),
+        .option(
+          '--cache-source <source>',
+          t('help.cacheServer.cacheSource', { configKey: CONFIG_KEY.cacheSource }),
+          parseCacheSourceFlag,
+        ),
+      t('help.cacheServer.feedUrl', { configKey: CONFIG_KEY.cacheFeedUrl }),
     ),
     t('help.cacheServer.torrentPort'),
   )

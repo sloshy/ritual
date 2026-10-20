@@ -93,8 +93,7 @@ export const domainCacheMessages = {
   'domain.cache.uploadNeedsFreshCache':
     'Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is {age} old.',
   'domain.cache.uploadRefreshing': '{reason} Refreshing it from Scryfall first...',
-  'domain.cache.uploadRemedy':
-    '{reason} Run `ritual cache preload-all`, or re-run with --refresh auto.',
+  'domain.cache.uploadRemedy': '{reason} Run `{command}`, or re-run with {flag}.',
   'domain.cache.uploadStillEmpty':
     'The card cache is still empty after a refresh, so no CSV row could be keyed by a Scryfall id.',
 
@@ -131,7 +130,7 @@ export const domainCacheMessages = {
   'domain.cache.serverReply.keysExpected': "Expected JSON body with 'keys' string array.",
   'domain.cache.serverReply.valueExpected': "Expected JSON body with 'value'.",
   'domain.cache.serverReply.httpDenied':
-    'HTTP requests are denied (--deny-http). Pre-populate the cache for testing.',
+    'HTTP requests are denied ({flag}). Pre-populate the cache for testing.',
 
   // What a cache-feed host (`cache feed host`) answers a refused request with:
   // English on the wire with `messageKey` beside it, like a cache server's

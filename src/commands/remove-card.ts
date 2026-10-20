@@ -21,6 +21,7 @@ import { resolveListSelection, resolveTarget } from './card-target'
 import { runCommandAction } from '../cli/action'
 import type { ListTypeFlags } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
+import { FLAG } from '../util/cli-tokens'
 
 type RemoveCardOptions = {
   cardId?: string
@@ -95,6 +96,7 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
       'usage_error',
       ExitCode.UsageError,
       'cli.removeCard.quantityAllCopiesExclusive',
+      { quantityFlag: FLAG.quantity, allCopiesFlag: FLAG.allCopies },
     )
   }
 
@@ -109,7 +111,7 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
         'usage_error',
         ExitCode.UsageError,
         'cli.removeCard.allCopiesDeckOnly',
-        { type },
+        { type, allCopiesFlag: FLAG.allCopies, cardIdFlag: FLAG.cardId },
       )
     }
     if (input.quantity !== undefined && input.quantity > 1) {
@@ -117,7 +119,7 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
         'usage_error',
         ExitCode.UsageError,
         'cli.removeCard.quantityDeckOnly',
-        { type },
+        { type, quantityFlag: FLAG.quantity, cardIdFlag: FLAG.cardId },
       )
     }
   }

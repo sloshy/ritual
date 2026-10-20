@@ -104,7 +104,7 @@ export const domainExportMeta = {
     description: `${REFUSAL} ${VALUE} {values} is the list of accepted label values (like sale, trade, keep, and "none"), already joined; never translate them.`,
   },
   'domain.export.problem.presetsNotObject': {
-    description: `${EXPORT} A "preset" is a named, saved export configuration. Refuses the "exportPresets" setting of the settings file ritual.config.json, which must be a JSON object whose keys are preset names. Keep "exportPresets" and its straight quotes as they are. Starts with the quoted key and has no closing period.`,
+    description: `${EXPORT} A "preset" is a named, saved export configuration. Refuses the "exportPresets" setting of the settings file ritual.config.json, which must be a JSON object whose keys are preset names. Keep "exportPresets" and its straight quotes as they are. Starts with the quoted key and has no closing period. {configKey} is the \`exportPresets\` config key. It is typed or matched exactly by the user, so never translate it.`,
   },
   'domain.export.problem.presetNotObject': {
     description: `${PRESET} The preset is not a JSON object.`,

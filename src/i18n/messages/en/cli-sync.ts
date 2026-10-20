@@ -20,7 +20,7 @@ export const cliSyncMessages = {
   'cli.login.loggedInAs': 'Logged in as {username}',
   'cli.login.sessionExpiredFor': 'Session for {username} expired.',
   'cli.login.needsCredentialFlags':
-    'Non-interactive login requires both --username and --password-stdin.',
+    'Non-interactive login requires both {usernameFlag} and {passwordStdinFlag}.',
   'cli.login.emptyPassword': 'The password read from stdin is empty.',
   'cli.login.usernamePrompt': 'Username or Email',
   'cli.login.passwordPrompt': 'Password',
@@ -29,11 +29,11 @@ export const cliSyncMessages = {
   'cli.login.failed': 'Login failed: {reason}',
   'cli.login.cancelled': 'Cancelled.',
   'cli.prompt.subject.loginCredentials':
-    'Archidekt login credentials — pass --username and --password-stdin instead',
+    'Archidekt login credentials — pass {usernameFlag} and {passwordStdinFlag} instead',
   'cli.login.notLoggedIn': 'Not logged in.',
   'cli.login.accountUnnamed': 'Logged in to Archidekt (the stored login does not name an account)',
   'cli.login.accountNamed': 'Logged in to Archidekt as {username}',
-  'cli.login.statusExpired': '{account} (session expired — run "ritual login archidekt")',
+  'cli.login.statusExpired': '{account} (session expired — run "{command}")',
   'cli.login.statusRefreshable':
     '{account} (access token expired; it refreshes on the next request)',
   'cli.login.statusValidUntil': '{account} (session valid until {expiration})',
@@ -43,9 +43,9 @@ export const cliSyncMessages = {
   // ── `import` — conflicts and saves ────────────────────────────────────
   'cli.import.cancelled': 'Cancelled.',
   'cli.import.conflict':
-    "Import conflict for '{target}'. Re-run with --overwrite or --yes to replace it.",
+    "Import conflict for '{target}'. Re-run with {overwriteFlag} or {yesFlag} to replace it.",
   'cli.import.conflictCsv':
-    "Import conflict for '{target}'. Re-run with --append to add to it, or --overwrite/--yes to replace it.",
+    "Import conflict for '{target}'. Re-run with {appendFlag} to add to it, or {overwriteFlag}/{yesFlag} to replace it.",
   'cli.import.conflictAction': 'Action: [O]verwrite, [R]ename, [C]ancel? ',
   'cli.import.overwritingFile': 'Overwriting {file}...',
   'cli.import.deckExistsId': 'Deck already exists (ID Match): {file}',
@@ -81,23 +81,23 @@ export const cliSyncMessages = {
 
   // ── `import` — source and flag validation ─────────────────────────────
   'cli.import.defaultedToDeck':
-    'No --type given; importing as a deck (pass --type to import a collection or wanted list).',
+    'No {flag} given; importing as a deck (pass {flag} to import a collection or wanted list).',
   'cli.import.promptSyncPrintings':
     'Import the exact printings (set, collector number, and finish) the source lists?',
   'cli.import.defaultedToPrintings':
-    'Keeping the exact printings the source lists (pass --no-sync-printings to import bare card names).',
+    'Keeping the exact printings the source lists (pass {flag} to import bare card names).',
   'cli.import.flagNotForUrl': '{flag} does not apply to URL imports.',
   'cli.import.flagNeedsCsv':
-    '{flag} requires a CSV source (a .csv file, or --csv to force CSV parsing).',
+    '{flag} requires a CSV source (a .csv file, or {csvFlag} to force CSV parsing).',
   'cli.import.moxfieldAgentSourceOnly': {
     $select: 'kind',
-    csv: '--moxfield-user-agent only applies to URL imports; it does not apply to CSV imports.',
-    text: '--moxfield-user-agent only applies to URL imports; it does not apply to text-file imports.',
+    csv: '{flag} only applies to URL imports; it does not apply to CSV imports.',
+    text: '{flag} only applies to URL imports; it does not apply to text-file imports.',
   },
   'cli.import.syncPrintingsUrlOnly': {
     $select: 'kind',
-    csv: '--sync-printings/--no-sync-printings only apply to URL imports; a CSV import states its own printings through the column mapping.',
-    text: '--sync-printings/--no-sync-printings only apply to URL imports; a text-file import states its own printings on its card lines.',
+    csv: '{syncPrintingsFlag}/{noSyncPrintingsFlag} only apply to URL imports; a CSV import states its own printings through the column mapping.',
+    text: '{syncPrintingsFlag}/{noSyncPrintingsFlag} only apply to URL imports; a text-file import states its own printings on its card lines.',
   },
   'cli.import.invalidListType': "Invalid list type '{value}'. Use: {choices}",
   'cli.import.urlDeckOnly':
@@ -126,7 +126,7 @@ export const cliSyncMessages = {
   'cli.import.failureLine': 'Line {line}: {raw}',
 
   // ── `import` — CSV flow ───────────────────────────────────────────────
-  'cli.import.overwriteAppendExclusive': '--overwrite and --append are mutually exclusive',
+  'cli.import.overwriteAppendExclusive': '{overwriteFlag} and {appendFlag} are mutually exclusive',
   'cli.import.csvUnreadable': 'Could not read CSV file: {path}',
   'cli.import.csvParseFailed': 'Failed to parse CSV: {reason}',
   'cli.import.csvNoRows': 'CSV file contains no rows',
@@ -137,9 +137,8 @@ export const cliSyncMessages = {
   'cli.import.nameEmptyValidation': 'Name cannot be empty',
   'cli.import.missingScriptedFlags':
     'Missing required flags for a scripted import (prompts are unavailable): {flags}',
-  'cli.import.deckFormatDeckOnly': '--deck-format only applies to deck imports',
-  'cli.import.deckFormatNotAppend':
-    '--deck-format only applies when creating a deck, not when appending',
+  'cli.import.deckFormatDeckOnly': '{flag} only applies to deck imports',
+  'cli.import.deckFormatNotAppend': '{flag} only applies when creating a deck, not when appending',
   'cli.import.promptListName': 'Name of the {label} to create or append to:',
   'cli.import.promptExisting': "'{file}' already exists. What should happen?",
   'cli.import.choiceAppend': 'Append the cards to it',
@@ -148,7 +147,7 @@ export const cliSyncMessages = {
   'cli.import.promptHasHeader': 'Does the first row contain column headers?',
   'cli.import.skippingHeader': 'Skipping header row: {row}',
   'cli.import.headerLooksLikeData':
-    'Warning: the first row does not look like a header but was skipped as one: {row} — pass --no-header to import it as a card.',
+    'Warning: the first row does not look like a header but was skipped as one: {row} — pass {flag} to import it as a card.',
   'cli.import.repeatHint': 'To repeat this import without the setup wizard, run:',
   'cli.import.columnNotPresent': '(not in this file)',
   'cli.import.column': 'Column {number}',
@@ -174,16 +173,16 @@ export const cliSyncMessages = {
   // ── `import-account` ──────────────────────────────────────────────────
   'cli.importAccount.noDecksSelf': 'No decks found for the logged-in account.',
   'cli.importAccount.noDecksPublic':
-    "No public decks found for '{username}' — check the spelling; Archidekt does not distinguish an unknown user from an account with no public decks. Private decks require `ritual login archidekt`.",
+    "No public decks found for '{username}' — check the spelling; Archidekt does not distinguish an unknown user from an account with no public decks. Private decks require `{command}`.",
   'cli.importAccount.selectionNeedsPrompt':
-    'Deck selection requires a prompt. Pass --all to import every deck ({reason}).',
+    'Deck selection requires a prompt. Pass {flag} to import every deck ({reason}).',
   'cli.importAccount.needUsernameOrLogin': 'You must specify a username or login first.',
   'cli.importAccount.fetchingOwn': 'Fetching decks for logged in user: {username}...',
   'cli.importAccount.fetchingAuthenticated': 'Fetching authenticated decks for: {username}...',
   'cli.importAccount.fetchingPublic': 'Fetching public decks for: {username}...',
   'cli.importAccount.sessionExpiredFallback': 'Session expired, falling back to public fetch.',
   'cli.importAccount.sessionExpiredNoPrompt':
-    'Session expired or invalid. Use `ritual login archidekt` before retrying.',
+    'Session expired or invalid. Use `{command}` before retrying.',
   'cli.importAccount.sessionExpiredRelogin': 'Session expired or invalid. Please login again.',
   'cli.importAccount.noToken': 'Could not retrieve valid token.',
   'cli.importAccount.foundDecks': 'Found {count} decks.',
@@ -208,7 +207,7 @@ export const cliSyncMessages = {
   'cli.importChanges.empty': 'The file contains no changes to apply.',
   'cli.importChanges.reasonCount': '{reason}: {count}',
   'cli.importChanges.confirmationRequired':
-    'Confirmation required: pass --yes to apply changes non-interactively.',
+    'Confirmation required: pass {flag} to apply changes non-interactively.',
   'cli.importChanges.confirmApply': 'Apply {changes} to {lists}?',
   'cli.importChanges.listHeading': "{name} ({type} '{slug}')",
   'cli.importChanges.previewHeading': '{heading} — {changes}',
@@ -249,7 +248,7 @@ export const cliSyncMessages = {
   'cli.detectChanges.gitDetail': '{failure}\n  git: {detail}',
   'cli.detectChanges.failureReason': '{failure}: {reason}',
   'cli.detectChanges.notGitRepo':
-    'Not a git repository: {path}\n  Detection reads git history. Use "ritual detect-changes --hash-only" to stamp .sha256 sidecars without git.',
+    'Not a git repository: {path}\n  Detection reads git history. Use "{command}" to stamp {file} sidecars without git.',
   'cli.detectChanges.resolveRefFailed': 'Failed to resolve {commit}',
   'cli.detectChanges.unknownRef':
     'Unknown git ref: {commit}\n  Pass a commit, tag, or branch that exists in {path}.',
@@ -285,21 +284,21 @@ export const cliSyncMessages = {
   'cli.detectChanges.verifySummary':
     '{files}: {clean} clean, {diverged} diverged, {missing} without a sidecar.',
   'cli.detectChanges.verifyAdvice':
-    'Run "ritual detect-changes <commit>" to record these edits in changelogs, or "ritual detect-changes --hash-only" to stamp them as already recorded.',
+    'Run "{detectChangesCommand}" to record these edits in changelogs, or "{detectChangesHashOnlyCommand}" to stamp them as already recorded.',
 
   // ── `detect-changes` — mode selection ─────────────────────────────────
-  'cli.detectChanges.modesExclusive': '--hash-only and --verify cannot be combined.',
-  'cli.detectChanges.verifyNoDryRun': '--verify never writes, so --dry-run does not apply.',
+  'cli.detectChanges.modesExclusive': '{hashOnlyFlag} and {verifyFlag} cannot be combined.',
+  'cli.detectChanges.verifyNoDryRun': '{verifyFlag} never writes, so {dryRunFlag} does not apply.',
   'cli.detectChanges.missingCommit':
-    'Missing required argument <commit>. Pass a commit to diff against, or use --hash-only / --verify to work without git.',
+    'Missing required argument <commit>. Pass a commit to diff against, or use {hashOnlyFlag} / {verifyFlag} to work without git.',
   'cli.detectChanges.commitNotUsed': 'The <commit> argument is not used with {flag}.',
 
   // ── Shared sync surface ───────────────────────────────────────────────
   'cli.sync.syncing': 'Syncing "{name}" ({direction})...',
-  'cli.sync.verboseHint': 'Run with --verbose to list the cards being synced.',
-  'cli.sync.notSignedIn': 'Not signed into Archidekt. Run "ritual login archidekt" first.',
+  'cli.sync.verboseHint': 'Run with {flag} to list the cards being synced.',
+  'cli.sync.notSignedIn': 'Not signed into Archidekt. Run "{command}" first.',
   'cli.sync.accountUnnamed':
-    'The stored Archidekt login does not name an account. Re-run "ritual login archidekt" to record it.',
+    'The stored Archidekt login does not name an account. Re-run "{command}" to record it.',
   'cli.sync.costRemoveLines': 'removing the lines above',
   'cli.sync.costRemoveFromArchidekt': 'removing those cards from your Archidekt collection',
 
@@ -319,8 +318,7 @@ export const cliSyncMessages = {
   },
   'cli.deckSync.previouslyLinked': 'It was linked to {target}.',
   'cli.deckSync.deckRef': 'deck {id}',
-  'cli.deckSync.noLinkedDecks':
-    'No Archidekt-linked decks. Link one with "ritual deck-sync link <deck> <url>".',
+  'cli.deckSync.noLinkedDecks': 'No Archidekt-linked decks. Link one with "{command}".',
   'cli.deckSync.linkedHeading': '{decks} linked to Archidekt:',
   'cli.deckSync.lastSynced': 'last synced: {when}',
   'cli.deckSync.never': 'never',
@@ -329,17 +327,15 @@ export const cliSyncMessages = {
   'cli.deckSync.collectionNever': 'Collection: never synced.',
 
   // ── `collection-sync` ─────────────────────────────────────────────────
-  'cli.collectionSync.intoRequiresName': '--into requires a collection list name.',
-  'cli.collectionSync.removalPriorityRequiresName':
-    '--removal-priority requires a collection list name.',
-  'cli.collectionSync.csvFileRequiresPath': '--csv-file requires a file path.',
+  'cli.collectionSync.intoRequiresName': '{flag} requires a collection list name.',
+  'cli.collectionSync.removalPriorityRequiresName': '{flag} requires a collection list name.',
+  'cli.collectionSync.csvFileRequiresPath': '{flag} requires a file path.',
   'cli.collectionSync.csvFlagsExclusive':
-    '--csv and --csv-file cannot be combined: --csv uploads the new cards, --csv-file writes them to a file instead of pushing them.',
-  'cli.collectionSync.ignoringInto': 'Ignoring --into: it only applies to a pull.',
-  'cli.collectionSync.ignoringRemovalPriority':
-    'Ignoring --removal-priority: it only applies to a pull.',
-  'cli.collectionSync.ignoringCsv': 'Ignoring --csv: it only applies to a push.',
-  'cli.collectionSync.ignoringCsvFile': 'Ignoring --csv-file: it only applies to a push.',
+    '{csvFlag} and {csvFileFlag} cannot be combined: {csvFlag} uploads the new cards, {csvFileFlag} writes them to a file instead of pushing them.',
+  'cli.collectionSync.ignoringInto': 'Ignoring {flag}: it only applies to a pull.',
+  'cli.collectionSync.ignoringRemovalPriority': 'Ignoring {flag}: it only applies to a pull.',
+  'cli.collectionSync.ignoringCsv': 'Ignoring {flag}: it only applies to a push.',
+  'cli.collectionSync.ignoringCsvFile': 'Ignoring {flag}: it only applies to a push.',
   'cli.collectionSync.tally': '+{added} added, -{removed} removed{waiting}',
   'cli.collectionSync.awaitingUpload': ', {count} awaiting upload',
   'cli.collectionSync.intoClause': ' (additions into "{list}")',
@@ -357,13 +353,13 @@ export const cliSyncMessages = {
 
   // ── `export` (flag mode) ──────────────────────────────────────────────
   'cli.export.formatFlagConflict':
-    '{flags} cannot be combined with --format {format}: {format} exports have a fixed line format. Columns and CSV options apply to csv/json output only, and --dialect to csv/json/text.',
+    '{flags} cannot be combined with {formatFlag} {format}: {format} exports have a fixed line format. Columns and CSV options apply to csv/json output only, and {dialectFlag} to csv/json/text.',
   'cli.export.unknownPreset': "No export preset named '{name}'. Available presets: {available}.",
   'cli.export.savedPreset': "Saved export preset '{name}'",
   'cli.export.exportedToFile': 'Exported {cards} to {target}',
   'cli.export.exportedToStdout': 'Exported {cards}',
   'cli.export.wizardNeedsTerminal':
-    'The export wizard needs an interactive terminal, and prompts are unavailable. Specify what to export instead — e.g. --all for every list, list names, --card picks, or filters.',
+    'The export wizard needs an interactive terminal, and prompts are unavailable. Specify what to export instead — e.g. {allFlag} for every list, list names, {cardFlag} picks, or filters.',
 
   // ── `export` wizard — header and menu ─────────────────────────────────
   'cli.exportWizard.menuTitle': 'Export',

@@ -69,11 +69,11 @@ export const errorsMeta = {
   },
   'errors.scripting.fieldsNeedStructuredOutput': {
     description:
-      'Rejection of --fields alongside --output text. The flag names are CLI identifiers and must not be translated.',
+      'Rejection of --fields alongside --output text. {fieldsFlag} is the `--fields` flag; {outputJsonFlag} is `--output json`, a flag and its value; {outputNdjsonFlag} is `--output ndjson`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.',
   },
   'errors.scripting.fieldsEmpty': {
     description:
-      'Rejection of an empty or whitespace-only --fields value. The flag name is a CLI identifier.',
+      'Rejection of an empty or whitespace-only --fields value. The flag name is a CLI identifier. {flag} is the `--fields` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'errors.scripting.portRange': {
     description: 'Rejection of a --port value that is not an integer in the TCP port range.',
@@ -116,7 +116,7 @@ export const errorsMeta = {
   },
   'errors.resolveList.adviceTypeFlags': {
     description:
-      'Remedy for a command that registers --deck / --collection / --wanted. The flag names are CLI identifiers and must not be translated.',
+      'Remedy for a command that registers --deck / --collection / --wanted. {deckFlag} is the `--deck` flag; {collectionFlag} is the `--collection` flag; {wantedFlag} is the `--wanted` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'errors.resolveList.adviceTypePrefix': {
     description:

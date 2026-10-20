@@ -2,6 +2,7 @@ import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import { parseEnumField } from '../util/parse-enum'
 import type { ScryfallCard } from '../scryfall/types'
+import { FLAG } from '../util/cli-tokens'
 
 export type Finish = 'nonfoil' | 'foil' | 'etched'
 export type Condition = 'NM' | 'LP' | 'MP' | 'HP' | 'DMG'
@@ -52,7 +53,7 @@ export function isFinish(value: string | undefined): value is Finish {
  * of `errors.enum.invalid`.
  */
 export function normalizeFinishValue(raw: string): Finish | string {
-  const result = parseEnumField(raw, VALID_FINISHES, '--finish')
+  const result = parseEnumField(raw, VALID_FINISHES, FLAG.finish)
   return result.ok ? result.value : result.message
 }
 

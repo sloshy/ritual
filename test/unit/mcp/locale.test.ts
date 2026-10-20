@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
-import { initI18n, LOCALE_ENV_VAR, resetUiLocaleResolution } from '../../../src/cli/locale'
+import { initI18n, resetUiLocaleResolution } from '../../../src/cli/locale'
+import { ENV_VAR } from '../../../src/util/cli-tokens'
 import { en } from '../../../src/i18n/messages/en'
 import { loadDictionary, resetI18nRuntime } from '../../../src/i18n/runtime'
 import { t } from '../../../src/i18n/t'
@@ -78,7 +79,7 @@ describe('MCP prose is English whatever the UI locale', () => {
     loadDictionary(PSEUDO_LOCALE, pseudoCatalog())
     const resolution = initI18n({
       argv: ['bun', 'ritual', 'mcp'],
-      env: { [LOCALE_ENV_VAR]: PSEUDO_LOCALE },
+      env: { [ENV_VAR.locale]: PSEUDO_LOCALE },
       platform: 'linux',
     })
     // The locale really is in force — otherwise this test would pass on a

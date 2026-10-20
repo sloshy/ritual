@@ -66,7 +66,7 @@ With `--output json` (or `ndjson`) the run emits one structured result:
       "status": "failed",
       "error": "Import conflict for 'Burn.md'. Re-run with --overwrite or --yes to replace it.",
       "errorKey": "cli.import.conflict",
-      "errorParams": { "target": "Burn.md" }
+      "errorParams": { "target": "Burn.md", "overwriteFlag": "--overwrite", "yesFlag": "--yes" }
     }
   ]
 }

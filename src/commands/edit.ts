@@ -20,6 +20,7 @@ import { readDeckName } from '../importers/text-file'
 import { emitError, emitResolveListError, TEXT_ONLY } from '../cli/output'
 import { getDefaultLanguage, isDefaultLanguageConfigured } from '../config/ritual-config'
 import { ExitCode } from '../util/errors'
+import { COMMAND, CONFIG_KEY, bareCommandLine, commandLine } from '../util/cli-tokens'
 
 /**
  * The unified `edit` command: option table, flag resolution and the cache
@@ -57,7 +58,13 @@ async function directOpenRef(location: ListLocation): Promise<UnifiedListRef> {
  */
 function warnUnconfiguredCardLanguage(): void {
   if (isDefaultLanguageConfigured()) return
-  console.warn(t('cli.edit.noConfiguredLanguage', { language: getDefaultLanguage() }))
+  console.warn(
+    t('cli.edit.noConfiguredLanguage', {
+      language: getDefaultLanguage(),
+      configKey: CONFIG_KEY.defaultLanguage,
+      command: commandLine(COMMAND.configSet, CONFIG_KEY.defaultLanguage, '<code>'),
+    }),
+  )
 }
 
 export function registerEditCommand(program: Command): void {
@@ -107,7 +114,13 @@ export function registerEditCommand(program: Command): void {
     if (promptsUnavailable()) {
       emitError(
         'usage_error',
-        inputRequiredError('cli.prompt.subject.noInteractiveEditor').message,
+        inputRequiredError('cli.prompt.subject.noInteractiveEditor', {
+          addCardCommand: bareCommandLine(COMMAND.addCard),
+          removeCardCommand: bareCommandLine(COMMAND.removeCard),
+          setCardCommand: bareCommandLine(COMMAND.setCard),
+          noteCommand: bareCommandLine(COMMAND.note),
+          moveCommand: bareCommandLine(COMMAND.move),
+        }).message,
         TEXT_ONLY,
       )
       process.exitCode = ExitCode.UsageError

@@ -69,6 +69,7 @@ import {
 import { getDefaultPriceCurrency, getDefaultLanguage } from '../../config/ritual-config'
 import { requireFlag, type QuestionSubjectKey } from '../../util/no-input'
 import { printingLabel } from '../../card/card-line-tail'
+import { FLAG, flagValue } from '../../util/cli-tokens'
 
 /**
  * The prompts shared by every list type's card-entry session: the edit-mode
@@ -96,7 +97,7 @@ export async function promptEditAction(
   const action = await ask<string>({
     type: 'select',
     message: t('cli.session.promptEditEntry', { entry: entryLabel }),
-    subjectKey: 'cli.prompt.subject.editAction',
+    subject: 'cli.prompt.subject.editAction',
     choices: [...actions, { title: `← ${t('cli.menu.cancel')}`, value: CANCEL_ACTION }],
   })
   if (!action || action === CANCEL_ACTION) return null
@@ -114,7 +115,7 @@ export async function promptNoteEdit(currentNote: string | undefined): Promise<N
   const answer = await ask<string>({
     type: 'text',
     message: t('cli.session.promptNoteEdit'),
-    subjectKey: 'cli.prompt.subject.noteText',
+    subject: 'cli.prompt.subject.noteText',
     initial: currentNote ?? '',
   })
   if (answer === undefined) return null
@@ -131,7 +132,7 @@ type ParsedTextPrompt = {
   /** The rendered question. */
   message: string
   /** What the question wanted, for the `--no-input` refusal. */
-  subjectKey: QuestionSubjectKey
+  subject: QuestionSubjectKey
   /** Prefill — the current value as a person reads it. */
   initial: string
   /** Renders a parser refusal for the console. */
@@ -157,7 +158,7 @@ async function promptParsedText<T>(
     const answer = await ask<string>({
       type: 'text',
       message: how.message,
-      subjectKey: how.subjectKey,
+      subject: how.subject,
       initial,
     })
     if (answer === undefined) return null
@@ -182,7 +183,7 @@ export async function promptTagsEdit(
   const tags = await promptParsedText<CardTag[]>(
     {
       message: t('cli.session.promptTagsEdit'),
-      subjectKey: 'cli.prompt.subject.tagsText',
+      subject: 'cli.prompt.subject.tagsText',
       initial: formatCardTags(currentTags),
       invalid: (reason) => t('cli.edit.tagsInvalid', { reason }),
     },
@@ -221,7 +222,7 @@ export async function promptCategoriesEdit(
   const next = await promptParsedText<CardCategory[]>(
     {
       message: t('cli.session.promptCategoriesEdit'),
-      subjectKey: 'cli.prompt.subject.categoriesText',
+      subject: 'cli.prompt.subject.categoriesText',
       initial: formatCardCategories(current),
       invalid: (reason) => t('cli.edit.categoriesInvalid', { reason }),
     },
@@ -249,7 +250,7 @@ export async function promptCategoryRename(
   const index = await ask<number>({
     type: 'select',
     message: t('cli.session.promptCategoryRenameFrom'),
-    subjectKey: 'cli.prompt.subject.categoryChoice',
+    subject: 'cli.prompt.subject.categoryChoice',
     choices: vocabulary.map((category, i) => ({ title: category, value: i })),
   })
   if (typeof index !== 'number') return null
@@ -259,7 +260,7 @@ export async function promptCategoryRename(
   const to = await promptParsedText<CardCategory>(
     {
       message: t('cli.session.promptCategoryRenameTo', { category: from }),
-      subjectKey: 'cli.prompt.subject.categoryName',
+      subject: 'cli.prompt.subject.categoryName',
       initial: from,
       invalid: (reason) => t('cli.edit.categoriesInvalid', { reason }),
     },
@@ -285,7 +286,7 @@ export async function promptCategoryOrder(
   const order = await promptParsedText<CardCategory[]>(
     {
       message: t('cli.session.promptCategoryOrder'),
-      subjectKey: 'cli.prompt.subject.categoryOrderText',
+      subject: 'cli.prompt.subject.categoryOrderText',
       initial: formatCardCategories(vocabulary),
       invalid: (reason) => t('cli.edit.categoriesInvalid', { reason }),
     },
@@ -496,7 +497,7 @@ async function promptLanguageFallback(
       },
       { title: `← ${t('cli.printing.pickAnother')}`, value: 'back' },
     ],
-    subjectKey: 'cli.prompt.subject.languageFallback',
+    subject: 'cli.prompt.subject.languageFallback',
   })
   if (choice !== 'confirm' && choice !== 'back') return 'cancelled'
   return choice
@@ -542,7 +543,7 @@ export async function resolveCardPrinting(
       const picked = await ask<ScryfallCard>({
         type: 'autocomplete',
         message: t('cli.printing.promptSelect'),
-        subjectKey: 'cli.prompt.subject.printing',
+        subject: 'cli.prompt.subject.printing',
         choices,
         suggest: async (rawInput, choices) => suggestPrintings(String(rawInput), choices),
       })
@@ -602,7 +603,7 @@ export async function promptLanguageChoice(
   const value = await ask<string>({
     type: 'select',
     message: t('cli.printing.promptLanguage'),
-    subjectKey: 'cli.prompt.subject.language',
+    subject: 'cli.prompt.subject.language',
     choices: CARD_LANGUAGES.map((code) => {
       const row = t('cli.printing.languageRow', {
         name: languageLabel(code, currentLocale()),
@@ -630,13 +631,13 @@ async function promptLabelRow<C extends CardLabelChoice | CardLabelDefaultChoice
   current: C | undefined,
   keyOf: (choice: C) => string,
   message: string,
-  subjectKey: QuestionSubjectKey,
+  subject: QuestionSubjectKey,
 ): Promise<C | null> {
   const currentIndex = current === undefined ? -1 : choices.indexOf(current)
   const key = await ask<string>({
     type: 'select',
     message,
-    subjectKey,
+    subject,
     choices: choices.map((choice, i) => ({
       title:
         i === currentIndex ? t('cli.edit.current', { label: t(choice.label) }) : t(choice.label),
@@ -722,7 +723,7 @@ export async function promptFinishAndCondition(
   if (!forcePrompts && config.finish && availableFinishes.includes(config.finish)) {
     selectedFinish = config.finish
   } else if (availableFinishes.length > 1) {
-    requireFlag(`--finish <${availableFinishes.join('|')}>`)
+    requireFlag(flagValue(FLAG.finish, `<${availableFinishes.join('|')}>`))
     const choices = finishChoices(finishRows(availableFinishes), selectedPrinting)
     const chosenFinish = await ask<string>({
       type: 'select',
@@ -743,7 +744,7 @@ export async function promptFinishAndCondition(
   } else {
     // There is no non-interactive default: a run that cannot answer this must
     // say so, not exit 0 with the prompt unanswered and nothing written.
-    requireFlag(`--condition <${[...VALID_CONDITIONS, 'NONE'].join('|')}>`)
+    requireFlag(flagValue(FLAG.condition, `<${[...VALID_CONDITIONS, 'NONE'].join('|')}>`))
     const chosenCondition = await ask<string>({
       type: 'select',
       message: t('cli.printing.promptCondition'),
@@ -805,7 +806,7 @@ export async function promptWantedFinish(
     return only !== undefined ? only : 'nopreference'
   }
 
-  requireFlag(`--finish <${availableFinishes.join('|')}>`)
+  requireFlag(flagValue(FLAG.finish, `<${availableFinishes.join('|')}>`))
 
   const answer = await askWantedFinish(
     [
@@ -827,7 +828,7 @@ type WantedFinishAnswer =
   { kind: 'finish'; finish: Finish } | { kind: 'none' } | { kind: 'cancelled' }
 
 /** How a wanted finish picker asks: its message, and the edit picker's subject/cursor. */
-type WantedFinishAsk = { message: string; subjectKey?: QuestionSubjectKey; initial?: number }
+type WantedFinishAsk = { message: string; subject?: QuestionSubjectKey; initial?: number }
 
 /**
  * The one wanted finish select behind {@link promptWantedFinish} (add) and
@@ -864,7 +865,7 @@ export async function promptFinishChoice(
   const value = await ask<string>({
     type: 'select',
     message: t('cli.printing.promptFinishShort'),
-    subjectKey: 'cli.prompt.subject.finish',
+    subject: 'cli.prompt.subject.finish',
     choices,
     initial: Math.max(0, VALID_FINISHES.indexOf(current)),
   })
@@ -876,7 +877,7 @@ export async function promptConditionChoice(current: Condition): Promise<Conditi
   const value = await ask<string>({
     type: 'select',
     message: t('cli.printing.promptCondition'),
-    subjectKey: 'cli.prompt.subject.condition',
+    subject: 'cli.prompt.subject.condition',
     choices: VALID_CONDITIONS.map((c) => ({
       title:
         c === current ? t('cli.edit.current', { label: conditionLabel(c) }) : conditionLabel(c),
@@ -894,7 +895,7 @@ export async function promptSpecificity(
   const specificity = await ask<'name-only' | 'specific'>({
     type: 'select',
     message: t('cli.wanted.promptSpecificity', { name: cardName }),
-    subjectKey: 'cli.prompt.subject.specificity',
+    subject: 'cli.prompt.subject.specificity',
     choices: [
       { title: t('cli.wanted.specificityNameOnly'), value: 'name-only' },
       { title: t('cli.wanted.specificitySpecific'), value: 'specific' },
@@ -927,7 +928,7 @@ export async function promptWantedFinishChoice(
     printing,
     {
       message: t('cli.printing.promptFinishShort'),
-      subjectKey: 'cli.prompt.subject.wantedFinish',
+      subject: 'cli.prompt.subject.wantedFinish',
       initial: current === undefined ? 0 : Math.max(0, VALID_FINISHES.indexOf(current) + 1),
     },
   )

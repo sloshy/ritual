@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { MCP_TOKEN_ENV, resolveMcpToken } from '../../../src/mcp/token'
+import { resolveMcpToken } from '../../../src/mcp/token'
+import { ENV_VAR } from '../../../src/util/cli-tokens'
 
 describe('resolveMcpToken', () => {
   test('prefers an explicit CLI value over the env value', () => {
@@ -31,13 +32,13 @@ describe('resolveMcpToken', () => {
   })
 
   test('defaults the env value to RITUAL_MCP_TOKEN', () => {
-    const saved = process.env[MCP_TOKEN_ENV]
+    const saved = process.env[ENV_VAR.mcpToken]
     try {
-      process.env[MCP_TOKEN_ENV] = 'env-default'
+      process.env[ENV_VAR.mcpToken] = 'env-default'
       expect(resolveMcpToken(undefined)).toBe('env-default')
     } finally {
-      if (saved === undefined) delete process.env[MCP_TOKEN_ENV]
-      else process.env[MCP_TOKEN_ENV] = saved
+      if (saved === undefined) delete process.env[ENV_VAR.mcpToken]
+      else process.env[ENV_VAR.mcpToken] = saved
     }
   })
 })

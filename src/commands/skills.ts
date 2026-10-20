@@ -22,6 +22,7 @@ import { ExitCode } from '../util/errors'
 import { assertNever } from '../util/assert-never'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
+import { COMMAND, FILE, FLAG, commandLine } from '../util/cli-tokens'
 
 /** `skills list` registers only `--output`; see the registration comment. */
 type SkillsListOptions = { output?: OutputFormat }
@@ -49,8 +50,8 @@ type SkillsInstallReport = {
 function addSkillsWriteOptions(command: Command): Command {
   return addScriptingOptions(
     command
-      .option('--global', t('help.skills.global'))
-      .option('--dir <path>', t('help.skills.dir'))
+      .option('--global', t('help.skills.global', { file: FILE.globalSkillsDir }))
+      .option('--dir <path>', t('help.skills.dir', { file: FILE.skillsDir }))
       .option('-f, --force', t('help.skills.force')),
   )
 }
@@ -162,7 +163,13 @@ export function printSkillsWriteSummary(
     )
   }
   if (options.reportAbsent && counts.absent > 0) {
-    console.log(t('cli.skills.absent', { count: counts.absent, counted: counted(counts.absent) }))
+    console.log(
+      t('cli.skills.absent', {
+        count: counts.absent,
+        counted: counted(counts.absent),
+        command: commandLine(COMMAND.skillsInstall),
+      }),
+    )
   }
 }
 
@@ -229,7 +236,13 @@ export function registerSkillsCommand(program: Command): void {
   )
 
   addSkillsWriteOptions(
-    skills.command('install [names...]').description(t('help.skills.install')),
+    skills.command('install [names...]').description(
+      t('help.skills.install', {
+        skillsDirFile: FILE.skillsDir,
+        globalSkillsDirFile: FILE.globalSkillsDir,
+        flag: FLAG.global,
+      }),
+    ),
   ).action(async (names: string[], options: SkillsWriteCommandOptions) => {
     const scripting = normalizeScriptingOptions(options)
     const report = await runSkillsWrite(names, options, scripting, installSkills)
@@ -240,7 +253,7 @@ export function registerSkillsCommand(program: Command): void {
     printSkillsWriteSummary(report.results, {
       verb: 'installedTo',
       dir: report.skillsDir,
-      forceHint: t('cli.skills.forceHintRerun'),
+      forceHint: t('cli.skills.forceHintRerun', { flag: FLAG.force }),
       alwaysReportWritten: true,
     })
   })
@@ -257,7 +270,7 @@ export function registerSkillsCommand(program: Command): void {
     printSkillsWriteSummary(report.results, {
       verb: 'updatedIn',
       dir: report.skillsDir,
-      forceHint: t('cli.skills.forceHintRerun'),
+      forceHint: t('cli.skills.forceHintRerun', { flag: FLAG.force }),
       alwaysReportWritten: true,
       reportAbsent: true,
     })

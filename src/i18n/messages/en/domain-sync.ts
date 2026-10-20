@@ -65,7 +65,7 @@ export const domainSyncMessages = {
     'Matching {entries} against the local card cache (loading the cache the first time, which can take a while)...',
   'domain.sync.localIndexed': 'Indexed {printings} across the local lists in {elapsed}.',
   'domain.sync.printingNotCached':
-    '{card} is not in the Scryfall card cache; syncing {copies} as nonfoil. If the cache is out of date, refreshing it (`ritual cache preload-all`) lets its finish be read.',
+    '{card} is not in the Scryfall card cache; syncing {copies} as nonfoil. If the cache is out of date, refreshing it (`{command}`) lets its finish be read.',
   'domain.sync.reindexingLocal':
     'The card cache was just refreshed, so matching the local lists against it again (this replaces any cache warnings above)...',
   'domain.sync.fetchingCollection':
@@ -146,7 +146,7 @@ export const domainSyncMessages = {
   // ── Deck sync ─────────────────────────────────────────────────────────
   'domain.sync.noDecks': 'No Archidekt decks found to sync.',
   'domain.sync.printingsUnaligned':
-    'Printings not synced for "{card}": the local file and Archidekt hold different printings of it. Re-run with --sync-printings to reconcile them.',
+    'Printings not synced for "{card}": the local file and Archidekt hold different printings of it. Re-run with {flag} to reconcile them.',
   'domain.sync.categoriesUnreadable': 'Could not read the categories file: {error}',
   'domain.sync.categoriesWriteFailed':
     'Synced the cards, but could not write the categories file: {error}',
@@ -156,7 +156,7 @@ export const domainSyncMessages = {
     other: 'Skipped {count} Archidekt categories Ritual cannot store ({rule}): {names}',
   },
   'domain.sync.noLocalCategories':
-    'The local deck has no categories, so its Archidekt categories are left as they are. Pull with --sync-categories first to bring them down.',
+    'The local deck has no categories, so its Archidekt categories are left as they are. Pull with {flag} first to bring them down.',
   'domain.sync.moveShortfall': {
     $plural: 'count',
     one: 'Could not move {count} copy of "{card}" from {from} to {to}: the local {from} does not hold them.',
@@ -192,12 +192,12 @@ export const domainSyncMessages = {
   'domain.sync.divergenceLocalUnreadable':
     'The deck\'s sourceUpdatedAt is not a readable timestamp ("{value}")',
   'domain.sync.diverged':
-    'Remote deck changed since last sync (remote: {remote}, last synced against: {synced}) — pull first, or pass --force to overwrite remote changes.',
+    'Remote deck changed since last sync (remote: {remote}, last synced against: {synced}) — pull first, or pass {flag} to overwrite remote changes.',
 
   // ── Deck sync: linking a deck ─────────────────────────────────────────
   'domain.sync.deckUrlRequired': 'An Archidekt deck URL is required.',
   'domain.sync.deckUrlInvalid':
-    '"{value}" is not an Archidekt deck URL. Expected something like https://archidekt.com/decks/123456.',
+    '"{value}" is not an Archidekt deck URL. Expected something like {example}.',
   'domain.sync.linkMismatch':
     'sourceUrl names Archidekt deck {urlDeckId} but sourceId is {sourceId}. A sync addresses the deck by sourceId, so the two must name the same deck.',
 
@@ -262,7 +262,7 @@ export const domainSyncMessages = {
   'domain.sync.saveFailed': 'Failed to save: {error}',
   'domain.sync.scryfallCacheUnreadable': 'Could not read the Scryfall cache: {error}',
   'domain.sync.pullTargetAmbiguous':
-    'More than one collection list is named "{name}": {matches}. Point --into (or collectionSync.pullTarget) at one of them.',
+    'More than one collection list is named "{name}": {matches}. Point {flag} (or {configKey}) at one of them.',
   'domain.sync.dryRunCreateTarget':
     '[dry-run] Would create collection list "{name}" for the cards being added.',
   'domain.sync.createTargetFailed': 'Could not create the collection list "{name}": {error}',

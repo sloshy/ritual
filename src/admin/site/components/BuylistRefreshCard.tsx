@@ -8,6 +8,7 @@ import { useT, useTSegments } from '../../../ui/i18n'
 import { apiMessage, type ApiActionMessage } from '../../../api/result'
 import { readSyncMessage, type SyncMessage } from '../../../sync/message'
 import { useApiText } from '../hooks/useApiAction'
+import { COMMAND, commandLine } from '../../../util/cli-tokens'
 
 /**
  * The Card Kingdom buylist's explicit refresh control.
@@ -143,7 +144,11 @@ export function BuylistRefreshCard(): JSX.Element {
           is drawn as segments and only the {command} parameter gets markup —
           which leaves a translator free to move it. */}
       <p class="page-desc">
-        <For each={tSegments('admin.buylist.desc', { command: t('admin.buylist.command') })}>
+        <For
+          each={tSegments('admin.buylist.desc', {
+            command: commandLine(COMMAND.sell),
+          })}
+        >
           {(segment) => (segment.kind === 'param' ? <code>{segment.value}</code> : segment.value)}
         </For>
       </p>

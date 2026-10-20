@@ -20,28 +20,28 @@ import type { MessageCatalogShape } from '../../types'
 export const cliCardsMessages = {
   // ── Shared by every one-shot card command ─────────────────────────────
   'cli.cardOps.cancelled': 'Cancelled.',
-  'cli.cardOps.pinNeedsBoth': '--set and --collector-number must be given together.',
+  'cli.cardOps.pinNeedsBoth': '{setFlag} and {collectorNumberFlag} must be given together.',
   'cli.cardOps.tagFlagInvalid': '{reason} {flag} takes one or more tags separated by commas.',
   'cli.cardOps.tagFlagEmpty': '{flag} needs at least one tag.',
   'cli.cardOps.categoriesFlagInvalid':
     '{reason} {flag} takes one or more categories separated by commas.',
   'cli.cardOps.languageFlagInvalid':
-    'Invalid language {value} for --language. Valid languages: {languages}',
+    'Invalid language {value} for {flag}. Valid languages: {languages}',
   'cli.cardOps.categoriesFlagEmpty':
-    '{flag} needs at least one category — use --no-categories to clear them.',
+    '{flag} needs at least one category — use {noCategoriesFlag} to clear them.',
   'cli.cardOps.wantedNoCondition':
-    'Wanted list entries do not track condition — --condition applies to decks and collections only.',
+    'Wanted list entries do not track condition — {flag} applies to decks and collections only.',
   'cli.cardOps.labelsUnsupported': {
     $select: 'type',
     deck: 'Decks only carry these labels: {supported} — {labels} cannot be used there.',
     collection: 'Collections only carry these labels: {supported} — {labels} cannot be used there.',
-    wanted: 'Wanted list entries do not carry labels — --label applies to decks and collections.',
+    wanted: 'Wanted list entries do not carry labels — {flag} applies to decks and collections.',
   },
-  'cli.cardOps.cardIdPositive': "--card-id must be a positive integer (got '{value}').",
-  'cli.cardOps.quantityPositive': "--quantity must be a positive integer (got '{value}').",
+  'cli.cardOps.cardIdPositive': "{flag} must be a positive integer (got '{value}').",
+  'cli.cardOps.quantityPositive': "{flag} must be a positive integer (got '{value}').",
   'cli.cardOps.invalidCondition':
     "Invalid condition '{value}'. Use one of: {choices}, or NONE to record no condition.",
-  'cli.cardOps.oneTypeFlag': 'Specify only one of --deck, --collection, or --wanted.',
+  'cli.cardOps.oneTypeFlag': 'Specify only one of {deckFlag}, {collectionFlag}, or {wantedFlag}.',
   'cli.cardOps.noListFiles': 'No decks, collections, or wanted lists found. Create one first.',
   'cli.cardOps.noListFilesOfType': {
     $select: 'type',
@@ -69,13 +69,13 @@ export const cliCardsMessages = {
   'cli.cardOps.noCardWithId': 'No card with id {id} found in {file}.',
   'cli.cardOps.noCardMatching': "No card matching '{name}' found in {file}.",
   'cli.cardOps.ambiguousCard':
-    "Multiple cards match '{name}'. Pick one with --card-id <id> or run interactively:\n{matches}",
+    "Multiple cards match '{name}'. Pick one with {flag} or run interactively:\n{matches}",
   'cli.cardOps.matchLine': '  - {entry}',
   'cli.cardOps.andMore': '  ... and {count} more',
   'cli.cardOps.cardIdNameMismatch':
-    "--card-id {cardId} is '{entryName}', which does not match '{requestedName}'. Pass one selector or the other.",
+    "{flag} {cardId} is '{entryName}', which does not match '{requestedName}'. Pass one selector or the other.",
   'cli.cardOps.noCachedPrintingList':
-    "The card cache holds no printing list for '{name}'. Run 'ritual cache preload-all' to download it.",
+    "The card cache holds no printing list for '{name}'. Run '{command}' to download it.",
   'cli.cardOps.verifyPrintingFailed': 'Failed to verify printing {printing}: {reason}. {advice}',
   'cli.cardOps.printingUnverified':
     "Could not verify printing {printing} of '{name}' with Scryfall. {advice}",
@@ -86,7 +86,7 @@ export const cliCardsMessages = {
   'cli.cardOps.noLanguageObject':
     "Scryfall has no {language} ({code}) object for printing {printing} of '{name}'.",
   'cli.cardOps.finishCarriedOver':
-    '{reason} The entry already records {finish}; pass --finish to record an available one.',
+    '{reason} The entry already records {finish}; pass {flag} to record an available one.',
   'cli.cardOps.dryRunLine': '[dry-run] {line}',
 
   // ── Refused prompts (`--no-input`) ────────────────────────────────────
@@ -94,7 +94,7 @@ export const cliCardsMessages = {
   // Noun phrases, never questions: they are interpolated into the declarative
   // frame `errors.input.required`. See `src/no-input.ts`.
   'cli.prompt.subject.wantedAdd':
-    'wanted-list adds are interactive by default — pass --name-only, --specific, or --set/--collector-number',
+    'wanted-list adds are interactive by default — pass {nameOnlyFlag}, {specificFlag}, or {setFlag}/{collectorNumberFlag}',
   'cli.prompt.subject.fullCardName':
     "pass the full card name — '{name}' does not exactly match a cached card name, and the card picker cannot open",
 
@@ -102,13 +102,13 @@ export const cliCardsMessages = {
   'cli.addCard.collectorNumberEmpty': 'Collector number cannot be empty.',
   'cli.addCard.cacheUnavailable': 'Card cache is not available.',
   'cli.addCard.loadedFromCache': 'Loaded {count} cards from cache.',
-  'cli.addCard.wantedOnlyFlags': '--name-only and --specific apply only to wanted list targets.',
-  'cli.addCard.deckOnlyFlags': '--section and --commander apply only to deck targets.',
+  'cli.addCard.wantedOnlyFlags':
+    '{nameOnlyFlag} and {specificFlag} apply only to wanted list targets.',
+  'cli.addCard.deckOnlyFlags': '{sectionFlag} and {commanderFlag} apply only to deck targets.',
   'cli.addCard.quantityDeckOnly':
-    '--quantity applies only to deck targets (collection and wanted entries are one physical card per line).',
+    '{flag} applies only to deck targets (collection and wanted entries are one physical card per line).',
   'cli.addCard.changelogNotAList': "'{name}' is a changelog file and cannot be used as a list.",
-  'cli.addCard.deckNotFound':
-    "No deck named '{name}' found. Create it first with 'ritual new deck'.",
+  'cli.addCard.deckNotFound': "No deck named '{name}' found. Create it first with '{command}'.",
   'cli.addCard.noExactMatch': "No exact match for '{name}'. {matches}",
   'cli.addCard.exactMatchFound': 'Exact match found: {name}',
   'cli.addCard.noCardsMatching': "No cards found matching '{name}'.",
@@ -124,29 +124,29 @@ export const cliCardsMessages = {
     preview: 'Would add: {line}',
   },
   'cli.addCard.noPrintingSelected':
-    "No printing selected for '{name}'. Pass --set and --collector-number to pin one.",
+    "No printing selected for '{name}'. Pass {setFlag} and {collectorNumberFlag} to pin one.",
   'cli.addCard.noPrintingResolved':
-    "Could not resolve a printing for '{name}'. Pass --set and --collector-number, or use --name-only.",
+    "Could not resolve a printing for '{name}'. Pass {setFlag} and {collectorNumberFlag}, or use {nameOnlyFlag}.",
   'cli.addCard.promptSpecificity': 'How specific for {name}?',
   'cli.addCard.specificityNameOnly': 'Name only (any copy)',
   'cli.addCard.specificityChoosePrinting': 'Choose specific printing',
 
   // ── remove-card ───────────────────────────────────────────────────────
   'cli.removeCard.quantityAllCopiesExclusive':
-    '--quantity and --all-copies are mutually exclusive.',
+    '{quantityFlag} and {allCopiesFlag} are mutually exclusive.',
   'cli.removeCard.allCopiesDeckOnly': {
     $select: 'type',
     collection:
-      '--all-copies only applies to decks — each collection entry is one physical card. Remove other copies individually (disambiguate with --card-id).',
+      '{allCopiesFlag} only applies to decks — each collection entry is one physical card. Remove other copies individually (disambiguate with {cardIdFlag}).',
     wanted:
-      '--all-copies only applies to decks — each wanted list entry is one physical card. Remove other copies individually (disambiguate with --card-id).',
+      '{allCopiesFlag} only applies to decks — each wanted list entry is one physical card. Remove other copies individually (disambiguate with {cardIdFlag}).',
   },
   'cli.removeCard.quantityDeckOnly': {
     $select: 'type',
     collection:
-      '--quantity only applies to decks — each collection entry is one physical card. Remove other copies individually (disambiguate with --card-id).',
+      '{quantityFlag} only applies to decks — each collection entry is one physical card. Remove other copies individually (disambiguate with {cardIdFlag}).',
     wanted:
-      '--quantity only applies to decks — each wanted list entry is one physical card. Remove other copies individually (disambiguate with --card-id).',
+      '{quantityFlag} only applies to decks — each wanted list entry is one physical card. Remove other copies individually (disambiguate with {cardIdFlag}).',
   },
   'cli.removeCard.tooManyCopies': {
     $plural: 'count',
@@ -162,7 +162,7 @@ export const cliCardsMessages = {
   // ── set-card ──────────────────────────────────────────────────────────
   'cli.setCard.labelWithNone': "{reason} Or pass 'none' to clear the override.",
   'cli.setCard.languageFlagInvalid':
-    'Invalid language {value} for --language (en clears the token). Valid languages: {languages}',
+    'Invalid language {value} for {flag} (en clears the token). Valid languages: {languages}',
   'cli.setCard.conditionCleared': 'condition → none (grade cleared)',
   'cli.setCard.conditionDefault':
     'condition → NM (written as an ungraded line — NM is the default)',
@@ -172,14 +172,14 @@ export const cliCardsMessages = {
   'cli.setCard.finishCheckUnknownPrinting':
     "Note: could not verify finish '{finish}' for {entry} — {printing} is not a known printing of '{name}'.",
   'cli.setCard.finishCheckCacheMiss':
-    "Note: could not verify finish '{finish}' for {entry} — the card cache holds no complete printing list for it. Run 'ritual cache preload-all' to enable the check.",
+    "Note: could not verify finish '{finish}' for {entry} — the card cache holds no complete printing list for it. Run '{command}' to enable the check.",
   'cli.setCard.noChangeGiven':
-    'Specify at least one change: --set/--collector-number, --finish, --condition, --language, --label, --tag, --untag, --categories, --no-categories, --art, --section, --commander, or --no-commander.',
+    'Specify at least one change: {setFlag}/{collectorNumberFlag}, {finishFlag}, {conditionFlag}, {languageFlag}, {labelFlag}, {tagFlag}, {untagFlag}, {categoriesFlag}, {noCategoriesFlag}, {artFlag}, {sectionFlag}, {commanderFlag}, or {noCommanderFlag}.',
   'cli.setCard.tagBothWays':
-    'A tag cannot be both added and removed in one run — given to both --tag and --untag: {tags}',
+    'A tag cannot be both added and removed in one run — given to both {tagFlag} and {untagFlag}: {tags}',
   'cli.setCard.artInvalid': "{reason}. Or pass 'none' to clear the custom art.",
   'cli.setCard.artFileMissing':
-    "No image file at {path}. Custom art paths are relative to the art directory ({dir}) — move the image there, or point elsewhere with 'ritual config set artDir <dir>'.",
+    "No image file at {path}. Custom art paths are relative to the art directory ({dir}) — move the image there, or point elsewhere with '{command}'.",
   'cli.setCard.artFileUnreadable': 'Could not read {path}: {reason}',
   'cli.setCard.artNotAFile': '{path} is not an image file.',
   'cli.setCard.artNeedsId':
@@ -188,8 +188,8 @@ export const cliCardsMessages = {
     'Could not read the custom art already recorded for this list: {reason}',
   'cli.setCard.appliedArt': 'custom art → {art}',
   'cli.setCard.artCleared': 'custom art → none (cleared)',
-  'cli.setCard.sectionDecksOnly': '--section only applies to decks.',
-  'cli.setCard.commanderDecksOnly': '--commander/--no-commander only apply to decks.',
+  'cli.setCard.sectionDecksOnly': '{flag} only applies to decks.',
+  'cli.setCard.commanderDecksOnly': '{commanderFlag}/{noCommanderFlag} only apply to decks.',
   'cli.setCard.languageUnverified':
     'Note: could not verify that {printing} exists in {language} ({code}) — Scryfall could not be reached{detail}. Recording it as asserted.',
   'cli.setCard.reasonSuffix': ': {reason}',
@@ -230,7 +230,7 @@ export const cliCardsMessages = {
   },
   'cli.note.promptReplace': 'Replace note (current: "{current}"):',
   'cli.note.promptText': 'Note text:',
-  'cli.note.emptyNote': 'Note text cannot be empty. Use --clear to remove a note.',
+  'cli.note.emptyNote': 'Note text cannot be empty. Use {flag} to remove a note.',
 
   // ── set-list-image ────────────────────────────────────────────────────
   'cli.setListImage.set': {
@@ -263,24 +263,24 @@ export const cliCardsMessages = {
   'cli.setListImage.cardPrompt': 'Which card should the cover image show?',
 
   // ── card ──────────────────────────────────────────────────────────────
-  'cli.card.stdinOrFile': 'Use either --stdin or --from-file, not both.',
+  'cli.card.stdinOrFile': 'Use either {stdinFlag} or {fromFileFlag}, not both.',
   'cli.card.readFailed': "Could not read file '{file}': {reason}",
   'cli.card.nameRequired':
-    'Provide a card name argument or use --stdin/--from-file for batch input.',
+    'Provide a card name argument or use {stdinFlag}/{fromFileFlag} for batch input.',
   'cli.card.fetchFailed': "Failed to fetch card '{name}': {reason}",
   'cli.card.notFound': "Card '{name}' not found.",
 
   // ── scry ──────────────────────────────────────────────────────────────
-  'cli.scry.pagesWithRandom': '--pages cannot be used with --random.',
-  'cli.scry.csvWithRandom': '--output csv cannot be used with --random.',
-  'cli.scry.countNeedsRandom': '--count requires --random.',
-  'cli.scry.queryRequired': 'A search query is required unless --random is given.',
-  'cli.scry.fieldsWithCsv': '--fields cannot be used with --output csv.',
+  'cli.scry.pagesWithRandom': '{pagesFlag} cannot be used with {randomFlag}.',
+  'cli.scry.csvWithRandom': '{outputCsvFlag} cannot be used with {randomFlag}.',
+  'cli.scry.countNeedsRandom': '{countFlag} requires {randomFlag}.',
+  'cli.scry.queryRequired': 'A search query is required unless {flag} is given.',
+  'cli.scry.fieldsWithCsv': '{fieldsFlag} cannot be used with {outputCsvFlag}.',
   'cli.scry.pageFetchFailed': 'Error fetching page {page}: {reason}',
   'cli.scry.noResults': 'No results found.',
   'cli.scry.promptNextPage': 'Page {page} displayed. Fetch next page?',
-  'cli.scry.truncatedUnknown': 'More results remain (fetched {pages}); use --pages <n> for more.',
-  'cli.scry.truncated': 'Fetched {fetched} of {total} results ({pages}); use --pages <n> for more.',
+  'cli.scry.truncatedUnknown': 'More results remain (fetched {pages}); use {flag} for more.',
+  'cli.scry.truncated': 'Fetched {fetched} of {total} results ({pages}); use {flag} for more.',
   'cli.scry.randomFailed': 'Failed to fetch random card: {reason}',
   'cli.scry.randomNotFound': 'No card found for the supplied random filter.',
   'cli.scry.pagesPositive': 'Pages must be a positive integer.',
@@ -307,9 +307,9 @@ export const cliCardsMessages = {
   'cli.move.menuFilters': '⚙️  Configure Session Filters',
   'cli.move.menuBatch': '🧺 Batch Mode — select many cards at once',
   'cli.move.menuExit': '🚪 Exit',
-  'cli.move.toRequiresFrom': '--to requires --from. Pass both to script a move.',
+  'cli.move.toRequiresFrom': '{toFlag} requires {fromFlag}. Pass both to script a move.',
   'cli.move.scriptedNeedsBoth':
-    'Scripted moves need both --from and --to. Run `ritual move` without card arguments for the interactive session.',
+    'Scripted moves need both {fromFlag} and {toFlag}. Run `{command}` without card arguments for the interactive session.',
   'cli.move.loadingLists': 'Loading all lists...',
   'cli.move.noLists': 'No list files found. Create a deck, collection, or wanted list first.',
   'cli.move.sourceNotLoaded': 'Source list not found among loaded lists.',
@@ -318,10 +318,10 @@ export const cliCardsMessages = {
   'cli.move.sourceFilter': 'Source filter: {list} (widen it under Session Filters).',
   'cli.move.ready': 'Ready. {cards} across {lists}.',
   'cli.move.promptSearch': 'Search for a card to move, or choose an option:',
-  'cli.move.selectorRequired': 'Provide a card name or --card-id to select the card to move.',
+  'cli.move.selectorRequired': 'Provide a card name or {flag} to select the card to move.',
   'cli.move.sameList': 'Source and destination are the same list.',
-  'cli.move.toSectionEmpty': '--to-section cannot be empty.',
-  'cli.move.toSectionDeckOnly': '--to-section requires a deck destination.',
+  'cli.move.toSectionEmpty': '{flag} cannot be empty.',
+  'cli.move.toSectionDeckOnly': '{flag} requires a deck destination.',
   'cli.move.listNotLoaded': 'A resolved list could not be loaded.',
   'cli.move.noteDroppedWarning':
     'Warning: note on "{name}"{id} was dropped (merged onto an existing line): {note}',
@@ -331,16 +331,16 @@ export const cliCardsMessages = {
   'cli.move.noCardMatching': "No card matching '{name}' found in {list}.",
   'cli.move.noCopiesMatching': "No copies of '{name}' matching {criteria} found in {list}.",
   'cli.move.multiplePrintings':
-    'Multiple printings match in {list}. Narrow with --set, --collector-number, --finish, or --card-id:\n{matches}',
+    'Multiple printings match in {list}. Narrow with {setFlag}, {collectorNumberFlag}, {finishFlag}, or {cardIdFlag}:\n{matches}',
   'cli.move.criteriaSet': 'set {set}',
   'cli.move.criteriaCollectorNumber': 'collector number {value}',
   'cli.move.criteriaFinish': 'finish {finish}',
   'cli.move.printingNeedsBoth':
-    "'{name}' has no printing; pass both --set and --collector-number to assign one for the collection destination.",
+    "'{name}' has no printing; pass both {setFlag} and {collectorNumberFlag} to assign one for the collection destination.",
   'cli.move.printingsUnknown':
-    "No printings of '{name}' are known from the card cache, so its printing can't be determined. Pass --set and --collector-number to assign one for the collection destination, or run 'ritual cache preload-all'.",
+    "No printings of '{name}' are known from the card cache, so its printing can't be determined. Pass {setFlag} and {collectorNumberFlag} to assign one for the collection destination, or run '{command}'.",
   'cli.move.multipleCardPrintings':
-    "'{name}' has multiple printings. Pick one with --set and --collector-number:\n{printings}",
+    "'{name}' has multiple printings. Pick one with {setFlag} and {collectorNumberFlag}:\n{printings}",
   'cli.move.printingLine': '  - {setName} ({printing})',
   'cli.move.moved': 'Moved {count} x {card} from {from} to {to}',
   'cli.move.noPending': 'No pending moves.',
@@ -433,7 +433,7 @@ export const cliCardsMessages = {
   'cli.move.listWarning': '{file}: {warning}',
   // ── List lifecycle: new / rename / delete ─────────────────────────────
   'cli.new.invalidType': "Invalid list type '{value}'. Use 'deck', 'collection', or 'wanted'.",
-  'cli.new.formatDecksOnly': '--format only applies to decks.',
+  'cli.new.formatDecksOnly': '{flag} only applies to decks.',
   'cli.new.created': {
     $select: 'type',
     deck: 'Created deck: {file}',
@@ -476,7 +476,7 @@ export const cliCardsMessages = {
     wanted: "Unknown metadata field '{property}'. Accepted fields for a wanted list: {keys}.",
   },
   'cli.metadata.useSetListImage':
-    "A list's cover image is a mapping, not a scalar; set it with ritual set-list-image.",
+    "A list's cover image is a mapping, not a scalar; set it with {command}.",
   'cli.metadata.frontMatterUnreadable': {
     $select: 'reason',
     notAMapping: "The file's front matter is not a key/value mapping. Fix the block by hand first.",
@@ -486,13 +486,13 @@ export const cliCardsMessages = {
   'cli.metadata.storedDescriptionInvalid': "The stored 'description' value is invalid: {reason}",
   'cli.metadata.arrayOnly': {
     $select: 'type',
-    deck: "--add/--remove apply to array properties (a deck's: tags).",
-    collection: "--add/--remove apply to array properties (a collection's: labels).",
-    wanted: '--add/--remove apply to array properties; a wanted list has none.',
+    deck: "{addFlag}/{removeFlag} apply to array properties (a deck's: tags).",
+    collection: "{addFlag}/{removeFlag} apply to array properties (a collection's: labels).",
+    wanted: '{addFlag}/{removeFlag} apply to array properties; a wanted list has none.',
   },
   'cli.metadata.singleValue': '{property} takes exactly one value.',
   'cli.metadata.invalidLabel': "Invalid label '{value}'. Use one of: {choices}.",
-  'cli.metadata.noLabels': 'No labels given. To clear the default, use ritual metadata unset.',
+  'cli.metadata.noLabels': 'No labels given. To clear the default, use {command}.',
   'cli.metadata.set': {
     $select: 'type',
     deck: "Set {property} = {value} on deck '{list}'",
@@ -553,7 +553,7 @@ export const cliCardsMessages = {
     other: '[dry-run] Would remove category "{category}" from {list} ({count} cards updated).',
   },
   'cli.categories.unknown': 'No category named "{category}" in {list}.',
-  'cli.categories.orderEmpty': 'categories order takes one or more categories separated by commas.',
+  'cli.categories.orderEmpty': '{command} takes one or more categories separated by commas.',
   'cli.categories.nameInvalid':
     '{reason} A category is plain text without commas or control characters.',
   'cli.categories.sidecarUnreadable': "The list's categories sidecar could not be read: {reason}",
@@ -594,9 +594,9 @@ export const cliCardsMessages = {
   'cli.cleanup.signalNone': "Deck '{name}' has no format.",
   'cli.cleanup.formatlessDecks': {
     $plural: 'count',
-    one: '{count} deck has no format and prompts are unavailable ({names}). Re-run with --skip-formats to leave it untouched, or run interactively to choose formats.',
+    one: '{count} deck has no format and prompts are unavailable ({names}). Re-run with {flag} to leave it untouched, or run interactively to choose formats.',
     other:
-      '{count} decks have no format and prompts are unavailable ({names}). Re-run with --skip-formats to leave them untouched, or run interactively to choose formats.',
+      '{count} decks have no format and prompts are unavailable ({names}). Re-run with {flag} to leave them untouched, or run interactively to choose formats.',
   },
   'cli.cleanup.fileLine': '{file}: {actions}',
   'cli.cleanup.fileWarning': '{file}: warning: {warning}',
@@ -611,14 +611,14 @@ export const cliCardsMessages = {
 
   // ── get-primer ────────────────────────────────────────────────────────
   'cli.getPrimer.userAgentRequired':
-    'Error: Moxfield URL sources require a unique Moxfield-approved user agent string. Set MOXFIELD_USER_AGENT or pass --moxfield-user-agent <agent>.',
+    'Error: Moxfield URL sources require a unique Moxfield-approved user agent string. Set {envVar} or pass {flag}.',
   'cli.getPrimer.noPrimerFetched': 'No primer found for this deck.',
   'cli.getPrimer.readFailed': "Failed to read deck file '{file}':",
-  'cli.getPrimer.noPrimer': "Deck '{name}' has no primer (.primer.md sidecar).",
+  'cli.getPrimer.noPrimer': "Deck '{name}' has no primer ({file} sidecar).",
 
   // ── Ambiguous collection-sync removals ────────────────────────────────
   'cli.resolveAmbiguity.priorityAdvice':
-    'Pass --removal-priority <list> (repeatable, in priority order) to say which lists may lose copies, or run in a terminal to resolve them one by one.',
+    'Pass {flag} (repeatable, in priority order) to say which lists may lose copies, or run in a terminal to resolve them one by one.',
   'cli.resolveAmbiguity.leftUnresolved': '{counted} left unresolved. {advice}',
   'cli.resolveAmbiguity.copiesLiveIn': '{card}: {count} to remove — copies live in {lists}.',
   'cli.resolveAmbiguity.promptWhichList': 'Which list lost {card}? (copy {copy} of {total})',

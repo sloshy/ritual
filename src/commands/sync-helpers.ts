@@ -28,6 +28,7 @@ import type { Command } from 'commander'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import { renderSyncMessage } from '../sync/message'
+import { COMMAND, commandLine, FLAG } from '../util/cli-tokens'
 
 /** Commander argParser for the `<direction>` positional: only push/pull are valid. */
 export function parseSyncDirection(value: string): SyncDirection {
@@ -36,7 +37,7 @@ export function parseSyncDirection(value: string): SyncDirection {
 
 /** Commander argParser for `--only`: additions or removals, nothing else. */
 export function parseSyncChangeFilter(value: string): SyncChangeFilter {
-  return parseEnumFlag(value, SYNC_CHANGE_FILTERS, '--only')
+  return parseEnumFlag(value, SYNC_CHANGE_FILTERS, FLAG.only)
 }
 
 /**
@@ -149,7 +150,10 @@ export async function requireArchidektToken(
 ): Promise<string | null> {
   const token = await new ArchidektAuth(new FileTokenStore(), logger).getToken()
   if (token) return token
-  return refuseRun(t('cli.sync.notSignedIn'), scripting)
+  return refuseRun(
+    t('cli.sync.notSignedIn', { command: commandLine(COMMAND.loginArchidekt) }),
+    scripting,
+  )
 }
 
 /**
@@ -164,11 +168,17 @@ export async function requireArchidektSession(
   const auth = new ArchidektAuth(new FileTokenStore(), logger)
   const token = await auth.getToken()
   if (!token) {
-    return refuseRun(t('cli.sync.notSignedIn'), scripting)
+    return refuseRun(
+      t('cli.sync.notSignedIn', { command: commandLine(COMMAND.loginArchidekt) }),
+      scripting,
+    )
   }
   const user = await auth.getStoredUser()
   if (!user) {
-    return refuseRun(t('cli.sync.accountUnnamed'), scripting)
+    return refuseRun(
+      t('cli.sync.accountUnnamed', { command: commandLine(COMMAND.loginArchidekt) }),
+      scripting,
+    )
   }
   return { token, account: { id: user.id, username: user.username } }
 }
@@ -257,7 +267,7 @@ export async function confirmUnreadableSync(
   if (yes) return true
 
   if (!canPromptWithOutput(scripting)) {
-    logger.error(t(UNREADABLE_MESSAGES[subject].refuse, { cost }))
+    logger.error(t(UNREADABLE_MESSAGES[subject].refuse, { cost, flag: FLAG.yes }))
     return false
   }
 

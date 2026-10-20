@@ -35,18 +35,22 @@ export const helpEditMeta = {
   'help.history.listName': { description: 'The `[listName]` argument of `history`.' },
   'help.history.show': { description: '`history --show`.' },
   'help.history.limit': {
-    description: '`history --limit`. `--show` is a flag spelling and `<n>` its placeholder.',
+    description:
+      '`history --limit`. `--show` is a flag spelling and `<n>` its placeholder. {flag} is the `--show` flag. It is typed or matched exactly by the user, so never translate it.',
   },
 
   // ── detect-changes ────────────────────────────────────────────────────
   'help.detectChanges.description': {
     description:
-      "Summary of the `detect-changes` command. A sidecar is the `.sha256` file recording a list file's content hash.",
+      "Summary of the `detect-changes` command. A sidecar is the `.sha256` file recording a list file's content hash. {file} is the `.sha256` file suffix. It is typed or matched exactly by the user, so never translate it.",
   },
   'help.detectChanges.commit': {
     description: 'The `[commit]` argument of `detect-changes`. The two examples are git refs.',
   },
-  'help.detectChanges.hashOnly': { description: '`detect-changes --hash-only`.' },
+  'help.detectChanges.hashOnly': {
+    description:
+      '`detect-changes --hash-only`. {file} is the `.sha256` file suffix. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.detectChanges.verify': { description: '`detect-changes --verify`.' },
   'help.detectChanges.dryRun': { description: '`detect-changes --dry-run`.' },
 } as const satisfies MetaFor<typeof helpEditMessages>

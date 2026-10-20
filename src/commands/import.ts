@@ -88,6 +88,7 @@ import {
   type PrefixedMessage,
   type SyncMessage,
 } from '../sync/message'
+import { COMMAND, commandLine, ENV_VAR, FLAG } from '../util/cli-tokens'
 
 type ImportCommandOptions = {
   type?: string
@@ -178,7 +179,7 @@ async function resolveImportListType(
   // but says so — the type was defaulted, not chosen. Without --no-input the
   // prompt itself fails when no terminal is available (the ask() guard).
   if (isNoInput()) {
-    getLogger().info(t('cli.import.defaultedToDeck'))
+    getLogger().info(t('cli.import.defaultedToDeck', { flag: FLAG.type }))
     return 'deck'
   }
 
@@ -212,16 +213,20 @@ function rejectedFlagForSource(
     if (flag !== undefined) {
       return kind === 'url'
         ? t('cli.import.flagNotForUrl', { flag })
-        : t('cli.import.flagNeedsCsv', { flag })
+        : t('cli.import.flagNeedsCsv', { flag, csvFlag: FLAG.csv })
     }
   }
   if (kind !== 'url' && options.moxfieldUserAgent !== undefined) {
-    return t('cli.import.moxfieldAgentSourceOnly', { kind })
+    return t('cli.import.moxfieldAgentSourceOnly', { kind, flag: FLAG.moxfieldUserAgent })
   }
   // A local file's printings are the file's own data, so the URL-import
   // question makes no sense there in either direction.
   if (kind !== 'url' && syncPrintingsFlag !== undefined) {
-    return t('cli.import.syncPrintingsUrlOnly', { kind })
+    return t('cli.import.syncPrintingsUrlOnly', {
+      kind,
+      syncPrintingsFlag: FLAG.syncPrintings,
+      noSyncPrintingsFlag: FLAG.noSyncPrintings,
+    })
   }
   return undefined
 }
@@ -337,14 +342,14 @@ export function formatScriptingCommand(
   hasHeader: boolean,
   forceCsv: boolean,
 ): string {
-  const parts = ['ritual', 'import', shellQuote(file)]
-  if (forceCsv) parts.push('--csv')
-  parts.push('--type', listType, '--name', shellQuote(name))
-  if (mode === 'overwrite') parts.push('--overwrite')
-  if (mode === 'append') parts.push('--append')
-  if (format !== undefined) parts.push('--deck-format', format)
-  parts.push('--columns', shellQuote(formatColumnsSpec(mapping)))
-  if (!hasHeader) parts.push('--no-header')
+  const parts: string[] = [commandLine(COMMAND.import), shellQuote(file)]
+  if (forceCsv) parts.push(FLAG.csv)
+  parts.push(FLAG.type, listType, FLAG.name, shellQuote(name))
+  if (mode === 'overwrite') parts.push(FLAG.overwrite)
+  if (mode === 'append') parts.push(FLAG.append)
+  if (format !== undefined) parts.push(FLAG.deckFormat, format)
+  parts.push(FLAG.columns, shellQuote(formatColumnsSpec(mapping)))
+  if (!hasHeader) parts.push(FLAG.noHeader)
   return parts.join(' ')
 }
 
@@ -462,7 +467,10 @@ async function runCsvImport(
   const dryRun = options.dryRun === true
 
   if (options.overwrite === true && options.append === true) {
-    fail(scripting, 'usage_error', 'cli.import.overwriteAppendExclusive')
+    fail(scripting, 'usage_error', 'cli.import.overwriteAppendExclusive', {
+      overwriteFlag: FLAG.overwrite,
+      appendFlag: FLAG.append,
+    })
     return
   }
 
@@ -518,11 +526,11 @@ async function runCsvImport(
 
   if (scripted) {
     const missing: string[] = []
-    if (listType === undefined) missing.push('--type')
-    if (name === undefined) missing.push('--name')
-    if (options.columns === undefined) missing.push('--columns')
+    if (listType === undefined) missing.push(FLAG.type)
+    if (name === undefined) missing.push(FLAG.name)
+    if (options.columns === undefined) missing.push(FLAG.columns)
     if (listType === 'deck' && flagMode !== 'append' && format === undefined) {
-      missing.push('--deck-format')
+      missing.push(FLAG.deckFormat)
     }
     if (missing.length > 0) {
       fail(scripting, 'usage_error', 'cli.import.missingScriptedFlags', {
@@ -543,11 +551,11 @@ async function runCsvImport(
   }
 
   if (format !== undefined && listType !== 'deck') {
-    fail(scripting, 'usage_error', 'cli.import.deckFormatDeckOnly')
+    fail(scripting, 'usage_error', 'cli.import.deckFormatDeckOnly', { flag: FLAG.deckFormat })
     return
   }
   if (format !== undefined && flagMode === 'append') {
-    fail(scripting, 'usage_error', 'cli.import.deckFormatNotAppend')
+    fail(scripting, 'usage_error', 'cli.import.deckFormatNotAppend', { flag: FLAG.deckFormat })
     return
   }
 
@@ -584,6 +592,9 @@ async function runCsvImport(
       // not a runtime failure — with the extra `--append` option CSV has.
       fail(scripting, 'usage_error', 'cli.import.conflictCsv', {
         target: path.basename(existingPath),
+        appendFlag: FLAG.append,
+        overwriteFlag: FLAG.overwrite,
+        yesFlag: FLAG.yes,
       })
       return
     } else {
@@ -663,7 +674,7 @@ async function runCsvImport(
     const firstRow = parsed.rows[0]!
     if (!scripting.quiet) logger.info(t('cli.import.skippingHeader', { row: firstRow.raw }))
     if (!guessHasHeader(firstRow.cells, [currentLocale()])) {
-      logger.warn(t('cli.import.headerLooksLikeData', { row: firstRow.raw }))
+      logger.warn(t('cli.import.headerLooksLikeData', { row: firstRow.raw, flag: FLAG.noHeader }))
     }
   }
 
@@ -795,7 +806,10 @@ export function registerImportCommand(program: Command): void {
           .option('--csv', t('help.import.csv'))
           .option('-o, --overwrite', t('help.import.overwrite'))
           .option('-y, --yes', t('help.import.yes'))
-          .option('--moxfield-user-agent <agent>', t('help.import.moxfieldUserAgent')),
+          .option(
+            '--moxfield-user-agent <agent>',
+            t('help.import.moxfieldUserAgent', { envVar: ENV_VAR.moxfieldUserAgent }),
+          ),
       ),
       t('help.import.dryRun'),
     ),

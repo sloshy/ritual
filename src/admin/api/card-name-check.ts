@@ -27,6 +27,7 @@ import {
 } from '../../card/term-match'
 import { apiError } from '../../api/http'
 import { apiMessage, pickMessage, type ApiMessage } from '../../api/result'
+import { COMMAND, commandLine } from '../../util/cli-tokens'
 
 /** How many close cached names a refusal offers per rejected name. */
 export const MAX_CANDIDATES = 3
@@ -37,7 +38,9 @@ export const MAX_CANDIDATES = 3
  * user has no `refresh_cache` tool).
  */
 export function coldCacheMessage(): ApiMessage {
-  return apiMessage('admin.api.cardNames.coldCache')
+  return apiMessage('admin.api.cardNames.coldCache', {
+    command: commandLine(COMMAND.cachePreloadAll),
+  })
 }
 
 /** One rejected name plus the closest cached names. */

@@ -42,6 +42,7 @@ import { formatDateTimeOr } from '../ui/format'
 import { choiceSearchAliases, type SearchableChoice } from '../cli/menu-search'
 import { writeFileAtomic } from '../util/atomic-write'
 import { renderSyncMessage } from '../sync/message'
+import { FLAG } from '../util/cli-tokens'
 
 export type HistoryOptions = ListTypeFlags &
   Partial<ScriptingOptions> & {
@@ -53,7 +54,7 @@ export type HistoryOptions = ListTypeFlags &
 function parseLimitFlag(value: string): number {
   const parsed = parsePositiveInteger(value)
   if (parsed === undefined) {
-    throw new InvalidArgumentError(t('cli.history.limitInvalid', { value }))
+    throw new InvalidArgumentError(t('cli.history.limitInvalid', { value, flag: FLAG.limit }))
   }
   return parsed
 }
@@ -133,14 +134,17 @@ export function registerHistoryCommand(program: Command): void {
         .argument('[listName]', t('help.history.listName')),
     )
       .option('--show', t('help.history.show'), false)
-      .option('--limit <n>', t('help.history.limit'), parseLimitFlag),
+      .option('--limit <n>', t('help.history.limit', { flag: FLAG.show }), parseLimitFlag),
   ).action(async (listNameArg: string | undefined, options: HistoryOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
     const type = resolveListTypeFlag(options, scripting)
     if (type === 'conflict') return
 
     if (options.limit !== undefined && !options.show) {
-      fail(scripting, 'usage_error', 'cli.history.limitRequiresShow')
+      fail(scripting, 'usage_error', 'cli.history.limitRequiresShow', {
+        limitFlag: FLAG.limit,
+        showFlag: FLAG.show,
+      })
       return
     }
 
@@ -150,6 +154,8 @@ export function registerHistoryCommand(program: Command): void {
     if (options.output !== undefined && options.output !== 'text' && !options.show) {
       fail(scripting, 'usage_error', 'cli.history.outputRequiresShow', {
         output: options.output,
+        outputFlag: FLAG.output,
+        showFlag: FLAG.show,
       })
       return
     }
@@ -160,7 +166,7 @@ export function registerHistoryCommand(program: Command): void {
     await runCommandAction(scripting, async () => {
       if (listNameArg === undefined) requireInteractive('cli.prompt.subject.passListName')
       if (!options.show && promptsUnavailable()) {
-        throw inputRequiredError('cli.prompt.subject.noHistoryEditor')
+        throw inputRequiredError('cli.prompt.subject.noHistoryEditor', { flag: FLAG.show })
       }
 
       const location = await resolveLocation(listNameArg, type, scripting)

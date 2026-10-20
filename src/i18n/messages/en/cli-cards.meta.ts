@@ -10,7 +10,7 @@ export const cliCardsMeta = {
   },
   'cli.cardOps.pinNeedsBoth': {
     description:
-      'Refusal when only one half of the --set/--collector-number printing pin was given. The flag names never translate.',
+      'Refusal when only one half of the --set/--collector-number printing pin was given. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.cardOps.tagFlagInvalid': {
     description:
@@ -26,34 +26,35 @@ export const cliCardsMeta = {
   },
   'cli.cardOps.languageFlagInvalid': {
     description:
-      'Refusal for a --language value that names no card language. {value} is the value as typed, as JSON (quoted); {languages} is the list of valid language codes, already joined in the reader’s language. --language and the codes are machine vocabulary and never translate.',
+      'Refusal for a --language value that names no card language. {value} is the value as typed, as JSON (quoted); {languages} is the list of valid language codes, already joined in the reader’s language. The codes are machine vocabulary and never translate. {flag} is the `--language` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cardOps.categoriesFlagEmpty': {
     description:
-      'Refusal for an empty --categories value. The flag names are machine vocabulary and never translate.',
+      'Refusal for an empty --categories value. {noCategoriesFlag} is the `--no-categories` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cardOps.wantedNoCondition': {
     description:
-      'Refusal when --condition is used on a wanted list, which records no card condition.',
+      'Refusal when --condition is used on a wanted list, which records no card condition. {flag} is the `--condition` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cardOps.labelsUnsupported': {
     description:
-      'Refusal when --label names labels the list type does not carry. {labels} lists the offenders and {supported} the labels that type accepts (both are comma-joined machine slugs); the wanted branch has neither, since wanted entries carry no labels at all. One sentence per type: the noun is gendered in most languages.',
+      'Refusal when --label names labels the list type does not carry. {labels} lists the offenders and {supported} the labels that type accepts (both are comma-joined machine slugs); the wanted branch has neither, since wanted entries carry no labels at all. One sentence per type: the noun is gendered in most languages. {flag} is the `--label` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cardOps.cardIdPositive': {
     description:
-      '--card-id rejected a non-positive or non-numeric value. {value} is what was typed.',
+      '--card-id rejected a non-positive or non-numeric value. {value} is what was typed. {flag} is the `--card-id` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cardOps.quantityPositive': {
     description:
-      '--quantity rejected a non-positive or non-numeric value. {value} is what was typed.',
+      '--quantity rejected a non-positive or non-numeric value. {value} is what was typed. {flag} is the `--quantity` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cardOps.invalidCondition': {
     description:
       '--condition rejected a value (add-card and set-card). {choices} is the comma-joined grade list; NONE is a machine value.',
   },
   'cli.cardOps.oneTypeFlag': {
-    description: 'Refusal when more than one of the three list-type flags was passed.',
+    description:
+      'Refusal when more than one of the three list-type flags was passed. {deckFlag} is the `--deck` flag; {collectionFlag} is the `--collection` flag; {wantedFlag} is the `--wanted` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.cardOps.noListFiles': {
     description:
@@ -93,7 +94,7 @@ export const cliCardsMeta = {
   'cli.cardOps.noCardMatching': { description: 'No card in {file} matched the typed name.' },
   'cli.cardOps.ambiguousCard': {
     description:
-      'The typed name matched several cards. {matches} is the pre-rendered, newline-separated list of candidates; keep it on its own line.',
+      'The typed name matched several cards. {matches} is the pre-rendered, newline-separated list of candidates; keep it on its own line. {flag} is `--card-id <id>`, a flag and its value. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cardOps.matchLine': {
     description:
@@ -105,11 +106,11 @@ export const cliCardsMeta = {
   },
   'cli.cardOps.cardIdNameMismatch': {
     description:
-      'The --card-id and the card name given alongside it name different cards. Ids are reused after a removal, so this refusal is what stops a stale id from mutating the wrong card.',
+      'The --card-id and the card name given alongside it name different cards. Ids are reused after a removal, so this refusal is what stops a stale id from mutating the wrong card. {flag} is the `--card-id` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cardOps.noCachedPrintingList': {
     description:
-      "Advice clause spliced into the two pin-verification refusals below. The 'ritual cache preload-all' command never translates.",
+      'Advice clause spliced into the two pin-verification refusals below. {command} is the `ritual cache preload-all` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cardOps.verifyPrintingFailed': {
     description:
@@ -133,7 +134,7 @@ export const cliCardsMeta = {
   },
   'cli.cardOps.finishCarriedOver': {
     description:
-      "Wraps the finish refusal when the finish came from the entry rather than a flag. {reason} is the engine's own sentence.",
+      "Wraps the finish refusal when the finish came from the entry rather than a flag. {reason} is the engine's own sentence. {flag} is the `--finish` flag. It is typed or matched exactly by the user, so never translate it.",
   },
   'cli.cardOps.dryRunLine': {
     description:
@@ -143,7 +144,7 @@ export const cliCardsMeta = {
   // ── Refused prompts ───────────────────────────────────────────────────
   'cli.prompt.subject.wantedAdd': {
     description:
-      'Noun phrase for the refused wanted-list specificity prompt, interpolated into "Input required: … (…)". Not a sentence.',
+      'Noun phrase for the refused wanted-list specificity prompt, interpolated into "Input required: … (…)". Not a sentence. {nameOnlyFlag} is the `--name-only` flag; {specificFlag} is the `--specific` flag; {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.prompt.subject.fullCardName': {
     description:
@@ -162,13 +163,16 @@ export const cliCardsMeta = {
     description: 'Progress line naming how many cards the local cache holds.',
   },
   'cli.addCard.wantedOnlyFlags': {
-    description: 'Refusal when --name-only/--specific are used on a deck or collection.',
+    description:
+      'Refusal when --name-only/--specific are used on a deck or collection. {nameOnlyFlag} is the `--name-only` flag; {specificFlag} is the `--specific` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.addCard.deckOnlyFlags': {
-    description: 'Refusal when --section/--commander are used outside a deck.',
+    description:
+      'Refusal when --section/--commander are used outside a deck. {sectionFlag} is the `--section` flag; {commanderFlag} is the `--commander` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.addCard.quantityDeckOnly': {
-    description: 'Refusal when --quantity is used outside a deck, with the reason why.',
+    description:
+      'Refusal when --quantity is used outside a deck, with the reason why. {flag} is the `--quantity` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.addCard.changelogNotAList': {
     description:
@@ -176,7 +180,7 @@ export const cliCardsMeta = {
   },
   'cli.addCard.deckNotFound': {
     description:
-      "A deck is never auto-created by add-card. The 'ritual new deck' command never translates.",
+      'A deck is never auto-created by add-card. {command} is the `ritual new deck` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.addCard.noExactMatch': {
     description:
@@ -196,10 +200,12 @@ export const cliCardsMeta = {
       'Success line for a collection or wanted add. {line} is the markdown card line exactly as written to the file.',
   },
   'cli.addCard.noPrintingSelected': {
-    description: 'A collection add needs a concrete printing and could not resolve one.',
+    description:
+      'A collection add needs a concrete printing and could not resolve one. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.addCard.noPrintingResolved': {
-    description: 'A specific wanted add needs a concrete printing and could not resolve one.',
+    description:
+      'A specific wanted add needs a concrete printing and could not resolve one. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag; {nameOnlyFlag} is the `--name-only` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.addCard.promptSpecificity': {
     description: 'Prompt asking whether a wanted entry records a specific printing.',
@@ -213,15 +219,16 @@ export const cliCardsMeta = {
 
   // ── remove-card ───────────────────────────────────────────────────────
   'cli.removeCard.quantityAllCopiesExclusive': {
-    description: 'Refusal when both --quantity and --all-copies were passed.',
+    description:
+      'Refusal when both --quantity and --all-copies were passed. {quantityFlag} is the `--quantity` flag; {allCopiesFlag} is the `--all-copies` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.removeCard.allCopiesDeckOnly': {
     description:
-      'Refusal when --all-copies is used outside a deck. Only the collection and wanted branches can be reached; a deck never refuses.',
+      'Refusal when --all-copies is used outside a deck. Only the collection and wanted branches can be reached; a deck never refuses. {allCopiesFlag} is the `--all-copies` flag; {cardIdFlag} is the `--card-id` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.removeCard.quantityDeckOnly': {
     description:
-      'Refusal when --quantity > 1 is used outside a deck. Only the collection and wanted branches can be reached.',
+      'Refusal when --quantity > 1 is used outside a deck. Only the collection and wanted branches can be reached. {quantityFlag} is the `--quantity` flag; {cardIdFlag} is the `--card-id` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.removeCard.tooManyCopies': {
     description:
@@ -239,7 +246,7 @@ export const cliCardsMeta = {
   },
   'cli.setCard.languageFlagInvalid': {
     description:
-      "Refusal for a set-card --language value that names no card language; the parenthesis reminds that 'en' (English) clears the language token. {value} is the value as typed, as JSON (quoted); {languages} is the list of valid language codes, already joined in the reader’s language. --language, 'en' and the codes are machine vocabulary and never translate.",
+      "Refusal for a set-card --language value that names no card language; the parenthesis reminds that 'en' (English) clears the language token. {value} is the value as typed, as JSON (quoted); {languages} is the list of valid language codes, already joined in the reader’s language. 'en' and the codes are machine vocabulary and never translate. {flag} is the `--language` flag. It is typed or matched exactly by the user, so never translate it.",
   },
   'cli.setCard.conditionCleared': {
     description:
@@ -266,14 +273,15 @@ export const cliCardsMeta = {
   },
   'cli.setCard.finishCheckCacheMiss': {
     description:
-      "Warning: the finish could not be checked because the cache holds no printing list. The 'ritual cache preload-all' command never translates.",
+      'Warning: the finish could not be checked because the cache holds no printing list. {command} is the `ritual cache preload-all` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.setCard.noChangeGiven': {
-    description: 'set-card was run with no mutating flag. The flag names never translate.',
+    description:
+      'set-card was run with no mutating flag. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag; {finishFlag} is the `--finish` flag; {conditionFlag} is the `--condition` flag; {languageFlag} is the `--language` flag; {labelFlag} is the `--label` flag; {tagFlag} is the `--tag` flag; {untagFlag} is the `--untag` flag; {categoriesFlag} is the `--categories` flag; {noCategoriesFlag} is the `--no-categories` flag; {artFlag} is the `--art` flag; {sectionFlag} is the `--section` flag; {commanderFlag} is the `--commander` flag; {noCommanderFlag} is the `--no-commander` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.setCard.tagBothWays': {
     description:
-      'Refusal when the same tag was passed to both --tag (add) and --untag (remove). {tags} is the comma-joined tag list; the flag names never translate.',
+      'Refusal when the same tag was passed to both --tag (add) and --untag (remove). {tags} is the comma-joined tag list. {tagFlag} is the `--tag` flag; {untagFlag} is the `--untag` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.setCard.artInvalid': {
     description:
@@ -281,7 +289,7 @@ export const cliCardsMeta = {
   },
   'cli.setCard.artFileMissing': {
     description:
-      "Refusal when --art names a file that is not in the art directory. {path} is the absolute path checked, {dir} the art directory. The 'ritual config set artDir' command never translates.",
+      'Refusal when --art names a file that is not in the art directory. {path} is the absolute path checked, {dir} the art directory. {command} is the `ritual config set artDir <dir>` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.setCard.artFileUnreadable': {
     description:
@@ -306,9 +314,13 @@ export const cliCardsMeta = {
     description:
       "One entry of the applied-changes list: the card's custom art was removed, so its real art shows again.",
   },
-  'cli.setCard.sectionDecksOnly': { description: 'Refusal when --section is used outside a deck.' },
+  'cli.setCard.sectionDecksOnly': {
+    description:
+      'Refusal when --section is used outside a deck. {flag} is the `--section` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.setCard.commanderDecksOnly': {
-    description: 'Refusal when --commander/--no-commander are used outside a deck.',
+    description:
+      'Refusal when --commander/--no-commander are used outside a deck. {commanderFlag} is the `--commander` flag; {noCommanderFlag} is the `--no-commander` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.setCard.languageUnverified': {
     description:
@@ -385,7 +397,8 @@ export const cliCardsMeta = {
   },
   'cli.note.promptText': { description: 'Prompt for note text when the card has none.' },
   'cli.note.emptyNote': {
-    description: 'Refusal: an empty note is not how a note is removed. --clear never translates.',
+    description:
+      'Refusal: an empty note is not how a note is removed. {flag} is the `--clear` flag. It is typed or matched exactly by the user, so never translate it.',
   },
 
   // ── set-list-image ────────────────────────────────────────────────────
@@ -431,38 +444,49 @@ export const cliCardsMeta = {
   },
 
   // ── card ──────────────────────────────────────────────────────────────
-  'cli.card.stdinOrFile': { description: 'Refusal when both batch input flags were passed.' },
+  'cli.card.stdinOrFile': {
+    description:
+      'Refusal when both batch input flags were passed. {stdinFlag} is the `--stdin` flag; {fromFileFlag} is the `--from-file` flag. Each is typed or matched exactly by the user, so never translate them.',
+  },
   'cli.card.readFailed': { description: 'The --from-file path could not be read.' },
   'cli.card.nameRequired': {
-    description: 'The command was run with no card name and no batch flag.',
+    description:
+      'The command was run with no card name and no batch flag. {stdinFlag} is the `--stdin` flag; {fromFileFlag} is the `--from-file` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.card.fetchFailed': { description: "Scryfall's lookup failed. {reason} is its own text." },
   'cli.card.notFound': { description: 'Scryfall knows no card by that name.' },
 
   // ── scry ──────────────────────────────────────────────────────────────
   'cli.scry.pagesWithRandom': {
-    description: 'Usage refusal: paging is meaningless for random picks.',
+    description:
+      'Usage refusal: paging is meaningless for random picks. {pagesFlag} is the `--pages` flag; {randomFlag} is the `--random` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.scry.csvWithRandom': {
-    description: 'Usage refusal: CSV output is unavailable for random picks.',
+    description:
+      'Usage refusal: CSV output is unavailable for random picks. {outputCsvFlag} is `--output csv`, a flag and its value; {randomFlag} is the `--random` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.scry.countNeedsRandom': {
-    description: 'Usage refusal: --count only applies with --random.',
+    description:
+      'Usage refusal: --count only applies with --random. {countFlag} is the `--count` flag; {randomFlag} is the `--random` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
-  'cli.scry.queryRequired': { description: 'Usage refusal: a search needs a query.' },
+  'cli.scry.queryRequired': {
+    description:
+      'Usage refusal: a search needs a query. {flag} is the `--random` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.scry.fieldsWithCsv': {
-    description: 'Usage refusal: the field projection cannot apply to a server-rendered CSV.',
+    description:
+      'Usage refusal: the field projection cannot apply to a server-rendered CSV. {fieldsFlag} is the `--fields` flag; {outputCsvFlag} is `--output csv`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.scry.pageFetchFailed': { description: 'One result page could not be fetched.' },
   'cli.scry.noResults': { description: 'The search matched nothing.' },
   'cli.scry.promptNextPage': { description: 'Interactive paging prompt shown after each page.' },
   'cli.scry.truncatedUnknown': {
     description:
-      'Notice that a capped run stopped early, when the row count is unknown (CSV output). {pages} is a pre-rendered "page 1" / "pages 1-3" fragment.',
+      'Notice that a capped run stopped early, when the row count is unknown (CSV output). {pages} is a pre-rendered "page 1" / "pages 1-3" fragment. {flag} is `--pages <n>`, a flag and its value. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.scry.truncated': {
     description:
-      'Notice that a capped run stopped early. {pages} is a pre-rendered "page 1" / "pages 1-3" fragment.',
+      'Notice that a capped run stopped early. {pages} is a pre-rendered "page 1" / "pages 1-3" fragment. {flag} is `--pages <n>`, a flag and its value. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.scry.randomFailed': { description: "A --random fetch failed. {reason} is Scryfall's text." },
   'cli.scry.randomNotFound': { description: 'The random filter matched no card.' },
@@ -533,10 +557,13 @@ export const cliCardsMeta = {
       'Move-session menu row that switches the session into batch mode, where many cards are selected before one destination is chosen.',
   },
   'cli.move.menuExit': { description: 'Move-session menu row that leaves the session.' },
-  'cli.move.toRequiresFrom': { description: 'Usage refusal: --to is only meaningful with --from.' },
+  'cli.move.toRequiresFrom': {
+    description:
+      'Usage refusal: --to is only meaningful with --from. {toFlag} is the `--to` flag; {fromFlag} is the `--from` flag. Each is typed or matched exactly by the user, so never translate them.',
+  },
   'cli.move.scriptedNeedsBoth': {
     description:
-      'Usage refusal: card-selection flags were given without both list flags. `ritual move` is a command and never translates.',
+      'Usage refusal: card-selection flags were given without both list flags. {fromFlag} is the `--from` flag; {toFlag} is the `--to` flag; {command} is the `ritual move` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.move.loadingLists': {
     description: 'Progress line while the move session reads every list.',
@@ -556,13 +583,20 @@ export const cliCardsMeta = {
       'The session is ready. {cards} and {lists} are pre-rendered counted nouns ("12 cards", "3 lists").',
   },
   'cli.move.promptSearch': { description: "Prompt heading for the move session's main picker." },
-  'cli.move.selectorRequired': { description: 'A scripted move named no card.' },
+  'cli.move.selectorRequired': {
+    description:
+      'A scripted move named no card. {flag} is the `--card-id` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.move.sameList': {
     description: 'A scripted move named one list as both source and destination.',
   },
-  'cli.move.toSectionEmpty': { description: '--to-section was given an empty value.' },
+  'cli.move.toSectionEmpty': {
+    description:
+      '--to-section was given an empty value. {flag} is the `--to-section` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.move.toSectionDeckOnly': {
-    description: 'Refusal: only decks have sections for --to-section to name.',
+    description:
+      'Refusal: only decks have sections for --to-section to name. {flag} is the `--to-section` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.move.listNotLoaded': {
     description: 'Internal guard: a resolved list vanished before loading.',
@@ -585,7 +619,7 @@ export const cliCardsMeta = {
   },
   'cli.move.multiplePrintings': {
     description:
-      'The selection spans several printings, which a scripted move refuses. {matches} is the pre-rendered candidate list.',
+      'The selection spans several printings, which a scripted move refuses. {matches} is the pre-rendered candidate list. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag; {finishFlag} is the `--finish` flag; {cardIdFlag} is the `--card-id` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.move.criteriaSet': { description: 'One narrowing criterion: the set code, uppercased.' },
   'cli.move.criteriaCollectorNumber': {
@@ -596,15 +630,16 @@ export const cliCardsMeta = {
       "One narrowing criterion: the finish. {finish} is the finish's name, already in the reader's language (domain.finish.*).",
   },
   'cli.move.printingNeedsBoth': {
-    description: 'A collection destination needs a printing, and only half the pin was given.',
+    description:
+      'A collection destination needs a printing, and only half the pin was given. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.move.printingsUnknown': {
     description:
-      "The card cache cannot say what printings exist. The 'ritual cache preload-all' command never translates.",
+      'The card cache cannot say what printings exist. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag; {command} is the `ritual cache preload-all` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.move.multipleCardPrintings': {
     description:
-      'The card has several printings and the destination needs one. {printings} is the pre-rendered candidate list.',
+      'The card has several printings and the destination needs one. {printings} is the pre-rendered candidate list. {setFlag} is the `--set` flag; {collectorNumberFlag} is the `--collector-number` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.move.printingLine': {
     description:
@@ -770,7 +805,10 @@ export const cliCardsMeta = {
   'cli.new.invalidType': {
     description: 'The <type> argument was not one of the three type slugs, which never translate.',
   },
-  'cli.new.formatDecksOnly': { description: 'Refusal: only decks carry a format.' },
+  'cli.new.formatDecksOnly': {
+    description:
+      'Refusal: only decks carry a format. {flag} is the `--format` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'cli.new.created': { description: 'Success line naming the file the new list was written to.' },
   'cli.rename.renamed': {
     description: 'Success line naming the old name, the new name, and the new file path.',
@@ -812,7 +850,7 @@ export const cliCardsMeta = {
   },
   'cli.metadata.useSetListImage': {
     description:
-      'Refusal when `image` is passed to metadata set/unset. `ritual set-list-image` is a command name and never translates.',
+      'Refusal when `image` is passed to metadata set/unset. {command} is the `ritual set-list-image` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.metadata.frontMatterUnreadable': {
     description:
@@ -828,7 +866,7 @@ export const cliCardsMeta = {
   },
   'cli.metadata.arrayOnly': {
     description:
-      "--add/--remove were used on a property that is not a list. {type} selects the list type (machine value: deck, collection or wanted); 'tags' and 'labels' are key names.",
+      "--add/--remove were used on a property that is not a list. {type} selects the list type (machine value: deck, collection or wanted); 'tags' and 'labels' are key names. {addFlag} is the `--add` flag; {removeFlag} is the `--remove` flag. Each is typed or matched exactly by the user, so never translate them.",
   },
   'cli.metadata.singleValue': { description: 'The named property accepts exactly one value.' },
   'cli.metadata.invalidLabel': {
@@ -837,7 +875,7 @@ export const cliCardsMeta = {
   },
   'cli.metadata.noLabels': {
     description:
-      'A replace with no values is refused; clearing is a separate subcommand. `ritual metadata unset` never translates.',
+      'A replace with no values is refused; clearing is a separate subcommand. {command} is the `ritual metadata unset` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.metadata.set': {
     description:
@@ -897,7 +935,7 @@ export const cliCardsMeta = {
   },
   'cli.categories.orderEmpty': {
     description:
-      'Usage refusal for an empty `categories order` value. The command name and the comma are machine vocabulary.',
+      'Usage refusal for an empty `categories order` value. The command name and the comma are machine vocabulary. {command} is the `categories order` command name. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.categories.nameInvalid': {
     description:
@@ -978,7 +1016,7 @@ export const cliCardsMeta = {
   },
   'cli.cleanup.formatlessDecks': {
     description:
-      'Refusal before any file is touched: formats are needed but cannot be asked for. {names} is a comma-joined list of file paths.',
+      'Refusal before any file is touched: formats are needed but cannot be asked for. {names} is a comma-joined list of file paths. {flag} is the `--skip-formats` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cleanup.fileLine': {
     description:
@@ -1004,7 +1042,7 @@ export const cliCardsMeta = {
   // ── get-primer ────────────────────────────────────────────────────────
   'cli.getPrimer.userAgentRequired': {
     description:
-      'Moxfield requires an approved user agent. The env var and flag names never translate.',
+      'Moxfield requires an approved user agent. {envVar} is the `MOXFIELD_USER_AGENT` environment variable; {flag} is `--moxfield-user-agent <agent>`, a flag and its value. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.getPrimer.noPrimerFetched': { description: 'The fetched Moxfield deck carries no primer.' },
   'cli.getPrimer.readFailed': {
@@ -1012,13 +1050,14 @@ export const cliCardsMeta = {
       'The local deck file could not be read. The underlying error is logged after this line, hence the trailing colon.',
   },
   'cli.getPrimer.noPrimer': {
-    description: 'The local deck has no primer sidecar. The file extension never translates.',
+    description:
+      'The local deck has no primer sidecar. {file} is the `.primer.md` file suffix. It is typed or matched exactly by the user, so never translate it.',
   },
 
   // ── Ambiguous collection-sync removals ────────────────────────────────
   'cli.resolveAmbiguity.priorityAdvice': {
     description:
-      'The one actionable hint for settling ambiguous removals without a terminal. The flag name never translates.',
+      'The one actionable hint for settling ambiguous removals without a terminal. {flag} is `--removal-priority <list>`, a flag and its value. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.resolveAmbiguity.leftUnresolved': {
     description:

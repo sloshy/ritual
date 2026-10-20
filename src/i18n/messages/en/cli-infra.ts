@@ -47,7 +47,7 @@ export const cliInfraMessages = {
   'cli.cache.preloadingSet': "Preloading set '{set}'...",
   'cli.cache.preloadSetFailed': "Failed to preload set '{set}': {reason}",
   'cli.cache.preloadSetNotFound':
-    "No cards found for set '{set}' — check the set code (see https://scryfall.com/sets).",
+    "No cards found for set '{set}' — check the set code (see {url}).",
   'cli.cache.preloadSetNoPrintings':
     "Set '{set}' matched {counted}, none of which are real printings (token and Art Series sets are not cached).",
   'cli.cache.preloadSetDone': "Successfully cached {count} cards for set '{set}'",
@@ -60,7 +60,7 @@ export const cliInfraMessages = {
   //
   // Every line below is printed behind the feed's own log prefix, which is a
   // machine marker and is never translated.
-  'cli.cacheFeed.invalidCards': "--cards must be one of: 'default', 'all', 'both'.",
+  'cli.cacheFeed.invalidCards': "{flag} must be one of: 'default', 'all', 'both'.",
   'cli.cacheFeed.initialFeedFailed': 'Initial feed generation failed: {error}',
   'cli.cacheFeed.refreshFailed': 'Refresh failed ({reason}); serving the existing feed.',
   'cli.cacheFeed.seedStartFailed': 'Failed to start seeding: {error}',
@@ -70,8 +70,7 @@ export const cliInfraMessages = {
   'cli.cacheFeed.scheduledRefreshFailed': 'Scheduled feed refresh failed: {error}',
   'cli.cacheFeed.listening': 'Feed server listening on {url}',
   'cli.cacheFeed.publicUrl': 'Public URL: {url}',
-  'cli.cacheFeed.seedingDisabled':
-    'BitTorrent seeding disabled (--no-seed); serving over HTTP only.',
+  'cli.cacheFeed.seedingDisabled': 'BitTorrent seeding disabled ({flag}); serving over HTTP only.',
   'cli.cacheFeed.syncing': 'Syncing from {url}',
   'cli.cacheFeed.syncFailed': 'Feed sync failed: {error}',
   'cli.cacheFeed.ingested': 'Card cache updated from the feed.',
@@ -118,7 +117,7 @@ export const cliInfraMessages = {
   'cli.cacheFeed.fetchFailedWithBody': 'Failed to fetch cache feed {url} (HTTP {status}): {body}',
   'cli.cacheFeed.missingEntry': "Cache feed has no '{kind}' entry",
   'cli.cacheFeed.missingAllCardsEntry':
-    "Cache feed has no '{kind}' entry (the configured defaultLanguage needs the all_cards bulk, which this feed's host does not publish — host with `cache feed host --cards all` or refresh with --source scryfall)",
+    "Cache feed has no '{kind}' entry (the configured {configKey} needs the all_cards bulk, which this feed's host does not publish — host with `{hostCommand}` or refresh with {sourceFlag})",
   'cli.cacheFeed.reusing': 'Reusing already-downloaded {file}.',
   'cli.cacheFeed.restoring': 'Restoring missing artifact {file}...',
   'cli.cacheFeed.stoppedSeeding': 'Stopped seeding superseded artifact {name} ({infoHash})',
@@ -169,13 +168,13 @@ export const cliInfraMessages = {
   // `serve --api`, `admin` at startup). Commands, flags, config keys and
   // Scryfall bulk names (`default_cards`, `all_cards`) are machine vocabulary.
   'cli.cacheGate.emptyAdvice':
-    '{lead} Run `ritual cache preload-all` first, or re-run with --refresh auto to download it.',
+    '{lead} Run `{command}` first, or re-run with {flag} to download it.',
   'cli.cacheGate.bulkMismatch': {
     $select: 'required',
     all_cards:
-      "The card cache was built from Scryfall's '{recorded}' bulk, but the configured defaultLanguage '{language}' needs the every-language 'all_cards' bulk.",
+      "The card cache was built from Scryfall's '{recorded}' bulk, but the configured {configKey} '{language}' needs the every-language 'all_cards' bulk.",
     default_cards:
-      "The card cache was built from Scryfall's '{recorded}' bulk, but the configured defaultLanguage 'en' only needs the English-only 'default_cards' bulk.",
+      "The card cache was built from Scryfall's '{recorded}' bulk, but the configured {configKey} 'en' only needs the English-only 'default_cards' bulk.",
   },
   'cli.cacheGate.bulkMismatchConfirm': '{reason} Redownload the card cache now?',
   'cli.cacheGate.bulkMismatchRefreshing': '{reason} Redownloading the card cache...',
@@ -201,7 +200,7 @@ export const cliInfraMessages = {
   'cli.cacheGate.tagsConfirm':
     'The card cache has no oracle/art tags (used by the site’s tag filters). Download them now?',
   'cli.cacheGate.tagsSkipped':
-    "Skipping tag download; the site's tag filters will be empty. Run `ritual cache refresh-tags` later to add them.",
+    "Skipping tag download; the site's tag filters will be empty. Run `{command}` later to add them.",
   'cli.cacheGate.tagsFetching': 'Fetching oracle/art tags from Scryfall...',
   'cli.cacheGate.tagsFailed': "Could not download tags; the site's tag filters will be empty.",
   'cli.cacheGate.tagsAdded': 'Added oracle/art tags to the card cache.',
@@ -345,15 +344,14 @@ export const cliInfraMessages = {
 
   // ── --cache-server ────────────────────────────────────────────────────
   'cli.cacheServer.addressEmpty':
-    'Cache server must be a non-empty hostname and port (example: localhost:4000).',
+    'Cache server must be a non-empty hostname and port (example: {example}).',
   'cli.cacheServer.addressInvalid':
-    'Cache server must include hostname and port (example: localhost:4000 or http://localhost:4000).',
+    'Cache server must include hostname and port (example: {example} or {exampleUrl}).',
 
   // ── cache server / cache feed flags ───────────────────────────────────
   'cli.cache.refreshIntervalInvalid':
     "Refresh interval must be one of: 'daily', 'weekly', 'monthly'.",
-  'cli.cache.feedUrlEmpty': '"--url" requires a value',
-  'cli.cache.feedUrlNeedsFeedSource': "--url only applies when the cache source is 'feed'.",
+  'cli.cache.feedUrlNeedsFeedSource': "{flag} only applies when the cache source is 'feed'.",
 
   // ── cache server (operator log) ───────────────────────────────────────
   //
@@ -389,8 +387,8 @@ export const cliInfraMessages = {
   'cli.cacheServer.priceBucketFailed': 'Scheduled price refresh bucket failed:',
   'cli.cacheServer.priceRefreshFailed': "Scheduled price refresh failed for '{key}':",
   'cli.cacheServer.startFailed': 'Failed to start the cache server:',
-  'cli.cacheServer.httpDenied': 'HTTP requests denied (--deny-http).',
-  'cli.cacheServer.feedDisabled': 'Feed mode disabled by --deny-http.',
+  'cli.cacheServer.httpDenied': 'HTTP requests denied ({flag}).',
+  'cli.cacheServer.feedDisabled': 'Feed mode disabled by {flag}.',
   'cli.cacheServer.verbose': 'Verbose request logging enabled.',
   'cli.cacheServer.seeding': 'Seeding feed artifacts.',
   'cli.cacheServer.seedingOnPort': 'Seeding feed artifacts on TCP port {port}.',
@@ -424,7 +422,7 @@ export const cliInfraMessages = {
     number: 'number',
   },
   'cli.config.addRemoveScalar':
-    '--add and --remove can only be used with array properties. "{property}" is a {typeName}.',
+    '{addFlag} and {removeFlag} can only be used with array properties. "{property}" is a {typeName}.',
   'cli.config.tooManyValues': {
     $plural: 'count',
     one: '"{property}" is a {typeName} and only accepts one value, but {count} was provided.',
@@ -439,23 +437,23 @@ export const cliInfraMessages = {
     '"{property}" expects a non-negative integer, got "{value}".',
   'cli.config.siteManaged': {
     $select: 'verb',
-    set: 'The "site" property is managed by "ritual init-site" and cannot be set with "config set", except for the public-site selection lists: {properties}.',
+    set: 'The "{configKey}" property is managed by "{initSiteCommand}" and cannot be set with "{configCommand}", except for the public-site selection lists: {properties}.',
     unset:
-      'The "site" property is managed by "ritual init-site" and cannot be unset with "config unset", except for the public-site selection lists: {properties}.',
+      'The "{configKey}" property is managed by "{initSiteCommand}" and cannot be unset with "{configCommand}", except for the public-site selection lists: {properties}.',
   },
   'cli.config.managedOwned': {
     $select: 'verb',
-    set: 'The "managed" property is owned by Ritual and cannot be set with "config set"; "ritual init-site" and "ritual migrate" keep it up to date.',
+    set: 'The "{configKey}" property is owned by Ritual and cannot be set with "{configCommand}"; "{initSiteCommand}" and "{migrateCommand}" keep it up to date.',
     unset:
-      'The "managed" property is owned by Ritual and cannot be unset with "config unset"; "ritual init-site" and "ritual migrate" keep it up to date.',
+      'The "{configKey}" property is owned by Ritual and cannot be unset with "{configCommand}"; "{initSiteCommand}" and "{migrateCommand}" keep it up to date.',
   },
 
   // ── serve ─────────────────────────────────────────────────────────────
   'cli.serve.building': 'Building site...',
   'cli.serve.noBuiltSite':
-    'No built site found in {dir}. Build it first with `ritual build-site{outDirFlag}`, or re-run this command with --build.',
+    'No built site found in {dir}. Build it first with `{command}`, or re-run this command with {flag}.',
   'cli.serve.cacheImagesNote':
-    'Note: live data always uses Scryfall image URLs; --cache-images only affects static assets.',
+    'Note: live data always uses Scryfall image URLs; {flag} only affects static assets.',
   'cli.serve.emptyCardCache':
     'Card cache is empty — card search will return no results until the cache is preloaded.',
   'cli.serve.servingWithApi': 'Serving site + live API from {dir} at {url}...',
@@ -475,14 +473,14 @@ export const cliInfraMessages = {
 
   // ── admin ─────────────────────────────────────────────────────────────
   'cli.admin.mcpTokenRequired':
-    '--mcp requires a bearer token: pass --mcp-token <secret> or set RITUAL_MCP_TOKEN.',
-  'cli.admin.mcpPortConflict': '--mcp-port must differ from the admin --port.',
+    '{mcpFlag} requires a bearer token: pass {mcpTokenFlag} or set {envVar}.',
+  'cli.admin.mcpPortConflict': '{mcpPortFlag} must differ from the admin {portFlag}.',
   'cli.admin.preparing': 'Preparing admin interface...',
   'cli.admin.ready': 'Admin interface ready.',
   'cli.admin.serverRunning': 'Ritual Admin running at {url}',
   'cli.admin.serverError': 'Unhandled server error:',
   'cli.admin.setupRequired':
-    'No admin account yet. Create it at:\n  {url}\n(or run `ritual admin setup` in this workspace)',
+    'No admin account yet. Create it at:\n  {url}\n(or run `{command}` in this workspace)',
   'cli.admin.teardownFailedMcp': 'MCP HTTP server teardown failed:',
   'cli.admin.teardownFailedAdmin': 'Admin server teardown failed:',
   'cli.admin.jsBuildFailed': 'Admin SPA JS build failed',
@@ -493,8 +491,8 @@ export const cliInfraMessages = {
   'cli.admin.usernameTooLong': 'Username is too long',
   'cli.admin.passwordTooLong': 'Password is too long',
   'cli.admin.passwordTooShort': 'Password must be at least {min} characters',
-  'cli.admin.noUser': "No admin user exists. Run 'ritual admin setup' to create one.",
-  'cli.admin.usernameRequired': '--username is required.',
+  'cli.admin.noUser': "No admin user exists. Run '{command}' to create one.",
+  'cli.admin.usernameRequired': '{flag} is required.',
   'cli.admin.userExists': 'Admin user already exists',
   'cli.admin.userCreated': "Admin user '{username}' created.",
   'cli.admin.passwordReset': "Password reset for admin user '{username}'.",
@@ -503,35 +501,35 @@ export const cliInfraMessages = {
 
   // ── build-site: flag and file parsing ─────────────────────────────────
   'cli.theme.unknown': "Unknown theme '{value}'. Choose one of: {choices}.",
-  'cli.buildSite.themeFileUnreadable': "Failed to read --theme-file '{path}': {reason}",
-  'cli.buildSite.themeFileNotJson': "--theme-file '{path}' is not valid JSON: {reason}",
-  'cli.buildSite.themeFileInvalid': "--theme-file '{path}': {reason}",
+  'cli.buildSite.themeFileUnreadable': "Failed to read {flag} '{path}': {reason}",
+  'cli.buildSite.themeFileNotJson': "{flag} '{path}' is not valid JSON: {reason}",
+  'cli.buildSite.themeFileInvalid': "{flag} '{path}': {reason}",
   'cli.buildSite.spaBuildFailed': 'Site SPA {ext} build failed',
   'cli.buildSite.spaBuildNoOutput': 'Site SPA build produced no {ext} output',
-  'cli.buildSite.outDirBlank': '--out-dir requires a directory path.',
+  'cli.buildSite.outDirBlank': '{flag} requires a directory path.',
   'cli.buildSite.outDirIsBase':
-    "--out-dir may not be the Ritual directory itself ({base}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.",
+    "{flag} may not be the Ritual directory itself ({base}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.",
   'cli.buildSite.outDirContainsBase':
-    "--out-dir may not contain the Ritual directory ({dir} contains {base}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.",
+    "{flag} may not contain the Ritual directory ({dir} contains {base}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.",
   'cli.buildSite.previousBuildNotRemoved': 'Could not remove the previous site build at {path}.',
   'cli.buildSite.localeFileNotJson': 'not valid JSON: {reason}',
   'cli.buildSite.localeFileNotObject':
     'a locale file must be a JSON object of message keys to message values',
   'cli.buildSite.localeFileBadValue': 'key "{key}": {reason}',
   'cli.buildSite.localeFileBadTag':
-    "--locale-file '{path}': {reason}. The file name is the locale tag, e.g. de-AT.json.",
-  'cli.buildSite.localeFileUnreadable': "Failed to read --locale-file '{path}': {reason}",
-  'cli.buildSite.localeFileInvalid': "--locale-file '{path}': {reason}",
-  'cli.buildSite.localeInvalid': "--locale '{value}': {reason}",
-  'cli.buildSite.localesInvalid': "--locales '{value}': {reason}",
+    "{flag} '{path}': {reason}. The file name is the locale tag, e.g. de-AT.json.",
+  'cli.buildSite.localeFileUnreadable': "Failed to read {flag} '{path}': {reason}",
+  'cli.buildSite.localeFileInvalid': "{flag} '{path}': {reason}",
+  'cli.buildSite.localeInvalid': "{flag} '{value}': {reason}",
+  'cli.buildSite.localesInvalid': "{flag} '{value}': {reason}",
   'cli.buildSite.localesUnknown':
-    "--locales names '{tag}', which this build has no dictionary for. Load one with --locale-file <path>, or bake it in with RITUAL_BUNDLED_LOCALES.",
+    "{localesFlag} names '{tag}', which this build has no dictionary for. Load one with {localeFileFlag}, or bake it in with {envVar}.",
   'cli.buildSite.bakedLocaleUndictionaried':
-    '⚠️  No dictionary for the baked locale \'{tag}\'; the site will render English text under <html lang="{tag}">. Load one with --locale-file <path>.',
+    '⚠️  No dictionary for the baked locale \'{tag}\'; the site will render English text under <html lang="{tag}">. Load one with {flag}.',
   'cli.buildSite.storesNotEnabled':
-    '--price-sources {stores} names no store priceSources enables (priceSources: {sources}). Enable it first, e.g. `ritual config set priceSources --add cardhoarder`.',
+    '{flag} {stores} names no store {configKey} enables ({configKey}: {sources}). Enable it first, e.g. `{command}`.',
   'cli.buildSite.storesNoneEnabled':
-    '--price-sources {stores} names no store priceSources enables (priceSources enables none). Enable one first, e.g. `ritual config set priceSources --add cardhoarder`.',
+    '{flag} {stores} names no store {configKey} enables ({configKey} enables none). Enable one first, e.g. `{command}`.',
   'cli.buildSite.selectionFlagEmpty': '{flag} requires at least one name.',
 
   // ── build-site: list kinds ────────────────────────────────────────────
@@ -562,11 +560,11 @@ export const cliInfraMessages = {
   'cli.buildSite.sourceAmbiguous': 'matches {counted} ({matches}) — name one exactly',
   'cli.buildSite.includeUnmatched': {
     $select: 'kind',
-    deck: "⚠️  site.{configKey} lists '{name}', which matches no deck in {dir} — it may have been renamed or removed.",
+    deck: "⚠️  {configKey} lists '{name}', which matches no deck in {dir} — it may have been renamed or removed.",
     collection:
-      "⚠️  site.{configKey} lists '{name}', which matches no collection in {dir} — it may have been renamed or removed.",
+      "⚠️  {configKey} lists '{name}', which matches no collection in {dir} — it may have been renamed or removed.",
     wanted:
-      "⚠️  site.{configKey} lists '{name}', which matches no wanted list in {dir} — it may have been renamed or removed.",
+      "⚠️  {configKey} lists '{name}', which matches no wanted list in {dir} — it may have been renamed or removed.",
   },
   'cli.buildSite.foundSources': 'Found {counted}: {names}',
 
@@ -575,14 +573,14 @@ export const cliInfraMessages = {
   'cli.buildSite.publishedWithout': 'The site was published without them.',
   'cli.buildSite.leftUnchanged': 'The published site was left unchanged.',
   'cli.buildSite.nothingToBuild':
-    'Nothing to build: no decks, collections, or wanted lists were found. Create one with `ritual new deck "My Deck"` (or run `ritual edit`), then build again.',
+    'Nothing to build: no decks, collections, or wanted lists were found. Create one with `{newDeckCommand} "My Deck"` (or run `{editCommand}`), then build again.',
   'cli.buildSite.starting': 'Building static site...',
   'cli.buildSite.cachingImages': 'Caching deck card images locally and using dist/images paths.',
   'cli.buildSite.usingImageUrls':
     'Using Scryfall image URLs from card data and skipping deck image downloads.',
   'cli.buildSite.fetchingSymbols': 'Fetching and downloading mana symbols...',
   'cli.buildSite.noSymbology':
-    '⚠️  No cached symbology and --refresh never: mana symbols will be missing from the site. Re-run with --refresh auto to download them.',
+    '⚠️  No cached symbology and {refreshNeverFlag}: mana symbols will be missing from the site. Re-run with {refreshAutoFlag} to download them.',
   'cli.buildSite.symbolDownloadFailed': 'Failed to download symbol {symbol}:',
   'cli.buildSite.refreshingSymbology': 'Found new symbols in text. Refreshing symbology...',
   'cli.buildSite.loadingDecks': 'Loading decks...',
@@ -621,10 +619,10 @@ export const cliInfraMessages = {
 
   // ── init-site ─────────────────────────────────────────────────────────
   'cli.initSite.cancelled': 'Cancelled.',
-  'cli.initSite.distDirRequired': 'Expected a directory path for --dist-dir.',
+  'cli.initSite.distDirRequired': 'Expected a directory path for {flag}.',
   'cli.initSite.promptOverwrite': '{path} already exists. Overwrite?',
   'cli.initSite.promptSkills':
-    'Install Ritual agent skills into .claude/skills so coding agents can work with this repository?',
+    'Install Ritual agent skills into {file} so coding agents can work with this repository?',
   'cli.initSite.promptPriceSource': 'Default price store?',
   'cli.initSite.priceSourceCurrency': 'Prices in {currency}',
   'cli.initSite.priceSourceCurrent': '{store} (current)',
@@ -640,32 +638,32 @@ export const cliInfraMessages = {
     'Generate a GitHub Action that builds your site and deploys it automatically',
   'cli.initSite.deployLocal': 'Deploy my local build',
   'cli.initSite.deployLocalHint':
-    'Generate a GitHub Action that deploys a directory you build locally with build-site',
+    'Generate a GitHub Action that deploys a directory you build locally with {command}',
   'cli.initSite.promptDistDir': 'Which directory contains your built site?',
   'cli.initSite.promptChangeDetection':
     'Enable automatic change detection? (commits changelogs when list files change)',
   'cli.initSite.readmeExists':
-    'README.md already exists and prompts are unavailable; pass --overwrite-readme or --no-overwrite-readme.',
+    '{file} already exists and prompts are unavailable; pass {overwriteReadmeFlag} or {noOverwriteReadmeFlag}.',
   'cli.initSite.fileExists':
-    '{path} already exists and prompts are unavailable; pass --force to overwrite generated files.',
+    '{path} already exists and prompts are unavailable; pass {flag} to overwrite generated files.',
   'cli.initSite.alreadyInitializedFlags':
-    'This repository is already initialized; --ci, --deploy, --dist-dir, --change-detection, --price-source, and --overwrite-readme only apply to a fresh init. Use --force to re-initialize with new settings.',
+    'This repository is already initialized; {ciFlag}, {deployFlag}, {distDirFlag}, {changeDetectionFlag}, {priceSourceFlag}, and {overwriteReadmeFlag} only apply to a fresh init. Use {forceFlag} to re-initialize with new settings.',
   'cli.initSite.manualOnlyFlags':
-    '--deploy, --dist-dir, and --change-detection only apply with --ci github-actions.',
+    '{deployFlag}, {distDirFlag}, and {changeDetectionFlag} only apply with {ciGithubActionsFlag}.',
   'cli.initSite.changeDetectionScope':
-    '--change-detection/--no-change-detection only applies with --deploy publish-for-me.',
-  'cli.initSite.distDirScope': '--dist-dir only applies with --deploy local-build.',
+    '{changeDetectionFlag}/{noChangeDetectionFlag} only applies with {deployPublishForMeFlag}.',
+  'cli.initSite.distDirScope': '{distDirFlag} only applies with {deployLocalBuildFlag}.',
   'cli.initSite.alreadyCurrent': 'Already initialized and up to date; nothing to do.',
-  'cli.initSite.configWriteFailed': 'Error: Failed to write ritual.config.json: {reason}',
+  'cli.initSite.configWriteFailed': 'Error: Failed to write {file}: {reason}',
   'cli.initSite.created': '✓ Created {path}',
   'cli.initSite.skipped': '⊘ Skipped {path}',
-  'cli.initSite.gitignoreCreated': '✓ Created .gitignore',
-  'cli.initSite.gitignoreUpdated': '✓ Updated .gitignore',
-  'cli.initSite.gitignoreUnchanged': '⊘ .gitignore already up to date',
+  'cli.initSite.gitignoreCreated': '✓ Created {file}',
+  'cli.initSite.gitignoreUpdated': '✓ Updated {file}',
+  'cli.initSite.gitignoreUnchanged': '⊘ {file} already up to date',
   'cli.initSite.gitignoreStillIgnores':
-    "⚠️  .gitignore still ignores '{dir}/' via {patterns} — this deploy mode commits the built site, so remove or narrow those patterns.",
+    "⚠️  {file} still ignores '{dir}/' via {patterns} — this deploy mode commits the built site, so remove or narrow those patterns.",
   'cli.initSite.nextSteps': 'Your site is ready! Next steps:',
-  'cli.initSite.stepAddDecks': '  1. Add decks to the decks/ directory (ritual new deck "My Deck")',
+  'cli.initSite.stepAddDecks': '  1. Add decks to the {file} directory ({command} "My Deck")',
   'cli.initSite.stepPreview': '  2. Preview locally with {command}',
   'cli.initSite.stepBuild': '  3. Run {command} to build your site',
   'cli.initSite.stepDeployManual': '  4. Deploy the {dir}/ directory to your hosting provider',
@@ -675,26 +673,26 @@ export const cliInfraMessages = {
   'cli.initSite.stepPushLocal': '  5. Push to main to trigger a deploy',
   'cli.initSite.stepPush': '  4. Push to main to trigger a deploy',
   'cli.initSite.pinVersionTip':
-    'Tip: The workflow builds with the Ritual release pinned in ritual.config.json (managed.version). Run `ritual migrate` with a newer release and commit to move it, or set a RITUAL_VERSION repository variable to override it.',
+    'Tip: The workflow builds with the Ritual release pinned in {file} ({configKey}). Run `{command}` with a newer release and commit to move it, or set a {envVar} repository variable to override it.',
 
   // ── migrate ───────────────────────────────────────────────────────────
-  'cli.migrate.noConfig': 'No ritual.config.json in this directory; nothing to migrate.',
+  'cli.migrate.noConfig': 'No {file} in this directory; nothing to migrate.',
   'cli.migrate.upToDate': 'This workspace is already up to date; nothing to do.',
   'cli.migrate.pending':
-    'This workspace has pending updates. Run `ritual migrate` to review and apply them.',
+    'This workspace has pending updates. Run `{command}` to review and apply them.',
   'cli.migrate.planHeading': 'Pending workspace updates:',
   'cli.migrate.migrationHeading': 'Migration {id}: {description}',
   'cli.migrate.migration.dropSiteVersion':
-    'Remove site.version from ritual.config.json (the managed block replaces it)',
+    'Remove {configKey} from {file} (the managed block replaces it)',
   'cli.migrate.migration.dropSitePrerelease':
-    'Remove site.prerelease from ritual.config.json (the deploy workflow now downloads the release pinned in managed.version)',
-  'cli.migrate.opConfigSet': '  set {path} = {value} in ritual.config.json',
-  'cli.migrate.opConfigDelete': '  remove {path} from ritual.config.json',
+    'Remove {sitePrereleaseConfigKey} from {file} (the deploy workflow now downloads the release pinned in {managedVersionConfigKey})',
+  'cli.migrate.opConfigSet': '  set {path} = {value} in {file}',
+  'cli.migrate.opConfigDelete': '  remove {path} from {file}',
   'cli.migrate.opWrite': '  write {path}',
   'cli.migrate.opDelete': '  delete {path}',
   'cli.migrate.opRename': '  move {from} → {to}',
   'cli.migrate.refreshHeading': 'Refresh generated files:',
-  'cli.migrate.refreshGitignore': '  add {entries} to .gitignore',
+  'cli.migrate.refreshGitignore': '  add {entries} to {file}',
   'cli.migrate.refreshSkill': '  overwrite agent skill {name}',
   'cli.migrate.refreshRemoveSkill': '  remove agent skill {name} (no longer shipped)',
   'cli.migrate.refreshRecordOnly':
@@ -712,28 +710,28 @@ export const cliInfraMessages = {
   'cli.migrate.pinned': '✓ Pinned CI to Ritual {version}',
   'cli.migrate.done': '✓ Workspace is up to date.',
   'cli.migrate.devBuild':
-    'Warning: {version} is a development build, so managed.version was left unchanged. CI keeps building with the pinned release {pinned}, which does not know the migrations just applied. Run `ritual migrate` with a Ritual release build and commit to move the pin.',
+    'Warning: {version} is a development build, so {configKey} was left unchanged. CI keeps building with the pinned release {pinned}, which does not know the migrations just applied. Run `{command}` with a Ritual release build and commit to move the pin.',
   'cli.migrate.devBuildNoPin':
-    'Warning: {version} is a development build, so it did not pin a release in managed.version. With no pin, CI builds with the newest Ritual release (the latest stable one, or the newest prerelease when there is none), which may not know the migrations just applied. Run `ritual migrate` with a Ritual release build and commit to pin one.',
+    'Warning: {version} is a development build, so it did not pin a release in {configKey}. With no pin, CI builds with the newest Ritual release (the latest stable one, or the newest prerelease when there is none), which may not know the migrations just applied. Run `{command}` with a Ritual release build and commit to pin one.',
   'cli.migrate.ahead':
-    'This workspace was last updated by a newer Ritual ({version}). Run `ritual self-update --tag {version}` and try again.',
+    'This workspace was last updated by a newer Ritual ({version}). Run `{command} {version}` and try again.',
   'cli.migrate.aheadNoVersion':
-    'This workspace was migrated by a newer Ritual (migration {applied}; this build knows up to {latest}). Run `ritual self-update` to install a newer Ritual and try again.',
+    'This workspace was migrated by a newer Ritual (migration {applied}; this build knows up to {latest}). Run `{command}` to install a newer Ritual and try again.',
   'cli.migrate.changedSincePlan':
-    'ritual.config.json changed while migrate was running; nothing was written. Run `ritual migrate` again.',
+    '{file} changed while {commandName} was running; nothing was written. Run `{command}` again.',
   'cli.migrate.invalid':
-    'ritual.config.json would still be invalid after migrating ({error}); nothing was written. Fix the file and run `ritual migrate` again.',
-  'cli.migrate.offer': 'Run `ritual migrate` now?',
+    '{file} would still be invalid after migrating ({error}); nothing was written. Fix the file and run `{command}` again.',
+  'cli.migrate.offer': 'Run `{command}` now?',
   'cli.migrate.offerDeclined':
-    'Skipped. Run `ritual migrate` when you are ready; Ritual asks again tomorrow.',
+    'Skipped. Run `{command}` when you are ready; Ritual asks again tomorrow.',
   'cli.migrate.notice.pending':
-    'This workspace has pending updates. Run `ritual migrate --dry-run` to see them, then `ritual migrate` to apply them.',
+    'This workspace has pending updates. Run `{migrateDryRunCommand}` to see them, then `{migrateCommand}` to apply them.',
   'cli.migrate.notice.pendingConfig':
-    'This workspace has pending updates, and ritual.config.json loads with warnings until they are applied. Run `ritual migrate --dry-run` to see them, then `ritual migrate` to apply them.',
+    'This workspace has pending updates, and {file} loads with warnings until they are applied. Run `{migrateDryRunCommand}` to see them, then `{migrateCommand}` to apply them.',
   'cli.migrate.notice.ahead':
-    'Warning: this workspace was last updated by Ritual {version}, which is newer than this build ({current}). Run `ritual self-update --tag {version}` to work on it safely.',
+    'Warning: this workspace was last updated by Ritual {version}, which is newer than this build ({current}). Run `{command} {version}` to work on it safely.',
   'cli.migrate.notice.aheadNoVersion':
-    'Warning: this workspace was migrated by a newer Ritual (migration {applied}; this build knows up to {latest}). Run `ritual self-update` to install a newer Ritual and work on it safely.',
+    'Warning: this workspace was migrated by a newer Ritual (migration {applied}; this build knows up to {latest}). Run `{command}` to install a newer Ritual and work on it safely.',
 
   // ── self-update ───────────────────────────────────────────────────────
   'cli.selfUpdate.upToDate':
@@ -750,11 +748,11 @@ export const cliInfraMessages = {
   'cli.selfUpdate.checkingWorkspace':
     'Checking this workspace with Ritual {version} (nothing is applied):',
   'cli.selfUpdate.workspaceCheckFailed':
-    'Warning: could not run the new Ritual to check this workspace ({error}). Run `ritual migrate --dry-run` to see its pending updates.',
+    'Warning: could not run the new Ritual to check this workspace ({error}). Run `{command}` to see its pending updates.',
   'cli.selfUpdate.refuse.notRelease':
-    'self-update only replaces a Ritual release binary, and {version} is a development or local build. Install a release with the installer, or update your checkout and rebuild.',
+    '{command} only replaces a Ritual release binary, and {version} is a development or local build. Install a release with the installer, or update your checkout and rebuild.',
   'cli.selfUpdate.refuse.docker':
-    'This Ritual runs from its Docker image, which self-update cannot change. Pull the newer image instead (docker pull ghcr.io/sloshy/ritual).',
+    'This Ritual runs from its Docker image, which {command} cannot change. Pull the newer image instead ({dockerCommand}).',
   'cli.selfUpdate.refuse.notWritable':
     'Cannot replace Ritual: {dir} is not writable. Re-run with permission to write there, or reinstall Ritual with the installer.',
   'cli.selfUpdate.error.invalidTag':
@@ -764,12 +762,12 @@ export const cliInfraMessages = {
   'cli.selfUpdate.error.network': 'Could not reach GitHub ({url}): {error}',
   'cli.selfUpdate.error.http': 'GitHub answered {status} for {url}.',
   'cli.selfUpdate.error.rateLimited':
-    'GitHub answered {status} for {url}; its API rate limit may be used up. Try again later, or set GITHUB_TOKEN.',
+    'GitHub answered {status} for {url}; its API rate limit may be used up. Try again later, or set {envVar}.',
   'cli.selfUpdate.error.redirectRefused':
-    'GitHub redirected {url} to {location}, another site; Ritual does not send GITHUB_TOKEN there. Unset GITHUB_TOKEN and try again.',
+    'GitHub redirected {url} to {location}, another site; Ritual does not send {envVar} there. Unset {envVar} and try again.',
   'cli.selfUpdate.error.badResponse': 'GitHub sent an unexpected response for {url}: {error}',
   'cli.selfUpdate.error.noStableRelease':
-    'No stable Ritual release has been published yet. Run `ritual self-update --prerelease` for the newest prerelease.',
+    'No stable Ritual release has been published yet. Run `{command}` for the newest prerelease.',
   'cli.selfUpdate.error.noRelease': 'No Ritual release has been published yet.',
   'cli.selfUpdate.error.tagNotFound': 'No Ritual release is tagged {tag}.',
   'cli.selfUpdate.error.missingAsset':
@@ -814,7 +812,7 @@ export const cliInfraMessages = {
 
   // ── update-available notice ───────────────────────────────────────────
   'cli.updateNotice.available':
-    'Ritual {latest} is available (you have {current}). Run `ritual self-update` to update.',
+    'Ritual {latest} is available (you have {current}). Run `{command}` to update.',
 
   // ── the per-user state file ───────────────────────────────────────────
   'cli.userState.fileNotObject': 'the state file must contain a JSON object',
@@ -825,8 +823,8 @@ export const cliInfraMessages = {
   'cli.skills.resultUpToDate': '• {name} already up to date',
   'cli.skills.resultSkipped': '• {name} has local edits (skipped)',
   'cli.skills.resultAbsent': '• {name} not installed (skipped)',
-  'cli.skills.forceHintRerun': 're-run with --force to overwrite them with the current version',
-  'cli.skills.forceHintInit': 'use --force to overwrite them',
+  'cli.skills.forceHintRerun': 're-run with {flag} to overwrite them with the current version',
+  'cli.skills.forceHintInit': 'use {flag} to overwrite them',
 
   // ── mcp ───────────────────────────────────────────────────────────────
   //
@@ -836,14 +834,13 @@ export const cliInfraMessages = {
   // descriptions, result guidance, transport errors — stays English by
   // contract and is not in the catalog.
   'cli.mcp.refusingUnauthenticated':
-    "Refusing to serve MCP without authentication on non-loopback host '{host}'. Pass --token <secret> (or set RITUAL_MCP_TOKEN), or pass --allow-unauthenticated to override.",
+    "Refusing to serve MCP without authentication on non-loopback host '{host}'. Pass {tokenFlag} (or set {envVar}), or pass {allowUnauthenticatedFlag} to override.",
   'cli.mcp.unauthenticatedWarning':
-    "Warning: serving MCP without authentication on '{host}' (--allow-unauthenticated).",
+    "Warning: serving MCP without authentication on '{host}' ({flag}).",
   'cli.mcp.unauthenticatedLoopback':
     "No token set; serving unauthenticated MCP on loopback host '{host}'.",
   'cli.mcp.httpTeardownFailed': 'MCP HTTP teardown failed:',
-  'cli.mcp.stdioIgnoredFlags':
-    'Warning: {flags} only apply to --transport http and are ignored under stdio.',
+  'cli.mcp.stdioIgnoredFlags': 'Warning: {flags} only apply to {flag} and are ignored under stdio.',
   'cli.mcp.httpListening': 'Ritual MCP server (HTTP) listening at {url}',
   'cli.mcp.httpError': 'MCP HTTP error:',
   'cli.mcp.httpRequestFailed': 'MCP HTTP request failed:',
@@ -859,10 +856,9 @@ export const cliInfraMessages = {
   'cli.depLicense.noText': '[No license text found. SPDX identifier: {license}]',
   'cli.depLicense.primaryHeader': 'Primary:',
   'cli.depLicense.transitiveHeader': 'Transitive:',
-  'cli.depLicense.listWithPackage': 'Cannot combine a package name with --list.',
-  'cli.depLicense.packageNotFound':
-    "Package '{name}' not found. Run 'ritual dep-license --list' for a list.",
-  'cli.depLicense.needsPackage': 'Provide a package name argument or use --list ({reason}).',
+  'cli.depLicense.listWithPackage': 'Cannot combine a package name with {flag}.',
+  'cli.depLicense.packageNotFound': "Package '{name}' not found. Run '{command}' for a list.",
+  'cli.depLicense.needsPackage': 'Provide a package name argument or use {flag} ({reason}).',
   'cli.depLicense.promptSelect': 'Select a dependency to view its license',
   'cli.depLicense.primarySeparator': '── Primary Dependencies ──',
   'cli.depLicense.transitiveSeparator': '── Transitive Dependencies ──',
@@ -963,7 +959,7 @@ export const cliInfraMessages = {
   'cli.sell.headerGenerated': ' · generated {date}',
   'cli.sell.totals': 'Total: {value} for {sellable} of {total} cards across {counted}',
   'cli.sell.unsoldSummary':
-    '  ({notBuying} not buying, {noMatch} unmatched — rerun with --all to list them)',
+    '  ({notBuying} not buying, {noMatch} unmatched — rerun with {flag} to list them)',
   'cli.sell.cacheRequirement': 'Buylist matching requires the Scryfall card database.',
   'cli.sell.emptyCache': 'The card cache is empty; buylist matching requires it.',
   'cli.sell.wroteFile': 'Wrote {file}',
@@ -1000,14 +996,14 @@ export const cliInfraMessages = {
   //
   // `--locale` and `RITUAL_LOCALE` name themselves and are never translated;
   // the other three tiers are described in words.
-  'cli.locale.sourceConfig': 'uiLocale in ritual.config.json',
+  'cli.locale.sourceConfig': '{configKey} in {file}',
   'cli.locale.sourceDetected': 'detected from the environment',
   'cli.locale.sourceDefault': 'built-in default',
   'cli.locale.uiLocale': 'UI locale: {locale} ({source})',
   'cli.locale.available': 'Available UI locales: {locales}',
   'cli.locale.detected': 'Detected OS locale: {locale}',
   'cli.locale.detectedNone': 'none',
-  'cli.locale.cardLanguage': 'Card language (defaultLanguage): {language}',
+  'cli.locale.cardLanguage': 'Card language ({configKey}): {language}',
   'cli.locale.ignoring': 'Ignoring {source} "{value}": {error}',
   'cli.locale.envIgnored': '{variable}: ignoring invalid value — {error}',
   'cli.locale.footer':
@@ -1030,9 +1026,9 @@ export const cliInfraMessages = {
   'cli.locale.detectDiffers': 'Detected {locale}, but the interface is using {current} ({source}).',
   'cli.locale.detectNoDictionary':
     'This build ships no dictionary for {locale}: messages would stay English, while dates, numbers, and currency would follow it.',
-  'cli.locale.detectPrompt': 'Set uiLocale to {locale} in ritual.config.json?',
-  'cli.locale.detectSaved': 'Set uiLocale to {locale} in ritual.config.json.',
-  'cli.locale.detectDeclined': 'Left uiLocale unchanged.',
+  'cli.locale.detectPrompt': 'Set {configKey} to {locale} in {file}?',
+  'cli.locale.detectSaved': 'Set {configKey} to {locale} in {file}.',
+  'cli.locale.detectDeclined': 'Left {configKey} unchanged.',
   'cli.locale.detectNoPrompt': 'Not offering to save it ({reason}). To apply it, run: {command}',
   'cli.prompt.subject.uiLocale': 'whether to save the detected UI locale',
 } as const satisfies MessageCatalogShape

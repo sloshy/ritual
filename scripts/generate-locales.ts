@@ -36,6 +36,7 @@ import { coerceCatalog } from '../src/i18n/catalog'
 import { isLocaleTagError, parseLocaleTag } from '../src/i18n/locale-tag'
 import { describeLocaleTagError, localeTag } from '../src/i18n/locale-tag-message'
 import { en } from '../src/i18n/messages/en'
+import { ENV_VAR } from '../src/util/cli-tokens'
 import { enMeta } from '../src/i18n/messages/en.meta'
 import { DEFAULT_LOCALE } from '../src/i18n/runtime'
 import type { LocaleCatalog, MessageCatalogShape, MessageMetaShape } from '../src/i18n/types'
@@ -302,7 +303,7 @@ export function parseGenerateOptions(
   argv: readonly string[],
   env: Record<string, string | undefined>,
 ): GenerateOptions | string {
-  const raw = (env.RITUAL_BUNDLED_LOCALES ?? 'en').trim()
+  const raw = (env[ENV_VAR.bundledLocales] ?? 'en').trim()
   const requested = raw
     .split(/[,\s]+/)
     .map((tag) => tag.trim())

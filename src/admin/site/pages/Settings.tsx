@@ -38,6 +38,7 @@ import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
 import { PageHeading } from '../components/PageHeading'
+import { COMMAND, EXAMPLE, FLAG, commandLine } from '../../../util/cli-tokens'
 
 function listToString(list: string[]): string {
   return list.join('\n')
@@ -435,7 +436,7 @@ export function Settings(): JSX.Element {
               type="text"
               class="form-input"
               name="cacheFeedUrl"
-              placeholder={t('admin.settings.cacheFeedUrlPlaceholder')}
+              placeholder={t('admin.settings.cacheFeedUrlPlaceholder', { url: EXAMPLE.feedUrl })}
               value={config()!.cacheFeedUrl ?? ''}
               onInput={(e) => updateField('cacheFeedUrl', e.currentTarget.value)}
             />
@@ -721,7 +722,7 @@ export function Settings(): JSX.Element {
           <p class="form-hint form-hint-gap">
             {withCode(
               tSegments('admin.settings.apiBaseUrlHint', {
-                command: t('admin.settings.apiBaseUrlCommand'),
+                command: commandLine(COMMAND.serve, FLAG.api),
               }),
             )}
           </p>
@@ -740,7 +741,7 @@ export function Settings(): JSX.Element {
               onInput={(e) =>
                 updateSiteKey('apiBaseUrl', e.currentTarget.value.trim() || undefined)
               }
-              placeholder={t('admin.settings.apiBaseUrlPlaceholder')}
+              placeholder={EXAMPLE.apiBaseUrl}
             />
           </div>
 
@@ -761,7 +762,7 @@ export function Settings(): JSX.Element {
           <p class="form-hint">
             {withCode(
               tSegments('admin.settings.sellModeHint', {
-                flag: t('admin.settings.sellModeFlag'),
+                flag: FLAG.sellMode,
               }),
             )}
           </p>
@@ -771,8 +772,8 @@ export function Settings(): JSX.Element {
           <p class="form-hint form-hint-gap">
             {withCode(
               tSegments('admin.settings.printingsHint', {
-                format: t('admin.settings.printingsFormat'),
-                example: t('admin.settings.printingsExample'),
+                format: EXAMPLE.bannedPrintingFormat,
+                example: EXAMPLE.bannedPrinting,
               }),
             )}
           </p>
@@ -784,7 +785,9 @@ export function Settings(): JSX.Element {
               name="bannedPrintings"
               value={bannedPrintingsText()}
               onInput={(e) => updateBannedPrintings(e.currentTarget.value)}
-              placeholder={t('admin.settings.bannedPrintingsPlaceholder')}
+              placeholder={t('admin.settings.bannedPrintingsPlaceholder', {
+                example: EXAMPLE.bannedPrinting,
+              })}
             />
           </div>
 

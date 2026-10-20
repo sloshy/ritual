@@ -31,6 +31,7 @@
  * namespaces into both SPA bundles.
  */
 
+import { ENV_VAR } from '../util/cli-tokens'
 import { DEFAULT_LOCALE } from './constants'
 import { isLocaleTagError, parseLocaleTag, type LocaleTagError } from './locale-tag'
 import { errorsI18nMessages } from './messages/en/errors-i18n'
@@ -365,5 +366,5 @@ export function writeStoredLocale(tag: LocaleTag | null): void {
  */
 export function isStrictI18n(): boolean {
   if (typeof process === 'undefined') return false
-  return process.env?.RITUAL_I18N_STRICT === '1'
+  return process.env?.[ENV_VAR.i18nStrict] === '1'
 }

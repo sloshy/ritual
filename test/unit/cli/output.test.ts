@@ -10,6 +10,7 @@ import {
   normalizeScriptingOptions,
   parseFields,
   projectFields,
+  rejectFieldsWithTextOutput,
   writeStdout,
 } from '../../../src/cli/output'
 import { ExitCode } from '../../../src/util/errors'
@@ -108,30 +109,17 @@ describe('scripting output helpers', () => {
     expect(parsed.error.details.page).toBe(1)
   })
 
-  /**
-   * `message` follows the user's UI locale, so a script matching on it would
-   * break the day a translation shipped. `code` and `messageKey` are the pair
-   * that does not move — and `messageKey` is the finer of the two, since one
-   * `code` covers several distinct failures.
-   */
-  test('emitError carries a locale-invariant messageKey beside the code', async () => {
+  test('--fields with text output is refused as a usage error naming the flags as typed', async () => {
+    let rejected = false
     const output = await captureOutput('stderr', () => {
-      emitError(
-        'usage_error',
-        '--fields requires --output json or --output ndjson.',
-        { output: 'ndjson', quiet: false },
-        undefined,
-        'errors.scripting.fieldsNeedStructuredOutput',
-      )
+      rejected = rejectFieldsWithTextOutput(['name'], { output: 'text', quiet: false })
     })
+    const exitCode = process.exitCode
+    process.exitCode = 0
 
-    expect(JSON.parse(output)).toEqual({
-      error: {
-        code: 'usage_error',
-        messageKey: 'errors.scripting.fieldsNeedStructuredOutput',
-        message: '--fields requires --output json or --output ndjson.',
-      },
-    })
+    expect(rejected).toBe(true)
+    expect(exitCode).toBe(ExitCode.UsageError)
+    expect(output).toBe('--fields requires --output json or --output ndjson.\n')
   })
 
   test('an error with no catalog key behind it omits the field entirely', async () => {

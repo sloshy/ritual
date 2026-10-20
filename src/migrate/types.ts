@@ -5,7 +5,7 @@
  */
 
 import type { RawConfig } from '../config/ritual-config'
-import type { ParameterlessKey } from '../i18n/t'
+import type { SyncMessageRef } from '../sync/message'
 import type { JsonValue } from '../util/json'
 
 export type { RawConfig } from '../config/ritual-config'
@@ -51,8 +51,11 @@ export function isFileOp(op: MigrationOp): op is FileOp {
  */
 export type Migration = {
   id: number
-  /** Catalog key describing what this migration does, shown in the plan. */
-  descriptionKey: ParameterlessKey
+  /**
+   * What this migration does: a catalog key and the config keys and files it
+   * names as params, rendered in the active UI locale when the plan is printed.
+   */
+  description: SyncMessageRef
   /**
    * Whether this migration may have ops for the workspace — cheap and
    * in-memory. The pre-command check (`checkPendingWork`) trusts a `false`

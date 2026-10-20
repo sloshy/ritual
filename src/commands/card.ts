@@ -16,6 +16,7 @@ import {
 } from '../cli/output'
 import { fail } from '../cli/action'
 import { envelopeRef, renderSyncMessage, syncMessage } from '../sync/message'
+import { FLAG } from '../util/cli-tokens'
 
 /** The card fields {@link renderCardSummary} needs for its one-line summary. */
 export type CardSummary = { name: string; set: string }
@@ -76,7 +77,10 @@ export function registerCardCommand(program: Command): void {
       return
     }
     if (options.stdin && options.fromFile) {
-      fail(scriptingOptions, 'usage_error', 'cli.card.stdinOrFile')
+      fail(scriptingOptions, 'usage_error', 'cli.card.stdinOrFile', {
+        stdinFlag: FLAG.stdin,
+        fromFileFlag: FLAG.fromFile,
+      })
       return
     }
 
@@ -100,7 +104,10 @@ export function registerCardCommand(program: Command): void {
     }
 
     if (names.length === 0) {
-      fail(scriptingOptions, 'usage_error', 'cli.card.nameRequired')
+      fail(scriptingOptions, 'usage_error', 'cli.card.nameRequired', {
+        stdinFlag: FLAG.stdin,
+        fromFileFlag: FLAG.fromFile,
+      })
       return
     }
 

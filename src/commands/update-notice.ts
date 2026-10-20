@@ -43,6 +43,7 @@ import {
 import { resolveChannel } from '../update/release'
 import { envFlagSet, isCiEnvironment } from '../util/no-input'
 import { readUserState, writeUserStateSection, type UpdateCheckState } from '../util/user-state'
+import { COMMAND, commandLine } from '../util/cli-tokens'
 
 /** Commands that never check: matched by qualified name, subcommands included. */
 export const UPDATE_NOTICE_EXEMPT: readonly string[] = ['self-update', 'mcp', 'help']
@@ -179,7 +180,13 @@ function announceIfDue(
   const now = env.now()
   const version = versionToAnnounce(state, channel, env.build.version, now)
   if (state === undefined || version === undefined) return undefined
-  console.warn(t('cli.updateNotice.available', { latest: version, current: env.build.version }))
+  console.warn(
+    t('cli.updateNotice.available', {
+      latest: version,
+      current: env.build.version,
+      command: commandLine(COMMAND.selfUpdate),
+    }),
+  )
   return recordNotice(state, version, now)
 }
 

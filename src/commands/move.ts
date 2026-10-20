@@ -66,6 +66,7 @@ import { t } from '../i18n/t'
 import { formatUnitList } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
 import { printingLabel } from '../card/card-line-tail'
+import { COMMAND, FLAG, commandLine } from '../util/cli-tokens'
 
 /**
  * Print the card index's read/parse warnings to stderr.
@@ -134,10 +135,10 @@ export function registerMoveCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('move')
-      .description(t('help.move.description'))
-      .argument('[cardName...]', t('help.move.cardName'))
+      .description(t('help.move.description', { fromFlag: FLAG.from, toFlag: FLAG.to }))
+      .argument('[cardName...]', t('help.move.cardName', { fromFlag: FLAG.from, toFlag: FLAG.to }))
       .option('--from <list>', t('help.move.from'))
-      .option('--to <list>', t('help.move.to'))
+      .option('--to <list>', t('help.move.to', { flag: FLAG.from }))
       .option('-q, --quantity <n>', t('help.move.quantity'))
       .option('--card-id <id>', t('help.move.cardId'))
       .option('--set <code>', t('help.move.set'))
@@ -150,7 +151,10 @@ export function registerMoveCommand(program: Command): void {
 
     await runCommandAction(scripting, async () => {
       if (options.to !== undefined && options.from === undefined) {
-        throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.toRequiresFrom')
+        throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.toRequiresFrom', {
+          toFlag: FLAG.to,
+          fromFlag: FLAG.from,
+        })
       }
 
       if (options.from !== undefined && options.to !== undefined) {
@@ -184,6 +188,7 @@ export function registerMoveCommand(program: Command): void {
           'usage_error',
           ExitCode.UsageError,
           'cli.move.scriptedNeedsBoth',
+          { fromFlag: FLAG.from, toFlag: FLAG.to, command: commandLine(COMMAND.move) },
         )
       }
 
@@ -214,7 +219,7 @@ export function registerMoveCommand(program: Command): void {
 async function runInteractiveMove(sourceFilterPath: string | undefined): Promise<void> {
   // The session is prompt-driven end to end; without a terminal (or with
   // prompts disabled via --no-input) the only path is the headless one.
-  requireInteractive('cli.prompt.subject.passBoth', { first: '--from', second: '--to' })
+  requireInteractive('cli.prompt.subject.passBoth', { first: FLAG.from, second: FLAG.to })
   console.log(t('cli.move.loadingLists'))
   const allLists = await loadAllLists()
 
@@ -281,7 +286,7 @@ async function runInteractiveMove(sourceFilterPath: string | undefined): Promise
     const selection = await ask<string>({
       type: 'autocomplete',
       message: t('cli.move.promptSearch'),
-      subjectKey: 'cli.prompt.subject.cardsToMove',
+      subject: 'cli.prompt.subject.cardsToMove',
       choices: [...menuChoices, ...cardChoices],
       // The menu rows stay visible while the cards filter, so the session can
       // always be left; an empty input shows them alone rather than every card.
@@ -384,6 +389,7 @@ function parseQuantityFlag(raw: string): number {
       'cli.cardOps.quantityPositive',
       {
         value: raw,
+        flag: FLAG.quantity,
       },
     )
   }
@@ -415,7 +421,9 @@ function parseSetFlag(raw: string): string {
 async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptions): Promise<void> {
   const cardId = args.cardIdRaw !== undefined ? parseCardIdFlag(args.cardIdRaw) : undefined
   if (args.cardName === undefined && cardId === undefined) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.selectorRequired')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.selectorRequired', {
+      flag: FLAG.cardId,
+    })
   }
 
   const selection: HeadlessSelection = {
@@ -445,10 +453,14 @@ async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptio
 
   const toSection = args.toSectionRaw?.trim()
   if (toSection !== undefined && toSection === '') {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.toSectionEmpty')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.toSectionEmpty', {
+      flag: FLAG.toSection,
+    })
   }
   if (toSection !== undefined && toResolved.type !== 'deck') {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.toSectionDeckOnly')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.toSectionDeckOnly', {
+      flag: FLAG.toSection,
+    })
   }
 
   const allLists = await loadAllLists()
@@ -599,7 +611,14 @@ function selectCopies(
       distinct.length > 10 ? `\n${t('cli.cardOps.andMore', { count: distinct.length - 10 })}` : ''
     throw new CardCommandError(
       'usage_error',
-      t('cli.move.multiplePrintings', { list: label, matches: `${lines}${suffix}` }),
+      t('cli.move.multiplePrintings', {
+        list: label,
+        matches: `${lines}${suffix}`,
+        setFlag: FLAG.set,
+        collectorNumberFlag: FLAG.collectorNumber,
+        finishFlag: FLAG.finish,
+        cardIdFlag: FLAG.cardId,
+      }),
       ExitCode.UsageError,
       {
         matches: distinct.map((c) => ({
@@ -727,6 +746,8 @@ async function resolvePrintingForCollection(
   if (selection.set !== undefined || selection.collectorNumber !== undefined) {
     throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.printingNeedsBoth', {
       name: cardName,
+      setFlag: FLAG.set,
+      collectorNumberFlag: FLAG.collectorNumber,
     })
   }
 
@@ -739,6 +760,9 @@ async function resolvePrintingForCollection(
   if (!printingsAreComplete(result)) {
     throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.printingsUnknown', {
       name: cardName,
+      setFlag: FLAG.set,
+      collectorNumberFlag: FLAG.collectorNumber,
+      command: commandLine(COMMAND.cachePreloadAll),
     })
   }
   if (printings.length === 1) {
@@ -758,7 +782,12 @@ async function resolvePrintingForCollection(
     printings.length > 10 ? `\n${t('cli.cardOps.andMore', { count: printings.length - 10 })}` : ''
   throw new CardCommandError(
     'usage_error',
-    t('cli.move.multipleCardPrintings', { name: cardName, printings: `${lines}${suffix}` }),
+    t('cli.move.multipleCardPrintings', {
+      name: cardName,
+      printings: `${lines}${suffix}`,
+      setFlag: FLAG.set,
+      collectorNumberFlag: FLAG.collectorNumber,
+    }),
     ExitCode.UsageError,
     {
       printings: printings.map((p) => ({

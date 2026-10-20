@@ -58,6 +58,7 @@ import {
   type SyncRunPhase,
 } from '../sync-run'
 import { openSyncStream, type SyncStream } from '../sync-stream'
+import { CONFIG_KEY } from '../../../util/cli-tokens'
 
 /**
  * Sync Collection — the browser form of `ritual collection-sync`.
@@ -624,7 +625,7 @@ export function CollectionSync(): JSX.Element {
             <For
               each={tSegments('admin.collectionSync.intoDesc', {
                 emphasis: t('admin.collectionSync.intoDescEmphasis'),
-                setting: t('admin.collectionSync.intoSetting'),
+                setting: CONFIG_KEY.collectionSyncPullTarget,
               })}
             >
               {(segment) =>

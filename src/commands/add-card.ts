@@ -100,6 +100,7 @@ import {
 } from '../config/ritual-config'
 import { t } from '../i18n/t'
 import { sectionDisplayName } from '../list/deck-format'
+import { COMMAND, CONFIG_KEY, FLAG, commandLine } from '../util/cli-tokens'
 
 /**
  * Parse existing &N IDs from a file and allocate the next available ID.
@@ -213,18 +214,20 @@ export function registerAddCardCommand(program: Command): void {
     .option('-q, --quantity <number>', t('help.addCard.quantity'), parseQuantityFlag, 1)
     .option('-f, --finish <finish>', t('help.addCard.finish'), parseFinishFlag)
     .option('-c, --condition <condition>', t('help.addCard.condition'), parseConditionFlag)
-    .option('--language <code>', t('help.addCard.language'), (value: string) =>
-      parseLanguageFlag(value),
+    .option(
+      '--language <code>',
+      t('help.addCard.language', { configKey: CONFIG_KEY.defaultLanguage }),
+      (value: string) => parseLanguageFlag(value),
     )
     .option('--label <labels>', t('help.addCard.label'), parseAddLabelFlag)
-    .option('--tag <tags>', t('help.addCard.tag'), tagsFlagParser('--tag'))
+    .option('--tag <tags>', t('help.addCard.tag'), tagsFlagParser(FLAG.tag))
     .option('--section <name>', t('help.addCard.section'))
     .option('--commander', t('help.addCard.commander'))
     .option('-e, --exact', t('help.addCard.exact'), false)
-    .option('--set <code>', t('help.addCard.set'), parseSetFlag)
+    .option('--set <code>', t('help.addCard.set', { flag: FLAG.collectorNumber }), parseSetFlag)
     .option(
       '--collector-number <number>',
-      t('help.addCard.collectorNumber'),
+      t('help.addCard.collectorNumber', { flag: FLAG.set }),
       parseCollectorNumberFlag,
     )
   command.addOption(
@@ -234,7 +237,12 @@ export function registerAddCardCommand(program: Command): void {
       'collectorNumber',
     ]),
   )
-  command.addOption(new Option('--specific', t('help.addCard.specific')))
+  command.addOption(
+    new Option(
+      '--specific',
+      t('help.addCard.specific', { setFlag: FLAG.set, collectorNumberFlag: FLAG.collectorNumber }),
+    ),
+  )
   addRefreshOption(command)
   addDryRunOption(command, t('help.addCard.dryRun'))
   addScriptingOptions(command).action(
@@ -325,7 +333,10 @@ function resolvePrintingPinFlags(
 ): PrintingPin | undefined {
   if (set === undefined && collectorNumber === undefined) return undefined
   if (set === undefined || collectorNumber === undefined) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.pinNeedsBoth')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.pinNeedsBoth', {
+      setFlag: FLAG.set,
+      collectorNumberFlag: FLAG.collectorNumber,
+    })
   }
   return { set, collectorNumber }
 }
@@ -341,17 +352,33 @@ function validateTargetFlags(
   options: AddCardOptions,
 ): void {
   if (type !== 'wanted' && (options.nameOnly || options.specific)) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.addCard.wantedOnlyFlags')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.addCard.wantedOnlyFlags', {
+      nameOnlyFlag: FLAG.nameOnly,
+      specificFlag: FLAG.specific,
+    })
   }
   if (type === 'wanted' && options.condition !== undefined) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.wantedNoCondition')
+    throw localizedCommandError(
+      'usage_error',
+      ExitCode.UsageError,
+      'cli.cardOps.wantedNoCondition',
+      { flag: FLAG.condition },
+    )
   }
   if (options.label !== undefined) ensureLabelsSupported(type, options.label)
   if (type !== 'deck' && (options.section !== undefined || options.commander)) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.addCard.deckOnlyFlags')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.addCard.deckOnlyFlags', {
+      sectionFlag: FLAG.section,
+      commanderFlag: FLAG.commander,
+    })
   }
   if (type !== 'deck' && options.quantity !== 1) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.addCard.quantityDeckOnly')
+    throw localizedCommandError(
+      'usage_error',
+      ExitCode.UsageError,
+      'cli.addCard.quantityDeckOnly',
+      { flag: FLAG.quantity },
+    )
   }
   if (
     type === 'wanted' &&
@@ -360,7 +387,12 @@ function validateTargetFlags(
     pin === undefined &&
     promptsUnavailable()
   ) {
-    throw inputRequiredError('cli.prompt.subject.wantedAdd')
+    throw inputRequiredError('cli.prompt.subject.wantedAdd', {
+      nameOnlyFlag: FLAG.nameOnly,
+      specificFlag: FLAG.specific,
+      setFlag: FLAG.set,
+      collectorNumberFlag: FLAG.collectorNumber,
+    })
   }
 }
 
@@ -402,6 +434,7 @@ async function resolveAddCardTarget(
     if (type === 'deck') {
       throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.addCard.deckNotFound', {
         name,
+        command: commandLine(COMMAND.new, 'deck'),
       })
     }
     // The list is about to be created, so its name has to be usable as a file name.
@@ -775,7 +808,7 @@ async function promptCollectionPrinting(cardName: string): Promise<AddPrintingRe
       'runtime_error',
       ExitCode.RuntimeError,
       'cli.addCard.noPrintingSelected',
-      { name: cardName },
+      { name: cardName, setFlag: FLAG.set, collectorNumberFlag: FLAG.collectorNumber },
     ),
   )
 }
@@ -924,7 +957,12 @@ async function resolveWantedPrinting(cardName: string): Promise<AddPrintingResol
       'runtime_error',
       ExitCode.RuntimeError,
       'cli.addCard.noPrintingResolved',
-      { name: cardName },
+      {
+        name: cardName,
+        setFlag: FLAG.set,
+        collectorNumberFlag: FLAG.collectorNumber,
+        nameOnlyFlag: FLAG.nameOnly,
+      },
     ),
   )
 }

@@ -19,7 +19,7 @@
  * bun run scripts/check-locales.ts --emit-template de   # write locales/de.json
  * ```
  *
- * The twelve validations, and why each one has the severity it has:
+ * The thirteen validations, and why each one has the severity it has:
  *
  * | # | Check | Severity |
  * |---|---|---|
@@ -35,6 +35,7 @@
  * | 10 | namespace-boundary violation (`src/site/**` using a `cli.*` key, or a browser surface *registering* the `cli` namespace) | error |
  * | 11 | a spelling-list key (`domain.import.csv.headers.*`) that is not a plain `\|`-separated list with no empty or space-padded entry | error — the importer splits it on `\|` and matches each entry |
  * | 12 | an English string writing a plural as `word(s)` / `word(es)` / `entr(y/ies)` (any case, after a letter or a `{placeholder}`) | error — only `$plural` can be translated into a language with more than two forms |
+ * | 13 | an English string inlining a machine token — a `--flag`, a `ritual <command>` line or a bare one (`config set`), an environment variable, or a file name, link or example `src/util/cli-tokens.ts` spells | error — a translator sees prose and may "translate" it; the token must arrive as a `{placeholder}` param (`src/util/cli-tokens.ts`), which check 3 then holds every translation to |
  */
 
 // Node's stdlib only, no `bun` import: the pure exports here (`messagePlaceholders`,
@@ -60,6 +61,15 @@ import {
   type MessageValue,
 } from '../src/i18n/types'
 import { displayWidth } from '../src/i18n/width'
+import {
+  CLI_NAME,
+  COMMAND,
+  DOCKER_PULL_COMMAND,
+  ENV_VAR,
+  EXAMPLE,
+  FILE,
+  LINK,
+} from '../src/util/cli-tokens'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,6 +95,7 @@ export type IssueKind =
   | 'namespace-boundary'
   | 'spelling-list'
   | 'plural-shortcut'
+  | 'inline-token'
 
 /** One validation failure. `key` is null for whole-file problems. */
 export type CatalogIssue = {
@@ -332,6 +343,84 @@ export function pluralShortcuts(form: string): string[] {
   return found
 }
 
+/**
+ * A long option written into prose: `--dry-run`, `--set/--collector-number`.
+ * Preceded by the start, a space, an opening mark or a separator — so an
+ * em-dash written as `--` between words is not one — and followed by a letter.
+ */
+const INLINE_FLAG = /(?:^|[\s(`'"“‘/[,;<=:|*—])(--[a-z][a-z0-9-]*)/g
+
+/** `ritual <word>`: the binary's name followed by what may be a command. */
+const INLINE_COMMAND = new RegExp(`\\b${CLI_NAME} ([a-z][a-z-]*)`, 'g')
+
+/** The binary's name inline beside a placeholder: `ritual {name}` half-writes a command line. */
+const INLINE_COMMAND_PREFIX = new RegExp(`\\b${CLI_NAME} \\{`, 'g')
+
+/**
+ * The top-level command names. `ritual <word>` is a command line only when the
+ * word is one of them; otherwise it is prose naming the program ("no other
+ * ritual process"). `COMMAND` lists every top-level command — a test holds it
+ * to the registered program — so a new command is caught the day it lands.
+ */
+const TOP_LEVEL_COMMANDS: ReadonlySet<string> = new Set(
+  Object.values(COMMAND).map((path) => path[0]),
+)
+
+/** A regex source matching `text` literally. */
+function literal(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Tokens written verbatim that no prose spells: the bare multi-word command
+ * lines (`config set`, `cache preload-all`), every environment variable, file
+ * name, page and example value `src/util/cli-tokens.ts` names, and any
+ * `RITUAL_*` variable. Matched on token boundaries.
+ */
+const VERBATIM_TOKENS: readonly RegExp[] = [
+  ...Object.values(COMMAND)
+    .filter((path) => path.length > 1)
+    .map((path) => path.join(' ')),
+  ...Object.values(ENV_VAR),
+  ...Object.values(FILE),
+  ...Object.values(LINK),
+  ...Object.values(EXAMPLE),
+  DOCKER_PULL_COMMAND,
+].map((token) => new RegExp(`(?<![\\w.~/-])${literal(token)}(?![\\w-])`, 'g'))
+
+/** A Ritual environment variable, including one `cli-tokens.ts` does not list yet. */
+const INLINE_ENV_VAR = /\bRITUAL_[A-Z0-9_]*[A-Z0-9]\b/g
+
+/**
+ * Every machine token one English form writes inline rather than taking as a
+ * `{placeholder}`: flags, `ritual <command>` lines, bare command lines, and the
+ * environment variables, files, links and examples `src/util/cli-tokens.ts`
+ * spells. Placeholders themselves are skipped — `{flag}` is the fix, not a
+ * finding — except right after the binary's name, where `ritual {x}` is half a
+ * command line.
+ */
+export function inlineTokens(form: string): string[] {
+  const found = new Map<string, number>()
+  const add = (token: string, at: number): void => {
+    if (!found.has(token)) found.set(token, at)
+  }
+  for (const match of form.matchAll(INLINE_COMMAND_PREFIX)) add(match[0], match.index)
+  // Placeholders blanked to equal-length spaces, so a match's index is its place in `form`.
+  const text = form.replace(/\{[^{}]*\}/g, (placeholder) => ' '.repeat(placeholder.length))
+  for (const match of text.matchAll(INLINE_FLAG)) {
+    const flag = match[1] ?? ''
+    add(flag, match.index + match[0].length - flag.length)
+  }
+  for (const match of text.matchAll(INLINE_COMMAND)) {
+    if (TOP_LEVEL_COMMANDS.has(match[1] ?? '')) add(match[0], match.index)
+  }
+  for (const pattern of [...VERBATIM_TOKENS, INLINE_ENV_VAR]) {
+    for (const match of text.matchAll(pattern)) add(match[0], match.index)
+  }
+  // In reading order, so a report lists the tokens as the sentence does.
+  return [...found].sort((a, b) => a[1] - b[1]).map(([token]) => token)
+}
+
 /** Checks that apply to any catalog, English or translated. */
 function checkValue(
   locale: string,
@@ -433,6 +522,18 @@ export function checkCatalogs(input: CatalogCheckInput): CatalogReport {
           'plural-shortcut',
           'error',
           `${shortcuts.map((shortcut) => `"${shortcut}"`).join(', ')} writes a plural as a parenthesized suffix — use a $plural table on {count}, or reword when nothing is counted`,
+        ),
+      )
+    }
+    const tokens = [...new Set(messageForms(value).flatMap(inlineTokens))]
+    if (tokens.length > 0) {
+      issues.push(
+        issue(
+          'en',
+          key,
+          'inline-token',
+          'error',
+          `${tokens.map((token) => `"${token}"`).join(', ')} written into the text — pass each as a {placeholder} param from src/util/cli-tokens.ts, so a translator can move it but never alter it`,
         ),
       )
     }

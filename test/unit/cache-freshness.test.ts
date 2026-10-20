@@ -597,6 +597,8 @@ describe('ensureCardCacheForUpload', () => {
       message: refusalText(ready),
       messageKey: 'domain.cache.uploadRemedy',
       messageParams: {
+        command: 'ritual cache preload-all',
+        flag: '--refresh auto',
         reason: {
           messageKey: 'domain.cache.downloadFailed',
           messageParams: {

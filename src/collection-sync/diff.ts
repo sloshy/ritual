@@ -55,6 +55,7 @@ import type { ScryfallCard } from '../scryfall/types'
 import type { AmbiguousRemoval, CollectionKeyParts } from './describe'
 import { printingOf, recordCardChange } from './card-changes'
 import type { CollectionSyncCardChange } from './types'
+import { COMMAND, commandLine } from '../util/cli-tokens'
 
 // ── The join key ──────────────────────────────────────────────────────
 
@@ -217,6 +218,7 @@ export async function buildLocalIndex(
     ...syncMessage('domain.sync.printingNotCached', {
       card: guess.label,
       copies: syncRef('domain.count.copies', { count: guess.copies }),
+      command: commandLine(COMMAND.cachePreloadAll),
     }),
   }))
   return { index, warnings }

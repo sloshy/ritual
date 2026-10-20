@@ -11,6 +11,7 @@ import { refreshStaleAllowed, type RefreshMode } from '../cache/refresh'
 import { getErrorMessage } from '../util/errors'
 import { parseCustomTheme, type CustomTheme } from '../theme/themes'
 import { isMessageParseError, renderSyncMessage } from '../sync/message'
+import { FLAG, flagValue } from '../util/cli-tokens'
 
 export type SiteSpaAssets = {
   appSvg: string
@@ -75,7 +76,12 @@ export async function createSymbolCollector(
   const symbologyNetwork = refreshStaleAllowed(mode)
   let symbols = await fetchSymbology({ network: symbologyNetwork })
   if (symbols.length === 0 && !symbologyNetwork) {
-    console.warn(t('cli.buildSite.noSymbology'))
+    console.warn(
+      t('cli.buildSite.noSymbology', {
+        refreshNeverFlag: flagValue(FLAG.refresh, 'never'),
+        refreshAutoFlag: flagValue(FLAG.refresh, 'auto'),
+      }),
+    )
   }
   const symbolMap: Record<string, string> = {}
   const missingSymbols = new Set<string>()
@@ -141,6 +147,7 @@ export async function loadCustomThemes(paths: readonly string[]): Promise<Custom
       return t('cli.buildSite.themeFileUnreadable', {
         path: filePath,
         reason: getErrorMessage(err),
+        flag: FLAG.themeFile,
       })
     }
     let parsed: unknown
@@ -150,6 +157,7 @@ export async function loadCustomThemes(paths: readonly string[]): Promise<Custom
       return t('cli.buildSite.themeFileNotJson', {
         path: filePath,
         reason: getErrorMessage(err),
+        flag: FLAG.themeFile,
       })
     }
     const result = parseCustomTheme(parsed)
@@ -157,6 +165,7 @@ export async function loadCustomThemes(paths: readonly string[]): Promise<Custom
       return t('cli.buildSite.themeFileInvalid', {
         path: filePath,
         reason: renderSyncMessage(result.error),
+        flag: FLAG.themeFile,
       })
     }
     themes.push(result)

@@ -20,7 +20,7 @@ import {
 } from '../card/finish-condition'
 import { parseSetCode } from '../card/set-codes'
 import { REFRESH_MODES, type RefreshMode } from '../cache/refresh'
-import { t } from '../i18n/t'
+import { t, type MessageParams } from '../i18n/t'
 import { parseEnumField } from '../util/parse-enum'
 import { ExitCode, localizedCommandError } from '../util/errors'
 import { checkLabelsForListType, LIST_TYPE_LABELS, type SignedCardLabel } from '../card/card-labels'
@@ -53,6 +53,7 @@ import {
   type OutputFormat,
   type ScriptingOptions,
 } from './output'
+import { type ArgumentToken, FLAG, type FlagToken } from '../util/cli-tokens'
 
 /**
  * Commander argParser body for an enum-valued flag: match the value against
@@ -66,7 +67,7 @@ import {
 export function parseEnumFlag<T extends string>(
   value: string,
   values: readonly T[],
-  label: string,
+  label: FlagToken | ArgumentToken,
 ): T {
   const parsed = parseEnumField(value, values, label)
   if (!parsed.ok) throw new InvalidArgumentError(parsed.message)
@@ -120,7 +121,7 @@ export function parsedFlag<T extends NotAMessage<T> & NotAString<T>>(
  * Commander argParser for a price-store flag (`price --source`, `init-site
  * --price-source`), refusing an unknown store under the flag's own spelling.
  */
-export function priceSourceFlagParser(flag: string): (value: string) => PriceSource {
+export function priceSourceFlagParser(flag: FlagToken): (value: string) => PriceSource {
   return (value) => parseEnumFlag(value.trim(), VALID_PRICE_SOURCES, flag)
 }
 
@@ -166,7 +167,7 @@ export function addOutputOption(
   return command.option(
     '--output <format>',
     t('help.global.output', { formats: formats.join(', ') }),
-    (value) => parseEnumFlag(value, formats, '--output'),
+    (value) => parseEnumFlag(value, formats, FLAG.output),
     defaultOutput,
   )
 }
@@ -209,7 +210,7 @@ export const REFRESH_OPTION_NAME = 'refresh'
 
 /** Parse a `--refresh <mode>` value, rejecting anything but the four modes. */
 export function parseRefreshFlag(value: string): RefreshMode {
-  return parseEnumFlag(value, REFRESH_MODES, '--refresh')
+  return parseEnumFlag(value, REFRESH_MODES, FLAG.refresh)
 }
 
 /**
@@ -341,6 +342,7 @@ export function parseCardIdFlag(raw: string): number {
   if (parsed === undefined) {
     throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.cardIdPositive', {
       value: raw,
+      flag: FLAG.cardId,
     })
   }
   return parsed
@@ -384,7 +386,9 @@ export function parseConditionFlag(value: string): ConditionUpdate {
 export function parseQuantityFlag(value: string): number {
   const parsed = parsePositiveInteger(value.trim())
   if (parsed === undefined) {
-    throw new InvalidArgumentError(t('cli.cardOps.quantityPositive', { value }))
+    throw new InvalidArgumentError(
+      t('cli.cardOps.quantityPositive', { value, flag: FLAG.quantity }),
+    )
   }
   return parsed
 }
@@ -403,6 +407,7 @@ export function ensureLabelsSupported(type: ListType, labels: readonly SignedCar
     type,
     labels: check.unsupported.join(', '),
     supported: LIST_TYPE_LABELS[type].join(', '),
+    flag: FLAG.label,
   })
 }
 
@@ -426,7 +431,7 @@ export type TagsFlagParser = (value: string, previous?: readonly CardTag[]) => C
  * `open-vocabulary` leaf module" item rather than being papered over at the flag
  * layer.
  */
-export function tagsFlagParser(flag: string): TagsFlagParser {
+export function tagsFlagParser(flag: FlagToken): TagsFlagParser {
   return (value, previous) => {
     const parsed = parseCardTagsInput(value)
     if (!parsed.ok) {
@@ -465,7 +470,7 @@ export type CategoriesFlagParser = (
  * The shape it shares with {@link tagsFlagParser} is left duplicated on purpose;
  * see that function's note.
  */
-export function categoriesFlagParser(flag: string): CategoriesFlagParser {
+export function categoriesFlagParser(flag: FlagToken): CategoriesFlagParser {
   return (value, previous) => {
     const parsed = parseCardCategoriesInput(value)
     if (!parsed.ok) {
@@ -477,7 +482,9 @@ export function categoriesFlagParser(flag: string): CategoriesFlagParser {
       )
     }
     if (parsed.categories.length === 0) {
-      throw new InvalidArgumentError(t('cli.cardOps.categoriesFlagEmpty', { flag }))
+      throw new InvalidArgumentError(
+        t('cli.cardOps.categoriesFlagEmpty', { flag, noCategoriesFlag: FLAG.noCategories }),
+      )
     }
     return normalizeCardCategories([...(previous ?? []), ...parsed.categories])
   }
@@ -502,9 +509,10 @@ export function parseLanguageFlag(
 ): CardLanguage {
   const result = normalizeLanguageValue(value)
   if (result === null) {
-    const params = {
+    const params: MessageParams<'cli.cardOps.languageFlagInvalid'> = {
       value: JSON.stringify(value),
       languages: renderSyncParam(syncList(CARD_LANGUAGES, 'unit')),
+      flag: FLAG.language,
     }
     throw new InvalidArgumentError(
       context === 'set'
@@ -553,7 +561,11 @@ export function resolveListTypeFlag(
 ): ListType | undefined | 'conflict' {
   const type = listTypeFromFlags(flags)
   if (type === 'conflict') {
-    fail(scripting, 'usage_error', 'cli.cardOps.oneTypeFlag')
+    fail(scripting, 'usage_error', 'cli.cardOps.oneTypeFlag', {
+      deckFlag: FLAG.deck,
+      collectionFlag: FLAG.collection,
+      wantedFlag: FLAG.wanted,
+    })
   }
   return type
 }

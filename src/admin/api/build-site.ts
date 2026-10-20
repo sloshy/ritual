@@ -30,6 +30,7 @@ import {
 } from '../../site-build/publish'
 import type { RouteProgress, RouteProgressSink } from '../../util/progress'
 import type { SyncMessage } from '../../sync/message'
+import { COMMAND, FILE, FLAG } from '../../util/cli-tokens'
 
 // Re-exported: the sweep's age rule is shared with the CLI builder now, but this
 // route is where its tests and callers have always addressed it.
@@ -85,12 +86,12 @@ export type BuildSiteRunOptions = {
 // enabled it anyway is harmless: the flag is enable-only.
 export const defaultBuildArgv: BuildSiteArgv = (outDir) =>
   ritualArgv([
-    '--base-dir',
+    FLAG.baseDir,
     getBaseDir(),
-    'build-site',
-    '--out-dir',
+    ...COMMAND.buildSite,
+    FLAG.outDir,
     outDir,
-    ...(getSiteSellMode() ? ['--sell-mode'] : []),
+    ...(getSiteSellMode() ? [FLAG.sellMode] : []),
   ])
 
 /**
@@ -261,7 +262,7 @@ export function handleBuildSite(options: BuildSiteRunOptions = {}): Promise<Resp
       onProgress?.({
         progress: 2,
         total: BUILD_STEPS,
-        message: apiText('admin.api.buildSite.stepPublishing'),
+        message: apiText('admin.api.buildSite.stepPublishing', { file: FILE.distDir }),
       })
       await publishAtomically(tmpDir, distDir)
 

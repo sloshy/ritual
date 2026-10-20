@@ -61,6 +61,7 @@ import {
   syncMessage,
   type SyncMessage,
 } from '../sync/message'
+import { FLAG } from '../util/cli-tokens'
 
 /**
  * The `ritual cleanup` command: one pass over every deck, collection, and wanted
@@ -675,7 +676,7 @@ async function runCleanup(
         'usage_error',
         ExitCode.UsageError,
         'cli.cleanup.formatlessDecks',
-        { count: formatless.length, names },
+        { count: formatless.length, names, flag: FLAG.skipFormats },
       )
     }
   }
@@ -743,7 +744,9 @@ async function runCleanup(
         // or merely warned about is not a deck waiting on an answer.
         const formatOnly = reported.filter((result) => result.missingFormat === true).length
         if (formatOnly > 0) {
-          console.log(t('cli.cleanup.decksNeedFormat', { count: formatOnly }))
+          console.log(
+            t('cli.cleanup.decksNeedFormat', { count: formatOnly, flag: FLAG.skipFormats }),
+          )
         }
       }
     }
@@ -787,7 +790,11 @@ export function registerCleanupCommand(program: Command): void {
       t('help.cleanup.dryRun'),
     )
       .option('--skip-formats', t('help.cleanup.skipFormats'))
-      .addOption(new Option('--check', t('help.cleanup.check')).implies({ dryRun: true })),
+      .addOption(
+        new Option('--check', t('help.cleanup.check', { flag: FLAG.dryRun })).implies({
+          dryRun: true,
+        }),
+      ),
   ).action(async (options: CleanupCommandOptions) => {
     const scripting = normalizeScriptingOptions(options)
     await runCommandAction(scripting, () => runCleanup(options, scripting))

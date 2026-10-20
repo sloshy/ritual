@@ -36,6 +36,7 @@ import { currentLocale, DEFAULT_LOCALE } from '../i18n/runtime'
 import { formatUnitList } from '../i18n/format'
 import { addScriptingOptions } from '../cli/options'
 import { ExitCode } from '../util/errors'
+import { FLAG } from '../util/cli-tokens'
 
 type ImportChangesOptions = {
   yes?: boolean
@@ -241,7 +242,7 @@ export function registerImportChangesCommand(program: Command): void {
     if (!options.yes) {
       // Without this guard a piped stdin would silently resolve false or hang.
       if (!canPromptWithOutput(scripting)) {
-        fail(scripting, 'usage_error', 'cli.importChanges.confirmationRequired')
+        fail(scripting, 'usage_error', 'cli.importChanges.confirmationRequired', { flag: FLAG.yes })
         return
       }
       const confirmed = await ask<boolean>({

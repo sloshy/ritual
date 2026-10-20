@@ -37,6 +37,7 @@ import {
 import { tryStartServer } from '../util/start-server'
 import { PriceRefreshScheduler } from './scheduler'
 import type { CacheServerCommandOptions, PriceReadThroughResult } from './types'
+import { FLAG } from '../util/cli-tokens'
 
 interface PriceStreamTaskResult {
   key: string
@@ -428,7 +429,9 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
           // Keyed: a price read that needs a download reaches its client as
           // this refusal (a 500, or a stream `error` event). A card miss is not
           // a failure — it answers `200 { value: null }`.
-          throw new SyncMessageError(syncMessage('domain.cache.serverReply.httpDenied'))
+          throw new SyncMessageError(
+            syncMessage('domain.cache.serverReply.httpDenied', { flag: FLAG.denyHttp }),
+          )
         },
       }
     : defaultHttpClient
@@ -589,9 +592,13 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
   }
 
   if (options.denyHttp) {
-    console.log(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.httpDenied')}`)
+    console.log(
+      `${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.httpDenied', { flag: FLAG.denyHttp })}`,
+    )
     if (cacheSource === 'feed') {
-      console.log(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.feedDisabled')}`)
+      console.log(
+        `${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.feedDisabled', { flag: FLAG.denyHttp })}`,
+      )
     }
   }
   if (options.verbose) {

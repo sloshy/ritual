@@ -6,7 +6,6 @@ import prompts from 'prompts'
 import { Command } from 'commander'
 import { buildProgram } from '../../../src/cli/program'
 import { addDryRunOption, addOutputOption } from '../../../src/cli/options'
-import { COMMAND_GROUPS } from '../../../src/commands/registry'
 import {
   checkWorkspaceMigrations,
   isMigrationCheckExempt,
@@ -16,27 +15,17 @@ import { qualifiedCommandName } from '../../../src/cli/command-name'
 import { getRitualConfig } from '../../../src/config/ritual-config'
 import { latestMigrationId } from '../../../src/migrate/migrations'
 import { t } from '../../../src/i18n/t'
+import { COMMAND, commandLine, FLAG } from '../../../src/util/cli-tokens'
 import { setNoInputOverride } from '../../../src/util/no-input'
 import { readUserState, writeUserStateSection } from '../../../src/util/user-state'
 import { captureExitCode, NO_UPDATE_NOTICE } from '../../helpers/cli'
+import { commandAt, realProgram } from '../../helpers/program'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { stubTty } from '../../test-utils'
 
 /** Resolve `argv` against the real command tree to the command whose action would run. */
 function actionCommandFor(argv: string[]): Command {
-  const program = buildProgram({
-    groups: COMMAND_GROUPS,
-    backfill: () => false,
-    workspaceCheck: () => Promise.resolve(),
-    updateNotice: NO_UPDATE_NOTICE,
-  })
-  let command: Command = program
-  for (const name of argv) {
-    const next = command.commands.find((sub) => sub.name() === name)
-    if (next === undefined) break
-    command = next
-  }
-  return command
+  return commandAt(realProgram(), argv)
 }
 
 describe('migration check exemptions', () => {
@@ -144,8 +133,13 @@ describe('the pre-command migration offer', () => {
 
   const readConfig = async (): Promise<string> =>
     fs.readFile(path.join(ws.dir, 'ritual.config.json'), 'utf-8')
-  const warned = (key: 'cli.migrate.notice.pending' | 'cli.migrate.offerDeclined'): boolean =>
-    warn.mock.calls.some(([message]) => message === t(key))
+  const warned = (expected: string): boolean =>
+    warn.mock.calls.some(([message]) => message === expected)
+  const pendingNotice = (): string =>
+    t('cli.migrate.notice.pending', {
+      migrateDryRunCommand: commandLine(COMMAND.migrate, FLAG.dryRun),
+      migrateCommand: commandLine(COMMAND.migrate),
+    })
 
   test('yes migrates, then the command runs against the migrated config', async () => {
     prompts.inject([true])
@@ -185,7 +179,9 @@ describe('the pre-command migration offer', () => {
 
     expect(await readConfig()).toBe(before)
     expect(probeSaw).toBe(0)
-    expect(warned('cli.migrate.offerDeclined')).toBeTrue()
+    expect(
+      warned(t('cli.migrate.offerDeclined', { command: commandLine(COMMAND.migrate) })),
+    ).toBeTrue()
     const { migratePrompts } = await readUserState()
     expect(Object.keys(migratePrompts)).toEqual([path.resolve(ws.dir)])
   })
@@ -200,7 +196,7 @@ describe('the pre-command migration offer', () => {
     expect(await run(['probe'])).toBe(0)
 
     expect(await readConfig()).toBe(before)
-    expect(warned('cli.migrate.notice.pending')).toBeTrue()
+    expect(warned(pendingNotice())).toBeTrue()
     expect(probeSaw).toBe(0)
   })
 
@@ -228,7 +224,7 @@ describe('the pre-command migration offer', () => {
     expect(await run(args)).toBe(0)
 
     expect(await readConfig()).toBe(before)
-    expect(warned('cli.migrate.notice.pending')).toBeTrue()
+    expect(warned(pendingNotice())).toBeTrue()
     expect(await readUserState()).toEqual({ migratePrompts: {} })
   })
 })

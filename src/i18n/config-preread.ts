@@ -18,9 +18,9 @@
 
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
+import { FILE } from '../util/cli-tokens'
 
 /** The config file both this pre-read and `loadRitualConfig()` read. */
-const CONFIG_FILENAME = 'ritual.config.json'
 
 /**
  * Read `uiLocale` out of `<baseDir>/ritual.config.json`, or `undefined` when it
@@ -30,7 +30,7 @@ const CONFIG_FILENAME = 'ritual.config.json'
 export function prereadUiLocale(baseDir: string): string | undefined {
   let raw: string
   try {
-    raw = readFileSync(path.join(baseDir, CONFIG_FILENAME), 'utf-8')
+    raw = readFileSync(path.join(baseDir, FILE.config), 'utf-8')
   } catch {
     return undefined
   }

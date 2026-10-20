@@ -59,6 +59,16 @@ import { ask } from '../cli/prompts'
 import { writeFileAtomic } from '../util/atomic-write'
 import { assertNever } from '../util/assert-never'
 import { renderSyncMessage, syncList, syncRef } from '../sync/message'
+import {
+  COMMAND,
+  CONFIG_KEY,
+  ENV_VAR,
+  FILE,
+  FLAG,
+  bareCommandLine,
+  commandLine,
+  flagValue,
+} from '../util/cli-tokens'
 
 /**
  * The build command the scaffolding tells the user to run.
@@ -69,14 +79,17 @@ import { renderSyncMessage, syncList, syncRef } from '../sync/message'
  * the site appeared in a directory nothing had written to.
  */
 export function buildSiteCommand(distDir: string): string {
-  // i18n-exempt: a command line for the user to type, spelled as the CLI parses it
-  return distDir === 'dist' ? 'ritual build-site' : `ritual build-site --out-dir ${distDir}`
+  return commandLine(COMMAND.buildSite, ...outDirArgs(distDir))
 }
 
 /** The preview command, carrying the same `--out-dir` for a non-default distDir. */
 export function servePreviewCommand(distDir: string): string {
-  // i18n-exempt: a command line for the user to type, spelled as the CLI parses it
-  return distDir === 'dist' ? 'ritual serve --build' : `ritual serve --build --out-dir ${distDir}`
+  return commandLine(COMMAND.serve, FLAG.build, ...outDirArgs(distDir))
+}
+
+/** `--out-dir <dir>` for a non-default distDir, nothing for `dist`. */
+function outDirArgs(distDir: string): string[] {
+  return distDir === 'dist' ? [] : [flagValue(FLAG.outDir, distDir)]
 }
 
 /**
@@ -251,19 +264,19 @@ const DEPLOY_MODES = ['publish-for-me', 'local-build'] as const satisfies readon
 
 /** Commander argParser for `--ci`: only the two supported CI systems are valid. */
 export function parseCISystemFlag(value: string): CISystem {
-  return parseEnumFlag(value, CI_SYSTEMS, '--ci')
+  return parseEnumFlag(value, CI_SYSTEMS, FLAG.ci)
 }
 
 /** Commander argParser for `--deploy`: only the two deploy modes are valid. */
 export function parseDeployModeFlag(value: string): DeployMode {
-  return parseEnumFlag(value, DEPLOY_MODES, '--deploy')
+  return parseEnumFlag(value, DEPLOY_MODES, FLAG.deploy)
 }
 
 /** Commander argParser for `--dist-dir`: any non-empty path. */
 export function parseDistDirFlag(value: string): string {
   const trimmed = value.trim()
   if (trimmed.length === 0) {
-    throw new InvalidArgumentError(t('cli.initSite.distDirRequired'))
+    throw new InvalidArgumentError(t('cli.initSite.distDirRequired', { flag: FLAG.distDir }))
   }
   return trimmed
 }
@@ -286,7 +299,7 @@ export async function maybeInstallSkills(
   } else {
     const answer = await ask<boolean>({
       type: 'confirm',
-      message: t('cli.initSite.promptSkills'),
+      message: t('cli.initSite.promptSkills', { file: FILE.skillsDir }),
       initial: true,
     })
     install = answer === true
@@ -301,7 +314,7 @@ export async function maybeInstallSkills(
     verb: 'installedIn',
     dir: relativeDir,
     noun: 'agentSkill',
-    forceHint: t('cli.skills.forceHintInit'),
+    forceHint: t('cli.skills.forceHintInit', { flag: FLAG.force }),
   })
 }
 
@@ -314,6 +327,7 @@ async function writeFileWithOverwritePrompt(
     if (promptsUnavailable()) {
       throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.initSite.fileExists', {
         path: path.relative(getBaseDir(), filePath),
+        flag: FLAG.force,
       })
     }
     const shouldOverwrite = await promptOverwrite(filePath)
@@ -345,7 +359,16 @@ async function writeReadme(
     if (decision === false) return 'skipped'
     if (decision === undefined) {
       if (promptsUnavailable()) {
-        throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.initSite.readmeExists')
+        throw localizedCommandError(
+          'usage_error',
+          ExitCode.UsageError,
+          'cli.initSite.readmeExists',
+          {
+            file: FILE.readme,
+            overwriteReadmeFlag: FLAG.overwriteReadme,
+            noOverwriteReadmeFlag: FLAG.noOverwriteReadme,
+          },
+        )
       }
       if (!(await promptOverwrite(filePath))) return 'skipped'
     }
@@ -368,11 +391,11 @@ export function registerInitSiteCommand(program: Command): void {
     .option(
       '--price-source <store>',
       t('help.initSite.priceSource'),
-      priceSourceFlagParser('--price-source'),
+      priceSourceFlagParser(FLAG.priceSource),
     )
-    .option('--overwrite-readme', t('help.initSite.overwriteReadme'))
-    .option('--no-overwrite-readme', t('help.initSite.noOverwriteReadme'))
-    .option('--skills', t('help.initSite.skills'))
+    .option('--overwrite-readme', t('help.initSite.overwriteReadme', { file: FILE.readme }))
+    .option('--no-overwrite-readme', t('help.initSite.noOverwriteReadme', { file: FILE.readme }))
+    .option('--skills', t('help.initSite.skills', { file: FILE.skillsDir }))
     .option('--no-skills', t('help.initSite.noSkills'))
     .action(async (options: InitSiteCommandOptions) => {
       await runCommandAction(TEXT_ONLY, () => runInitSite(options))
@@ -387,8 +410,8 @@ export function registerInitSiteCommand(program: Command): void {
 function requireSkillsDecision(options: InitSiteCommandOptions): void {
   if (options.skills === undefined)
     requireInteractive('cli.prompt.subject.passEither', {
-      first: '--skills',
-      second: '--no-skills',
+      first: FLAG.skills,
+      second: FLAG.noSkills,
     })
 }
 
@@ -467,6 +490,15 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
         'usage_error',
         ExitCode.UsageError,
         'cli.initSite.alreadyInitializedFlags',
+        {
+          ciFlag: FLAG.ci,
+          deployFlag: FLAG.deploy,
+          distDirFlag: FLAG.distDir,
+          changeDetectionFlag: FLAG.changeDetection,
+          priceSourceFlag: FLAG.priceSource,
+          overwriteReadmeFlag: FLAG.overwriteReadme,
+          forceFlag: FLAG.force,
+        },
       )
     }
 
@@ -482,7 +514,9 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
         throw refusalError(outcome)
       case 'plan':
         console.log(
-          t(hasPendingWork(outcome) ? 'cli.migrate.pending' : 'cli.initSite.alreadyCurrent'),
+          t(hasPendingWork(outcome) ? 'cli.migrate.pending' : 'cli.initSite.alreadyCurrent', {
+            command: commandLine(COMMAND.migrate),
+          }),
         )
         return
       case 'no-config':
@@ -564,6 +598,7 @@ async function persistSiteConfig(
     console.error(
       t('cli.initSite.configWriteFailed', {
         reason: err instanceof Error ? err.message : String(err),
+        file: FILE.config,
       }),
     )
     return false
@@ -593,7 +628,7 @@ async function resolveInitPriceSource(
   options: InitSiteCommandOptions,
 ): Promise<PriceSource | null> {
   if (options.priceSource !== undefined) return options.priceSource
-  requireFlag('--price-source <store>')
+  requireFlag(flagValue(FLAG.priceSource, '<store>'))
   return promptDefaultPriceSource()
 }
 
@@ -622,7 +657,7 @@ async function promptDefaultPriceSource(): Promise<PriceSource | null> {
 async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteConfig | null> {
   let ciSystem = options.ci
   if (ciSystem === undefined) {
-    requireFlag('--ci <system>')
+    requireFlag(flagValue(FLAG.ci, '<system>'))
     const picked = await ask<CISystem>({
       type: 'select',
       message: t('cli.initSite.promptCi'),
@@ -657,6 +692,12 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
         'usage_error',
         ExitCode.UsageError,
         'cli.initSite.manualOnlyFlags',
+        {
+          deployFlag: FLAG.deploy,
+          distDirFlag: FLAG.distDir,
+          changeDetectionFlag: FLAG.changeDetection,
+          ciGithubActionsFlag: flagValue(FLAG.ci, 'github-actions'),
+        },
       )
     }
     return { ciSystem }
@@ -664,7 +705,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
   let deployMode = options.deploy
   if (deployMode === undefined) {
-    requireFlag('--deploy <mode>')
+    requireFlag(flagValue(FLAG.deploy, '<mode>'))
     const picked = await ask<DeployMode>({
       type: 'select',
       message: t('cli.initSite.promptDeploy'),
@@ -676,7 +717,9 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
         },
         {
           title: t('cli.initSite.deployLocal'),
-          description: t('cli.initSite.deployLocalHint'),
+          description: t('cli.initSite.deployLocalHint', {
+            command: bareCommandLine(COMMAND.buildSite),
+          }),
           value: 'local-build',
         },
       ],
@@ -698,18 +741,24 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
         'usage_error',
         ExitCode.UsageError,
         'cli.initSite.changeDetectionScope',
+        {
+          changeDetectionFlag: FLAG.changeDetection,
+          noChangeDetectionFlag: FLAG.noChangeDetection,
+          deployPublishForMeFlag: flagValue(FLAG.deploy, 'publish-for-me'),
+        },
       )
     }
 
     let distDir = options.distDir
     if (distDir === undefined) {
-      requireFlag('--dist-dir <dir>')
+      requireFlag(flagValue(FLAG.distDir, '<dir>'))
       const typed = await ask<string>({
         type: 'text',
         message: t('cli.initSite.promptDistDir'),
         initial: 'dist',
         // The same refusal `--dist-dir` gives an empty value, inline.
-        validate: (value: string) => value.trim().length > 0 || t('cli.initSite.distDirRequired'),
+        validate: (value: string) =>
+          value.trim().length > 0 || t('cli.initSite.distDirRequired', { flag: FLAG.distDir }),
       })
 
       if (typed === undefined) {
@@ -724,12 +773,15 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
   // publish-for-me
   if (options.distDir !== undefined) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.initSite.distDirScope')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.initSite.distDirScope', {
+      distDirFlag: FLAG.distDir,
+      deployLocalBuildFlag: flagValue(FLAG.deploy, 'local-build'),
+    })
   }
 
   const detectChanges = await resolveConfirmFlag(
     options.changeDetection,
-    { first: '--change-detection', second: '--no-change-detection' },
+    { first: FLAG.changeDetection, second: FLAG.noChangeDetection },
     'cli.initSite.promptChangeDetection',
   )
   if (detectChanges === null) return null
@@ -784,12 +836,12 @@ async function writeInitFiles(
 
   // Write README. --overwrite-readme/--no-overwrite-readme decides without
   // prompting; otherwise --force overwrites and an existing file prompts.
-  const readmePath = path.join(getBaseDir(), 'README.md')
+  const readmePath = path.join(getBaseDir(), FILE.readme)
   const readmeResult = await writeReadme(readmePath, generateReadme(config), opts)
   console.log(
     readmeResult === 'written'
-      ? t('cli.initSite.created', { path: 'README.md' })
-      : t('cli.initSite.skipped', { path: 'README.md' }),
+      ? t('cli.initSite.created', { path: FILE.readme })
+      : t('cli.initSite.skipped', { path: FILE.readme }),
   )
 
   printGitignoreRefresh(await refreshGitignore(config), { reportUnchanged: true })
@@ -810,11 +862,11 @@ export function printGitignoreRefresh(
   options: GitignoreReportOptions,
 ): void {
   if (result.update === 'created') {
-    console.log(t('cli.initSite.gitignoreCreated'))
+    console.log(t('cli.initSite.gitignoreCreated', { file: FILE.gitignore }))
   } else if (result.update === 'updated') {
-    console.log(t('cli.initSite.gitignoreUpdated'))
+    console.log(t('cli.initSite.gitignoreUpdated', { file: FILE.gitignore }))
   } else if (options.reportUnchanged) {
-    console.log(t('cli.initSite.gitignoreUnchanged'))
+    console.log(t('cli.initSite.gitignoreUnchanged', { file: FILE.gitignore }))
   }
   if (result.committedDir !== null && result.covering.length > 0) {
     console.warn(
@@ -822,6 +874,7 @@ export function printGitignoreRefresh(
         syncRef('cli.initSite.gitignoreStillIgnores', {
           dir: result.committedDir,
           patterns: syncList(result.covering, 'unit'),
+          file: FILE.gitignore,
         }),
       ),
     )
@@ -832,7 +885,12 @@ function printNextSteps(config: InitSiteConfig): void {
   console.log()
   const distDir = config.ciSystem === 'github-actions' ? config.distDir : 'dist'
   console.log(t('cli.initSite.nextSteps'))
-  console.log(t('cli.initSite.stepAddDecks'))
+  console.log(
+    t('cli.initSite.stepAddDecks', {
+      file: FILE.decksDir,
+      command: commandLine(COMMAND.new, 'deck'),
+    }),
+  )
   console.log(t('cli.initSite.stepPreview', { command: servePreviewCommand(distDir) }))
 
   if (config.ciSystem === 'manual') {
@@ -856,7 +914,14 @@ function printNextSteps(config: InitSiteConfig): void {
 
     if (downloadsPinnedRelease(config)) {
       console.log()
-      console.log(t('cli.initSite.pinVersionTip'))
+      console.log(
+        t('cli.initSite.pinVersionTip', {
+          file: FILE.config,
+          configKey: CONFIG_KEY.managedVersion,
+          command: commandLine(COMMAND.migrate),
+          envVar: ENV_VAR.version,
+        }),
+      )
     }
   }
 }

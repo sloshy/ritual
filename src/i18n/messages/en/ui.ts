@@ -284,7 +284,7 @@ export const uiMessages = {
   'ui.addCard.optionsHeading': 'Card options',
   'ui.addCard.labelField': 'Label',
   'ui.addCard.artField': 'Custom art',
-  'ui.addCard.artPlaceholder': 'proxies/sol-ring.jpg or https://example.com/sol-ring.jpg',
+  'ui.addCard.artPlaceholder': '{file} or {url}',
   'ui.addCard.artInvalid': 'That custom art is not usable: {reason}',
   'ui.addCard.artPendingNote': 'Custom art is written when you save the list.',
 

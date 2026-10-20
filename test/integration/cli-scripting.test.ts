@@ -818,7 +818,11 @@ describe('refusals before the action (Integration)', () => {
           code: 'runtime_error',
           messageKey: 'domain.config.fileNotJson',
           // The nested reason is flattened to its English, like the key.
-          messageParams: { path: configPath, reason: 'the file must contain a JSON object' },
+          messageParams: {
+            path: configPath,
+            reason: 'the file must contain a JSON object',
+            file: 'ritual.config.json',
+          },
           message: english,
         },
       })

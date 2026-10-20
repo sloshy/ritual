@@ -170,7 +170,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     const value = await ask<string>({
       type: 'text',
       message: t('cli.deck.promptTags'),
-      subjectKey: 'cli.prompt.subject.deckTags',
+      subject: 'cli.prompt.subject.deckTags',
       initial: (frontMatter.tags ?? []).join(', '),
     })
     if (value === undefined) return

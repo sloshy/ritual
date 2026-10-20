@@ -151,7 +151,7 @@ export const domainImportMessages = {
   'domain.import.url.unsupported':
     'URL not supported. Use Archidekt, Moxfield, or MTGGoldfish URLs.',
   'domain.import.url.moxfieldUserAgent':
-    'Moxfield imports require a unique Moxfield-approved user agent string. Set MOXFIELD_USER_AGENT or pass --moxfield-user-agent <agent>. Contact Moxfield support if you need one.',
+    'Moxfield imports require a unique Moxfield-approved user agent string. Set {envVar} or pass {flag}. Contact Moxfield support if you need one.',
   'domain.import.url.fetchingArchidekt': 'Fetching deck ID {id} from Archidekt...',
   'domain.import.url.fetchingMoxfield': 'Fetching deck ID {id} from Moxfield...',
   'domain.import.url.fetchingMtgGoldfish': 'Fetching deck from MTGGoldfish...',

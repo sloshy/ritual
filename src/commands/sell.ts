@@ -63,6 +63,7 @@ import { ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
 import { numberFormat } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
+import { FLAG } from '../util/cli-tokens'
 
 /** The footer every text report ends with, unless `--quiet` drops it. */
 export function sellDisclaimer(): string {
@@ -226,6 +227,7 @@ export function renderSellReportText(view: SellReportView, options: SellTextOpti
         t('cli.sell.unsoldSummary', {
           notBuying: summary.notBuyingCount,
           noMatch: summary.noMatchCount,
+          flag: FLAG.all,
         }),
       )
     }
@@ -258,17 +260,17 @@ export function registerSellCommand(program: Command): void {
           .option(
             '--min <price>',
             t('help.sell.min'),
-            parsedFlag((raw) => parseMinPrice(raw, '--min')),
+            parsedFlag((raw) => parseMinPrice(raw, FLAG.min)),
           )
           .option(
             '--min-ratio <ratio>',
             t('help.sell.minRatio'),
-            parsedFlag((raw) => parseMinRatio(raw, '--min-ratio')),
+            parsedFlag((raw) => parseMinRatio(raw, FLAG.minRatio)),
           )
           .option(
             '--min-owned <count>',
             t('help.sell.minOwned'),
-            parsedFlag((raw) => parseMinOwned(raw, '--min-owned')),
+            parsedFlag((raw) => parseMinOwned(raw, FLAG.minOwned)),
           )
           .option('--tags <list>', t('help.sell.tags'), parsedFlag(parseTagFilterInput))
           .option('--all', t('help.sell.all'))

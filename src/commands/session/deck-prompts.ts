@@ -119,7 +119,7 @@ export async function promptNewSectionName(deck: DeckData): Promise<string | nul
   const typed = await ask<string>({
     type: 'text',
     message: t('cli.deck.promptNewSectionName'),
-    subjectKey: 'cli.prompt.subject.sectionName',
+    subject: 'cli.prompt.subject.sectionName',
     initial: 'Main',
     validate: (val: string) => sectionNameProblem(val) ?? true,
   })
@@ -142,7 +142,7 @@ export async function resolveTargetSection(
   const section = await ask<string>({
     type: 'select',
     message: t('cli.deck.promptAddSection'),
-    subjectKey: 'cli.prompt.subject.addSection',
+    subject: 'cli.prompt.subject.addSection',
     choices: [
       ...sectionChoices(existing),
       { title: `+ ${t('cli.deck.newSection')}`, value: NEW_SECTION },
@@ -218,7 +218,7 @@ export async function promptSetTargetSection(deck: DeckData, config: SessionConf
   const section = await ask<string>({
     type: 'select',
     message: t('cli.deck.promptTargetSection'),
-    subjectKey: 'cli.prompt.subject.targetSection',
+    subject: 'cli.prompt.subject.targetSection',
     choices,
     initial,
   })
@@ -249,7 +249,7 @@ export async function promptDeckConfigUpdate(
       type: 'select',
       name: 'section',
       message: t('cli.deck.promptTargetSection'),
-      subjectKey: 'cli.prompt.subject.targetSection',
+      subject: 'cli.prompt.subject.targetSection',
       choices,
       initial,
     },
@@ -271,7 +271,7 @@ export async function promptMoveSection(deck: DeckData, current: string): Promis
   const section = await ask<string>({
     type: 'select',
     message: t('cli.deck.promptMoveSection'),
-    subjectKey: 'cli.prompt.subject.moveSection',
+    subject: 'cli.prompt.subject.moveSection',
     choices: [
       ...sectionChoices(deckSectionNames(deck), current),
       { title: `+ ${t('cli.deck.newSection')}`, value: NEW_SECTION },

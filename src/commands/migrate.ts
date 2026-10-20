@@ -23,6 +23,8 @@ import { ExitCode } from '../util/errors'
 import { requireFlag } from '../util/no-input'
 import { printGitignoreRefresh } from './init-site'
 import { workspaceRelative } from '../config/base-dir'
+import { COMMAND, CONFIG_KEY, FILE, FLAG, commandLine } from '../util/cli-tokens'
+import { renderSyncParam } from '../sync/message'
 
 export type MigrateCommandOptions = DryRunOptions & {
   yes?: boolean
@@ -36,9 +38,10 @@ function formatOp(op: MigrationOp): string {
       return t('cli.migrate.opConfigSet', {
         path: op.path.join('.'),
         value: JSON.stringify(op.value),
+        file: FILE.config,
       })
     case 'config-delete':
-      return t('cli.migrate.opConfigDelete', { path: op.path.join('.') })
+      return t('cli.migrate.opConfigDelete', { path: op.path.join('.'), file: FILE.config })
     case 'write':
       return t('cli.migrate.opWrite', { path: op.path })
     case 'delete':
@@ -60,7 +63,12 @@ function printRefreshPlan(refresh: ManagedRefreshPlan): void {
     console.log(t('cli.migrate.opWrite', { path: file.path }))
   }
   if (refresh.gitignoreMissing.length > 0) {
-    console.log(t('cli.migrate.refreshGitignore', { entries: refresh.gitignoreMissing.join(', ') }))
+    console.log(
+      t('cli.migrate.refreshGitignore', {
+        entries: refresh.gitignoreMissing.join(', '),
+        file: FILE.gitignore,
+      }),
+    )
   }
   for (const name of refresh.skillsToWrite) {
     console.log(t('cli.migrate.refreshSkill', { name }))
@@ -78,7 +86,7 @@ export function printPlan(plan: MigrationPlan): void {
     console.log(
       t('cli.migrate.migrationHeading', {
         id: migration.id,
-        description: t(migration.descriptionKey),
+        description: renderSyncParam(migration.description),
       }),
     )
     for (const op of ops) console.log(formatOp(op))
@@ -104,7 +112,10 @@ function printRefreshResult(refresh: ManagedRefreshResult): void {
 function printResult(plan: MigrationPlan, result: MigrationResult): void {
   for (const migration of result.applied) {
     console.log(
-      t('cli.migrate.applied', { id: migration.id, description: t(migration.descriptionKey) }),
+      t('cli.migrate.applied', {
+        id: migration.id,
+        description: renderSyncParam(migration.description),
+      }),
     )
   }
   if (result.backupDir !== null) {
@@ -120,8 +131,17 @@ function printResult(plan: MigrationPlan, result: MigrationResult): void {
     const version = plan.build.version
     console.warn(
       pinned === undefined
-        ? t('cli.migrate.devBuildNoPin', { version })
-        : t('cli.migrate.devBuild', { version, pinned }),
+        ? t('cli.migrate.devBuildNoPin', {
+            version,
+            configKey: CONFIG_KEY.managedVersion,
+            command: commandLine(COMMAND.migrate),
+          })
+        : t('cli.migrate.devBuild', {
+            version,
+            pinned,
+            configKey: CONFIG_KEY.managedVersion,
+            command: commandLine(COMMAND.migrate),
+          }),
     )
   }
 }
@@ -137,7 +157,7 @@ export async function applyAndReport(plan: MigrationPlan): Promise<void> {
 async function runMigrate(options: MigrateCommandOptions): Promise<void> {
   const outcome = await planMigration()
   if (outcome.kind === 'no-config') {
-    if (!options.check) console.log(t('cli.migrate.noConfig'))
+    if (!options.check) console.log(t('cli.migrate.noConfig', { file: FILE.config }))
     return
   }
   if (outcome.kind === 'ahead' || outcome.kind === 'invalid') throw refusalError(outcome)
@@ -149,7 +169,7 @@ async function runMigrate(options: MigrateCommandOptions): Promise<void> {
   }
 
   if (options.check) {
-    console.log(t('cli.migrate.pending'))
+    console.log(t('cli.migrate.pending', { command: commandLine(COMMAND.migrate) }))
     process.exitCode = ExitCode.UpdatesPending
     return
   }
@@ -162,7 +182,7 @@ async function runMigrate(options: MigrateCommandOptions): Promise<void> {
   }
 
   if (!options.yes) {
-    requireFlag('--yes')
+    requireFlag(FLAG.yes)
     const confirmed = await ask<boolean>({
       type: 'confirm',
       message: t('cli.migrate.confirm'),

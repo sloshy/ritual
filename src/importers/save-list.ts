@@ -48,6 +48,7 @@ import { loadDefaultCategories } from '../config/ritual-config'
 import { deckCardNames, deckCardNameSet } from '../list/card-names'
 import { writeFileAtomic } from '../util/atomic-write'
 import { primerSidecarPath } from '../list/list-sidecars'
+import { FLAG } from '../util/cli-tokens'
 
 /**
  * An existing list an import would replace, and how it was matched. Only a
@@ -159,6 +160,8 @@ function saveInfo(resolvedOptions: ResolvedSaveOptions, message: string): void {
 export function importConflictError(target: string): CardCommandError {
   return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.import.conflict', {
     target,
+    overwriteFlag: FLAG.overwrite,
+    yesFlag: FLAG.yes,
   })
 }
 

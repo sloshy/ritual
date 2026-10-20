@@ -284,7 +284,7 @@ describe('askSequence', () => {
             type: 'text',
             name: 'sets',
             message: 'Sets?',
-            subjectKey: 'cli.prompt.subject.setFilter',
+            subject: 'cli.prompt.subject.setFilter',
           },
         ]),
       ).rejects.toThrow('Input required: the session set filter (')

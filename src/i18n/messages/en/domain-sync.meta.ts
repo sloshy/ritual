@@ -103,7 +103,7 @@ export const domainSyncMeta = {
   },
   'domain.sync.printingNotCached': {
     description:
-      'Warning during a collection sync: a card line names no finish, and the printing is missing from the local Scryfall card cache, so its finish (nonfoil/foil/etched) could not be looked up and nonfoil is assumed. {card} is the card name followed by its printing, e.g. "Sol Ring (C21:240)"; {copies} is a pre-rendered count like "2 copies". The backticked text is a CLI command and must stay untranslated.',
+      'Warning during a collection sync: a card line names no finish, and the printing is missing from the local Scryfall card cache, so its finish (nonfoil/foil/etched) could not be looked up and nonfoil is assumed. {card} is the card name followed by its printing, e.g. "Sol Ring (C21:240)"; {copies} is a pre-rendered count like "2 copies". {command} is the `ritual cache preload-all` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'domain.sync.reindexingLocal': {
     description:
@@ -253,7 +253,7 @@ export const domainSyncMeta = {
     description: `${LOG_CONTEXT} No local deck is linked to an Archidekt deck, so a deck sync has nothing to do.`,
   },
   'domain.sync.printingsUnaligned': {
-    description: `${LOG_CONTEXT} Warning: the local deck and the Archidekt deck hold the card at different printings (set or finish), which this run left alone. {card} is the card name. "--sync-printings" is a literal CLI flag.`,
+    description: `${LOG_CONTEXT} Warning: the local deck and the Archidekt deck hold the card at different printings (set or finish), which this run left alone. {card} is the card name. {flag} is the \`--sync-printings\` flag. It is typed or matched exactly by the user, so never translate it.`,
   },
   'domain.sync.categoriesUnreadable': {
     description:
@@ -267,7 +267,7 @@ export const domainSyncMeta = {
     description: `${LOG_CONTEXT} Warning: some category names on the Archidekt deck break Ritual's naming rule, so they were not pulled. {count} is how many — in some languages the "one" form also covers other numbers (21, 31…), so keep {count} in every form rather than writing the word for one. {rule} is the naming rule itself (domain.card.category.shapeRule), rendered separately; {names} is the quoted names, which ${LIST_CONTEXT}`,
   },
   'domain.sync.noLocalCategories': {
-    description: `${LOG_CONTEXT} Warning during a deck push with category syncing on: the local deck has no categories at all, so the push leaves Archidekt's alone rather than wiping them. "--sync-categories" is a literal CLI flag.`,
+    description: `${LOG_CONTEXT} Warning during a deck push with category syncing on: the local deck has no categories at all, so the push leaves Archidekt's alone rather than wiping them. {flag} is the \`--sync-categories\` flag. It is typed or matched exactly by the user, so never translate it.`,
   },
   'domain.sync.moveShortfall': {
     description: `${LOG_CONTEXT} Warning during a deck pull: Archidekt moved copies of a card between deck boards, but the local file does not hold enough of them on the source board. {count} is the number of copies, {card} the card name, {from} and {to} deck board names, already in the reader's language (domain.board.*).`,
@@ -324,14 +324,14 @@ export const domainSyncMeta = {
   },
   'domain.sync.diverged': {
     description:
-      'Why a deck push refused a deck: someone changed the Archidekt deck after the last sync, and pushing would overwrite those edits. {remote} and {synced} are raw ISO timestamps. "--force" is a literal CLI flag.',
+      'Why a deck push refused a deck: someone changed the Archidekt deck after the last sync, and pushing would overwrite those edits. {remote} and {synced} are raw ISO timestamps. {flag} is the `--force` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'domain.sync.deckUrlRequired': {
     description: 'Error from `deck-sync link` and the admin/MCP equivalents when no URL was given.',
   },
   'domain.sync.deckUrlInvalid': {
     description:
-      'Error when the URL given to link a deck is not an Archidekt deck URL. {value} is what the user typed. The example URL is literal and is not translated.',
+      'Error when the URL given to link a deck is not an Archidekt deck URL. {value} is what the user typed. {example} is the example URL `https://archidekt.com/decks/123456`. It is typed or matched exactly by the user, so never translate it.',
   },
   'domain.sync.linkMismatch': {
     description:
@@ -429,7 +429,7 @@ export const domainSyncMeta = {
     description: `${LOG_CONTEXT} Warning during a collection pull: the local Scryfall card cache could not be read, so pulled cards are written under Archidekt's spelling of their names. {error} is the underlying error message.`,
   },
   'domain.sync.pullTargetAmbiguous': {
-    description: `Error: the list a collection pull adds cards to is named by more than one collection list. {name} is the name asked for; {matches} the matching list names, which ${LIST_CONTEXT} "--into" and "collectionSync.pullTarget" are a literal CLI flag and config key.`,
+    description: `Error: the list a collection pull adds cards to is named by more than one collection list. {name} is the name asked for; {matches} the matching list names, which ${LIST_CONTEXT} {flag} is the \`--into\` flag; {configKey} is the \`collectionSync.pullTarget\` config key. Each is typed or matched exactly by the user, so never translate them.`,
   },
   'domain.sync.dryRunCreateTarget': {
     description: `${LOG_CONTEXT} A pull preview: the list it adds cards to does not exist yet and a real run would create it. {name} is the list name. ${DRY_RUN_CONTEXT}`,
