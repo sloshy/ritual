@@ -18,3 +18,14 @@ wth = "wth"
 ded = "ded"
 # A deliberately bogus locale name in the pseudo-locale tests.
 bogos = "bogos"
+# German text in the locale tests' synthetic catalogs ("ist kein Objekt",
+# "Ein Titel", "Feld", "2 Tage", "WENIGER ALS").
+als = "als"
+ein = "ein"
+feld = "feld"
+ist = "ist"
+objekt = "objekt"
+tage = "tage"
+titel = "titel"
+# A case-blind substring search for "Command"/"command" in cli-tokens.test.ts.
+ommand = "ommand"

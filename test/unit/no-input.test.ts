@@ -67,7 +67,26 @@ describe('isCiEnvironment', () => {
     ['false', false],
     ['0', false],
   ])('CI=%p', (value, expected) => {
-    expect(isCiEnvironment(value)).toBe(expected)
+    // An explicit `undefined` falls through to the `process.env.CI` default,
+    // which GitHub Actions sets — so clear it for the duration of the call.
+    const originalCi = process.env.CI
+    delete process.env.CI
+    try {
+      expect(isCiEnvironment(value)).toBe(expected)
+    } finally {
+      if (originalCi !== undefined) process.env.CI = originalCi
+    }
+  })
+
+  test('reads the CI variable when no value is passed', () => {
+    const originalCi = process.env.CI
+    process.env.CI = 'true'
+    try {
+      expect(isCiEnvironment()).toBe(true)
+    } finally {
+      if (originalCi === undefined) delete process.env.CI
+      else process.env.CI = originalCi
+    }
   })
 })
 

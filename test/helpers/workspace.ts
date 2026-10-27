@@ -177,8 +177,10 @@ export async function bindWorkspace(options: BoundWorkspaceOptions = {}): Promis
   setBaseDir(dir)
   resetRitualConfigCache()
   // The shared Scryfall client memoizes facts about the cache it last read
-  // (bulk backed, its tag index); this is another workspace's cache.
+  // (bulk backed, its tag index), and `cardCache` keeps the last cache file it
+  // loaded in memory whatever its path; both belong to another workspace.
   scryfallClient.forgetCacheMemos()
+  cardCache.invalidate()
   if (options.init) await refreshRitualConfig()
   if (options.clearCardCache) await cardCache.clear()
   return {
@@ -190,6 +192,7 @@ export async function bindWorkspace(options: BoundWorkspaceOptions = {}): Promis
       setBaseDir(originalBase)
       resetRitualConfigCache()
       scryfallClient.forgetCacheMemos()
+      cardCache.invalidate()
       await removeWorkspace(dir)
     },
   }

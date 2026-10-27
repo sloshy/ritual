@@ -129,7 +129,8 @@ describe('new CLI (Integration)', () => {
       const result = await runCli(['new', 'deck', 'atraxa superfriends'], dir)
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain("A deck named 'Atraxa Superfriends' already exists")
-      expect(await fs.readdir(path.join(dir, 'decks'))).toEqual([
+      // readdir order is the filesystem's, not alphabetical.
+      expect((await fs.readdir(path.join(dir, 'decks'))).sort()).toEqual([
         'Atraxa Superfriends.md',
         'Atraxa Superfriends.md.sha256',
       ])
