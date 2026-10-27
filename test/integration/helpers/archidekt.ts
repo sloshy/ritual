@@ -21,7 +21,14 @@ import '../../../src/scryfall'
 import { cardCache } from '../../../src/cache'
 import { scryfallIdIndex } from '../../../src/cache/scryfall-id-index'
 import type { ArchidektToken } from '../../../src/auth/interfaces'
-import { printing, printingId, TEST_ACCOUNT } from '../../fixtures/archidekt'
+import {
+  collectionPage,
+  printing,
+  printingId,
+  record,
+  TEST_ACCOUNT,
+} from '../../fixtures/archidekt'
+import { writeCollectionFile } from '../../helpers/workspace'
 import {
   stubFetch,
   type StubbedFetch,
@@ -108,4 +115,79 @@ export async function seedCollectionCardCache(): Promise<void> {
   ])
   await cardCache.set(BOLT.name, [printing(BOLT.name, BOLT.set, BOLT.collectorNumber, ['nonfoil'])])
   scryfallIdIndex.reset()
+}
+
+/** One Sol Ring, as a collection list's entry. */
+export const SOL_RING_ENTRY = {
+  name: SOL_RING.name,
+  set: SOL_RING.set,
+  collectorNumber: SOL_RING.collectorNumber,
+  cardId: 1,
+} as const
+
+/**
+ * Two binders (`binder`, `longbox`) each holding one Sol Ring. Against an
+ * Archidekt collection holding one, a pull must remove one copy and nothing
+ * says from which binder — the ambiguous removal `sync_collection` asks about.
+ */
+export async function writeTwoSolRingBinders(base: string): Promise<void> {
+  await writeCollectionFile(base, 'binder', { title: 'Binder', entries: [SOL_RING_ENTRY] })
+  await writeCollectionFile(base, 'longbox', { title: 'Long Box', entries: [SOL_RING_ENTRY] })
+}
+
+/** Whether the collection list `slug` still holds a line naming `card`. */
+export async function collectionHolds(base: string, slug: string, card: string): Promise<boolean> {
+  const text = await fs.readFile(path.join(base, 'collections', `${slug}.md`), 'utf-8')
+  return text.includes(card)
+}
+
+/** A fixture printing an Archidekt collection stub can hold. */
+export type FixtureCard = typeof SOL_RING | typeof BOLT
+
+/** How {@link stubArchidektCollection} serves the collection. */
+export type CollectionStubOptions = {
+  /**
+   * Hold the page back until `release()` — a run that stays in flight for as
+   * long as a test needs it to.
+   */
+  gated?: boolean
+  /**
+   * Let unrouted requests through to the real `fetch`: needed by a suite whose
+   * client reaches its own loopback MCP server over the same `fetch`.
+   */
+  passthrough?: boolean
+}
+
+/** An installed collection stub, and the hand that opens its gate. */
+export type CollectionStub = {
+  stubbed: StubbedFetch
+  /** Opens the gate; does nothing on an ungated stub, and may be called more than once. */
+  release: () => void
+}
+
+/** Serve the signed-in account's Archidekt collection as holding `cards`, one copy each. */
+export function stubArchidektCollection(
+  cards: readonly FixtureCard[],
+  options: CollectionStubOptions = {},
+): CollectionStub {
+  const page = JSON.stringify(collectionPage(cards.map((card) => record(card))))
+  let release = (): void => {}
+  const gate = options.gated ? new Promise<void>((resolve) => (release = resolve)) : undefined
+  const stubbed = stubFetch(
+    {
+      [COLLECTION_URL]: () => {
+        if (gate === undefined) return new Response(page)
+        const body = new ReadableStream<Uint8Array>({
+          async start(controller) {
+            await gate
+            controller.enqueue(new TextEncoder().encode(page))
+            controller.close()
+          },
+        })
+        return new Response(body, { headers: { 'content-type': 'application/json' } })
+      },
+    },
+    { passthrough: options.passthrough },
+  )
+  return { stubbed, release: () => release() }
 }

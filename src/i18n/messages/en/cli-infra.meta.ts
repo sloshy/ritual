@@ -1667,6 +1667,66 @@ export const cliInfraMeta = {
     description:
       'The help text under one number field of the collection-sync question above: how many copies to take out of the list {list}, which currently holds {copies} copies.',
   },
+  'cli.mcp.task.status.working': {
+    description:
+      'Status line of a long operation an AI client started on Ritual (building the site, syncing with Archidekt, refreshing the card cache) and now tracks as a background task. The client shows it to its user in a task list. Shown while the work runs and before it has reported a step. Keep it short.',
+  },
+  'cli.mcp.task.status.awaitingInput': {
+    description:
+      'Task status line (see cli.mcp.task.status.working): the collection sync stopped to ask the user which collection lists give up removed cards, and waits for the answer in the client’s form.',
+  },
+  'cli.mcp.task.status.cancelling': {
+    description:
+      'Task status line (see cli.mcp.task.status.working): the user cancelled the task, and the work is finishing its current step before it stops.',
+  },
+  'cli.mcp.task.status.cancelled': {
+    description:
+      'Task status line (see cli.mcp.task.status.working): the task was cancelled. Work finished before the cancel (e.g. decks already synced) is kept.',
+  },
+  'cli.mcp.task.status.completed': {
+    description:
+      'Task status line (see cli.mcp.task.status.working): the task finished successfully.',
+  },
+  'cli.mcp.task.status.toolError': {
+    description:
+      'Task status line (see cli.mcp.task.status.working): the task ran to its end but the operation reported an error, which the AI agent reads from the task’s result.',
+  },
+  'cli.mcp.task.status.failed': {
+    description:
+      'Task status line (see cli.mcp.task.status.working): the task broke off with an unexpected error. {reason} is the error’s own text, which is always English (it is written for the AI agent); keep it as it is.',
+  },
+  'cli.mcp.task.buildSite.published': {
+    description:
+      'Task status line (see cli.mcp.task.status.working) of a static-site build: the new site is in place; the task is about to report it finished.',
+  },
+  'cli.mcp.tasks.unavailable': {
+    description:
+      'Printed once to the operator’s console when the Ritual MCP server starts and finds its MCP library cannot run long operations as background tasks (a protocol feature called the Tasks extension); the server then runs them the ordinary way, waiting for each to finish. "MCP" and "SDK" are technical names; leave them.',
+  },
+  'cli.mcp.task.buildSite.starting': {
+    description:
+      'Task status line (see cli.mcp.task.status.working) of a static-site build: preparing to build.',
+  },
+  'cli.mcp.task.buildSite.building': {
+    description:
+      'Task status line (see cli.mcp.task.status.working) of a static-site build: the site is being generated.',
+  },
+  'cli.mcp.task.buildSite.publishing': {
+    description:
+      'Task status line (see cli.mcp.task.status.working) of a static-site build: the finished site is being swapped into place.',
+  },
+  'cli.mcp.task.refreshCache.progress': {
+    description:
+      'Task status line (see cli.mcp.task.status.working) of a card-data cache refresh (a large download). {percent} is a whole number from 0 to 100.',
+  },
+  'cli.mcp.task.syncDecks.progress': {
+    description:
+      'Task status line (see cli.mcp.task.status.working) of a deck sync with Archidekt (a deck-building website): working on deck number {current} out of {total}.',
+  },
+  'cli.mcp.task.syncCollection.progress': {
+    description:
+      'Task status line (see cli.mcp.task.status.working) of a collection sync with Archidekt (a collection-tracking website): working on local collection list number {current} out of {total}.',
+  },
   'cli.mcp.stdioIgnoredFlags': {
     description:
       'HTTP-only flags were passed under --transport stdio. {flags} is a flag list. {flag} is `--transport http`, a flag and its value. It is typed or matched exactly by the user, so never translate it.',

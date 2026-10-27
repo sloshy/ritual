@@ -19,13 +19,16 @@
  */
 
 import {
+  CLIENT_CAPABILITIES_META_KEY,
   acceptedContent,
   inputRequired,
   inputResponse,
   type InputRequests,
   type InputRequiredResult,
   type McpServer,
+  type ServerContext,
 } from '@modelcontextprotocol/server'
+import { isRecord } from '../util/json'
 import { z } from 'zod'
 import { describeAmbiguousLists, type AmbiguousRemoval } from '../collection-sync/describe'
 import { describeSyncCard } from '../sync/describe'
@@ -46,14 +49,18 @@ const removalAnswerSchema = z.record(z.string(), z.number().int().nonnegative())
  * Whether the client on this request can be asked at all.
  *
  * A 2026-07-28 request carries the client's capabilities in its per-request
- * envelope, which the SDK backfills onto the server's accessor before the
- * handler runs; a 2025-era connection declared them at `initialize`. One read
- * covers both. Returning an `input_required` result to a client that declared
+ * envelope; a 2025-era connection declared them at `initialize`. Returning an `input_required` result to a client that declared
  * no elicitation capability is a protocol error on the modern era and a tool
  * error on the legacy shim — both of which would lose the report — so the tool
  * checks first and falls back to reporting the ambiguity when it cannot ask.
  */
-export function clientSupportsElicitation(server: McpServer): boolean {
+export function clientSupportsElicitation(server: McpServer, ctx: ServerContext): boolean {
+  // The request's own envelope first: a task run is detached from its request,
+  // and on stdio's one shared server the backfilled capabilities may by then be
+  // another request's.
+  const envelope: unknown = ctx.mcpReq.envelope
+  const declared = isRecord(envelope) ? envelope[CLIENT_CAPABILITIES_META_KEY] : undefined
+  if (isRecord(declared)) return declared.elicitation !== undefined
   return server.server.getClientCapabilities()?.elicitation !== undefined
 }
 

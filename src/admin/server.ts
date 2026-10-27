@@ -17,7 +17,7 @@ import { handleImportDeck } from './api/import-deck'
 import { handleImportCsv } from './api/import-csv'
 import { handleImportChanges } from './api/import-changes'
 import { handleExport } from './api/export'
-import { handleBuildSite, handleBuildSiteStream } from './api/build-site'
+import { handleBuildSite, handleBuildSiteStream, type BuildClaim } from './api/build-site'
 import { handleCacheRefresh, handleCacheRefreshStream, handleCacheStatus } from './api/cache'
 import { handleDeckSyncRun, handleDeckSyncStatus, handleDeckSyncStream } from './api/deck-sync'
 import {
@@ -107,8 +107,8 @@ export interface RequestContext {
    * Progress sink for an IN-PROCESS caller (the MCP adapter). Absent for HTTP
    * requests, which get progress over the feature's SSE route instead.
    *
-   * Shaped for a future `io.modelcontextprotocol/tasks` adoption: a task-backed
-   * call would drive the same sink from its status updates.
+   * A task-backed MCP call (`io.modelcontextprotocol/tasks`) drives the same
+   * sink into the task's status line.
    */
   onProgress?: RouteProgressSink
   /**
@@ -117,9 +117,16 @@ export interface RequestContext {
    * the child and leaves `dist/` untouched, the two syncs stop between items
    * (the item in flight finishes, the rest are reported skipped), and the cache
    * refresh stops before the cache file is written, releasing the cache lock.
-   * Same tasks-ready note as {@link RequestContext.onProgress}.
+   * A task-backed MCP call passes the task's own signal, which `tasks/cancel`
+   * aborts.
    */
   signal?: AbortSignal
+  /**
+   * A build slot an in-process caller already claimed (`tryClaimBuild`): the
+   * MCP task runtime claims before it answers with a task, so the build it
+   * promised cannot then be refused. Read by `POST /api/build-site` only.
+   */
+  buildClaim?: BuildClaim
 }
 
 type SocketAddress = { address: string }
@@ -155,7 +162,8 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/build-site',
-    handler: (_req, ctx) => handleBuildSite({ onProgress: ctx.onProgress, signal: ctx.signal }),
+    handler: (_req, ctx) =>
+      handleBuildSite({ onProgress: ctx.onProgress, signal: ctx.signal, claim: ctx.buildClaim }),
     requiresAuth: true,
   },
   {

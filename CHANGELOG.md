@@ -16,6 +16,12 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Added
 
+- The MCP server supports the Tasks extension (`io.modelcontextprotocol/tasks`). For a
+  client that declares it, such as Claude Code 2.1.304 or later, `build_site`, `sync_decks`,
+  `sync_collection` and `refresh_cache` run as tasks: the call returns at once, the client
+  polls the task's progress and can cancel it, and a `sync_collection` that needs to know
+  which list loses a removed card asks through the task. A task's status line follows your
+  interface language. Clients without the extension see no change.
 - Every page of a site `build-site` produces now carries, in its footer, the notice Wizards
   of the Coast's Fan Content Policy asks for, and credits Scryfall for the card data and
   images.

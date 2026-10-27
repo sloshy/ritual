@@ -661,8 +661,9 @@ No \`overrides\` key means the instance follows the stored config.
 docs, the server instructions, and the \`message\` field of every tool result stay
 English no matter what \`--locale\` / \`RITUAL_LOCALE\` / \`uiLocale\` say — those
 settings move the CLI's own terminal output and the two web UIs, never this
-surface — with one exception: the \`sync_collection\` elicitation form, which the
-client shows its user, follows the UI locale. Results that come from an admin handler carry \`messageKey\` (plus
+surface — with two exceptions the client shows its user, which follow the UI
+locale: the \`sync_collection\` elicitation form and a task's \`statusMessage\`
+(the MCP Tasks extension). Results that come from an admin handler carry \`messageKey\` (plus
 \`messageParams\` when the sentence interpolates) beside the English \`message\`: a
 stable, locale-invariant identifier to match on instead of matching prose. Params
 may nest — a param may itself be a message, a list, a duration (\`elapsedMs\`, or

@@ -109,7 +109,7 @@ export function registerMcpCommand(program: Command): void {
           }),
         )
       }
-      runStdioServer()
+      await runStdioServer()
     })
   // The shared `--sell-mode` flag; registered through the same helper as
   // `build-site`, `serve` and `admin` so the four can never describe the same

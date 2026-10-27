@@ -851,6 +851,24 @@ export const cliInfraMessages = {
   'cli.mcp.removal.prompt':
     '{quantity} × {card} left the Archidekt collection, but the local copies live in {lists}. How many copies should each list give up? The counts must add up to {quantity}.',
   'cli.mcp.removal.field': 'Copies to take from "{list}", which holds {copies}.',
+  'cli.mcp.tasks.unavailable':
+    'MCP tasks are off: this MCP SDK no longer carries a task result as Ritual expects. Long-running tools will answer synchronously.',
+  // A task's status line (MCP Tasks extension), shown to the person in the
+  // client's task view — not to the agent.
+  'cli.mcp.task.status.working': 'Working…',
+  'cli.mcp.task.status.awaitingInput': 'Waiting for your answer',
+  'cli.mcp.task.status.cancelling': 'Cancelling…',
+  'cli.mcp.task.status.cancelled': 'Cancelled',
+  'cli.mcp.task.status.completed': 'Done',
+  'cli.mcp.task.status.toolError': 'Finished with an error',
+  'cli.mcp.task.status.failed': 'Failed: {reason}',
+  'cli.mcp.task.buildSite.starting': 'Starting the site build',
+  'cli.mcp.task.buildSite.building': 'Building the site',
+  'cli.mcp.task.buildSite.publishing': 'Publishing the site',
+  'cli.mcp.task.buildSite.published': 'Site published',
+  'cli.mcp.task.refreshCache.progress': 'Refreshing the card cache ({percent}%)',
+  'cli.mcp.task.syncDecks.progress': 'Syncing deck {current} of {total}',
+  'cli.mcp.task.syncCollection.progress': 'Syncing collection list {current} of {total}',
 
   // ── dep-license ───────────────────────────────────────────────────────
   'cli.depLicense.noText': '[No license text found. SPDX identifier: {license}]',

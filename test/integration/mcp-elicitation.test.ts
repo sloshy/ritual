@@ -13,8 +13,6 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import {
   Client,
   InMemoryTransport,
@@ -28,15 +26,17 @@ import { buildMcpServer } from '../../src/mcp/server'
 import { runHttpServer, type McpHttpServer } from '../../src/mcp/run'
 import type { CollectionSyncReport } from '../../src/collection-sync/engine'
 import { toolData } from '../mcp-test-utils'
-import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from '../helpers/workspace'
-import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
-import { collectionPage, record } from '../fixtures/archidekt'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import type { StubbedFetch } from '../helpers/stub-fetch'
+import { TEST_BEARER_TOKEN } from '../helpers/mcp-rpc'
 import {
-  COLLECTION_URL,
+  collectionHolds,
   seedCollectionCardCache,
   signIn,
   SOL_RING,
+  stubArchidektCollection,
   TEST_ACCOUNT,
+  writeTwoSolRingBinders,
 } from './helpers/archidekt'
 
 /** `sync_collection`'s result, as far as these tests read it. */
@@ -47,7 +47,7 @@ type ElicitedFormField = { type: string; maximum?: number }
 type ElicitedFormSchema = { properties: Record<string, ElicitedFormField> }
 
 let ws: BoundWorkspace
-let stubbed: StubbedFetch
+let stubbed: StubbedFetch | undefined
 
 /**
  * Two binders each holding one Sol Ring, and an Archidekt collection holding
@@ -55,19 +55,9 @@ let stubbed: StubbedFetch
  */
 async function seedAmbiguousPull(passthrough = false): Promise<void> {
   await signIn(ws.dir, { ...TEST_ACCOUNT })
-  const entries = [{ name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }]
-  await writeCollectionFile(ws.dir, 'binder', { title: 'Binder', entries })
-  await writeCollectionFile(ws.dir, 'longbox', { title: 'Long Box', entries })
+  await writeTwoSolRingBinders(ws.dir)
   await seedCollectionCardCache()
-  stubbed = stubFetch(
-    { [COLLECTION_URL]: () => Response.json(collectionPage([record(SOL_RING)])) },
-    { passthrough },
-  )
-}
-
-async function listHoldsSolRing(slug: string): Promise<boolean> {
-  const text = await fs.readFile(path.join(ws.dir, 'collections', `${slug}.md`), 'utf-8')
-  return text.includes('Sol Ring')
+  stubbed = stubArchidektCollection([SOL_RING], { passthrough }).stubbed
 }
 
 /** The answer a client gives every form: the long box gives its copy up. */
@@ -88,7 +78,8 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  stubbed.restore()
+  stubbed?.restore()
+  stubbed = undefined
   cardCache.invalidate()
   scryfallIdIndex.reset()
   await ws.dispose()
@@ -127,8 +118,8 @@ describe('sync_collection elicitation (in-memory, 2025-era client via the legacy
       const { report } = toolData<SyncResult>(result)
       expect(report.unresolvedAmbiguity).toBe(false)
       expect(report.totals.removed).toBe(1)
-      expect(await listHoldsSolRing('longbox')).toBe(false)
-      expect(await listHoldsSolRing('binder')).toBe(true)
+      expect(await collectionHolds(ws.dir, 'longbox', SOL_RING.name)).toBe(false)
+      expect(await collectionHolds(ws.dir, 'binder', SOL_RING.name)).toBe(true)
     } finally {
       await client.close()
     }
@@ -145,8 +136,8 @@ describe('sync_collection elicitation (in-memory, 2025-era client via the legacy
       const { report } = toolData<SyncResult>(result)
       expect(report.unresolvedAmbiguity).toBe(true)
       expect(report.ambiguous).toHaveLength(1)
-      expect(await listHoldsSolRing('longbox')).toBe(true)
-      expect(await listHoldsSolRing('binder')).toBe(true)
+      expect(await collectionHolds(ws.dir, 'longbox', SOL_RING.name)).toBe(true)
+      expect(await collectionHolds(ws.dir, 'binder', SOL_RING.name)).toBe(true)
     } finally {
       await client.close()
     }
@@ -168,8 +159,8 @@ describe('sync_collection elicitation (in-memory, 2025-era client via the legacy
       expect(rounds).toBe(1)
       const { report } = toolData<SyncResult>(result)
       expect(report.unresolvedAmbiguity).toBe(true)
-      expect(await listHoldsSolRing('longbox')).toBe(true)
-      expect(await listHoldsSolRing('binder')).toBe(true)
+      expect(await collectionHolds(ws.dir, 'longbox', SOL_RING.name)).toBe(true)
+      expect(await collectionHolds(ws.dir, 'binder', SOL_RING.name)).toBe(true)
     } finally {
       await client.close()
     }
@@ -192,8 +183,8 @@ describe('sync_collection elicitation (in-memory, 2025-era client via the legacy
       expect(rounds).toBe(1)
       const { report } = toolData<SyncResult>(result)
       expect(report.unresolvedAmbiguity).toBe(true)
-      expect(await listHoldsSolRing('longbox')).toBe(true)
-      expect(await listHoldsSolRing('binder')).toBe(true)
+      expect(await collectionHolds(ws.dir, 'longbox', SOL_RING.name)).toBe(true)
+      expect(await collectionHolds(ws.dir, 'binder', SOL_RING.name)).toBe(true)
     } finally {
       await client.close()
     }
@@ -216,8 +207,8 @@ describe('sync_collection elicitation (in-memory, 2025-era client via the legacy
       })
       expect(asked).toEqual([])
       expect(toolData<SyncResult>(result).report.totals.removed).toBe(1)
-      expect(await listHoldsSolRing('binder')).toBe(false)
-      expect(await listHoldsSolRing('longbox')).toBe(true)
+      expect(await collectionHolds(ws.dir, 'binder', SOL_RING.name)).toBe(false)
+      expect(await collectionHolds(ws.dir, 'longbox', SOL_RING.name)).toBe(true)
     } finally {
       await client.close()
     }
@@ -225,14 +216,13 @@ describe('sync_collection elicitation (in-memory, 2025-era client via the legacy
 })
 
 describe('sync_collection elicitation (HTTP, 2026-07-28 input_required)', () => {
-  const TOKEN = 'integration-secret'
   let server: McpHttpServer
 
   beforeEach(async () => {
     server = await runHttpServer({
       port: 0,
       host: '127.0.0.1',
-      auth: { kind: 'bearer', token: TOKEN },
+      auth: { kind: 'bearer', token: TEST_BEARER_TOKEN },
     })
   })
   afterEach(async () => {
@@ -245,7 +235,7 @@ describe('sync_collection elicitation (HTTP, 2026-07-28 input_required)', () => 
     await seedAmbiguousPull(true)
     const transport = new StreamableHTTPClientTransport(
       new URL(`http://127.0.0.1:${server.port}/mcp`),
-      { requestInit: { headers: { Authorization: `Bearer ${TOKEN}` } } },
+      { requestInit: { headers: { Authorization: `Bearer ${TEST_BEARER_TOKEN}` } } },
     )
     const client = new Client(
       { name: 'it-elicit-http', version: '0.0.0' },
@@ -264,7 +254,7 @@ describe('sync_collection elicitation (HTTP, 2026-07-28 input_required)', () => 
       const { report } = toolData<SyncResult>(result)
       expect(report.unresolvedAmbiguity).toBe(false)
       expect(report.totals.removed).toBe(1)
-      expect(await listHoldsSolRing('longbox')).toBe(false)
+      expect(await collectionHolds(ws.dir, 'longbox', SOL_RING.name)).toBe(false)
     } finally {
       await client.close()
     }

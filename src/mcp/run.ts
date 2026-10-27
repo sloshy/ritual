@@ -16,6 +16,8 @@ import {
 } from './error-codes'
 import { isLoopbackHost } from './host'
 import { buildMcpServer } from './server'
+import { verifyTaskSupport } from './tasks/probe'
+import { sharedTaskRuntime } from './tasks/runtime'
 import { divertConsoleLogToStderr } from '../util/stdout-guard'
 import { secretsEqual } from '../util/secret-compare'
 import { MAX_UPLOAD_BODY_SIZE } from '../admin/validation'
@@ -30,16 +32,23 @@ import type { MessageKey } from '../i18n/messages/en'
  * `serveStdio` pins one server instance per connection and picks the protocol era
  * from the opening exchange: a 2025-era `initialize` is served on the legacy leg
  * (the default `legacy: 'serve'`), a 2026-07-28 client is served statelessly.
- * Returns once the handle is up; the open stdin keeps the process alive.
+ * Resolves once the handle is up; the open stdin keeps the process alive.
+ * Task support is probed first (see `tasks/probe.ts`).
  */
-export function runStdioServer(): void {
+export async function runStdioServer(): Promise<void> {
   divertConsoleLogToStderr()
+  await verifyTaskSupport(sharedTaskRuntime)
   // Stdio pins one server instance per connection, so it is the transport that
   // can actually deliver a resources/list_changed notification.
   const handle = serveStdio(() => buildMcpServer({ notifyListChanged: true }), {
     onerror: (error) => console.error(t('cli.mcp.stdioError'), error),
   })
+  // Closing the transport aborts a plain call in flight; a task runs on its
+  // own signal, so it is stopped the same way — on a signal, and when the
+  // client ends the session by closing stdin.
+  process.stdin.once('end', () => sharedTaskRuntime.abortAll())
   const closeHandle = (): void => {
+    sharedTaskRuntime.abortAll()
     void Promise.resolve(handle.close()).catch((error: unknown) =>
       console.error(t('cli.mcp.stdioTeardownFailed'), error),
     )
@@ -167,6 +176,9 @@ function isAuthorized(request: Request, auth: McpHttpAuth): boolean {
 export async function runHttpServer(options: HttpServerOptions): Promise<McpHttpServer> {
   const { port, host, auth } = options
 
+  // Before anything is served, so no client sees the Tasks extension
+  // advertised by a server that would not honour it.
+  await verifyTaskSupport(sharedTaskRuntime)
   const handler = createMcpHandler(() => buildMcpServer(), {
     // The default; spelled out because it is what keeps 2025-era clients working.
     legacy: 'stateless',
@@ -232,6 +244,12 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
     try {
       await server.stop(closeActiveConnections)
     } finally {
+      // Tasks run on their own signals, which no transport teardown reaches:
+      // abort them as closing the handler aborts the plain calls in flight —
+      // after the listener stops, so no new task slips in behind. The runtime
+      // is process-wide, so this stops every task the process runs; a process
+      // runs one MCP endpoint (`ritual mcp`, or `ritual admin --mcp`'s).
+      sharedTaskRuntime.abortAll()
       await handler.close()
     }
   }

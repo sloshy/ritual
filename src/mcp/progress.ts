@@ -1,5 +1,7 @@
 import type { ProgressNotification, ServerContext } from '@modelcontextprotocol/server'
 import type { RouteProgress, RouteProgressSink } from '../util/progress'
+import type { CallApiOptions } from './dispatch'
+import { taskRunOf } from './tasks/run-context'
 
 /**
  * Bridge a tool call's in-process progress reports onto `notifications/progress`.
@@ -19,9 +21,10 @@ import type { RouteProgress, RouteProgressSink } from '../util/progress'
  * does not keep a multi-minute call alive. That is a client-side option Ritual
  * cannot set.
  *
- * Tasks-ready: when the `io.modelcontextprotocol/tasks` extension becomes
- * adoptable, a task-backed call drives this same sink from its status updates —
- * the four long tools need no change beyond how the sink is obtained.
+ * A task-backed call (see `tasks/runtime.ts`) never gets here with a token: the
+ * spec forbids progress notifications for a task, so the runtime strips the
+ * token and reports progress as the task's status instead — see
+ * {@link toolCallOptions}.
  */
 export function createToolProgressSink(ctx: ServerContext): RouteProgressSink | undefined {
   const progressToken = ctx.mcpReq._meta?.progressToken
@@ -45,4 +48,21 @@ export function createToolProgressSink(ctx: ServerContext): RouteProgressSink | 
     // would be strictly worse than a dropped progress frame.
     void ctx.mcpReq.notify(notification).catch(() => {})
   }
+}
+
+/**
+ * The progress sink and cancellation signal a long tool hands its route.
+ *
+ * On a plain call: progress notifications (when the client asked for them) and
+ * the request's own signal. On a task run: the task's status sink, the task's
+ * own signal (which the runtime has already put on the context), and the build
+ * slot a `build_site` task claimed — so a long tool is task-ready by obtaining
+ * its options here and nowhere else.
+ */
+export function toolCallOptions(ctx: ServerContext): CallApiOptions {
+  const run = taskRunOf(ctx)
+  if (run === undefined) {
+    return { onProgress: createToolProgressSink(ctx), signal: ctx.mcpReq.signal }
+  }
+  return { onProgress: run.onProgress, signal: ctx.mcpReq.signal, buildClaim: run.buildClaim }
 }

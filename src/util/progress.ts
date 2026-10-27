@@ -25,9 +25,9 @@ export interface RouteProgress {
  * SSE route, which keeps its own richer per-feature event vocabulary; this is
  * the normalized form every client can render as a bar.
  *
- * Tasks-ready: when `io.modelcontextprotocol/tasks` becomes adoptable, a
- * task-backed call drives this same sink from its status updates — the routes
- * and engines below it need no change.
+ * A task-backed MCP call (`io.modelcontextprotocol/tasks`) drives this same
+ * sink into the task's status line — the routes and engines below it need no
+ * change.
  */
 export type RouteProgressSink = (report: RouteProgress) => void
 

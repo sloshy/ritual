@@ -6,6 +6,7 @@ import { registerResources } from './resources'
 import { registerDestructiveTools } from './tools/destructive-tools'
 import { registerReadTools } from './tools/read-tools'
 import { registerWriteTools } from './tools/write-tools'
+import { createTaskTools, sharedTaskRuntime, type TaskRuntime } from './tasks/runtime'
 
 /**
  * Cross-tool invariants only.
@@ -30,7 +31,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 - Language: tool names, descriptions, these instructions, and every result "message" are
   English by contract, whatever UI locale the user configured (that setting moves Ritual's own
   terminal output and its web UIs, never this surface — except the sync_collection elicitation
-  form, which the client shows its user, so it follows the user's UI locale). Results authored by the admin API carry
+  form and a task's statusMessage, which the client shows its user, so they follow the user's
+  UI locale). Results authored by the admin API carry
   a "messageKey" (plus "messageParams" when it interpolates) beside the English "message" — a
   locale-invariant identifier to match on instead of matching prose. Those params may nest — a
   param is then a message ({ messageKey, messageParams }), a list ({ list, join }), a duration
@@ -48,6 +50,14 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   messageKey?, messageParams? }; an import_deck warning whose card was kept without its labels
   adds "labelsDropped": true), and each import_csv "failures" row carries "reasonKey"/
   "reasonParams" beside its English "reason".
+- Tasks: when your client declares the io.modelcontextprotocol/tasks extension, build_site,
+  sync_decks, sync_collection and refresh_cache may answer with a task (resultType "task")
+  instead of a result. Poll tasks/get until it is completed, then read its "result" exactly as
+  the tool's own result (an isError result still completes the task); a sync_collection task
+  may go input_required with the removal forms, answered through tasks/update; tasks/cancel
+  stops the work at its next safe point (a cancelled sync still completes, with
+  report.cancelled; a cancelled build_site or refresh_cache ends "cancelled"). Every other tool
+  always answers directly.
 - Card names on writes are validated against the local cache; an unknown one is rejected with the
   closest cached names, and a cold cache says to run refresh_cache.
 - Card labels are per list type: a collection takes the whole vocabulary ("sale"/"trade" combine,
@@ -122,6 +132,11 @@ export interface McpServerOptions {
    * does not.
    */
   notifyListChanged?: boolean
+  /**
+   * Where tasks live. Defaults to the process-wide runtime every server shares,
+   * which is what lets a task outlive the per-request server that created it.
+   */
+  taskRuntime?: TaskRuntime
 }
 
 /** Build the Ritual MCP server with all tools and resources registered (transport-agnostic). */
@@ -137,6 +152,8 @@ export function buildMcpServer(options: McpServerOptions = {}): McpServer {
       capabilities: {
         tools: { listChanged: false },
         resources: { listChanged: notifyListChanged, subscribe: false },
+        // `extensions` (the Tasks extension) is added by the task runtime's
+        // install below, and only when it installs.
       },
       instructions: INSTRUCTIONS,
       // See cache-hints.ts for the policy rationale. `server/discover` is as
@@ -151,9 +168,13 @@ export function buildMcpServer(options: McpServerOptions = {}): McpServer {
     },
   )
   const notifier = createListChangeNotifier(server, notifyListChanged)
+  const taskTools = createTaskTools()
   registerReadTools(server)
   registerWriteTools(server, notifier)
-  registerDestructiveTools(server, notifier)
+  registerDestructiveTools(server, notifier, taskTools)
   registerResources(server)
+  // Last: it wraps the tools/call handler the registrations above serve, and
+  // when task support is off it leaves the server exactly as built.
+  ;(options.taskRuntime ?? sharedTaskRuntime).install(server, taskTools)
   return server
 }

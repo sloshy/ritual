@@ -1,6 +1,6 @@
 import type { InputRequiredResult, McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import type { BuildSiteResponse } from '../../admin/api/build-site'
+import { tryClaimBuild, type BuildSiteResponse } from '../../admin/api/build-site'
 import type { CacheRefreshResponse } from '../../admin/api/cache'
 import type { SellRefreshResponse } from '../../admin/api/sell'
 import type {
@@ -12,7 +12,7 @@ import type { DeckSyncRequest, DeckSyncRunResponse } from '../../admin/api/deck-
 import type { HistorySaveResponse } from '../../admin/api/history'
 import type { ListDeleteResponse, ListRenameResponse } from '../../admin/api/list-lifecycle'
 import { callApi, callApiData } from '../dispatch'
-import { createToolProgressSink } from '../progress'
+import { toolCallOptions } from '../progress'
 import type { ListChangeNotifier } from '../notify'
 import { outputSchemaFor, runTool } from '../result'
 import {
@@ -21,6 +21,7 @@ import {
   readRemovalAssignments,
 } from '../removal-elicitation'
 import { listTypeSchema, slugField } from '../schemas'
+import type { TaskSupport } from '../tasks/runtime'
 import type { OmitSuccess, UpdateConfigResult } from '../types'
 import { CSV_UPLOAD_THRESHOLD } from '../../collection-sync/csv'
 import { SYNC_CHANGE_FILTERS, SYNC_DIRECTIONS } from '../../sync/common'
@@ -124,9 +125,14 @@ function ignoreUnreadableDescription(plural: string): string {
  * build_site, sync_decks, sync_collection, refresh_cache, and refresh_buylist
  * trigger longer-running operations (both sync tools also write to Archidekt).
  * All are flagged with the SDK’s destructiveHint so clients can gate or confirm
- * them.
+ * them. The four long ones (build_site, both syncs, refresh_cache) are enabled
+ * on `tasks`: a client that declares the Tasks extension gets them as tasks.
  */
-export function registerDestructiveTools(server: McpServer, notifier: ListChangeNotifier): void {
+export function registerDestructiveTools(
+  server: McpServer,
+  notifier: ListChangeNotifier,
+  tasks: TaskSupport,
+): void {
   server.registerTool(
     'rename_list',
     {
@@ -245,7 +251,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       }),
   )
 
-  server.registerTool(
+  const buildSite = server.registerTool(
     'build_site',
     {
       title: 'Build site',
@@ -260,15 +266,23 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
     },
     async (_args, ctx) =>
       runTool(async (): Promise<BuildSiteResult> => {
-        const data = await callApiData<BuildSiteResponse>('POST', '/api/build-site', undefined, {
-          onProgress: createToolProgressSink(ctx),
-          signal: ctx.mcpReq.signal,
-        })
+        const data = await callApiData<BuildSiteResponse>(
+          'POST',
+          '/api/build-site',
+          undefined,
+          toolCallOptions(ctx),
+        )
         return data
       }),
   )
+  tasks.enable('build_site', buildSite, () => {
+    // Claimed before the task exists, so a task is never answered for a build
+    // the route would then refuse; the route runs on (and releases) the claim.
+    const claim = tryClaimBuild()
+    return claim && { buildClaim: claim, release: claim.release }
+  })
 
-  server.registerTool(
+  const syncDecks = server.registerTool(
     'sync_decks',
     {
       title: 'Sync decks with Archidekt',
@@ -383,14 +397,15 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           'POST',
           '/api/deck-sync',
           body,
-          { onProgress: createToolProgressSink(ctx), signal: ctx.mcpReq.signal },
+          toolCallOptions(ctx),
         )
         return data
       })
     },
   )
+  tasks.enable('sync_decks', syncDecks)
 
-  server.registerTool(
+  const syncCollection = server.registerTool(
     'sync_collection',
     {
       title: 'Sync collection with Archidekt',
@@ -557,7 +572,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           'POST',
           '/api/collection-sync',
           body,
-          { onProgress: createToolProgressSink(ctx), signal: ctx.mcpReq.signal },
+          toolCallOptions(ctx),
         )
         // Ask only on the first round, only when the caller left the decision
         // open, and only a client that can answer. A second unresolved round
@@ -568,7 +583,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           data.report.unresolvedAmbiguity &&
           undecided &&
           elicited.kind === 'none' &&
-          clientSupportsElicitation(server)
+          clientSupportsElicitation(server, ctx)
         ) {
           return elicitRemovalAssignments(data.report.ambiguous)
         }
@@ -576,8 +591,9 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       })
     },
   )
+  tasks.enable('sync_collection', syncCollection)
 
-  server.registerTool(
+  const refreshCache = server.registerTool(
     'refresh_cache',
     {
       title: 'Refresh card cache',
@@ -597,11 +613,12 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           'POST',
           '/api/cache/refresh',
           undefined,
-          { onProgress: createToolProgressSink(ctx), signal: ctx.mcpReq.signal },
+          toolCallOptions(ctx),
         )
         return data
       }),
   )
+  tasks.enable('refresh_cache', refreshCache)
 
   server.registerTool(
     'refresh_buylist',

@@ -1,4 +1,5 @@
 import { dispatchRoute, type RequestContext } from '../admin/server'
+import type { BuildClaim } from '../admin/api/build-site'
 import type { HttpMethod } from '../util/routing'
 import { buildSyntheticRequest } from '../util/synthetic-request'
 import { apiErrorToMcp, parseUnmatched, type ApiErrorBody, type McpErrorDetail } from './errors'
@@ -94,22 +95,26 @@ export interface CallApiOptions {
   onProgress?: RouteProgressSink
   /** Cancels the call when the client cancelled the tool request. */
   signal?: AbortSignal
+  /** A build slot already claimed for this call (see `RequestContext.buildClaim`). */
+  buildClaim?: BuildClaim
 }
 
 /**
  * The context for one in-process call: the shared constant when the caller wants
  * nothing extra (the overwhelmingly common case), a fresh object otherwise.
  *
- * The two extras are copied by name rather than spread. `CallApiOptions` and
+ * The extras are copied by name rather than spread. `CallApiOptions` and
  * `RequestContext` are separate types that happen to overlap here, and a spread
  * would silently forward any future `CallApiOptions` field into the request
  * context — including one that shadows `clientIp` or `sessionToken`.
  */
 function callContext(options?: CallApiOptions): RequestContext {
   if (!options) return MCP_CONTEXT
-  const { onProgress, signal } = options
-  if (onProgress === undefined && signal === undefined) return MCP_CONTEXT
-  return { ...MCP_CONTEXT, onProgress, signal }
+  const { onProgress, signal, buildClaim } = options
+  if (onProgress === undefined && signal === undefined && buildClaim === undefined) {
+    return MCP_CONTEXT
+  }
+  return { ...MCP_CONTEXT, onProgress, signal, buildClaim }
 }
 
 /** The envelope key every admin body carries, and the only one a tool strips. */

@@ -73,6 +73,12 @@ export type BuildSiteRunOptions = {
   signal?: AbortSignal
   /** The child's command line; injectable so tests need not run a real build. */
   buildArgv?: BuildSiteArgv
+  /**
+   * A slot the caller already claimed with {@link tryClaimBuild}; the build
+   * runs on it (and releases it) instead of claiming its own. Absent, or no
+   * longer held, the handler claims as usual and answers 503 when it cannot.
+   */
+  claim?: BuildClaim
 }
 
 // The base dir is passed explicitly: the child inherits this process's
@@ -101,6 +107,36 @@ export const defaultBuildArgv: BuildSiteArgv = (outDir) =>
  * ("re-read the list with get_list") would be actively wrong here.
  */
 let buildInFlight = false
+
+/** The one-build slot, held: released exactly once, by whoever holds it. */
+export type BuildClaim = {
+  /** Whether this claim still holds the slot. */
+  readonly held: () => boolean
+  /** Give the slot back; a second call does nothing. */
+  readonly release: () => void
+}
+
+/**
+ * Claim the one-build slot, or `undefined` when a build holds it. What a caller
+ * that must know *before* it starts whether the build will run takes (the MCP
+ * task runtime, which must not turn a start that would be refused into a
+ * task): it claims first, then hands the claim to {@link handleBuildSite}
+ * through {@link BuildSiteRunOptions.claim}. A check-then-start would let two
+ * racing callers both pass.
+ */
+export function tryClaimBuild(): BuildClaim | undefined {
+  if (buildInFlight) return undefined
+  buildInFlight = true
+  let held = true
+  return {
+    held: () => held,
+    release: () => {
+      if (!held) return
+      held = false
+      buildInFlight = false
+    },
+  }
+}
 
 /** How much of the child's stderr a failure message carries. */
 const STDERR_TAIL_CHARS = 2000
@@ -168,17 +204,17 @@ async function drainLines(
  * cancellation — described on {@link BuildSiteRunOptions}. A finer progress
  * scale becomes available the day `runBuildSite` grows its own `onProgress`.
  *
- * Tasks-ready: a future `io.modelcontextprotocol/tasks` adoption drives the same
- * seams from a task's status updates and `tasks/cancel`.
+ * A task-backed MCP call (`io.modelcontextprotocol/tasks`) drives the same
+ * seams from the task's status line and `tasks/cancel`.
  */
 export function handleBuildSite(options: BuildSiteRunOptions = {}): Promise<Response> {
   const { onProgress, onOutput, signal } = options
   const buildArgv = options.buildArgv ?? defaultBuildArgv
   return apiHandler(async () => {
-    if (buildInFlight) {
+    const claim = options.claim?.held() === true ? options.claim : tryClaimBuild()
+    if (claim === undefined) {
       return apiError(apiMessage('admin.api.buildSite.busy'), 503)
     }
-    buildInFlight = true
 
     // Everything after the flag is claimed runs inside the try — the base-dir
     // reads included, which are what throws on an invalid workspace — so a
@@ -281,7 +317,7 @@ export function handleBuildSite(options: BuildSiteRunOptions = {}): Promise<Resp
       return Response.json(resp)
     } finally {
       if (signal && onAbort) signal.removeEventListener('abort', onAbort)
-      buildInFlight = false
+      claim.release()
       if (tmpDir !== undefined) {
         await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
       }
