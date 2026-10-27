@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { LOCALE_STORAGE_KEY } from '../../../src/i18n/runtime'
 import { fulfillJson } from '../helpers/fulfill'
+import { settleLayout } from '../helpers/header'
 import { filterRow, openFilterMenu } from '../helpers/filter-menu'
 import {
   expectNotReloaded,
@@ -12,6 +13,8 @@ import {
   pseudoCatalog,
   pseudoString,
   PSEUDO_LOCALE,
+  pickLanguage,
+  revealLanguageSelect,
   setLocale,
 } from '../helpers/i18n'
 import { localeTag } from '../../../src/i18n/locale-tag-message'
@@ -104,6 +107,7 @@ test.describe('public site language switch', () => {
   test('relabels the nav, the toolbar and an open filter panel in one render', async ({ page }) => {
     await page.goto(DECK_HASH)
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await revealLanguageSelect(page)
 
     // A marker on `window` that a reload would wipe: it is what makes the
     // assertions below evidence of a re-render rather than of a fresh boot.
@@ -150,6 +154,7 @@ test.describe('public site language switch', () => {
   }) => {
     await page.goto(DECK_HASH)
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await revealLanguageSelect(page)
     const panel = await openFilterMenu(page)
     const field = panel.locator('#filter-mana-value')
     const error = filterRow(page, 'filter-mana-value').locator('.filter-error')
@@ -159,7 +164,7 @@ test.describe('public site language switch', () => {
     await expect(error).toHaveText('Mana value must be a non-negative integer')
     await markPage(page)
 
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
 
     await expect(panel).toBeVisible()
     await expectPseudo(error, true)
@@ -192,7 +197,7 @@ test.describe('public site language switch', () => {
     await expect(anchor).toHaveAttribute('id', 'section-color_3a_C')
     const countsBefore = await counts()
 
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
 
     for (const heading of await headings.all()) await expectPseudo(heading, true)
     // The mana letters are data the translator places, not prose.
@@ -212,6 +217,7 @@ test.describe('public site language switch', () => {
   }) => {
     await page.goto(DECK_HASH)
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await revealLanguageSelect(page)
     await page.locator('.btn-edit').click()
     await page.locator('.edit-banner').getByRole('button', { name: 'Load Changes' }).click()
     const dialog = page.locator('.import-dialog')
@@ -222,7 +228,7 @@ test.describe('public site language switch', () => {
     const error = dialog.locator('.form-error')
     await expect(error).toHaveText(MALFORMED_MOVE_ENGLISH)
 
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
     await expectPseudo(error, true)
     // The record it is about relabels with the sentence around it.
     await expect(error).not.toContainText('Move #1')
@@ -232,6 +238,7 @@ test.describe('public site language switch', () => {
   test('relabels a refused theme file in the theme editor', async ({ page }) => {
     await page.goto(DECK_HASH)
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await revealLanguageSelect(page)
     await page.getByRole('button', { name: 'Theme', exact: true }).click()
     await page.getByRole('button', { name: /Customize theme/ }).click()
     // A variable that is not a CSS custom property: the parser's refusal is a
@@ -245,7 +252,7 @@ test.describe('public site language switch', () => {
     await expect(error).toHaveText("Variable name 'accent' must start with '--'")
 
     await markPage(page)
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
     await expectPseudo(error, true)
     await expect(error).toContainText('accent')
     await expect(error).not.toContainText('must start with')
@@ -305,7 +312,7 @@ test.describe('public site language switch', () => {
     await expect(boardHeading).toContainText('Sideboard')
     await expect(ownHeading).toContainText('Tokens')
 
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
 
     // Both are pinned to the pseudo template itself: the badge is too short to
     // carry the pseudo-locale's brackets (its length cap).
@@ -325,6 +332,7 @@ test.describe('public site language switch', () => {
   }) => {
     await page.goto(DECK_HASH)
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await revealLanguageSelect(page)
     await page.getByRole('button', { name: 'Theme', exact: true }).click()
     await page.getByRole('button', { name: /Customize theme/ }).click()
     await page.locator('.theme-editor input[type="file"]').setInputFiles({
@@ -341,7 +349,7 @@ test.describe('public site language switch', () => {
     )
 
     await markPage(page)
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
     await expectPseudo(error, true)
     await expect(error).not.toContainText('not valid JSON')
     await expectNotReloaded(page)
@@ -352,7 +360,7 @@ test.describe('public site language switch', () => {
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
 
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
 
     await expect(page.locator('html')).toHaveAttribute('lang', PSEUDO_LOCALE)
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr')
@@ -364,7 +372,7 @@ test.describe('public site language switch', () => {
   test('survives navigation within the SPA', async ({ page }) => {
     await page.goto(DECK_HASH)
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
     await expectPseudo(chromeTexts(page).toolbarLabel, true)
 
     // `page.evaluate` on the hash, never `page.goto`: goto reloads the document
@@ -386,6 +394,7 @@ test.describe('public site language switch', () => {
 
     await page.goto(`${DECK_HASH}?locale=${PSEUDO_LOCALE}`)
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await revealLanguageSelect(page)
 
     await expectPseudo(chromeTexts(page).toolbarLabel, true)
     await expect(languageSelect(page)).toHaveValue(PSEUDO_LOCALE)
@@ -421,6 +430,16 @@ test.describe('public site language switch', () => {
     await page.goto(DECK_HASH)
     await page.waitForSelector('[data-view]', { timeout: 15_000 })
 
+    // Folded or not, the picker is in neither place: open the ⚙ row first
+    // when the header has one, so the absence is not merely "folded away".
+    await settleLayout(page)
+    const toggle = page.locator('.header-utility-toggle')
+    if (await toggle.isVisible()) {
+      await toggle.click()
+      await expect(page.locator('.site-header-utility .btn-edit')).toBeVisible()
+    } else {
+      await expect(page.locator('.site-header-main .btn-edit')).toBeVisible()
+    }
     await expect(languageSelect(page)).toHaveCount(0)
     await expectPseudo(chromeTexts(page).toolbarLabel, false)
   })
@@ -454,7 +473,7 @@ test.describe('public site language switch — tiles keep their state', () => {
     await dfc.locator('.card-flip-btn').click()
     await expect(dfc.locator('.card-flip')).toHaveClass(/flipped/)
 
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
 
     await expectPseudo(creatures.locator('.section-divider h2'), true)
     // The switch re-sorts the groups (display collation reads the locale); the
@@ -494,7 +513,7 @@ test.describe('public site language switch — the editors’ own refusals', () 
     await expect(error).toContainText('Invalid tag "a#b"')
     await markPage(page)
 
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
     await expectPseudo(error, true)
     const rule = pseudoCatalog()['domain.card.tag.shapeRule']
     if (typeof rule !== 'string') throw new Error('domain.card.tag.shapeRule is not a string')
@@ -519,7 +538,7 @@ test.describe('public site language switch — the trade board', () => {
     await expect(tag).toHaveText('Scryfall')
     await markPage(page)
 
-    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await pickLanguage(page, PSEUDO_LOCALE)
 
     // The row holds the backend's code; only its wording follows the switch.
     await expectPseudo(tag, true)

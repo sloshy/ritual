@@ -2,10 +2,10 @@
 // (The price-store picker, shared with the admin header, lives in
 // `list-view/PriceStoreSelect.tsx`; the language switcher in its own module.)
 //
-// They live inline in the header on desktop, but at phone widths the header has
-// no room for them alongside the logo and quick switch — there they move into a
-// collapsible second row (see `.site-header-utility` and the ⚙ toggle in
-// app.tsx). Each is a standalone component so both layouts can render the same
+// They live inline in the header while it has room, but on phones, and whenever
+// the row runs out of room beside the logo, nav and quick switch (see
+// useHeaderFit.ts), they move into a collapsible second row (see
+// `.site-header-utility` and the ⚙ toggle in app.tsx). Each is a standalone component so both layouts can render the same
 // control without duplicating its markup.
 
 import { type Component, createEffect, createSignal, onCleanup } from 'solid-js'

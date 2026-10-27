@@ -13,6 +13,8 @@ import {
   expectNotReloaded,
   expectPseudo,
   languageSelect,
+  pickLanguage,
+  revealLanguageSelect,
   markPage,
   pseudoCatalog,
   PSEUDO_LOCALE,
@@ -397,7 +399,7 @@ test.describe('Sell mode', () => {
 
       // The warning is held as a message, not as the English it first rendered:
       // switching relabels the one already on screen, with no re-export.
-      await languageSelect(page).selectOption(PSEUDO_LOCALE)
+      await pickLanguage(page, PSEUDO_LOCALE)
       await expectPseudo(warning, true)
       // The buyer's own title is data, never translated.
       await expect(warning).toContainText('Bought Card')
@@ -408,6 +410,8 @@ test.describe('Sell mode', () => {
       page,
     }) => {
       await selectCard(page, CARD_INDEX['Bought Card'])
+      // Before the menu opens: the click on ⚙ would close it.
+      await revealLanguageSelect(page)
       const panel = await openSelectionMenu(page)
       await panel.locator('.selection-menu-item', { hasText: 'Copy Card Kingdom cart CSV' }).click()
       const warning = panel.locator('.selection-menu-warning')

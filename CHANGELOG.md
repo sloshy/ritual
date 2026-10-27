@@ -976,6 +976,12 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
   has loaded) no longer leaves the header, navigation and footer in English: text drawn
   before the dictionary arrived is redrawn in the language once it does.
 
+- **The public site's header no longer overlaps itself when it runs out of room.** Above
+  phone width, the price store, language, Edit and Theme controls now move behind the **⚙**
+  button in a second row whenever the header can't fit them inline: on tablets, and on wider
+  screens when a selection button or longer labels need the space. If it is tighter still,
+  the quick switch shows its icon alone. The logo and nav links stay in the header, and
+  phones look as before.
 - Switching the language twice in quick succession on the public site or the admin site no
   longer lets the first language's dictionary, arriving last, overrule the second. The last
   switch wins, only it is remembered for the next visit, and a page closed while its boot

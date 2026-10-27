@@ -35,27 +35,32 @@ export async function expectVisibleCards(page: Page, names: string[]): Promise<v
 }
 
 /**
- * Reveal the header's utility controls (currency, Edit, Theme). Desktop renders
- * them inline, but the phone layout collapses them behind the ⚙ toggle, so any
- * test reaching for one must open that row first.
+ * Make one of the header's utility controls (price store, language, Edit,
+ * Theme) reachable and wait for it. The public header renders them inline
+ * while they fit and folds them behind the ⚙ toggle when they don't — on
+ * phones always, elsewhere whenever the row runs out of room — so this opens
+ * the ⚙ row when the control isn't on screen. The admin header never folds.
  *
- * Which layout we're in is decided from the viewport, not from whether the
- * toggle happens to be present — otherwise a toggle that stopped rendering at
- * phone width would look like "desktop, nothing to open" and surface later as
- * an unrelated missing-locator failure.
+ * Retried as a whole, so a fold that lands just after the check (a selection
+ * appearing, a language switch re-measuring) can't strand the control. On a
+ * phone the toggle must exist: a phone header that stopped folding would
+ * otherwise read as "inline, nothing to open" and fail later as an unrelated
+ * missing locator.
  */
-export async function openHeaderUtility(page: Page): Promise<void> {
-  const row = page.locator('.site-header-utility')
-  if (await row.isVisible()) return
-
+export async function openHeaderUtility(page: Page, control: Locator): Promise<void> {
   const toggle = page.locator('.header-utility-toggle')
   const phoneLayout = await page.evaluate((q) => matchMedia(q).matches, MOBILE_LAYOUT_QUERY)
-  if (!phoneLayout) {
-    await expect(toggle).toHaveCount(0)
-    return
-  }
-  await toggle.click()
-  await expect(row).toBeVisible()
+  if (phoneLayout) await expect(toggle).toBeVisible()
+  await expect(async () => {
+    if (
+      !(await control.isVisible()) &&
+      (await toggle.isVisible()) &&
+      (await toggle.getAttribute('aria-expanded')) === 'false'
+    ) {
+      await toggle.click()
+    }
+    await expect(control).toBeVisible({ timeout: 1_000 })
+  }).toPass()
 }
 
 /**
@@ -64,7 +69,7 @@ export async function openHeaderUtility(page: Page): Promise<void> {
  */
 export async function enterEditMode(page: Page, hash?: string): Promise<void> {
   if (hash !== undefined) await gotoList(page, hash)
-  await openHeaderUtility(page)
+  await openHeaderUtility(page, page.locator('.btn-edit'))
   await page.locator('.btn-edit').click()
   await expect(page.locator('.edit-banner')).toBeVisible()
 }

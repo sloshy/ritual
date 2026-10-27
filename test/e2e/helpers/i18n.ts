@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test'
+import { openHeaderUtility } from './list-ui'
 import { pseudoLocalize } from '../../../scripts/generate-locales'
 import { en, type MessageKey } from '../../../src/i18n/messages/en'
 import { enMeta } from '../../../src/i18n/messages/en.meta'
@@ -92,6 +93,22 @@ export async function holdPseudoDictionary(page: Page): Promise<() => void> {
 /** The header's language `<select>`. Hidden entirely when one locale ships. */
 export function languageSelect(page: Page): Locator {
   return page.locator('.language-switcher select')
+}
+
+/**
+ * Make the header's language picker reachable, opening the ⚙ row when the
+ * header has folded it (it often has on a bilingual site: the picker needs the
+ * room). Call it on its own only before opening a panel that an outside click
+ * would close — the click on ⚙ is one; otherwise use {@link pickLanguage}.
+ */
+export async function revealLanguageSelect(page: Page): Promise<void> {
+  await openHeaderUtility(page, languageSelect(page))
+}
+
+/** Switch the UI language through the header's picker, wherever it sits. */
+export async function pickLanguage(page: Page, tag: string): Promise<void> {
+  await revealLanguageSelect(page)
+  await languageSelect(page).selectOption(tag)
 }
 
 /**

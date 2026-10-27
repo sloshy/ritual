@@ -20,7 +20,9 @@ On phone-width screens the header slides away as you scroll down the page and co
 
 ### Display options
 
-Phones show only the logo and quick switch in the header. The **Prices** store dropdown, the **Edit** toggle, the **Theme** menu, and, on a site [built with more than one locale](/commands/build-site/#localized-builds), the **interface language** switcher move into a second row behind the **⚙** button at the top right. Tap to open it, tap again to collapse. The row stays as you left it as you navigate. Desktop keeps these controls inline.
+Phones show only the logo and quick switch in the header. The **Prices** store dropdown, the **Edit** toggle, the **Theme** menu, and, on a site [built with more than one locale](/commands/build-site/#localized-builds), the **interface language** switcher move into a second row behind the **⚙** button at the top right. Tap to open it, tap again to collapse. The row stays as you left it as you navigate.
+
+Wider screens keep these controls inline as long as the header has room for them. When it runs out (on most tablets, or on a desktop once the **All Selected** button appears or a translation's longer labels need the space), they move behind the same ⚙ button. The nav links stay in the header and the bottom tab bar stays hidden. If the header is tighter still, the quick-switch button shows only its ⌕ icon. The controls come back inline once there is room again. If even that isn't enough, as with a long translation on a narrow tablet, the nav links scroll sideways within the header instead of widening the page.
 
 **Done** appears in the slot **Edit** occupied, so leaving edit mode works where entering it did. The ⚙ button never leaves the header, so a collapsed row is always one tap away.
 

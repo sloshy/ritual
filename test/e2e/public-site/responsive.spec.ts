@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { SYNTHETIC_DECK_SLUG } from '../helpers/synthetic-workspace'
+import { headerRowOverlaps, settleLayout } from '../helpers/header'
 
 type ViewportConfig = {
   name: string
@@ -26,24 +27,19 @@ test.describe('Responsive Layout', () => {
     })
   }
 
-  // Currency, Edit, and Theme collapse behind the ⚙ toggle only in the phone
-  // layout; wider viewports must keep them inline with no toggle at all.
-  test('header utility controls collapse only in the phone layout', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 720 })
-    await page.goto('/')
-    await expect(page.locator('.deck-cover').first()).toBeVisible()
-
-    await expect(page.locator('.header-utility-toggle')).toHaveCount(0)
-    await expect(page.locator('.currency-select')).toBeVisible()
-    await expect(page.locator('.btn-edit')).toBeVisible()
-    await expect(page.locator('.theme-customize-btn')).toBeVisible()
-
-    await page.setViewportSize({ width: 375, height: 667 })
-    await expect(page.locator('.header-utility-toggle')).toBeVisible()
-    await expect(page.locator('.currency-select')).toHaveCount(0)
-    await expect(page.locator('.btn-edit')).toHaveCount(0)
-    await expect(page.locator('.theme-customize-btn')).toHaveCount(0)
-  })
+  // The header's main row positions the quick switch out of flow while it is
+  // unfolded, so a row too narrow for its controls overlaps them rather than
+  // overflowing the page — something the scrollWidth checks above cannot see.
+  // (How the header folds to avoid that is header-fit.spec.ts.)
+  for (const width of [768, 900, 1024, 1280, 1440]) {
+    test(`header row controls do not overlap at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/')
+      await expect(page.locator('.deck-cover').first()).toBeVisible()
+      await settleLayout(page)
+      expect(await headerRowOverlaps(page)).toEqual([])
+    })
+  }
 
   test('deck page is usable on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })

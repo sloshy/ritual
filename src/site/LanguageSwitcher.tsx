@@ -1,5 +1,5 @@
 // The UI-language switcher, sitting beside the theme control in the site
-// header (and, at phone widths, in the header's collapsible utility row — it
+// header (and, when the header folds, in its collapsible utility row — it
 // renders wherever `HeaderControls`' controls do, so both layouts get it from
 // one definition).
 //

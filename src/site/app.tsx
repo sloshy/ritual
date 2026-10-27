@@ -73,7 +73,7 @@ import { closeFindPrintings } from '../list-view/find-printings'
 import { FindPrintingsModal } from './FindPrintingsModal'
 import { pendingMovePrompt, closeMovePrompt } from '../list-view/move-prompt'
 import { MoveTargetPicker } from './MoveTargetPicker'
-import { createThemeStore, ThemeProvider } from './useTheme'
+import { createThemeStore, ThemeProvider, useTheme } from './useTheme'
 import { syncFaviconToTheme } from './useFavicon'
 import { FlameIcon } from './FlameIcon'
 import { ThemeEditor } from './ThemeEditor'
@@ -87,6 +87,8 @@ import { createI18nStore, I18nProvider, useI18n } from '../ui/i18n'
 import { registerSiteMessages } from '../i18n/register/site'
 import type { LocaleTag } from '../i18n/types'
 import { useMobileLayout } from '../ui/useMediaQuery'
+import { useHeaderFit } from './useHeaderFit'
+import { offeredPriceSources } from '../list-view/price-view'
 import { useHideOnScroll } from './useHideOnScroll'
 
 // The English catalog is registered per surface, not imported by the runtime:
@@ -118,8 +120,8 @@ function App() {
   // Quick switch dialog state
   const [quickSwitchOpen, setQuickSwitchOpen] = createSignal(false)
 
-  // Phone layout only: the collapsible header row holding currency, edit, and
-  // theme. Deliberately not reset on navigation — it's a display preference for
+  // Folded header only: the collapsible header row holding the price store,
+  // language, edit, and theme controls. Deliberately not reset on navigation — it's a display preference for
   // the session, not a transient dialog.
   const [headerUtilityOpen, setHeaderUtilityOpen] = createSignal(false)
 
@@ -454,6 +456,25 @@ function App() {
     pinned: () =>
       headerRef?.querySelector('[aria-expanded="true"]:not(.header-utility-toggle)') != null,
   })
+  const theme = useTheme()
+  // Above phone width the main row folds only when it runs out of room: first
+  // the utility controls move behind the ⚙ toggle, then the quick switch drops
+  // its label (see header-fit.ts). Phones always fold the utilities.
+  const headerFold = useHeaderFit({
+    header: () => headerRef,
+    enabled: () => !mobileLayout(),
+    invalidate: () => [
+      uiLocale(),
+      editMode(),
+      offeredPriceSources().length,
+      availableLocales().length,
+      theme.editorOpen(),
+      theme.theme(),
+      theme.customVars(),
+    ],
+    probeBlocked: headerUtilityOpen,
+  })
+  const utilitiesFolded = () => mobileLayout() || headerFold() !== 'full'
   // The sticky toolbar, its stuck sentinel, and the toast stack all sit under
   // the header via this var, so a hidden header hands them its space.
   createEffect(() => {
@@ -505,6 +526,7 @@ function App() {
         ref={headerRef}
         class="site-header"
         classList={{ 'site-header--hidden': headerHidden() }}
+        data-fold={mobileLayout() ? undefined : headerFold()}
       >
         <div class="site-header-main">
           <a href="#/" class="site-logo">
@@ -551,9 +573,9 @@ function App() {
               <kbd>K</kbd>
             </span>
           </button>
-          {/* Desktop keeps these inline; the phone layout moves them into the
+          {/* Inline while the row has room; folded, they move into the
               collapsible utility row below. */}
-          <Show when={!mobileLayout()}>
+          <Show when={!utilitiesFolded()}>
             <PriceStoreSelect />
             <LanguageSwitcher
               locale={uiLocale()}
@@ -577,10 +599,10 @@ function App() {
             viewScope="all"
             bulk={editMode() ? bulkActions : undefined}
           />
-          <Show when={!mobileLayout()}>
+          <Show when={!utilitiesFolded()}>
             <ThemeHeaderControls />
           </Show>
-          <Show when={mobileLayout()}>
+          <Show when={utilitiesFolded()}>
             <button
               type="button"
               class="header-utility-toggle"
@@ -599,9 +621,13 @@ function App() {
           </Show>
         </div>
 
+        {/* Spans the main row's width at zero height, whatever the row holds:
+            what useHeaderFit watches for the room it has. */}
+        <div class="site-header-measure" aria-hidden="true" />
+
         {/* Edit/Done keeps this one home in every state — the ⚙ toggle stays in
             the main row, so reopening the row is always one tap away. */}
-        <Show when={mobileLayout() && headerUtilityOpen()}>
+        <Show when={utilitiesFolded() && headerUtilityOpen()}>
           <div class="site-header-utility">
             <PriceStoreSelect />
             <LanguageSwitcher

@@ -65,7 +65,7 @@ test.describe('Mobile tab bar', () => {
     await gotoList(page, '#/deck/test-multi-section-deck')
     await expect(page.locator('.mobile-tabbar')).toBeVisible()
 
-    await openHeaderUtility(page)
+    await openHeaderUtility(page, page.locator('.btn-edit'))
     await page.locator('.btn-edit').click()
     await expect(page.locator('.editor-action-dock')).toBeVisible()
     await expect(page.locator('.mobile-tabbar')).toHaveCount(0)
@@ -103,8 +103,8 @@ test.describe('Header utility row', () => {
   })
 
   test('Edit and Done share the same slot, reachable again via the toggle', async ({ page }) => {
-    await openHeaderUtility(page)
     const row = page.locator('.site-header-utility')
+    await openHeaderUtility(page, row.locator('.btn-edit'))
     await expect(row.locator('.btn-edit')).toHaveText(/Edit/)
     await row.locator('.btn-edit').click()
     await expect(page.locator('.edit-banner')).toBeVisible()
@@ -124,7 +124,7 @@ test.describe('Header utility row', () => {
   })
 
   test('the row survives navigation', async ({ page }) => {
-    await openHeaderUtility(page)
+    await openHeaderUtility(page, page.locator('.site-header-utility'))
     await page.locator('.mobile-tab', { hasText: 'Collections' }).click()
     await expect(page.locator('h1')).toContainText('My Collections')
     await expect(page.locator('.site-header-utility')).toBeVisible()
@@ -468,7 +468,7 @@ test.describe('Header on scroll', () => {
   })
 
   test('stays put while a popover anchored in it is open', async ({ page }) => {
-    await openHeaderUtility(page)
+    await openHeaderUtility(page, page.locator('.theme-customize-btn'))
     await page.locator('.theme-customize-btn').click()
     await expect(page.locator('.theme-customize-btn')).toHaveAttribute('aria-expanded', 'true')
 
