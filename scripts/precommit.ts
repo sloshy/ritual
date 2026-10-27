@@ -17,21 +17,21 @@
  *     dependencies changed.
  *
  * All modes build assets only (`build:assets`) rather than the full
- * `--compile` binary — type checking and format checking read the bundled
- * CSS/JS and generated licenses, but never the compiled executable. The binary
- * is built only by `test:it` / `test:e2e`, which actually exercise it.
+ * `--compile` binary — the type check reads the generated modules
+ * (`src/generated/*.ts`), but never the compiled executable. The binary is
+ * built only by `test:it` / `test:e2e`, which actually exercise it.
  *
  * Scheduling: `build:assets` writes the generated assets (`src/generated/*.ts`,
  * `*.compiled.js`, `*.compiled.css`). Only checks that READ those assets must
  * wait for it — flagged with `needsBuild`. Everything else (lint always ignores
- * the generated assets; unit tests don't touch them; staged-scoped format only
- * sees staged files, which never include the git-ignored generated assets) runs
- * concurrently with the build.
+ * the generated assets; unit tests don't touch them; `bun fmt` skips every
+ * git-ignored path, which all the generated assets are) runs concurrently with
+ * the build.
  *
- * Speed flags: unit tests run with `--parallel` (worker-per-core), tsc is
- * incremental (`"incremental": true` in tsconfig, dependency-graph aware so it
- * is safe everywhere), and lint uses `--concurrency auto` (multithreaded) plus
- * `--cache` in the local-loop modes.
+ * Speed flags: unit tests run with `--parallel` (worker-per-core), the type
+ * check is `bun check` (Bun's native checker, a second or two for the whole
+ * project), and lint uses `--concurrency auto` (multithreaded) plus `--cache`
+ * in the local-loop modes.
  *
  * Stall guard: a check with `stallTimeoutMs` runs in its own process group; a
  * run that outlives the limit has the whole group killed and is retried once.
@@ -121,6 +121,17 @@ const LOCALES_CHECK: Check = {
 }
 
 /**
+ * Bun's native type checker. `needsBuild`: the sources import the generated
+ * `src/generated/*.ts` modules, which only the build writes. `--no-script`
+ * keeps it the checker even if package.json ever gains a `check` script.
+ */
+const TYPECHECK: Check = {
+  name: 'typecheck',
+  cmd: ['bun', 'check', '--no-script'],
+  needsBuild: true,
+}
+
+/**
  * The unit suite, run with missing message keys and missing plural/select
  * parameters made fatal.
  *
@@ -139,7 +150,8 @@ const UNIT_TEST_CHECK: Check = {
   cmd: ['bun', 'test', 'test/unit', '--parallel'],
   needsBuild: false,
   env: { RITUAL_I18N_STRICT: '1' },
-  // The suite takes well under 15s. Bun 1.4.2's `spawnSync` can spin a
+  // The suite takes about 11s alone, nearer 20s beside lint and the build.
+  // Bun 1.4.2's `spawnSync` (possibly later versions' too) can spin a
   // `--parallel` worker forever (see `test/preload.ts`), and a spinning worker
   // never trips the per-test timeout — so a hang would otherwise stall the
   // commit (or the agent session running it) indefinitely.
@@ -193,16 +205,15 @@ async function planChecks(mode: Mode): Promise<Plan> {
       return {
         runBuild: true,
         checks: [
-          { name: 'typecheck', cmd: ['bunx', 'tsc', '--noEmit'], needsBuild: true },
+          TYPECHECK,
           // Cold (no --cache): type-aware rules can otherwise return a stale pass
           // for a file whose type dependencies changed but whose own bytes did not.
           { name: 'lint', cmd: ['bun', 'run', 'lint'], needsBuild: false },
           LOCALES_CHECK,
           baselineGuard(false),
           UNIT_TEST_CHECK,
-          // Whole-repo prettier reads `app.compiled.js` / admin compiled CSS,
-          // which are not in `.prettierignore`, so it must wait for the build.
-          { name: 'format', cmd: ['bun', 'run', 'check-format'], needsBuild: true },
+          // `bun fmt` reads `.gitignore`, so the build's outputs are never in scope.
+          { name: 'format', cmd: ['bun', 'fmt', '--no-script', '--check'], needsBuild: false },
         ],
       }
 
@@ -210,7 +221,7 @@ async function planChecks(mode: Mode): Promise<Plan> {
       return {
         runBuild: true,
         checks: [
-          { name: 'typecheck', cmd: ['bunx', 'tsc', '--noEmit'], needsBuild: true },
+          TYPECHECK,
           // Local edit loop: --cache turns repeat runs from ~16s into <1s. The
           // stale-pass risk it carries for type-aware rules is acceptable here;
           // `verify` (full mode) runs cold as the correctness gate.
@@ -241,7 +252,10 @@ async function planChecks(mode: Mode): Promise<Plan> {
       if (staged.length > 0) {
         checks.push({
           name: 'format',
-          cmd: ['bunx', 'prettier', '--check', '--ignore-unknown', ...staged],
+          // --no-script: a `fmt` script in package.json would otherwise run
+          // instead. --ignore-unknown: a staged shell script or image is not
+          // an error.
+          cmd: ['bun', 'fmt', '--no-script', '--check', '--ignore-unknown', ...staged],
           needsBuild: false,
         })
         // Not gated on code files: a translator's commit touches only
@@ -265,7 +279,7 @@ async function planChecks(mode: Mode): Promise<Plan> {
             ],
             needsBuild: false,
           },
-          { name: 'typecheck', cmd: ['bunx', 'tsc', '--noEmit'], needsBuild: true },
+          TYPECHECK,
           UNIT_TEST_CHECK,
         )
       }
@@ -420,7 +434,7 @@ async function main(): Promise<void> {
     console.error(`\n──── ${result.name} output ────\n${result.output}`)
   }
   if (buildResult && !buildResult.ok && dependent.length > 0) {
-    console.error('\n(skipped type check / format check because the build failed)')
+    console.error('\n(skipped the type check because the build failed)')
   }
 
   const label: Record<Mode, string> = { full: 'verify', test: 'test', staged: 'pre-commit' }

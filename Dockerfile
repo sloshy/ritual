@@ -1,6 +1,6 @@
 # The Bun that builds the binary: the one .bun-version names, which CI uses
 # (test/unit/release-contract.test.ts keeps them equal).
-ARG BUN_VERSION=1.4.2
+ARG BUN_VERSION=1.4.4
 
 # Stage 1: Build
 FROM oven/bun:${BUN_VERSION}-alpine AS builder

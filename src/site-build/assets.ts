@@ -21,8 +21,9 @@ export type SiteSpaAssets = {
 
 export async function buildSiteSpaFromSource(): Promise<SiteSpaAssets> {
   const { SolidPlugin } = await import('@dschz/bun-plugin-solid')
-  // A filesystem coupling to the SPA's sources, not an import: neither tsc nor
-  // eslint's layering rule sees it, so `src/site` moving means editing this.
+  // A filesystem coupling to the SPA's sources, not an import: neither the type
+  // checker nor eslint's layering rule sees it, so `src/site` moving means
+  // editing this.
   const siteSrcDir = path.join(import.meta.dir, '..', 'site')
   const appSvgPath = path.join(import.meta.dir, '..', '..', 'app.svg')
 

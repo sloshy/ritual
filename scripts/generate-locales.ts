@@ -2,8 +2,8 @@
 /**
  * Locale codegen.
  *
- * Two jobs, both of which have to happen before `tsc` and before the binary is
- * compiled:
+ * Two jobs, both of which have to happen before the type check and before the
+ * binary is compiled:
  *
  * 1. **Bake the shipped dictionaries into `src/generated/locales.ts`** — a
  *    plain TS data module, following the `src/generated/dep-licenses.ts`
@@ -257,7 +257,7 @@ export function renderLocalesModule(baked: readonly BakedLocale[]): string {
 
 /**
  * Render `src/generated/messages.ts` — the type-table bailout. If literal-type
- * placeholder extraction ever costs too much `tsc` time, `t()` switches to
+ * placeholder extraction ever costs too much type-check time, `t()` switches to
  * reading this generated table instead of inferring from the `as const`
  * catalog. Call sites do not change.
  */
@@ -267,9 +267,9 @@ export function renderMessageTypesModule(english: MessageCatalogShape): string {
     '',
     '/**',
     ' * Per-key parameter names, extracted from the English catalog. The bailout',
-    ' * path for `src/i18n/t.ts`: a plain',
-    ' * mapped type costs `tsc` nothing, where template-literal extraction over a',
-    ' * few thousand literals is measurable.',
+    ' * path for `src/i18n/t.ts`: a plain mapped type costs the type checker',
+    ' * nothing, where template-literal extraction over a few thousand literals',
+    ' * is measurable.',
     ' */',
     'export type GeneratedMessageParams = {',
   ]

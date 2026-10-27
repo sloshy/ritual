@@ -10,7 +10,9 @@
  * `minRequestIntervalMs`, which beats the environment.
  */
 
+import { plugin } from 'bun'
 import { afterEach, beforeEach } from 'bun:test'
+import { SolidPlugin } from '@dschz/bun-plugin-solid'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -18,6 +20,18 @@ import prompts from 'prompts'
 import { registerCliMessages } from '../src/i18n/register/cli'
 
 process.env.RITUAL_ARCHIDEKT_MIN_INTERVAL_MS = '0'
+
+/**
+ * Compile `.tsx` with Solid's own JSX transform. Since Bun 1.4.3, Bun's built-in
+ * transpiler turns `jsxImportSource: "solid-js"` into an automatic-runtime
+ * `import { jsx } from 'solid-js/jsx-runtime'`, which solid-js does not provide
+ * at runtime (that export is types only), so every suite reaching a component
+ * fails to link. The bundled SPAs already go through this plugin. `generate:
+ * 'ssr'` because `bun test` resolves solid-js to its server build. Awaited so
+ * registration has finished before any suite loads — but this file's own
+ * static imports are hoisted above it, so they must never reach a `.tsx`.
+ */
+await plugin(SolidPlugin({ generate: 'ssr', hydratable: false, sourceMaps: 'inline' }))
 
 /**
  * Pin the from-source version (`src/config/version.ts`) so no suite spawns

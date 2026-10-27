@@ -2,7 +2,7 @@
  * The English catalog: the single type source for every message key and every
  * message parameter in the project. Translations are shipped as validated JSON
  * data with the same keys, so English is the only catalog authored in
- * TypeScript — a stale `t()` call site is a `tsc` error rather than a runtime
+ * TypeScript — a stale `t()` call site is a type error rather than a runtime
  * surprise.
  *
  * English is imported directly by the CLI and by both SPAs, so the default path
@@ -114,8 +114,9 @@ type NamespaceOf<K> = K extends `${infer N}.${string}` ? N : never
 
 /**
  * A namespace prefix of a message key — derived from the keys themselves, so a
- * key whose prefix is not a real namespace (`'clii.foo.bar'`) fails `tsc` rather
- * than waiting for `MESSAGE_KEY_PATTERN` in `scripts/check-locales.ts`.
+ * key whose prefix is not a real namespace (`'clii.foo.bar'`) fails the type
+ * check rather than waiting for `MESSAGE_KEY_PATTERN` in
+ * `scripts/check-locales.ts`.
  */
 export type MessageNamespace = NamespaceOf<MessageKey>
 

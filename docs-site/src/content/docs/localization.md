@@ -220,7 +220,7 @@ Each prefixed build still carries English, so `dist/de/` opens in German with `e
 
 ## Contributing a locale
 
-Translators never touch TypeScript and never run `tsc`. English lives in `src/i18n/messages/en/*.ts` because it is the type source; every other language is a flat JSON file in `locales/`.
+Translators never touch TypeScript and never run the type checker. English lives in `src/i18n/messages/en/*.ts` because it is the type source; every other language is a flat JSON file in `locales/`.
 
 ```sh
 bun run scripts/check-locales.ts --emit-template de   # writes locales/de.json + de.meta.json

@@ -80,7 +80,7 @@ bun run test:it    # integration tests (builds the binary)
 bun run test:e2e   # Playwright (run `bunx playwright install chromium` once first)
 bun run verify     # the whole-repo gate: `test` plus cold lint and formatting
 bun run lint:repo  # shellcheck, actionlint, hadolint, typos
-bun run format     # Prettier, before you commit
+bun run format     # bun fmt, before you commit
 ```
 
 CI runs all of these on every pull request, plus the docs-site build and a smoke test of every release binary on its own platform. The pull request template has a checklist of the above.

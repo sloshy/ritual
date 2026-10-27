@@ -8,7 +8,8 @@
 # Each tool is a prebuilt release binary from its GitHub releases page, kept
 # under .tools/<tool>-<version>/ and linked from .tools/bin/, so bumping a
 # version below installs the new one beside the old. Linux and macOS, x86_64
-# and arm64. Prettier, ESLint and tsc come from bun.lock instead.
+# and arm64. ESLint comes from bun.lock instead; Bun itself formats and
+# type-checks.
 set -euo pipefail
 
 TYPOS=1.50.2

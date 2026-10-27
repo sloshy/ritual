@@ -3,7 +3,7 @@
  * Message-catalog validator.
  *
  * English is authored in TypeScript (`src/i18n/messages/en/*.ts`), so a stale
- * `t()` call site is already a `tsc` error. Everything a *translation* can get
+ * `t()` call site is already a type error. Everything a *translation* can get
  * wrong is invisible to the compiler, because translations ship as JSON data —
  * that is what this script checks. It runs as a `needsBuild: false` check in
  * `scripts/precommit.ts`, and therefore in `bun run test` and `bun run verify`
@@ -789,8 +789,8 @@ function sourceFiles(root: string): string[] {
  * a reviewer can spot. A false *positive* fails `bun run test` for everyone over
  * a key that is genuinely wired, and stripping comments correctly (without
  * mangling `//` inside strings, regexes and URLs) needs a real parser. Anything
- * more precise than this belongs in `tsc`, which already catches the opposite
- * direction — a call site naming a key the catalog does not have.
+ * more precise than this belongs in the type checker, which already catches
+ * the opposite direction — a call site naming a key the catalog does not have.
  */
 export async function scanMessageReferences(root: string = ROOT): Promise<Set<string>> {
   const keys = new Set<string>()

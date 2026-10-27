@@ -961,6 +961,10 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
   script that read `applied` as strings to read `.message`, and match on `messageKey`.**
 - **`history`'s set picker finds a set by its ISO timestamp too.** The rows show each set's
   local date and time, and typing an ISO-8601 fragment (`2026-05-29`) still finds the set.
+- **Running or building Ritual from source needs Bun 1.4.4** (`.bun-version`); update Bun
+  before your next `bun install`. Contributors format with `bun fmt` and type-check with
+  `bun check` (`bun run format`, `bun run test` and `bun run verify` use them), and Prettier
+  is no longer a dependency. The release binaries are unaffected.
 
 ### Fixed
 

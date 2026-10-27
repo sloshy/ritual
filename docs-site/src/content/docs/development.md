@@ -7,7 +7,7 @@ How to set up the project for local development and contribute to the codebase.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) 1.4.2, the version `.bun-version` pins for CI and the Docker build
+- [Bun](https://bun.sh) 1.4.4, the version `.bun-version` pins for CI and the Docker build
 - Node.js 22.12 or newer (for the Starlight docs site)
 
 ## Setup
@@ -89,7 +89,7 @@ RITUAL_SOURCE_URL=https://github.com/you/ritual bun run build
 
 The value must be an `http(s)` URL. The links take the form `<url>/tree/<tag or commit>`, which GitHub, GitLab, Gitea, and Forgejo all serve. The Docker build takes it as a build argument (`--build-arg RITUAL_SOURCE_URL=…`), and `scripts/build-docker.sh` passes it through.
 
-To regenerate only the bundled front-end assets and license file that the type check reads, without the slower `--compile` step:
+To regenerate only the bundled front-end assets and the generated modules the type check reads (`src/generated/`: licenses and baked locales), without the slower `--compile` step:
 
 ```bash
 bun run build:assets
@@ -109,7 +109,7 @@ This project uses `bun test`.
 bun run test
 ```
 
-Unit tests run with `--parallel` (one worker per core), the type check is incremental, and lint uses `--concurrency auto` plus `--cache`, so repeat runs take a few seconds. It does **not** check formatting; use `bun run check-format` or `bun run verify` for that.
+Unit tests run with `--parallel` (one worker per core), the type check is Bun's native checker (`bun check`), and lint uses `--concurrency auto` plus `--cache`, so repeat runs take a few seconds. It does **not** check formatting; use `bun run check-format` or `bun run verify` for that.
 
 ### Integration Tests
 
@@ -161,12 +161,14 @@ ritual/
 
 ## Code Style
 
-This project uses Prettier:
+This project formats with `bun fmt`, Bun's Prettier-compatible formatter, which reads `.prettierrc` and `.prettierignore` (and skips everything in `.gitignore`). The type check is `bun check`; the `typescript` package stays installed only for ESLint and editors.
 
 ```bash
 bun run format        # Format all files
 bun run check-format  # Check formatting
 ```
+
+For format-on-save, point your editor at `bun fmt` or at any Prettier-compatible formatter; both read the same `.prettierrc`.
 
 ## Pre-commit Hook
 
@@ -177,7 +179,7 @@ bun run precommit     # Hook: lint/format STAGED files; build + typecheck + unit
 bun run verify        # Full: lint/format the ENTIRE repo (use before pushing / in CI)
 ```
 
-Both commands, and `bun run test`, share one orchestrator (`scripts/precommit.ts`) that runs the checks concurrently. The assets-only build runs alongside the build-independent checks (lint, unit tests, staged-scoped format). Only the checks that read build-generated assets (the type check, and the whole-repo format check in `verify`) wait for the build.
+Both commands, and `bun run test`, share one orchestrator (`scripts/precommit.ts`) that runs the checks concurrently. The assets-only build runs alongside the build-independent checks (lint, unit tests, staged-scoped format). Only the type check, which reads the build-generated modules, waits for the build.
 
 One build-independent check is the **message-catalog validator** (`scripts/check-locales.ts`). It validates every file in `locales/` against the English catalog: placeholders, plural categories, length budgets. It runs in all three modes, so a broken translation cannot be committed. Run it alone while working on a locale:
 
@@ -190,14 +192,14 @@ See [Localization → Contributing a locale](/localization/#contributing-a-local
 How the three modes differ:
 
 - `bun run precommit` and `bun run test` add `--cache` to lint for a fast local loop. `bun run verify` runs lint **cold**, because type-aware rules can return a stale pass for a file whose type dependencies changed but whose own contents did not.
-- `bun run precommit` scopes **lint** and **format** to the staged files. The build, type check, and unit tests still run over the whole project. When no `.js`/`.ts`/`.tsx` files are staged, only the staged files' format check and the message-catalog check run.
+- `bun run precommit` scopes **lint** and **format** to the staged files. The build, type check, and unit tests still run over the whole project. When no `.js`/`.ts`/`.tsx` files are staged, only the staged files' format check, the message-catalog check, and the untranslated-baseline guard run.
 - `bun run verify` lints and formats the entire repository. Run it before pushing to catch drift in files a commit did not touch; CI runs it on every pull request.
 
 > **Note:** the hook checks the working-tree version of staged files. If you stage only part of a file (`git add -p`), the unstaged remainder is included in lint/format. Run `bun run verify` for an airtight whole-repo check.
 
 ## Repository Lints
 
-`bun run lint:repo` runs the linters that cover what ESLint and Prettier do not: [shellcheck](https://www.shellcheck.net/) over `scripts/*.sh`, [actionlint](https://github.com/rhysd/actionlint) over the workflows, [hadolint](https://github.com/hadolint/hadolint) over the `Dockerfile`, and [typos](https://github.com/crate-ci/typos) over everything. `scripts/tools.sh` downloads each one, at the version CI uses, into `.tools/` on first run (Linux and macOS). A word typos flags that is deliberate, such as a search prefix a test types, goes in `_typos.toml`.
+`bun run lint:repo` runs the linters that cover what ESLint and `bun fmt` do not: [shellcheck](https://www.shellcheck.net/) over `scripts/*.sh`, [actionlint](https://github.com/rhysd/actionlint) over the workflows, [hadolint](https://github.com/hadolint/hadolint) over the `Dockerfile`, and [typos](https://github.com/crate-ci/typos) over everything. `scripts/tools.sh` downloads each one, at the version CI uses, into `.tools/` on first run (Linux and macOS). A word typos flags that is deliberate, such as a search prefix a test types, goes in `_typos.toml`.
 
 ## Continuous Integration
 

@@ -33,7 +33,7 @@ permissions:
 
 jobs:
   verify:
-    name: Verify (build, tsc, lint, locales, unit, format)
+    name: Verify (build, type check, lint, locales, unit, format)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

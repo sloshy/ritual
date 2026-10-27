@@ -178,8 +178,8 @@ describe('readSyncMessage', () => {
 
 describe('NotAMessage', () => {
   test('refuses a parsed type any member of which could pass for a refusal', () => {
-    // Type-level: `tsc` checks these lines; the runtime assertion only keeps the
-    // test from being empty.
+    // Type-level: the type check covers these lines; the runtime assertion only
+    // keeps the test from being empty.
     type Plain = NotAMessage<ParsedA | ParsedB>
     type WithMessage = NotAMessage<ParsedA | ParsedWithMessage>
     const plain: Plain = 'any value fits'
