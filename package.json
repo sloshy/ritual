@@ -34,26 +34,26 @@
     "ritual": "./index.ts"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.6",
-    "@babel/preset-typescript": "^8.0.1",
+    "@babel/core": "^8.0.9",
+    "@babel/preset-typescript": "^8.0.7",
     "@dschz/bun-plugin-solid": "^1.0.4",
     "@eslint/js": "^10.0.1",
     "@modelcontextprotocol/client": "^2.4.0",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.1",
     "@types/bun": "^1.4.4",
     "@types/js-yaml": "^4.0.9",
     "@types/prompts": "^2.4.9",
-    "@typescript-eslint/rule-tester": "^8.71.0",
-    "babel-preset-solid": "^1.9.15",
+    "@typescript-eslint/rule-tester": "^8.72.0",
+    "babel-preset-solid": "^1.9.16",
     "commander": "^15.0.0",
-    "eslint": "^10.11.0",
+    "eslint": "^10.13.0",
     "globals": "^17.13.0",
     "gray-matter": "^4.0.3",
     "husky": "^9.1.7",
     "prompts": "^2.4.2",
-    "solid-js": "^1.9.15",
+    "solid-js": "^1.9.17",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.0"
+    "typescript-eslint": "^8.72.0"
   },
   "peerDependencies": {},
   "dependencies": {
@@ -62,7 +62,7 @@
     "parse-torrent": "^11.0.24",
     "webrtc-polyfill": "./vendor/webrtc-polyfill",
     "webtorrent": "^3.0.21",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "overrides": {
     "webrtc-polyfill": "file:./vendor/webrtc-polyfill"
