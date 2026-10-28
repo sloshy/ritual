@@ -1,6 +1,6 @@
 {
   "name": "ritual",
-  "version": "0.1.0",
+  "version": "0.1.0-rc3",
   "description": "Your Magic: The Gathering decks and collection as plain files: price them, sync them, and publish them as your own website.",
   "module": "index.ts",
   "type": "module",
