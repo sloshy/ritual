@@ -1,0 +1,237 @@
+{
+  "order": [
+    "Token Makers",
+    "Draw",
+    "Ramp",
+    "Counterspells",
+    "Finishers",
+    "Tutors",
+    "Recursion",
+    "Utility",
+    "Combo",
+    "Protection",
+    "Board Wipes",
+    "Removal",
+    "Lifegain"
+  ],
+  "cards": {
+    "Aetherflux Reservoir": [
+      "Combo",
+      "Lifegain"
+    ],
+    "Aetherize": [
+      "Board Wipes"
+    ],
+    "An Offer You Can't Refuse": [
+      "Counterspells"
+    ],
+    "Arcane Denial": [
+      "Counterspells"
+    ],
+    "Arcane Signet": [
+      "Ramp"
+    ],
+    "Archmage Emeritus": [
+      "Draw"
+    ],
+    "Baral, Chief of Compliance": [
+      "Ramp",
+      "Counterspells"
+    ],
+    "Brainstorm": [
+      "Draw"
+    ],
+    "Chain of Vapor": [
+      "Removal"
+    ],
+    "Chart a Course": [
+      "Draw"
+    ],
+    "Consider": [
+      "Draw"
+    ],
+    "Counterspell": [
+      "Counterspells"
+    ],
+    "Cyclonic Rift": [
+      "Board Wipes",
+      "Removal"
+    ],
+    "Deep Analysis": [
+      "Draw"
+    ],
+    "Dig Through Time": [
+      "Draw"
+    ],
+    "Dispel": [
+      "Counterspells"
+    ],
+    "Evacuation": [
+      "Board Wipes"
+    ],
+    "Expropriate": [
+      "Finishers"
+    ],
+    "Fact or Fiction": [
+      "Draw"
+    ],
+    "Fierce Guardianship": [
+      "Counterspells",
+      "Protection"
+    ],
+    "Flusterstorm": [
+      "Counterspells"
+    ],
+    "Force of Will": [
+      "Counterspells",
+      "Protection"
+    ],
+    "Frantic Search": [
+      "Draw",
+      "Ramp"
+    ],
+    "Ghostly Flicker": [
+      "Recursion"
+    ],
+    "Gitaxian Probe": [
+      "Draw"
+    ],
+    "Gush": [
+      "Draw"
+    ],
+    "Haughty Djinn": [
+      "Finishers"
+    ],
+    "High Tide": [
+      "Ramp",
+      "Combo"
+    ],
+    "Impulse": [
+      "Draw"
+    ],
+    "Into the Roil": [
+      "Removal"
+    ],
+    "Ledger Shredder": [
+      "Draw"
+    ],
+    "Mana Drain": [
+      "Counterspells",
+      "Ramp"
+    ],
+    "Mana Leak": [
+      "Counterspells"
+    ],
+    "Merchant Scroll": [
+      "Tutors"
+    ],
+    "Mind Stone": [
+      "Ramp"
+    ],
+    "Murmuring Mystic": [
+      "Token Makers"
+    ],
+    "Mystic Confluence": [
+      "Draw",
+      "Counterspells"
+    ],
+    "Mystic Remora": [
+      "Draw"
+    ],
+    "Mystic Sanctuary": [
+      "Recursion"
+    ],
+    "Mystical Tutor": [
+      "Tutors"
+    ],
+    "Narset's Reversal": [
+      "Counterspells",
+      "Utility"
+    ],
+    "Negate": [
+      "Counterspells"
+    ],
+    "Opt": [
+      "Draw"
+    ],
+    "Otawara, Soaring City": [
+      "Removal"
+    ],
+    "Pact of Negation": [
+      "Counterspells",
+      "Protection"
+    ],
+    "Personal Tutor": [
+      "Tutors"
+    ],
+    "Ponder": [
+      "Draw"
+    ],
+    "Pongify": [
+      "Removal"
+    ],
+    "Preordain": [
+      "Draw"
+    ],
+    "Rapid Hybridization": [
+      "Removal"
+    ],
+    "Remand": [
+      "Counterspells"
+    ],
+    "Rhystic Study": [
+      "Draw"
+    ],
+    "Sapphire Medallion": [
+      "Ramp"
+    ],
+    "Shark Typhoon": [
+      "Token Makers",
+      "Finishers"
+    ],
+    "Sky Diamond": [
+      "Ramp"
+    ],
+    "Snap": [
+      "Removal",
+      "Ramp"
+    ],
+    "Snapcaster Mage": [
+      "Recursion"
+    ],
+    "Sol Ring": [
+      "Ramp"
+    ],
+    "Spellseeker": [
+      "Tutors"
+    ],
+    "Sublime Epiphany": [
+      "Counterspells"
+    ],
+    "Swan Song": [
+      "Counterspells"
+    ],
+    "Thassa's Oracle": [
+      "Combo",
+      "Finishers"
+    ],
+    "Thought Vessel": [
+      "Ramp"
+    ],
+    "Tolarian Terror": [
+      "Finishers"
+    ],
+    "Treasure Cruise": [
+      "Draw"
+    ],
+    "Twincast": [
+      "Utility"
+    ],
+    "Vendilion Clique": [
+      "Utility"
+    ],
+    "Windfall": [
+      "Draw"
+    ]
+  }
+}

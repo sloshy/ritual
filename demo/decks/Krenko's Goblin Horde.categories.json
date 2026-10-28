@@ -1,0 +1,261 @@
+{
+  "order": [
+    "Goblins",
+    "Utility",
+    "Tutors",
+    "Finishers",
+    "Lords",
+    "Ramp",
+    "Token Makers",
+    "Draw",
+    "Removal",
+    "Combo",
+    "Protection",
+    "Recursion",
+    "Board Wipes",
+    "Burn",
+    "Sac Outlets"
+  ],
+  "cards": {
+    "Abrade": [
+      "Removal"
+    ],
+    "Arcane Signet": [
+      "Ramp"
+    ],
+    "Battle Cry Goblin": [
+      "Lords",
+      "Token Makers"
+    ],
+    "Beetleback Chief": [
+      "Token Makers",
+      "Goblins"
+    ],
+    "Blasphemous Act": [
+      "Board Wipes"
+    ],
+    "Castle Embereth": [
+      "Finishers"
+    ],
+    "Cavern of Souls": [
+      "Utility"
+    ],
+    "Chaos Warp": [
+      "Removal"
+    ],
+    "Coat of Arms": [
+      "Finishers"
+    ],
+    "Conspicuous Snoop": [
+      "Draw",
+      "Goblins"
+    ],
+    "Fiery Confluence": [
+      "Removal",
+      "Burn"
+    ],
+    "Fire Diamond": [
+      "Ramp"
+    ],
+    "Gamble": [
+      "Tutors"
+    ],
+    "Goblin Bombardment": [
+      "Combo",
+      "Finishers"
+    ],
+    "Goblin Bushwhacker": [
+      "Finishers",
+      "Goblins"
+    ],
+    "Goblin Chainwhirler": [
+      "Removal",
+      "Goblins"
+    ],
+    "Goblin Chieftain": [
+      "Lords",
+      "Goblins"
+    ],
+    "Goblin Cratermaker": [
+      "Removal",
+      "Goblins"
+    ],
+    "Goblin Dark-Dwellers": [
+      "Recursion",
+      "Goblins"
+    ],
+    "Goblin Engineer": [
+      "Tutors",
+      "Goblins"
+    ],
+    "Goblin Instigator": [
+      "Token Makers",
+      "Goblins"
+    ],
+    "Goblin King": [
+      "Lords",
+      "Goblins"
+    ],
+    "Goblin Lackey": [
+      "Goblins",
+      "Utility"
+    ],
+    "Goblin Matron": [
+      "Tutors",
+      "Goblins"
+    ],
+    "Goblin Rabblemaster": [
+      "Token Makers",
+      "Goblins"
+    ],
+    "Goblin Recruiter": [
+      "Tutors",
+      "Goblins"
+    ],
+    "Goblin Ringleader": [
+      "Draw",
+      "Goblins"
+    ],
+    "Goblin Sharpshooter": [
+      "Removal",
+      "Goblins"
+    ],
+    "Goblin Trashmaster": [
+      "Removal",
+      "Goblins"
+    ],
+    "Goblin Warchief": [
+      "Lords",
+      "Ramp"
+    ],
+    "Goblin Warrens": [
+      "Token Makers"
+    ],
+    "Hordeling Outburst": [
+      "Token Makers"
+    ],
+    "Ib Halfheart, Goblin Tactician": [
+      "Sac Outlets",
+      "Goblins"
+    ],
+    "Impact Tremors": [
+      "Finishers",
+      "Burn"
+    ],
+    "Jeska's Will": [
+      "Ramp",
+      "Draw"
+    ],
+    "Krenko, Tin Street Kingpin": [
+      "Token Makers",
+      "Goblins"
+    ],
+    "Krenko's Command": [
+      "Token Makers"
+    ],
+    "Legion Loyalist": [
+      "Protection",
+      "Goblins"
+    ],
+    "Legion Warboss": [
+      "Token Makers",
+      "Goblins"
+    ],
+    "Light Up the Stage": [
+      "Draw"
+    ],
+    "Lightning Bolt": [
+      "Removal",
+      "Burn"
+    ],
+    "Lightning Greaves": [
+      "Protection"
+    ],
+    "Mind Stone": [
+      "Ramp"
+    ],
+    "Mogg Fanatic": [
+      "Removal",
+      "Goblins"
+    ],
+    "Mogg Infestation": [
+      "Token Makers"
+    ],
+    "Mogg War Marshal": [
+      "Token Makers",
+      "Goblins"
+    ],
+    "Moggcatcher": [
+      "Tutors"
+    ],
+    "Muxus, Goblin Grandee": [
+      "Finishers",
+      "Goblins"
+    ],
+    "Outpost Siege": [
+      "Draw"
+    ],
+    "Pashalik Mons": [
+      "Combo",
+      "Goblins"
+    ],
+    "Purphoros, God of the Forge": [
+      "Finishers"
+    ],
+    "Reckless Impulse": [
+      "Draw"
+    ],
+    "Rogue's Passage": [
+      "Utility"
+    ],
+    "Ruby Medallion": [
+      "Ramp"
+    ],
+    "Rundvelt Hordemaster": [
+      "Draw",
+      "Goblins"
+    ],
+    "Shared Animosity": [
+      "Finishers"
+    ],
+    "Siege-Gang Commander": [
+      "Token Makers",
+      "Goblins"
+    ],
+    "Skirk Fire Marshal": [
+      "Board Wipes",
+      "Goblins"
+    ],
+    "Skirk Prospector": [
+      "Ramp",
+      "Goblins"
+    ],
+    "Skullclamp": [
+      "Draw"
+    ],
+    "Sol Ring": [
+      "Ramp"
+    ],
+    "Swiftfoot Boots": [
+      "Protection"
+    ],
+    "Thought Vessel": [
+      "Ramp"
+    ],
+    "Throne of the God-Pharaoh": [
+      "Finishers"
+    ],
+    "Valakut Exploration": [
+      "Draw"
+    ],
+    "Vandalblast": [
+      "Board Wipes"
+    ],
+    "Wayfarer's Bauble": [
+      "Ramp"
+    ],
+    "Wheel of Fortune": [
+      "Draw"
+    ]
+  }
+}

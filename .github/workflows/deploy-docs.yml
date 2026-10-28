@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  # Weekly rebuild, so the demo site's prices stay current between pushes.
+  schedule:
+    - cron: '0 6 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -21,6 +24,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # Full history and tags, so the Ritual built below names its version
+          # (`git describe`) in the demo site's footer.
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -37,6 +44,33 @@ jobs:
 
       - name: Build site
         run: cd docs-site && npm run build
+
+      # The live demo (https://ritual.rpeters.dev/demo/): the `demo/` workspace
+      # built by Ritual from this commit, published beside the docs. It runs
+      # after the Astro build, which empties docs-site/dist. `--out-dir` resolves
+      # against the workspace, hence the absolute path.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - name: Build Ritual
+        run: bun run build
+
+      # The Scryfall card cache is keyed by UTC day. `--refresh auto` re-runs the
+      # ~75 MB bulk download once the last one is a day old, so the first build
+      # each day downloads fresh card data and later builds that day reuse it.
+      - name: Cache day
+        id: cache-day
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - name: Restore demo card cache
+        uses: actions/cache@v6
+        with:
+          path: demo/cache
+          key: demo-card-cache-${{ steps.cache-day.outputs.day }}
+          restore-keys: demo-card-cache-
+
+      - name: Build demo site
+        run: ./ritual --base-dir demo --no-input build-site --refresh auto --out-dir "$GITHUB_WORKSPACE/docs-site/dist/demo"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5

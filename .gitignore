@@ -44,6 +44,8 @@ ritual.map
 /wanted/
 /exports/
 ritual.config.json
+# The demo workspace (demo/) commits its config; its own .gitignore covers the rest
+!demo/ritual.config.json
 
 .vscode/
 

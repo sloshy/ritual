@@ -4,6 +4,8 @@
 
 An all-in-one toolkit for Magic: The Gathering for your CLI and self-hosting needs.
 
+See what a published site looks like in the [live demo](https://ritual.rpeters.dev/demo/), and read the docs at <https://ritual.rpeters.dev/>.
+
 ## Usage
 
 For macOS/Linux, install as your user with:

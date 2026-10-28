@@ -1,0 +1,241 @@
+{
+  "order": [
+    "Ramp",
+    "Sac Fodder",
+    "Sac Outlets",
+    "Draw",
+    "Recursion",
+    "Removal",
+    "Finishers",
+    "Lifegain",
+    "Protection",
+    "Utility",
+    "Token Makers",
+    "Board Wipes",
+    "Tutors"
+  ],
+  "cards": {
+    "Abrupt Decay": [
+      "Removal"
+    ],
+    "Animate Dead": [
+      "Recursion"
+    ],
+    "Arcane Signet": [
+      "Ramp"
+    ],
+    "Ashnod's Altar": [
+      "Sac Outlets",
+      "Ramp"
+    ],
+    "Assassin's Trophy": [
+      "Removal"
+    ],
+    "Beast Within": [
+      "Removal"
+    ],
+    "Birds of Paradise": [
+      "Ramp"
+    ],
+    "Bloodghast": [
+      "Recursion",
+      "Sac Fodder"
+    ],
+    "Bojuka Bog": [
+      "Utility"
+    ],
+    "Buried Alive": [
+      "Tutors"
+    ],
+    "Carrion Feeder": [
+      "Sac Outlets"
+    ],
+    "Cultivate": [
+      "Ramp"
+    ],
+    "Deathrite Shaman": [
+      "Ramp"
+    ],
+    "Demonic Tutor": [
+      "Tutors"
+    ],
+    "Dread Return": [
+      "Recursion"
+    ],
+    "Entomb": [
+      "Tutors"
+    ],
+    "Eternal Witness": [
+      "Recursion",
+      "Sac Fodder"
+    ],
+    "Fleshbag Marauder": [
+      "Removal",
+      "Sac Fodder"
+    ],
+    "Golgari Grave-Troll": [
+      "Utility"
+    ],
+    "Golgari Signet": [
+      "Ramp"
+    ],
+    "Grave Titan": [
+      "Finishers",
+      "Token Makers"
+    ],
+    "Gray Merchant of Asphodel": [
+      "Finishers",
+      "Lifegain"
+    ],
+    "Grim Haruspex": [
+      "Draw"
+    ],
+    "Harvester of Souls": [
+      "Draw"
+    ],
+    "Infernal Grasp": [
+      "Removal"
+    ],
+    "Kodama's Reach": [
+      "Ramp"
+    ],
+    "Liliana, Death's Majesty": [
+      "Recursion",
+      "Token Makers"
+    ],
+    "Living Death": [
+      "Recursion",
+      "Board Wipes"
+    ],
+    "Llanowar Elves": [
+      "Ramp"
+    ],
+    "Massacre Wurm": [
+      "Board Wipes",
+      "Finishers"
+    ],
+    "Mazirek, Kraul Death Priest": [
+      "Finishers"
+    ],
+    "Merciless Executioner": [
+      "Removal",
+      "Sac Fodder"
+    ],
+    "Midnight Reaper": [
+      "Draw"
+    ],
+    "Nature's Lore": [
+      "Ramp"
+    ],
+    "Necromancy": [
+      "Recursion"
+    ],
+    "Night's Whisper": [
+      "Draw"
+    ],
+    "Pernicious Deed": [
+      "Board Wipes"
+    ],
+    "Phyrexian Altar": [
+      "Sac Outlets",
+      "Ramp"
+    ],
+    "Phyrexian Arena": [
+      "Draw"
+    ],
+    "Phyrexian Reclamation": [
+      "Recursion"
+    ],
+    "Phyrexian Tower": [
+      "Sac Outlets",
+      "Ramp"
+    ],
+    "Plaguecrafter": [
+      "Removal",
+      "Sac Fodder"
+    ],
+    "Putrefy": [
+      "Removal"
+    ],
+    "Rampant Growth": [
+      "Ramp"
+    ],
+    "Ravenous Chupacabra": [
+      "Removal",
+      "Sac Fodder"
+    ],
+    "Reanimate": [
+      "Recursion"
+    ],
+    "Reclamation Sage": [
+      "Removal",
+      "Sac Fodder"
+    ],
+    "Sakura-Tribe Elder": [
+      "Ramp",
+      "Sac Fodder"
+    ],
+    "Satyr Wayfinder": [
+      "Utility",
+      "Sac Fodder"
+    ],
+    "Shriekmaw": [
+      "Removal"
+    ],
+    "Sign in Blood": [
+      "Draw"
+    ],
+    "Skullclamp": [
+      "Draw"
+    ],
+    "Sol Ring": [
+      "Ramp"
+    ],
+    "Solemn Simulacrum": [
+      "Ramp",
+      "Sac Fodder"
+    ],
+    "Spawning Pit": [
+      "Sac Outlets"
+    ],
+    "Spore Frog": [
+      "Protection",
+      "Sac Fodder"
+    ],
+    "Stinkweed Imp": [
+      "Utility"
+    ],
+    "Three Visits": [
+      "Ramp"
+    ],
+    "Toxic Deluge": [
+      "Board Wipes"
+    ],
+    "Urborg, Tomb of Yawgmoth": [
+      "Utility"
+    ],
+    "Vampiric Tutor": [
+      "Tutors"
+    ],
+    "Victimize": [
+      "Recursion"
+    ],
+    "Viscera Seer": [
+      "Sac Outlets"
+    ],
+    "Wood Elves": [
+      "Ramp",
+      "Sac Fodder"
+    ],
+    "Woodfall Primus": [
+      "Removal"
+    ],
+    "Worldly Tutor": [
+      "Tutors"
+    ],
+    "Yawgmoth, Thran Physician": [
+      "Sac Outlets",
+      "Draw"
+    ]
+  }
+}

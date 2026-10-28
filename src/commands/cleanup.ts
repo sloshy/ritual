@@ -572,10 +572,10 @@ type CleanupCommandOptions = {
 } & Partial<ScriptingOptions>
 
 /** One warning of the flattened `--output json` list: the file it is about, and the message. */
-type CleanupWarning = SyncMessage & { file: string }
+export type CleanupWarning = SyncMessage & { file: string }
 
 /** The `--output json`/`ndjson` payload: per-file results plus flattened warnings. */
-type CleanupReport = {
+export type CleanupReport = {
   files: CleanupResult[]
   warnings: CleanupWarning[]
 }

@@ -5,6 +5,8 @@ description: What the generated website is, how to build and serve it, and where
 
 The public site is a website of your decks, collections, and wanted lists. [`ritual build-site`](/commands/build-site/) generates it as static files, so you can host it anywhere that serves plain files. Visitors can browse and filter your lists, see prices, plan trades, and edit a list in the browser and hand you the changes as a file.
 
+The [live demo](https://ritual.rpeters.dev/demo/) is a built site you can browse: a few made-up decks, a trade binder, and a wanted list, with real card images and prices.
+
 ## Building and Serving
 
 ```bash

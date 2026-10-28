@@ -12,9 +12,10 @@ ligh = "ligh"
 gam = "gam"
 sav = "sav"
 categor = "categor"
-# Set codes (ANC, WTH) and "un-IDed".
+# Set codes (ANC, WTH, SOM) and "un-IDed".
 anc = "anc"
 wth = "wth"
+som = "som"
 ded = "ded"
 # A deliberately bogus locale name in the pseudo-locale tests.
 bogos = "bogos"

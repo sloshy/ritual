@@ -1,0 +1,13 @@
+# Ritual files
+cache/
+dist/
+exports/
+.admin-dist/
+.logins/
+.trash/
+.backups/
+all-cards.md
+.dist-build-*
+.dist-old-*
+# Ritual binary downloaded by the deploy workflow
+/ritual

@@ -4,3 +4,6 @@ cache/
 mtg
 docs-site/.astro/
 src/site/styles.compiled.css
+# The demo workspace holds Ritual-written list files whose .sha256 sidecars hash
+# their exact bytes; reformatting them would desync every sidecar.
+demo/

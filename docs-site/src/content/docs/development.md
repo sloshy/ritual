@@ -201,6 +201,23 @@ How the three modes differ:
 
 `bun run lint:repo` runs the linters that cover what ESLint and `bun fmt` do not: [shellcheck](https://www.shellcheck.net/) over `scripts/*.sh`, [actionlint](https://github.com/rhysd/actionlint) over the workflows, [hadolint](https://github.com/hadolint/hadolint) over the `Dockerfile`, and [typos](https://github.com/crate-ci/typos) over everything. `scripts/tools.sh` downloads each one, at the version CI uses, into `.tools/` on first run (Linux and macOS). A word typos flags that is deliberate, such as a search prefix a test types, goes in `_typos.toml`.
 
+## Demo Site
+
+The [live demo](https://ritual.rpeters.dev/demo/) is built from `demo/`, a Ritual workspace committed to the repository: a few made-up decks, a trade binder collection, and a wanted list, using real cards. Everything in it was written by Ritual's own commands (`import`, `add-card`, `set-card`, `set-list-image`, `metadata`), so the card lines, `&N` ids, front matter, `.changes.md` histories and `.sha256` sidecars are all in canonical form. Change it the same way, with `--base-dir demo`, rather than by hand.
+
+To rebuild it locally from the repository root:
+
+```bash
+bun run index.ts --base-dir demo build-site --refresh auto
+bun run index.ts --base-dir demo serve
+```
+
+The first build downloads the Scryfall card cache into `demo/cache/` (about 75 MB). `demo/.gitignore` keeps the cache and the built `demo/dist/` out of git.
+
+`.github/workflows/deploy-docs.yml` builds Ritual from the pushed commit, builds the demo into `docs-site/dist/demo/` after the Starlight build, and publishes both together. It also runs every Monday, so the demo's prices stay current between pushes. The card cache is kept between runs with `actions/cache`, keyed by day: the first build each day downloads fresh card data, and later builds that day reuse it.
+
+`demo/` is a user workspace like any other. When a change adds a [`ritual migrate`](/commands/migrate/) migration, apply it to the demo in the same change (`bun run index.ts --base-dir demo migrate`). `test/integration/demo-workspace.test.ts` checks a copy of `demo/` with `migrate --check`, `detect-changes --verify` and `cleanup --check`, and fails until the demo is current.
+
 ## Continuous Integration
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`:

@@ -1,0 +1,67 @@
+{
+  "order": [
+    "Ramp",
+    "Combo",
+    "Token Makers",
+    "Finishers",
+    "Draw",
+    "Removal",
+    "Protection",
+    "Utility"
+  ],
+  "cards": {
+    "Birchlore Rangers": [
+      "Ramp",
+      "Combo"
+    ],
+    "Distant Melody": [
+      "Draw"
+    ],
+    "Elvish Mystic": [
+      "Ramp"
+    ],
+    "Elvish Visionary": [
+      "Draw"
+    ],
+    "Gut Shot": [
+      "Removal"
+    ],
+    "Lead the Stampede": [
+      "Draw"
+    ],
+    "Llanowar Elves": [
+      "Ramp"
+    ],
+    "Lys Alana Huntmaster": [
+      "Token Makers"
+    ],
+    "Moment's Peace": [
+      "Protection"
+    ],
+    "Natural State": [
+      "Removal"
+    ],
+    "Nettle Sentinel": [
+      "Combo"
+    ],
+    "Quirion Ranger": [
+      "Combo",
+      "Ramp"
+    ],
+    "Relic of Progenitus": [
+      "Utility"
+    ],
+    "Scattershot Archer": [
+      "Removal"
+    ],
+    "Spidersilk Armor": [
+      "Protection"
+    ],
+    "Timberwatch Elf": [
+      "Finishers"
+    ],
+    "Winding Way": [
+      "Draw"
+    ]
+  }
+}

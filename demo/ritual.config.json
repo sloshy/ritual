@@ -1,0 +1,69 @@
+{
+  "decksDir": "./decks",
+  "collectionsDir": "./collections",
+  "wantedDir": "./wanted",
+  "artDir": "./art",
+  "defaultPriceSource": "tcgplayer",
+  "priceSources": [
+    "tcgplayer"
+  ],
+  "defaultCategories": [
+    "Ramp",
+    "Draw",
+    "Removal",
+    "Board Wipes",
+    "Counterspells",
+    "Tutors",
+    "Recursion",
+    "Protection",
+    "Combo",
+    "Tokens",
+    "Burn",
+    "Lifegain",
+    "Finishers",
+    "Utility"
+  ],
+  "defaultLanguage": "en",
+  "uiLocale": "en",
+  "cacheLockTimeoutSeconds": 300,
+  "cacheSource": "scryfall",
+  "searchDebounceMs": 500,
+  "updateCheck": false,
+  "admin": {
+    "gitEnabled": false,
+    "gitAutoCommit": false,
+    "gitAutoPush": false,
+    "trustProxy": false,
+    "secureCookies": false,
+    "ipAllowList": [],
+    "ipDenyList": [],
+    "userAgentAllowList": [],
+    "userAgentDenyList": [],
+    "rateLimitEnabled": true,
+    "rateLimitMaxAttempts": 5,
+    "rateLimitWindowMinutes": 5,
+    "failedAuthDelayMs": 3000
+  },
+  "collectionSync": {
+    "pullTarget": "Inbox"
+  },
+  "site": {
+    "includeDecks": [
+      "*"
+    ],
+    "includeCollections": [
+      "*"
+    ],
+    "includeWantedLists": [
+      "*"
+    ],
+    "excludeDecks": [],
+    "excludeCollections": [],
+    "excludeWantedLists": [],
+    "ciSystem": "manual"
+  },
+  "managed": {
+    "migration": 2,
+    "output": "sha256:4939300fd1183531b517115bda40e3469457f1593a2c3c33a7b5ce91d6f27140"
+  }
+}
