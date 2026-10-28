@@ -96,7 +96,7 @@ jobs:
         working-directory: assets
         run: sha256sum -c ./*.sha256
 
-      - uses: actions/attest-build-provenance@v3
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: assets/*
 
