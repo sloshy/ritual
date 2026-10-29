@@ -1,0 +1,103 @@
+---
+title: 'Quick Tour'
+description: 'Import your lists, price them, edit them, and publish them as a website, one command at a time.'
+---
+
+This page follows one workspace from empty to a published website. Each step is one or two commands; the links go to the full reference. It assumes Ritual is [installed](/start/install/) and you are in an empty folder.
+
+## 1. Bring in Your Lists
+
+Import a deck from Archidekt, Moxfield, or MTGGoldfish by its URL:
+
+```bash
+ritual import https://archidekt.com/decks/12345
+```
+
+Moxfield URLs need a Moxfield-approved User-Agent string; see [Moxfield User-Agent Requirement](/commands/import/#moxfield-user-agent-requirement).
+
+Import a collection from another app's CSV export. A short wizard asks which column holds the card name, set, collector number, and so on, and prints the equivalent command so you can repeat it without prompts:
+
+```bash
+ritual import binder.csv
+```
+
+Or start lists by hand with [`new`](/commands/new/) and [`add-card`](/commands/add-card/). A workspace holds any number of decks, collections (cards you own, each with an exact printing), and wanted lists (cards you are looking for).
+
+See [`import`](/commands/import/) for text files, Arena/MTGO exports, and every CSV option, and [`import-account`](/commands/import-account/) to import every deck on an Archidekt account at once.
+
+## 2. Edit Them
+
+```bash
+ritual edit
+```
+
+The [interactive editor](/commands/edit/) lists your decks, collections, and wanted lists. Add cards with autocomplete over the card database, edit the cards already there, undo mistakes, and save when you are done. One-shot commands such as [`add-card`](/commands/add-card/), [`move`](/commands/move/) and [`set-card`](/commands/set-card/) do the same from scripts.
+
+Prefer a browser? `ritual admin` starts the [admin site](/admin/) on <http://localhost:8080>, with the same editors plus imports, syncs, history, and site builds.
+
+## 3. Price Them
+
+```bash
+ritual price
+```
+
+[`price`](/commands/price/) opens a browser of every list and its value, down to the card. Prices come from TCGplayer, Cardmarket, Card Kingdom, or Cardhoarder (MTGO tix); [`priceSources`](/configuration/#price-stores-pricesources) picks which stores you use. [`sell`](/commands/sell/) shows what Card Kingdom's buylist would pay for your cards.
+
+## 4. Look Back
+
+Every change to a list is written to its `.changes.md` log. To read one:
+
+```bash
+ritual history --show "My Commander Deck"
+```
+
+[`history`](/commands/history/) without `--show` opens an editor for compacting a noisy log. [`diff`](/commands/diff/) compares two lists.
+
+## 5. Sync with Archidekt
+
+Sign in once:
+
+```bash
+ritual login archidekt
+```
+
+Pull changes made to your decks on Archidekt into the local files:
+
+```bash
+ritual deck-sync pull
+```
+
+Pull your Archidekt collection into your collection lists:
+
+```bash
+ritual collection-sync pull
+```
+
+A `collection-sync push` goes the other way and makes your **whole** Archidekt collection match your local collection lists, removals included. Preview it with `--dry-run` first, and use `--only additions` to send new cards without deleting anything.
+
+[`deck-sync`](/commands/deck-sync/) works per deck; [`collection-sync`](/commands/collection-sync/) treats all your collection lists as one Archidekt collection.
+
+## 6. Build Your Site
+
+```bash
+ritual serve --build
+```
+
+This builds the [public site](/public-site/) into `dist/` and serves it at <http://localhost:3000>. Visitors can browse and filter your lists, look at each card, see prices, plan a trade, and send you edits as a file. The [live demo](https://ritual.rpeters.dev/demo/) is a site built this way.
+
+`dist/` is plain static files, so any web host works. To publish with GitHub Pages, keep the workspace in a GitHub repository and run:
+
+```bash
+ritual init-site
+```
+
+[`init-site`](/commands/init-site/) asks a few questions and writes a GitHub Actions workflow that builds the site and deploys it to GitHub Pages when you push.
+
+## 7. Hand It to an Assistant
+
+```bash
+ritual skills install   # teach a coding agent the ritual CLI
+ritual mcp              # or expose your lists to an MCP client
+```
+
+[Skills](/commands/skills/) are instructions a coding agent such as Claude Code loads when a task matches. The [MCP server](/commands/mcp/) gives MCP clients tools to read and edit your lists, with the same checks and change history as the admin site.

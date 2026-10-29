@@ -2,43 +2,35 @@
 
 <img src="app.svg" alt="Ritual icon" width="96" />
 
-An all-in-one toolkit for Magic: The Gathering for your CLI and self-hosting needs.
+Ritual is a free, open-source command-line program for Magic: The Gathering. It keeps your decks, collections and wanted lists as plain markdown files in a folder, usually a git repository. It prices them, imports them from the sites you already use, and builds them into a website you can host anywhere.
 
-See what a published site looks like in the [live demo](https://ritual.rpeters.dev/demo/), and read the docs at <https://ritual.rpeters.dev/>.
+- **Lists are files.** One markdown file per deck, collection or wanted list. Edit it with Ritual (`ritual edit` in the terminal, `ritual admin` in the browser) or by hand. Ritual logs the changes it makes in a history file beside the list.
+- **Prices.** TCGplayer, Cardmarket, Card Kingdom and Cardhoarder prices for every list. Card data and most prices come from a local cache of Scryfall's data; Card Kingdom's come from its own price list.
+- **Import and sync.** Decks from Archidekt, Moxfield and MTGGoldfish, lists from text and CSV files, and two-way sync with Archidekt for decks and your collection.
+- **Your own site.** `ritual build-site` writes a static website of your lists; `ritual init-site` sets up publishing to GitHub Pages. An MCP server and agent skills let AI assistants work with your lists too.
 
-## Usage
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs-site/src/assets/screenshots/home-dark.webp" />
+  <img src="docs-site/src/assets/screenshots/home-light.webp" alt="The decks page of a site built by Ritual: four decks, each with its cover art, format and price." />
+</picture>
 
-For macOS/Linux, install as your user with:
+See a built site in the [live demo](https://ritual.rpeters.dev/demo/), and read the documentation at <https://ritual.rpeters.dev/>.
+
+## Install
+
+On macOS or Linux:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.sh | bash
 ```
 
-For Windows (PowerShell), install as your user with:
+On Windows (PowerShell):
 
 ```powershell
 irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | iex
 ```
 
-To try the newest build, prereleases included:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.sh | bash -s -- --prerelease
-```
-
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1))) -Prerelease
-```
-
-Both scripts also accept `--version`/`-Version` for a specific release tag, and read the `RITUAL_PRERELEASE=1` and `RITUAL_VERSION=<tag>` environment variables.
-
-You can also download binaries from the [releases page](https://github.com/sloshy/ritual/releases), or build from source with `bun run build`.
-
-```bash
-./ritual --help
-```
-
-📖 **Full documentation at [ritual.rpeters.dev](https://ritual.rpeters.dev)**
+Then run `ritual --help`. Prereleases, release binaries and building from source are covered on the [install page](https://ritual.rpeters.dev/start/install/), and the [quick tour](https://ritual.rpeters.dev/start/tour/) shows what to do next.
 
 ## License and Attribution
 
@@ -48,38 +40,4 @@ Ritual is unofficial Fan Content permitted under the [Fan Content Policy](https:
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for rules and guidelines.
-
-## Development
-
-This project uses [Bun](https://bun.sh) as its runtime. Install dependencies with:
-
-```bash
-bun install
-```
-
-Run commands locally without building:
-
-```bash
-bun run index.ts --help
-```
-
-Build a compiled binary:
-
-```bash
-bun run build
-```
-
-## Testing
-
-**Unit Tests:**
-
-```bash
-bun run test
-```
-
-**Integration Tests:**
-
-```bash
-bun run test:it
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build Ritual from source, run the tests, and send changes.

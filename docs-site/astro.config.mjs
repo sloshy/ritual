@@ -19,6 +19,9 @@ export default defineConfig({
       locales: { root: { label: 'English', lang: 'en' } },
       components: {
         Footer: './src/components/Footer.astro',
+        // Starlight's header has no navigation of its own; the one overridable
+        // header slot carries a link to the live demo (see the file).
+        SocialIcons: './src/components/HeaderLinks.astro',
       },
       social: [
         {
@@ -34,7 +37,10 @@ export default defineConfig({
         }),
       ],
       sidebar: [
-        { label: 'Getting Started', link: '/' },
+        {
+          label: 'Start Here',
+          items: ['start/install', 'start/first-deck', 'start/tour'],
+        },
         {
           label: 'Concepts',
           items: [

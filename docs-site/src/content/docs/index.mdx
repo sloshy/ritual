@@ -1,127 +1,157 @@
 ---
-title: 'Getting Started'
-description: 'An all-in-one toolkit for Magic: The Gathering decks, collections, and self-hosting.'
+title: 'Ritual'
+description: 'Ritual keeps your Magic: The Gathering decks, collections and wanted lists as plain markdown files. It prices them, syncs them with Archidekt, and builds a website of them you can host anywhere.'
+template: splash
+hero:
+  tagline: 'Your Magic: The Gathering decks and collection as plain files. Price them, sync them with Archidekt, and publish them as your own website.'
+  image:
+    file: ../../assets/app.svg
+    alt: ''
+  actions:
+    - text: Install
+      link: /start/install/
+      icon: right-arrow
+      variant: primary
+    - text: Build your first deck
+      link: /start/first-deck/
+      icon: open-book
+    - text: See the live demo
+      link: https://ritual.rpeters.dev/demo/
+      icon: external
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/sloshy/ritual
+      icon: github
+      variant: minimal
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components'
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
+import { Image } from 'astro:assets'
+import deckDark from '../../assets/screenshots/deck-dark.webp'
+import deckLight from '../../assets/screenshots/deck-light.webp'
+import cardDark from '../../assets/screenshots/card-dark.webp'
+import cardLight from '../../assets/screenshots/card-light.webp'
+import collectionDark from '../../assets/screenshots/collection-dark.webp'
+import collectionLight from '../../assets/screenshots/collection-light.webp'
+import phoneDark from '../../assets/screenshots/phone-deck-dark.webp'
 
-Ritual is a command-line toolkit for Magic: The Gathering. It keeps your decks, collections, and wanted lists as plain markdown files. It prices them, imports from and syncs with the sites you already use, and publishes them as a website you can host anywhere.
+Ritual is a free, open-source command-line program. It works on a folder of markdown files, one per deck, collection or wanted list, and everything it does reads or writes those files.
 
-To see a published site, open the [live demo](https://ritual.rpeters.dev/demo/). It is built from a few made-up decks, a trade binder, and a wanted list, with real cards and current prices.
+<CardGrid>
+  <Card title="Lists are markdown files" icon="seti:markdown">
+    Each list is one file under `decks/`, `collections/` or `wanted/`. Edit it with Ritual or by
+    hand, and keep the folder in git. The changes Ritual makes are logged in a `.changes.md` file
+    beside the list.
+  </Card>
+  <Card title="Prices from four stores" icon="star">
+    TCGplayer prices by default; Cardmarket, Card Kingdom and Cardhoarder (MTGO tix) when you enable
+    them with `priceSources`. `ritual sell` shows what Card Kingdom's buylist would pay you.
+  </Card>
+  <Card title="Import and sync" icon="random">
+    Import decks from Archidekt, Moxfield and MTGGoldfish, and lists from text and CSV files. Sync
+    decks and your collection both ways with Archidekt.
+  </Card>
+  <Card title="A website you host anywhere" icon="seti:html">
+    `ritual build-site` writes your lists as a static website: browse, filter, price, and plan
+    trades. `ritual init-site` sets up publishing to GitHub Pages.
+  </Card>
+  <Card title="Terminal or browser" icon="pencil">
+    `ritual edit` is an interactive editor in the terminal. `ritual admin` runs the same editing in
+    a browser, along with imports, syncs and site builds.
+  </Card>
+  <Card title="Works with AI assistants" icon="puzzle">
+    An MCP server gives assistants tools to read and edit your lists. Installable skills teach a
+    coding agent to run the `ritual` command itself.
+  </Card>
+</CardGrid>
 
-## Installation
+Card data comes from [Scryfall](https://scryfall.com) and is kept in a local cache, so after the first download most commands work offline.
 
-<Tabs>
-  <TabItem label="macOS / Linux">
+## From Nothing to a Website
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.sh | bash
-```
-
-  </TabItem>
-  <TabItem label="Windows (PowerShell)">
-
-```powershell
-irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | iex
-```
-
-  </TabItem>
-</Tabs>
-
-The installer copies the `ritual` binary into `~/.local/bin` on macOS and Linux (`%LOCALAPPDATA%\Programs\ritual\bin` on Windows) and adds that directory to your `PATH` if needed. Open a new shell and run `ritual --help` to check it worked.
-
-### Updating
-
-Once installed, Ritual updates itself: run [`ritual self-update`](/commands/self-update/) to install the newest release on your channel, or `ritual self-update --check` to see whether one exists. A prerelease build keeps following prereleases until you run `ritual self-update --stable`. Re-running the installer works too. Release builds also print a one-line [notice](/commands/self-update/#update-notice) on stderr when a newer release is out.
-
-### Prerelease Builds
-
-To try the newest build, prereleases included:
-
-<Tabs>
-  <TabItem label="macOS / Linux">
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.sh | bash -s -- --prerelease
-```
-
-  </TabItem>
-  <TabItem label="Windows (PowerShell)">
-
-```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1))) -Prerelease
-```
-
-  </TabItem>
-</Tabs>
-
-Both installers accept these options:
-
-| Option                             | Environment variable       | Description                                                                 |
-| ---------------------------------- | -------------------------- | --------------------------------------------------------------------------- |
-| `--prerelease`/`-Prerelease`       | `RITUAL_PRERELEASE=1`      | Install the newest release, including prereleases.                          |
-| `--version <tag>`/`-Version <tag>` | `RITUAL_VERSION=<tag>`     | Install a specific release tag. Use `prerelease` for the newest prerelease. |
-| —                                  | `RITUAL_INSTALL_DIR=<dir>` | Where to install the binary.                                                |
-
-### Other Methods
-
-You can also download a binary for your platform from the [releases page](https://github.com/sloshy/ritual/releases) and run it directly:
-
-```bash
-./ritual --help
-```
-
-The binaries are not code-signed. A binary downloaded through a browser is therefore blocked on first run: on macOS, Gatekeeper says it cannot be opened (clear the quarantine flag with `xattr -d com.apple.quarantine ./ritual`); on Windows, SmartScreen warns about an unrecognized app (choose **More info**, then **Run anyway**). The install scripts download with `curl` and `Invoke-WebRequest`, which do not mark the file, so neither prompt appears.
-
-Each binary is published with a `.sha256` checksum and a build provenance attestation. To confirm a download came from Ritual's release workflow, run `gh attestation verify ./ritual --repo sloshy/ritual` with the [GitHub CLI](https://cli.github.com/).
-
-### Building from Source
-
-Ritual runs on [Bun](https://bun.sh). Install the dependencies, then build the binary:
-
-```bash
-bun install
-bun run build
-```
-
-## Your First Deck
-
-Ritual works in the directory you run it from. Make a folder for your cards, step into it, and create a deck:
-
-```bash
-ritual new deck "My Commander Deck"    # add --format modern (or standard, …) for other formats
-ritual add-card "My Commander Deck" Sol Ring
-```
-
-The first command that needs card data offers to download Scryfall's card database into a local cache. Say yes. Later commands read from that cache, so they are fast and work offline.
-
-Already have a deck online? Import it from Archidekt, Moxfield, or MTGGoldfish instead:
-
-```bash
+mkdir my-cards && cd my-cards
 ritual import https://archidekt.com/decks/12345
+ritual serve --build    # open http://localhost:3000
 ```
 
-From here:
+Windows, prerelease and source builds are on the [install page](/start/install/). The [quick tour](/start/tour/) goes on from here: pricing, editing, syncing and publishing.
 
-```bash
-ritual edit                       # open the interactive editor
-ritual price "My Commander Deck"  # what the deck costs today
-ritual serve --build              # build the website and serve it at http://localhost:3000
-```
+## What the Site Looks Like
 
-## What You Get
+These screenshots are from the [live demo](https://ritual.rpeters.dev/demo/), built by Ritual from a few made-up lists.
 
-- **Lists as files.** Each deck, collection, and wanted list is one markdown file under `decks/`, `collections/`, or `wanted/`. Edit them with Ritual or by hand. See [List Files](/list-format/).
-- **Three ways to work.** The command line, a browser-based [admin site](/admin/) you run with `ritual admin`, and a [public site](/public-site/) you build and host.
-- **Imports and syncs.** Decks from Archidekt, Moxfield, MTGGoldfish, plain text, and CSV files, plus two-way sync with Archidekt for decks and your collection.
-- **Prices.** TCGplayer, Cardmarket, Card Kingdom, and Cardhoarder (MTGO tix) prices for every list, and Card Kingdom buylist quotes when you want to sell.
-- **Card lookup.** Search Scryfall with its full query syntax from the terminal.
-- **AI agents.** An [MCP server](/commands/mcp/) and installable [agent skills](/commands/skills/) so an assistant can drive Ritual for you.
+<figure class="screenshot">
+  <Image
+    src={deckDark}
+    alt="A Commander deck page: the commander, then the creatures as card images, with the deck's total price and its toolbar."
+    class="light:sl-hidden"
+  />
+  <Image
+    src={deckLight}
+    alt="A Commander deck page: the commander, then the creatures as card images, with the deck's total price and its toolbar."
+    class="dark:sl-hidden"
+  />
+  <figcaption>A deck page, grouped by card type, with prices per section.</figcaption>
+</figure>
 
-## Where to Go Next
+<div class="screenshot-grid">
+  <figure class="screenshot">
+    <Image
+      src={cardDark}
+      alt="A card's detail window: its image, rules text, price, set, and buttons to view other printings or find it in other lists."
+      class="light:sl-hidden"
+    />
+    <Image
+      src={cardLight}
+      alt="A card's detail window: its image, rules text, price, set, and buttons to view other printings or find it in other lists."
+      class="dark:sl-hidden"
+    />
+    <figcaption>Card details, with other printings and the lists that hold it.</figcaption>
+  </figure>
+  <figure class="screenshot">
+    <Image
+      src={collectionDark}
+      alt="A trade binder collection page with its description, total value and card images."
+      class="light:sl-hidden"
+    />
+    <Image
+      src={collectionLight}
+      alt="A trade binder collection page with its description, total value and card images."
+      class="dark:sl-hidden"
+    />
+    <figcaption>A collection: a trade binder with its value.</figcaption>
+  </figure>
+</div>
 
-- [List Files](/list-format/) explains the file format Ritual reads and writes.
-- [Configuration](/configuration/) covers the optional `ritual.config.json`.
-- [CLI Conventions](/cli-conventions/) lists the global options, scripting output, and exit codes shared by every command.
-- [Commands](/commands/) is the full command reference.
-- [Public Site](/public-site/) and [Admin Site](/admin/) describe the two web interfaces.
+<figure class="screenshot screenshot-phone">
+  <Image
+    src={phoneDark}
+    alt="A deck page on a phone, with the navigation as a tab bar along the bottom."
+  />
+  <figcaption>The site works on phones too.</figcaption>
+</figure>
+
+## Start Here
+
+<CardGrid>
+  <LinkCard
+    title="Install"
+    href="/start/install/"
+    description="The install script, updates, prereleases, and building from source."
+  />
+  <LinkCard
+    title="Your first deck"
+    href="/start/first-deck/"
+    description="Create a deck, add a card, and look at the file Ritual writes."
+  />
+  <LinkCard
+    title="Quick tour"
+    href="/start/tour/"
+    description="Import, edit, price, sync and publish, one command at a time."
+  />
+  <LinkCard title="Commands" href="/commands/" description="The full command reference." />
+</CardGrid>
+
+Ritual is free software under the AGPL-3.0. It is not affiliated with Wizards of the Coast or Scryfall; see [License and Attribution](/attribution/).

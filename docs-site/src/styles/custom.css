@@ -37,3 +37,32 @@
   --sl-color-gray-7: oklch(94% 0.006 285);
   --sl-color-black: oklch(97.5% 0.004 285);
 }
+
+/* Demo-site screenshots on the homepage (index.mdx). */
+.screenshot {
+  margin-inline: 0;
+}
+/* No `display` here: unlayered rules beat Starlight's layered
+   `light:sl-hidden` / `dark:sl-hidden`, which pair the theme variants. */
+.screenshot img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.5rem;
+}
+.screenshot figcaption {
+  margin-top: 0.5rem;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+}
+.screenshot-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+}
+.screenshot-grid .screenshot {
+  margin-top: 0;
+}
+.screenshot-phone {
+  max-width: 18rem;
+}

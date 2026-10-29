@@ -110,7 +110,7 @@ The notice never changes a command's exit code. A command that fails (exit `1`â€
 
 | Situation                                                                         | Exit | What to do instead                                                                                                     |
 | --------------------------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------- |
-| Ritual is not a release binary (run with `bun run`, or built locally from source) | `2`  | Install a release with the [installer](/#installation), or pull and rebuild your checkout.                             |
+| Ritual is not a release binary (run with `bun run`, or built locally from source) | `2`  | Install a release with the [installer](/start/install/), or pull and rebuild your checkout.                            |
 | Ritual runs inside its [Docker image](/docker/)                                   | `2`  | Pull the newer image (`docker pull ghcr.io/sloshy/ritual`). The image sets `RITUAL_INSTALL=docker`, which this checks. |
 | The directory holding the binary is not writable                                  | `1`  | Re-run with permission to write there, or reinstall with the installer.                                                |
 | No release binary exists for your operating system or CPU                         | `1`  | Build from source.                                                                                                     |

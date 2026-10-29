@@ -1,0 +1,27 @@
+---
+// A link to the live demo beside the GitHub icon. Starlight's header has no
+// navigation of its own, and SocialIcons is the overridable component that
+// renders in the header's right-hand group (hidden on narrow viewports, where
+// the sidebar menu takes over).
+import SocialIcons from '@astrojs/starlight/components/SocialIcons.astro'
+---
+
+<nav class="header-links sl-flex" aria-label="Site">
+  <a href="https://ritual.rpeters.dev/demo/">Demo</a>
+</nav>
+<SocialIcons />
+
+<style>
+  .header-links {
+    gap: 1rem;
+    align-items: center;
+    font-size: var(--sl-text-sm);
+  }
+  .header-links a {
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+  }
+  .header-links a:hover {
+    color: var(--sl-color-white);
+  }
+</style>

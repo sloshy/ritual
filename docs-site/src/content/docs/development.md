@@ -216,6 +216,15 @@ The first build downloads the Scryfall card cache into `demo/cache/` (about 75 M
 
 `.github/workflows/deploy-docs.yml` builds Ritual from the pushed commit, builds the demo into `docs-site/dist/demo/` after the Starlight build, and publishes both together. It also runs every Monday, so the demo's prices stay current between pushes. The card cache is kept between runs with `actions/cache`, keyed by day: the first build each day downloads fresh card data, and later builds that day reuse it.
 
+The screenshots on the docs homepage and in the README are of the demo. To retake them after a visible change to the site:
+
+```bash
+bun run scripts/docs-screenshots.ts                  # needs the demo's card cache
+bun run scripts/docs-screenshots.ts --refresh auto   # downloads it first
+```
+
+The script copies `demo/` into a temporary directory (linking its card cache), builds and serves it there so the build's card-ID backfill never touches the committed files, and writes WebP images in the site's dark and light themes to `docs-site/src/assets/screenshots/`. It uses the Playwright Chromium the end-to-end tests use (`bunx playwright install chromium`). The site's 🎨 theme button needs a color emoji font on the machine taking the screenshots.
+
 `demo/` is a user workspace like any other. When a change adds a [`ritual migrate`](/commands/migrate/) migration, apply it to the demo in the same change (`bun run index.ts --base-dir demo migrate`). `test/integration/demo-workspace.test.ts` checks a copy of `demo/` with `migrate --check`, `detect-changes --verify` and `cleanup --check`, and fails until the demo is current.
 
 ## Continuous Integration

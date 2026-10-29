@@ -16,7 +16,8 @@ You need [Bun](https://bun.sh) (the version in `.bun-version`). Then:
 git clone https://github.com/sloshy/ritual.git
 cd ritual
 bun install
-bun run index.ts --help
+bun run index.ts --help   # run Ritual from source, without building
+bun run build             # compile the standalone ritual binary
 ```
 
 The [Development](https://ritual.rpeters.dev/development/) page covers prerequisites, the dev server, the pre-commit hook, CI, and how releases are published. [`AGENTS.md`](AGENTS.md) holds the full project conventions; the sections below summarize them.

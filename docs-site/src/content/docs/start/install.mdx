@@ -1,0 +1,89 @@
+---
+title: 'Install Ritual'
+description: 'Install the ritual binary on macOS, Linux or Windows, keep it updated, or build it from source.'
+sidebar:
+  label: 'Install'
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components'
+
+Ritual is one program, `ritual`, with no other dependencies. The install script downloads the newest release for your platform.
+
+## Install Script
+
+<Tabs>
+  <TabItem label="macOS / Linux">
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.sh | bash
+```
+
+  </TabItem>
+  <TabItem label="Windows (PowerShell)">
+
+```powershell
+irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | iex
+```
+
+  </TabItem>
+</Tabs>
+
+The installer copies the `ritual` binary into `~/.local/bin` on macOS and Linux (`%LOCALAPPDATA%\Programs\ritual\bin` on Windows) and adds that directory to your `PATH` if needed. Open a new shell and run `ritual --help` to check it worked.
+
+## Updating
+
+Once installed, Ritual updates itself: run [`ritual self-update`](/commands/self-update/) to install the newest release on your channel, or `ritual self-update --check` to see whether one exists. A prerelease build keeps following prereleases until you run `ritual self-update --stable`. Re-running the installer works too. Release builds also print a one-line [notice](/commands/self-update/#update-notice) on stderr when a newer release is out.
+
+## Prerelease Builds
+
+To try the newest build, prereleases included:
+
+<Tabs>
+  <TabItem label="macOS / Linux">
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.sh | bash -s -- --prerelease
+```
+
+  </TabItem>
+  <TabItem label="Windows (PowerShell)">
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1))) -Prerelease
+```
+
+  </TabItem>
+</Tabs>
+
+Both installers accept these options:
+
+| Option                             | Environment variable       | Description                                                                 |
+| ---------------------------------- | -------------------------- | --------------------------------------------------------------------------- |
+| `--prerelease`/`-Prerelease`       | `RITUAL_PRERELEASE=1`      | Install the newest release, including prereleases.                          |
+| `--version <tag>`/`-Version <tag>` | `RITUAL_VERSION=<tag>`     | Install a specific release tag. Use `prerelease` for the newest prerelease. |
+| —                                  | `RITUAL_INSTALL_DIR=<dir>` | Where to install the binary.                                                |
+
+## Other Methods
+
+You can also download a binary for your platform from the [releases page](https://github.com/sloshy/ritual/releases) and run it directly:
+
+```bash
+./ritual --help
+```
+
+The binaries are not code-signed. A binary downloaded through a browser is therefore blocked on first run: on macOS, Gatekeeper says it cannot be opened (clear the quarantine flag with `xattr -d com.apple.quarantine ./ritual`); on Windows, SmartScreen warns about an unrecognized app (choose **More info**, then **Run anyway**). The install scripts download with `curl` and `Invoke-WebRequest`, which do not mark the file, so neither prompt appears.
+
+Each binary is published with a `.sha256` checksum and a build provenance attestation. To confirm a download came from Ritual's release workflow, run `gh attestation verify ./ritual --repo sloshy/ritual` with the [GitHub CLI](https://cli.github.com/).
+
+## Building from Source
+
+Ritual runs on [Bun](https://bun.sh). Install the dependencies, then build the binary:
+
+```bash
+bun install
+bun run build
+```
+
+## Next
+
+[Make your first deck](/start/first-deck/), or take the [quick tour](/start/tour/) of what Ritual can do.

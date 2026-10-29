@@ -1,0 +1,71 @@
+---
+title: 'Your First Deck'
+description: 'Create a deck, add cards, and see the markdown file Ritual writes for it.'
+---
+
+Ritual works in the directory you run it from. That directory is your **workspace**: a folder of plain files, and usually a git repository. Make a folder for your cards, step into it, and create a deck:
+
+```bash
+mkdir my-cards && cd my-cards
+ritual new deck "My Commander Deck"    # add --format modern (or standard, …) for other formats
+ritual add-card "My Commander Deck" Sol Ring
+```
+
+The first command that needs card data offers to download Scryfall's card database into a local cache. Say yes. Later commands read from that cache, so they are fast and work offline.
+
+## The File
+
+The deck is now a markdown file, `decks/My Commander Deck.md`:
+
+```text
+---
+format: commander
+tags: []
+---
+
+# My Commander Deck
+
+## Main
+- 1 Sol Ring &1
+```
+
+You can edit it with Ritual or in any text editor. The `&1` at the end of the line is the card's ID within the list; Ritual adds it and keeps it stable. [List Files](/list-format/) describes the whole format.
+
+Beside it, Ritual keeps `My Commander Deck.changes.md`, a dated log of the cards it adds, removes or changes, and `My Commander Deck.md.sha256`, a hash of the file as Ritual last wrote it. When you edit the file by hand, [`ritual detect-changes`](/commands/detect-changes/) uses that hash to notice the edit and log it. The GitHub workflow [`init-site`](/commands/init-site/) writes can run it for you on every push.
+
+## Import Instead
+
+Already have a deck online? Import it from Archidekt, Moxfield, or MTGGoldfish instead:
+
+```bash
+ritual import https://archidekt.com/decks/12345
+```
+
+Text files and CSV exports from other apps work too. See [`import`](/commands/import/).
+
+## From Here
+
+```bash
+ritual edit                       # open the interactive editor
+ritual price "My Commander Deck"  # what the deck costs today
+ritual serve --build              # build the website and serve it at http://localhost:3000
+```
+
+The [quick tour](/start/tour/) walks through these and the rest of what Ritual does.
+
+## What You Get
+
+- **Lists as files.** Each deck, collection, and wanted list is one markdown file under `decks/`, `collections/`, or `wanted/`. Edit them with Ritual or by hand. See [List Files](/list-format/).
+- **Three ways to work.** The command line, a browser-based [admin site](/admin/) you run with `ritual admin`, and a [public site](/public-site/) you build and host.
+- **Imports and syncs.** Decks from Archidekt, Moxfield, MTGGoldfish, plain text, and CSV files, plus two-way sync with Archidekt for decks and your collection.
+- **Prices.** TCGplayer, Cardmarket, Card Kingdom, and Cardhoarder (MTGO tix) prices for every list, and Card Kingdom buylist quotes when you want to sell.
+- **Card lookup.** Search Scryfall with its full query syntax from the terminal.
+- **AI agents.** An [MCP server](/commands/mcp/) and installable [agent skills](/commands/skills/) so an assistant can drive Ritual for you.
+
+## Where to Go Next
+
+- [List Files](/list-format/) explains the file format Ritual reads and writes.
+- [Configuration](/configuration/) covers the optional `ritual.config.json`.
+- [CLI Conventions](/cli-conventions/) lists the global options, scripting output, and exit codes shared by every command.
+- [Commands](/commands/) is the full command reference.
+- [Public Site](/public-site/) and [Admin Site](/admin/) describe the two web interfaces.
