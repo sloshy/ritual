@@ -93,6 +93,24 @@ const SYNC_DIRECTION_DESCRIPTION = '"pull" (Archidekt → local) or "push" (loca
 const SYNC_DRY_RUN_DESCRIPTION = 'Report what would sync without writing files or pushing changes.'
 
 /**
+ * `allowRemoveAll`, worded for what an empty source would empty (`"a deck"`,
+ * `"the collection"`).
+ */
+function allowRemoveAllDescription(subject: string): string {
+  return (
+    `Sync ${subject} even when the side being copied from holds no cards (Archidekt on a ` +
+    'pull, the local files on a push) while the other side holds some — mirroring it would ' +
+    `remove every card. Without it that is refused before anything is written (dry runs ` +
+    'too): a deck fails with reasonKey domain.sync.emptyRemoteDeck / emptyLocalDeck; a ' +
+    'collection run fails with report.errorMessages key domain.sync.emptyRemoteCollection / ' +
+    'emptyLocalCollection and every list outcome not-run. An empty source far more often means a new or ' +
+    'emptied account or the wrong deck than real data, so set it only when the user has ' +
+    'confirmed they want everything removed (the CLI’s --allow-remove-all). only: ' +
+    '"additions" removes nothing and is never refused.'
+  )
+}
+
+/**
  * The `only` filter, worded for the thing whose diff it narrows (`"each deck"`,
  * `"the collection"`).
  */
@@ -324,6 +342,7 @@ export function registerDestructiveTools(
           .optional()
           .describe(ignoreUnreadableDescription('decks')),
         only: z.enum(SYNC_CHANGE_FILTERS).optional().describe(changeFilterDescription('each deck')),
+        allowRemoveAll: z.boolean().optional().describe(allowRemoveAllDescription('a deck')),
         force: z
           .boolean()
           .optional()
@@ -372,6 +391,7 @@ export function registerDestructiveTools(
         dryRun,
         ignoreUnreadableLines,
         only,
+        allowRemoveAll,
         force,
         syncPrintings,
         syncCategories,
@@ -388,6 +408,7 @@ export function registerDestructiveTools(
         dryRun,
         ignoreUnreadableLines,
         only,
+        allowRemoveAll,
         force,
         syncPrintings,
         syncCategories,
@@ -461,6 +482,10 @@ export function registerDestructiveTools(
           .enum(SYNC_CHANGE_FILTERS)
           .optional()
           .describe(changeFilterDescription('the collection')),
+        allowRemoveAll: z
+          .boolean()
+          .optional()
+          .describe(allowRemoveAllDescription('the collection')),
         into: z
           .string()
           .min(1)
@@ -540,6 +565,7 @@ export function registerDestructiveTools(
         dryRun,
         ignoreUnreadableLines,
         only,
+        allowRemoveAll,
         into,
         removalPriority,
         removalAssignments,
@@ -561,6 +587,7 @@ export function registerDestructiveTools(
         dryRun,
         ignoreUnreadableLines,
         only,
+        allowRemoveAll,
         into,
         removalPriority,
         removalAssignments:

@@ -402,6 +402,9 @@ export function CollectionSync(): JSX.Element {
         csv: csvRequested(),
         dryRun: dryRun(),
         ignoreUnreadableLines,
+        // `allowRemoveAll` is not offered here: emptying every list (or the
+        // account) stays a deliberate CLI or API call, and the refusal's reason
+        // names the flag that allows it.
       }
       const resp = await fetch('/api/collection-sync', {
         method: 'POST',

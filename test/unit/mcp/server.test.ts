@@ -97,6 +97,7 @@ const EXPECTED_TOOLS = [
 
 /** `sync_collection`'s input fields, pinned once for both the catalogue and the live listing. */
 const SYNC_COLLECTION_PROPERTIES = [
+  'allowRemoveAll',
   'csv',
   'direction',
   'dryRun',
@@ -266,6 +267,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       'list',
     ])
     expect(Object.keys(schemaOf('sync_decks').properties as object).sort()).toEqual([
+      'allowRemoveAll',
       'decks',
       'direction',
       'dryRun',
@@ -1378,7 +1380,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(firstText(noLogin)).toContain('Not signed into Archidekt')
   })
 
-  test('sync_decks accepts ignoreUnreadableLines, only, syncPrintings and syncCategories', async () => {
+  test('sync_decks accepts ignoreUnreadableLines, only, allowRemoveAll, syncPrintings and syncCategories', async () => {
     // The handler ignores keys it does not know, so this cannot prove the
     // fields survive the trip — the `Partial<DeckSyncRequest>` typing on the
     // tool's body is that guard. What this pins is that well-typed flags pass
@@ -1387,6 +1389,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       direction: 'pull',
       ignoreUnreadableLines: true,
       only: 'additions',
+      allowRemoveAll: true,
       syncPrintings: true,
       syncCategories: true,
     })
@@ -1410,6 +1413,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       { args: { direction: 'pull', removalPriority: 'Long Box' }, offender: /removalPriority/ },
       { args: { direction: 'pull', removalPriority: [''] }, offender: /removalPriority/ },
       { args: { direction: 'push', csv: 'yes' }, offender: /csv/ },
+      { args: { direction: 'pull', allowRemoveAll: 'yes' }, offender: /allowRemoveAll/ },
     ]
     for (const { args, offender } of cases) {
       const result = await callTool(client, 'sync_collection', args)
@@ -1434,6 +1438,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       into: 'Inbox',
       removalPriority: ['Long Box', 'Blue Binder'],
       csv: true,
+      allowRemoveAll: true,
       dryRun: true,
       ignoreUnreadableLines: true,
     })

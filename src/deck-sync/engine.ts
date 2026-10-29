@@ -20,7 +20,7 @@ import {
 } from '../list/deck-file'
 import { deckFormatLabelKey } from '../list/deck-format'
 import { appendChangelog } from '../changes/changelog-writer'
-import type { DeckData } from '../list/deck'
+import type { DeckData, DeckSection } from '../list/deck'
 import type { ArchidektRawDeckResponse } from '../importers/archidekt-types'
 import {
   diffDeckCards,
@@ -39,6 +39,7 @@ import {
   dryRunReason,
   noChangesReason,
   syncCancellationLog,
+  wouldRemoveAll,
 } from '../sync/common'
 import {
   errorMessage,
@@ -213,6 +214,7 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
     dryRun,
     only: options.only,
     force: options.force ?? false,
+    allowRemoveAll: options.allowRemoveAll ?? false,
     syncPrintings: options.syncPrintings ?? false,
     syncCategories: options.syncCategories ?? false,
     emit,
@@ -402,6 +404,39 @@ function emitDeckItemLines(
   }
 }
 
+/** Copies across every board of a deck. */
+function deckCardCount(sections: readonly DeckSection[]): number {
+  return sections.reduce(
+    (total, section) => total + section.cards.reduce((sum, card) => sum + card.quantity, 0),
+    0,
+  )
+}
+
+/**
+ * Why syncing a deck would empty its destination and is refused (see
+ * {@link wouldRemoveAll}), or null when it may go ahead: an Archidekt deck with
+ * no cards pulled over a local deck that has some, or the reverse on a push.
+ * "No cards" means none on any board: a remote holding only a maybeboard is
+ * not empty, and is pulled like any other deck. Checked before the diff, so a
+ * dry run reports the same refusal a real run would make, and independent of `--force`, which settles whose edits win but
+ * never permits emptying a deck.
+ */
+function removeAllRefusal(
+  flow: SyncFlow,
+  local: readonly DeckSection[],
+  remote: readonly DeckSection[],
+): SyncMessage | null {
+  if (flow.allowRemoveAll) return null
+  const pull = flow.direction === 'pull'
+  const source = deckCardCount(pull ? remote : local)
+  const destination = deckCardCount(pull ? local : remote)
+  if (!wouldRemoveAll({ only: flow.only, source, destination })) return null
+  return syncMessage(pull ? 'domain.sync.emptyRemoteDeck' : 'domain.sync.emptyLocalDeck', {
+    cards: syncRef('domain.count.cards', { count: destination }),
+    flag: FLAG.allowRemoveAll,
+  })
+}
+
 // ── Download flow ─────────────────────────────────────────────────────
 
 async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<SyncOutcome> {
@@ -450,6 +485,12 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       continue
     }
     const remoteUpdatedAt = remoteRaw.updatedAt
+
+    const refusal = removeAllRefusal(flow, target.deck.sections, remoteDeck.sections)
+    if (refusal !== null) {
+      failDeck(results, emit, name, refusal)
+      continue
+    }
 
     // The filter narrows the diff before anything acts on it, so "no changes"
     // means "nothing left to apply" — with the skipped side reported either way.
@@ -802,6 +843,12 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
           ...syncMessage('domain.sync.divergenceUnchecked', { reason: nestSync(check.reason) }),
         })
       }
+    }
+
+    const refusal = removeAllRefusal(flow, target.deck.sections, remoteDeck.sections)
+    if (refusal !== null) {
+      failDeck(results, emit, name, refusal)
+      continue
     }
 
     // Uploads diff per board like pulls do: on Archidekt a board is just a

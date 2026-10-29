@@ -74,6 +74,7 @@ export type CollectionSyncCommandOptions = {
   dryRun?: boolean
   yes?: boolean
   only?: SyncChangeFilter
+  allowRemoveAll?: boolean
   into?: string
   removalPriority?: string[]
   csv?: boolean
@@ -256,6 +257,7 @@ async function runSync(
     userId: session.account.id,
     lists,
     only: options.only,
+    allowRemoveAll: options.allowRemoveAll === true,
     into: resolvePullTarget(options.into),
     removalPriority,
     // Never consulted when a priority was given; the engine owns that

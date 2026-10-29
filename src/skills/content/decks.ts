@@ -9,6 +9,7 @@ import {
   REFRESH_SESSION,
   sessionSemantics,
   SYNC_CHANGE_FILTER,
+  SYNC_REMOVE_ALL_GUARD,
   wrapProse,
 } from './shared'
 
@@ -303,6 +304,7 @@ ritual deck-sync pull --yes                  # accept dropping lines the parser 
 ritual deck-sync pull --only additions       # add cards locally, never remove any
 ritual deck-sync push --only removals        # push removals only, add nothing remotely
 ritual deck-sync push "Winota Stax" --force  # overwrite remote edits made since the last sync
+ritual deck-sync pull --allow-remove-all     # let a deck emptied on Archidekt empty the local deck
 ritual deck-sync push --sync-printings       # also sync each card's exact printing + finish
 ritual deck-sync pull --sync-categories      # also sync each card's categories (its role: Ramp, Draw…)
 ritual deck-sync pull --dry-run -v           # also list every card the run changes, one line each
@@ -377,6 +379,8 @@ last-writer-wins, so preview it with \`--dry-run\` when you also edit on
 Archidekt.
 
 ${SYNC_CHANGE_FILTER}
+
+${SYNC_REMOVE_ALL_GUARD}
 
 ${wrapProse(
   'Use it when the remote and local decks are deliberately out of step and only ' +

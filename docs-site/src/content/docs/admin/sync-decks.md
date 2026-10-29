@@ -89,6 +89,16 @@ The deck is reported as failed and the rest of the run continues. The remedy on 
 
 See [Divergence Guard](/commands/deck-sync/#divergence-guard-push) for the full rules.
 
+## Decks that would be emptied
+
+A sync whose source deck holds no cards while the other side holds some would remove every card from the destination: a pull of an empty Archidekt deck would empty the local file, and a push of an empty local deck would empty the Archidekt deck. Both are refused, even under **Preview only**, unless the run is **Additions only** (which removes nothing):
+
+```
+The Archidekt deck holds no cards, so pulling it would remove all 100 cards from the local deck. Nothing was changed. If the deck really is empty now, pass --allow-remove-all to pull it anyway.
+```
+
+The deck is reported as failed and the rest of the run continues. This page offers no override: emptying a deck stays a deliberate step on the CLI (`deck-sync pull --allow-remove-all`) or MCP (`sync_decks` with `allowRemoveAll: true`). See [Empty-deck guard](/commands/deck-sync/#empty-deck-guard).
+
 :::note
 When git auto-commit is enabled in the admin config, deck files written by a sync are committed in a single commit (`Sync decks with Archidekt (pull)`), the same as the editor and move endpoints. CLI runs never auto-commit.
 :::

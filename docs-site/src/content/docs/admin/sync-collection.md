@@ -96,6 +96,16 @@ A line Ritual's parser cannot read is a line a sync would destroy. A pull rewrit
 
 Lists refused this way are reported as failed; the rest of the run continues. A **Preview only** run is exempt, since it writes nothing.
 
+## When one side is empty
+
+A pull against an Archidekt collection with no readable cards would remove every card from your collection lists, and a push from lists holding no cards would delete every record in your Archidekt collection. Both are refused before anything is written, even under **Preview only**, unless the run is **Additions only** (which removes nothing). The run log shows the refusal and the run is reported as failed:
+
+```
+The Archidekt collection holds no cards Ritual can read, so this pull would remove all 412 card entries from your collection lists. Nothing was changed. If the collection really is empty now, pass --allow-remove-all to pull anyway.
+```
+
+This page offers no override: emptying one side stays a deliberate step on the CLI (`collection-sync pull --allow-remove-all`) or MCP (`sync_collection` with `allowRemoveAll: true`). See [Empty-side guard](/commands/collection-sync/#empty-side-guard).
+
 ## What a sync changes
 
 The same as the CLI, since it is the same engine:

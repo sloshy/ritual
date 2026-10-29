@@ -221,6 +221,17 @@ export type DeckSyncOptions = {
    */
   force?: boolean
   /**
+   * Sync a deck even when that would remove every card from its destination: a
+   * pull of a deck whose Archidekt copy has no cards on any board while the
+   * local deck has some, or a push of a local deck with no cards while the
+   * Archidekt deck has some (the CLI's `--allow-remove-all`). Without it such a
+   * deck fails — dry runs included — and the rest of the run carries on. An
+   * additions-only run (`only: 'additions'`) cannot remove anything and is never
+   * refused. Independent of {@link force}, which answers a different question
+   * (whose edits win) and never permits emptying a deck.
+   */
+  allowRemoveAll?: boolean
+  /**
    * Also sync each card's exact printing — set, collector number, and finish
    * (the CLI's `--sync-printings`). Off by default, matching the historical
    * name-and-quantity-only diff: a pull rewrites local printings to the
@@ -315,6 +326,8 @@ export type SyncFlow = {
   only: SyncChangeFilter | undefined
   /** Overwrite a remote deck that changed since the last sync (push only). */
   force: boolean
+  /** See {@link DeckSyncOptions.allowRemoveAll}. */
+  allowRemoveAll: boolean
   /** Also sync each card's exact printing and finish. */
   syncPrintings: boolean
   /** Also sync each card's categories. */

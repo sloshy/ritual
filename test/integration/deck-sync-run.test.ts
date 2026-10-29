@@ -111,6 +111,13 @@ function remoteEntry(
 
 const SOL_RING_PRINTING = { set: 'c21', collectorNumber: '240', cardId: 501 }
 
+/**
+ * A local body that differs from {@link remoteDeck} by one copy — something to
+ * push that empties nothing (an empty local deck is refused, see the
+ * remove-everything tests).
+ */
+const TWO_SOL_RINGS: Card[] = [{ quantity: 2, name: 'Sol Ring' }]
+
 /** The raw deck payload a push reads, holding one Sol Ring (C21:240) plus `extraCards`. */
 function remoteDeck(
   updatedAt: string,
@@ -424,8 +431,9 @@ describe('deck-sync status (Integration)', () => {
 
 describe('deck-sync push divergence (Integration)', () => {
   test('fails a deck whose remote changed since the last sync, pushing nothing', async () => {
-    // Local drops the remote's only card, so there *is* something to push.
-    await writeLinkedDeck([], { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' })
+    // Local holds a second copy of the remote's only card, so there *is*
+    // something to push.
+    await writeLinkedDeck(TWO_SOL_RINGS, { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' })
     stubFetch(pushRoutes('2026-08-02T00:00:00.000Z'))
 
     expect(await runDeckSync(['push'])).toBe(1)
@@ -439,7 +447,7 @@ describe('deck-sync push divergence (Integration)', () => {
   })
 
   test('a dry run reports the divergence without needing --force', async () => {
-    await writeLinkedDeck([], { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' })
+    await writeLinkedDeck(TWO_SOL_RINGS, { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' })
     stubFetch(pushRoutes('2026-08-02T00:00:00.000Z'))
 
     expect(await runDeckSync(['push', '--dry-run'])).toBe(1)
@@ -447,7 +455,7 @@ describe('deck-sync push divergence (Integration)', () => {
   })
 
   test('--force pushes anyway and records the remote it overwrote', async () => {
-    await writeLinkedDeck([], { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' })
+    await writeLinkedDeck(TWO_SOL_RINGS, { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' })
     stubFetch(pushRoutes('2026-08-02T00:00:00.000Z'))
 
     expect(await runDeckSync(['push', '--force'])).toBe(0)
@@ -460,7 +468,7 @@ describe('deck-sync push divergence (Integration)', () => {
   })
 
   test('a deck that never synced has nothing to diverge from', async () => {
-    await writeLinkedDeck([])
+    await writeLinkedDeck(TWO_SOL_RINGS)
     stubFetch(pushRoutes('2026-08-02T00:00:00.000Z'))
 
     expect(await runDeckSync(['push'])).toBe(0)
@@ -470,7 +478,7 @@ describe('deck-sync push divergence (Integration)', () => {
   test('an unusable remote timestamp pushes anyway, but says the guard did not run', async () => {
     // Fails open on purpose — but silently failing open is how a response-shape
     // change would disable the guard without anyone noticing.
-    await writeLinkedDeck([], { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' })
+    await writeLinkedDeck(TWO_SOL_RINGS, { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' })
     stubFetch(pushRoutes('not a timestamp'))
 
     expect(await runDeckSync(['push'])).toBe(0)
@@ -482,7 +490,7 @@ describe('deck-sync push divergence (Integration)', () => {
     // The machine's clock trails Archidekt's by a day, so `lastSynced` is older
     // than the remote `updatedAt` of the very sync that wrote it. Only the
     // remote-sourced baseline is compared, so the push goes through.
-    await writeLinkedDeck([], {
+    await writeLinkedDeck(TWO_SOL_RINGS, {
       lastSynced: '2026-08-01T00:00:00.000Z',
       sourceUpdatedAt: '2026-08-02T00:00:00.000Z',
     })
@@ -683,7 +691,7 @@ describe('deck-sync push lastSynced (Integration)', () => {
   })
 
   test('a clean push stamps lastSynced and says so', async () => {
-    await writeLinkedDeck([], {
+    await writeLinkedDeck(TWO_SOL_RINGS, {
       lastSynced: '2026-07-01T00:00:00.000Z',
       sourceUpdatedAt: '2026-06-01T00:00:00.000Z',
     })
@@ -1601,6 +1609,78 @@ describe('deck-sync and Archidekt’s failures (Integration)', () => {
         reasonKey: 'domain.sync.archidekt.deckFailedWithReason',
         reasonParams: { deckId: DECK_ID, status: 404, reason: 'Not found.' },
       },
+    ])
+  })
+})
+
+describe('deck-sync remove-everything guard (Integration)', () => {
+  const SYNCED = { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' }
+  const ONE_SOL_RING: Card[] = [{ quantity: 1, name: 'Sol Ring', cardId: 1 }]
+
+  /** Routes serving the linked deck with no cards on any board. */
+  function emptyRemoteRoutes(): Record<string, StubRoute> {
+    const empty = { ...(remoteDeck(SYNCED.sourceUpdatedAt) as object), cards: [] }
+    return { ...pushRoutes(SYNCED.sourceUpdatedAt), [DECK_URL]: () => Response.json(empty) }
+  }
+
+  test('a pull of an empty Archidekt deck fails the deck and leaves the file alone', async () => {
+    await writeLinkedDeck(ONE_SOL_RING, SYNCED)
+    const before = await readDeck()
+    stubFetch(emptyRemoteRoutes())
+
+    expect(await runDeckSync(['pull'])).toBe(1)
+
+    expect(logged()).toContain('The Archidekt deck holds no cards')
+    expect(logged()).toContain('--allow-remove-all')
+    expect(await readDeck()).toBe(before)
+  })
+
+  test('a dry run reports the same refusal', async () => {
+    await writeLinkedDeck(ONE_SOL_RING, SYNCED)
+    stubFetch(emptyRemoteRoutes())
+
+    expect(await runDeckSync(['pull', '--dry-run'])).toBe(1)
+    expect(logged()).toContain('The Archidekt deck holds no cards')
+  })
+
+  test('an additions-only pull removes nothing, so it is not refused', async () => {
+    await writeLinkedDeck(ONE_SOL_RING, SYNCED)
+    stubFetch(emptyRemoteRoutes())
+
+    expect(await runDeckSync(['pull', '--only', 'additions'])).toBe(0)
+    expect(logged()).not.toContain('The Archidekt deck holds no cards')
+    expect(await readDeck()).toContain('1 Sol Ring &1')
+  })
+
+  test('--allow-remove-all pulls the empty deck', async () => {
+    await writeLinkedDeck(ONE_SOL_RING, SYNCED)
+    stubFetch(emptyRemoteRoutes())
+
+    expect(await runDeckSync(['pull', '--allow-remove-all'])).toBe(0)
+    expect(await readDeck()).not.toContain('Sol Ring')
+  })
+
+  test('a push of an empty local deck fails the deck and sends nothing', async () => {
+    await writeLinkedDeck([], SYNCED)
+    stubFetch(pushRoutes(SYNCED.sourceUpdatedAt))
+
+    expect(await runDeckSync(['push'])).toBe(1)
+
+    expect(logged()).toContain('The local deck holds no cards')
+    expect(pushedToArchidekt()).toBe(false)
+  })
+
+  test('--force does not empty a deck; --allow-remove-all does', async () => {
+    await writeLinkedDeck([], SYNCED)
+    stubFetch(pushRoutes(SYNCED.sourceUpdatedAt))
+
+    expect(await runDeckSync(['push', '--force'])).toBe(1)
+    expect(logged()).toContain('The local deck holds no cards')
+    expect(pushedToArchidekt()).toBe(false)
+
+    expect(await runDeckSync(['push', '--allow-remove-all'])).toBe(0)
+    expect(pushedEntries()).toEqual([
+      expect.objectContaining({ action: 'remove', deckRelationId: 11 }),
     ])
   })
 })

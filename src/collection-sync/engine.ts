@@ -24,7 +24,8 @@
  * testable without touching any of them.
  */
 
-import type { SyncDirection } from '../sync/common'
+import { wouldRemoveAll, type SyncDirection } from '../sync/common'
+import { FLAG } from '../util/cli-tokens'
 import { ArchidektClient, createPacedArchidektClient } from '../clients/ArchidektClient'
 import {
   errorMessage,
@@ -306,9 +307,27 @@ export async function runCollectionSync(
       elapsed: syncElapsed(Date.now() - fetchStartedAt),
     }),
   )
+  // 4. The remove-everything guard, the push refusal above taken one step
+  //    further: an empty source mirrored onto a destination that holds cards
+  //    would delete every one of them, and an empty Archidekt collection (a new
+  //    account, one emptied elsewhere) or a set of empty binders is far more
+  //    often a mistake than the truth. Refused before anything is written —
+  //    under a dry run too, which reports what a real run would do — unless the
+  //    caller opted in. An additions-only run cannot remove anything.
+  const refusal = removeAllRefusal(direction, options, {
+    local: localIndex.size,
+    remote: remote.index.size,
+    entries: entryCount,
+    records: fetched.records.length,
+  })
+  if (refusal !== null) {
+    emit({ kind: 'log', level: 'error', item: null, ...refusal })
+    return report(empty([refusal]), loaded)
+  }
+
   progress(syncMessage('domain.sync.comparing'))
 
-  // 4. Plan and apply.
+  // 5. Plan and apply.
   const flow: SyncFlow = {
     client,
     store,
@@ -339,7 +358,7 @@ export async function runCollectionSync(
       ? await pullFromArchidekt(flow, localIndex, remote.index, names)
       : await pushToArchidekt(flow, localIndex, remote.index, names)
 
-  // 5. Record when the account last synced. A dry run changed nothing, and
+  // 6. Record when the account last synced. A dry run changed nothing, and
   //    neither did a run that aborted before applying anything — stamping the
   //    state file for either would have the status page and
   //    `get_sync_status` report a sync that wrote nothing at all. A cancelled
@@ -363,6 +382,57 @@ export async function runCollectionSync(
   }
 
   return report(outcome, loaded)
+}
+
+/**
+ * How much each side of a collection run holds, for {@link removeAllRefusal}:
+ * the printings each side indexed decide, the raw counts only word the message.
+ */
+type CollectionSides = {
+  /** Printings the local lists hold — what the guard decides on. */
+  local: number
+  /**
+   * Printings the remote collection holds, counting only the records Ritual
+   * could read — what the guard decides on. A collection whose every record is
+   * unreadable is as empty to a pull as one with no records at all.
+   */
+  remote: number
+  /** Card entries the local lists hold — what a refused pull says it would remove. */
+  entries: number
+  /**
+   * Every record the remote collection holds — what a refused push says it
+   * would delete. It may count unreadable records the push never touches; it is
+   * only the message's figure, never the decision's.
+   */
+  records: number
+}
+
+/**
+ * Why a run that would empty its destination is refused (see
+ * {@link wouldRemoveAll}), or null when it may go ahead — always null once the
+ * caller opted in with `allowRemoveAll`.
+ */
+function removeAllRefusal(
+  direction: SyncDirection,
+  options: Pick<CollectionSyncOptions, 'only' | 'allowRemoveAll'>,
+  sides: CollectionSides,
+): SyncMessage | null {
+  if (options.allowRemoveAll) return null
+  const { only } = options
+  if (direction === 'pull') {
+    return wouldRemoveAll({ only, source: sides.remote, destination: sides.local })
+      ? syncMessage('domain.sync.emptyRemoteCollection', {
+          entries: syncRef('domain.count.cardEntries', { count: sides.entries }),
+          flag: FLAG.allowRemoveAll,
+        })
+      : null
+  }
+  return wouldRemoveAll({ only, source: sides.local, destination: sides.remote })
+    ? syncMessage('domain.sync.emptyLocalCollection', {
+        records: syncRef('domain.count.collectionRecords', { count: sides.records }),
+        flag: FLAG.allowRemoveAll,
+      })
+    : null
 }
 
 /**

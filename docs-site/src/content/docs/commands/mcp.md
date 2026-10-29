@@ -489,7 +489,7 @@ Details the table leaves out:
 - `direction` (`pull` | `push`).
 - An optional `decks` array (slugs or names; omit to sync every Archidekt-linked deck).
 - An optional [`only`](/commands/deck-sync/#change-filter) (`additions` | `removals`), applying just one side of each deck's diff relative to the sync destination.
-- Optional `dryRun` / `ignoreUnreadableLines` / `force` / [`syncPrintings`](/commands/deck-sync/#printing-sync---sync-printings) / [`syncCategories`](/commands/deck-sync/#category-sync---sync-categories) flags.
+- Optional `dryRun` / `ignoreUnreadableLines` / `force` / [`allowRemoveAll`](/commands/deck-sync/#empty-deck-guard) / [`syncPrintings`](/commands/deck-sync/#printing-sync---sync-printings) / [`syncCategories`](/commands/deck-sync/#category-sync---sync-categories) flags.
 
 Under `syncPrintings`, a card held at several printings at once is reconciled printing by printing (copies added, removed, or re-pinned), a local line naming no printing pushes nothing, and a stated finish the printing does not offer on Archidekt fails that deck. Each deck's report entry carries `printingsChanged`. Without the flag, printings are left alone and a deck whose two sides disagree about them carries `printingsUnaligned`.
 
@@ -503,6 +503,8 @@ It needs an Archidekt login stored by `ritual login archidekt` or the admin site
 
 A **push** whose remote deck changed since that deck's recorded `sourceUpdatedAt` fails with `Remote deck changed since last sync (…) — pull first, or pass --force to overwrite remote changes.` rather than reverting those remote edits. `force: true` overwrites them deliberately, and a `dryRun` reports the same refusal without needing it. Pulling that deck first also clears it, since a pull records the baseline even when it finds no card changes. See [Divergence Guard](/commands/deck-sync/#divergence-guard-push). Only decks that pushed cleanly get fresh stamps, so `get_sync_status` never reports a sync that failed.
 
+A deck whose sync would remove every card from its destination fails instead of being synced: a pull of an Archidekt deck with no cards over a local deck that has some (`reasonKey` `domain.sync.emptyRemoteDeck`), or a push of an empty local deck over an Archidekt deck that has some (`domain.sync.emptyLocalDeck`). A `dryRun` reports the same refusal, and `only: "additions"` is never refused. `allowRemoveAll: true` lets the deck be emptied; `force` does not. Confirm with the user before setting it. See [Empty-deck guard](/commands/deck-sync/#empty-deck-guard).
+
 A deck whose file holds lines the parser cannot read fails with `N unreadable lines would be dropped by a sync`, because syncing rewrites the file and would delete them. `ignoreUnreadableLines: true` accepts that loss. Confirm with the user before setting it; it stands in for the CLI's [`--yes`](/commands/deck-sync/#unreadable-lines) prompt.
 
 #### `sync_collection`
@@ -515,9 +517,11 @@ A deck whose file holds lines the parser cannot read fails with `N unreadable li
 - An optional `into`: the list a pull adds new cards to, created if missing. Defaults to the [`collectionSync.pullTarget`](/configuration/#collection-sync) config key.
 - An optional `removalPriority` array or `removalAssignments` array (one or the other; see below).
 - An optional `csv` flag.
-- The same `dryRun` / `ignoreUnreadableLines` flags.
+- The same `dryRun` / `ignoreUnreadableLines` / `allowRemoveAll` flags.
 
 Naming a subset of lists declares that those lists are what the remote collection mirrors, so cards living only in unnamed lists read as absent. Pair a subset run with `only: "additions"` when they are not the whole story.
+
+A run whose source is empty while its destination holds cards is refused before anything is written, dry runs included: a pull against an Archidekt collection with no readable cards while the lists in scope hold some (`report.errorMessages` key `domain.sync.emptyRemoteCollection`), or a push from lists holding no cards while the account's collection has some (`domain.sync.emptyLocalCollection`). Every list in scope is reported with the `outcome` `not-run`. `only: "additions"` is never refused; `allowRemoveAll: true` lets the run empty that side. Confirm with the user before setting it. See [Empty-side guard](/commands/collection-sync/#empty-side-guard).
 
 `csv` is the tool's form of the CLI's [`--csv`](/commands/collection-sync/#csv-import-for-new-cards): send a push's **new cards** to Archidekt as one CSV import, with rows built from the local Scryfall cache, instead of creating them one at a time. Creating a printing costs a search plus a create, both [paced](/commands/collection-sync/#rate-limiting), so a push adding more than 25 new printings without `csv: true` **fails before writing anything remote**; there is nobody to prompt over MCP. Set it for any large push. A `dryRun` never needs it (it reports the upload it would make). `report.csv` then says what the import did: its `status`, `rows`, `chunks`, the rows Archidekt refused (`failures`), and `uncached` additions whose printing the cache does not hold and which were added one at a time. Because the rows are keyed by Scryfall ids from the local cache, an empty or day-old cache is refreshed automatically before the upload is built (the CLI's [`--refresh auto`](/commands/collection-sync/#cache-freshness)). Quantity changes and removals never go through the CSV, and a pull ignores the field. Writing the CSV to a file instead of pushing it is CLI-only: the tool has no `csvFile` field (an unknown field is stripped before dispatch, never honored).
 

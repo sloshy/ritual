@@ -42,6 +42,7 @@ export type DeckSyncCommandOptions = {
   dryRun?: boolean
   yes?: boolean
   only?: SyncChangeFilter
+  allowRemoveAll?: boolean
   force?: boolean
   syncPrintings?: boolean
   syncCategories?: boolean
@@ -302,6 +303,7 @@ async function runSync(
     dryRun,
     only: options.only,
     force: options.force === true,
+    allowRemoveAll: options.allowRemoveAll === true,
     syncPrintings: options.syncPrintings === true,
     syncCategories: options.syncCategories === true,
     onEvent: renderer.onEvent,

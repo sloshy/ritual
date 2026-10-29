@@ -317,6 +317,7 @@ export function parseCollectionSyncBody(value: unknown): CollectionSyncRequest |
 const BOOLEAN_FLAGS = {
   dryRun: true,
   ignoreUnreadableLines: true,
+  allowRemoveAll: true,
   csv: true,
 } as const satisfies Record<BooleanFieldsOf<CollectionSyncRequest>, true>
 
@@ -474,6 +475,7 @@ async function performSync(
     userId: user.id,
     lists: request.lists,
     only: request.only,
+    allowRemoveAll: request.allowRemoveAll === true,
     into: request.into ?? getCollectionSyncPullTarget(),
     removalPriority: request.removalPriority,
     // The caller's decision, made up front: the engine validates it against the

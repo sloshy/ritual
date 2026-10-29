@@ -9,6 +9,7 @@ import {
   REFRESH_SESSION,
   sessionSemantics,
   SYNC_CHANGE_FILTER,
+  SYNC_REMOVE_ALL_GUARD,
   textImportSection,
   wrapProse,
 } from './shared'
@@ -233,6 +234,7 @@ ritual collection-sync push --csv                   # new cards as one CSV impor
 ritual collection-sync push --csv-file import.csv   # write that CSV instead of pushing them
 ritual collection-sync push --csv --refresh auto    # refresh a stale card cache instead of asking
 ritual collection-sync pull --yes                   # accept losing lines the parser can't read
+ritual collection-sync pull --allow-remove-all      # let a pull from an empty Archidekt collection empty the lists
 ritual collection-sync pull --output json           # scripted per-list report
 ritual collection-sync push --dry-run -v            # also list every card it would change
 \`\`\`
@@ -269,6 +271,8 @@ ${wrapProse(
 )}
 
 ${SYNC_CHANGE_FILTER}
+
+${SYNC_REMOVE_ALL_GUARD}
 
 ${wrapProse(
   'That is what makes a subset scope safe with an incomplete local picture: ' +

@@ -25,6 +25,8 @@ Make a dry run your habit before every real run, and keep your workspace in git 
 
 A sync is not a merge. `collection-sync push` makes your **whole** Archidekt collection match your local collection lists: a card on Archidekt that no local list holds is deleted, including cards you added on archidekt.com since your last sync. A pull does the same in the other direction: it makes your local lists match Archidekt by name and quantity, so local cards you added or changed and never pushed are removed. Neither direction asks first. Preview with a dry run, and use `--only additions` when both sides have changed or you only want to send new cards.
 
+The one thing a sync refuses outright is removing **everything**: when the side it copies from holds no cards and the other side holds some (an empty Archidekt collection or deck, or empty local files), the run, or that deck, stops before writing anything. Pass `--allow-remove-all` only when emptying one side is what you want.
+
 :::
 
 ## 1. Sign In
@@ -126,9 +128,11 @@ An Archidekt account has one collection, while a Ritual workspace can have many 
 
 ### Pull
 
-:::caution[The first pull can empty your lists]
+:::caution[The first pull can thin out your lists]
 
-A pull removes every local copy that Archidekt does not hold. If your Archidekt collection is empty or only partly filled, a first pull removes most or all of your local collection, without asking. For a collection that has never been synced, preview first and pull with `--only additions`.
+A pull removes every local copy that Archidekt does not hold. If your Archidekt collection is only partly filled, a first pull removes most of your local collection, without asking. For a collection that has never been synced, preview first and pull with `--only additions`.
+
+A pull against an Archidekt collection with **no** cards (a new account, or one emptied elsewhere) is refused rather than emptying your lists; pass `--allow-remove-all` only if you really mean to remove everything. See [Empty-side guard](/commands/collection-sync/#empty-side-guard).
 
 :::
 

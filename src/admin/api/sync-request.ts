@@ -48,6 +48,15 @@ export type SyncRequestCore = {
    * (the CLI's missing `--only`) applies every change.
    */
   only?: SyncChangeFilter
+  /**
+   * Run even when the side being copied from holds no cards and every card on
+   * the other side would be removed — the CLI's `--allow-remove-all`. Without
+   * it the engine refuses such a collection run, or fails such a deck, dry runs
+   * included; an additions-only run is never refused. Present only when set,
+   * like {@link only}: the opt-in is rare and dangerous, so a request that does
+   * not carry it reads the same as one that says `false`.
+   */
+  allowRemoveAll?: boolean
 }
 
 /**
@@ -73,7 +82,7 @@ export function parseSyncRequestCore(value: Record<string, unknown>): SyncReques
     only = parsed
   }
 
-  for (const field of ['dryRun', 'ignoreUnreadableLines'] as const) {
+  for (const field of ['dryRun', 'ignoreUnreadableLines', 'allowRemoveAll'] as const) {
     const refusal = refuseNonBoolean(value, field)
     if (refusal !== null) return refusal
   }
@@ -86,6 +95,7 @@ export function parseSyncRequestCore(value: Record<string, unknown>): SyncReques
   // Left off entirely when unfiltered, so the field is absent rather than null
   // wherever the request is echoed back or serialized.
   if (only) core.only = only
+  if (value.allowRemoveAll === true) core.allowRemoveAll = true
   return core
 }
 

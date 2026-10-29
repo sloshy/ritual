@@ -369,6 +369,7 @@ describe('runCollectionSync (cancellation)', () => {
 
     const { run, logs } = await sync({
       direction: 'pull',
+      allowRemoveAll: true,
       client,
       store,
       state,
@@ -540,7 +541,13 @@ describe('runCollectionSync (pull)', () => {
     ])
     const { client } = mockArchidekt({ pages: [[]] })
 
-    const { run } = await sync({ direction: 'pull', client, store, state: fakeState() })
+    const { run } = await sync({
+      direction: 'pull',
+      allowRemoveAll: true,
+      client,
+      store,
+      state: fakeState(),
+    })
 
     expect(run.report.ambiguous).toEqual([])
     expect(store.applied.map((applied) => applied.list)).toEqual(['blue-binder', 'long-box'])
@@ -662,7 +669,13 @@ describe('runCollectionSync (pull)', () => {
     )
     const { client } = mockArchidekt({ pages: [[]] })
 
-    const { run, events } = await sync({ direction: 'pull', client, store, state: fakeState() })
+    const { run, events } = await sync({
+      direction: 'pull',
+      allowRemoveAll: true,
+      client,
+      store,
+      state: fakeState(),
+    })
 
     expect(run.report.failedCount).toBe(1)
     expect(run.report.lists[0]?.reason).toContain('disk is full')
@@ -1203,6 +1216,7 @@ describe('runCollectionSync (unreadable lines)', () => {
 
     const { run } = await sync({
       direction: 'pull',
+      allowRemoveAll: true,
       client,
       store,
       state: fakeState(),
@@ -1222,6 +1236,7 @@ describe('runCollectionSync (unreadable lines)', () => {
 
     const { run } = await sync({
       direction: 'pull',
+      allowRemoveAll: true,
       client,
       store,
       state: fakeState(),
@@ -1257,6 +1272,7 @@ describe('runCollectionSync (advisories)', () => {
 
     const { run, logs, events } = await sync({
       direction: 'pull',
+      allowRemoveAll: true,
       client,
       store,
       state: fakeState(),
@@ -1322,7 +1338,13 @@ describe('runCollectionSync (push)', () => {
       ],
     })
 
-    const { run } = await sync({ direction: 'push', client, store, state: fakeState() })
+    const { run } = await sync({
+      direction: 'push',
+      allowRemoveAll: true,
+      client,
+      store,
+      state: fakeState(),
+    })
 
     const deleted = requests.find((request) => request.method === 'DELETE')
     expect(deleted?.url).toBe('https://archidekt.com/api/collection/bulk/')
@@ -3009,6 +3031,121 @@ describe('runCollectionSync (progress)', () => {
   })
 })
 
+// ── The remove-everything guard ───────────────────────────────────────
+
+describe('runCollectionSync (remove-everything guard)', () => {
+  /** A binder holding one Sol Ring — something an empty remote would take away. */
+  const binderWithSolRing = (): FakeStore =>
+    fakeStore([{ name: 'blue-binder', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] }])
+
+  test('a pull against an empty Archidekt collection is refused before writing', async () => {
+    const store = binderWithSolRing()
+    const state = fakeState()
+    const { client } = mockArchidekt({ pages: [[]] })
+
+    const { run, events } = await sync({ direction: 'pull', client, store, state })
+
+    expect(store.applied).toEqual([])
+    expect(run.report.errorMessages.map((error) => error.messageKey)).toEqual([
+      'domain.sync.emptyRemoteCollection',
+    ])
+    expect(run.report.errorMessages[0]?.messageParams?.flag).toBe('--allow-remove-all')
+    expect(run.report.lists.map((list) => [list.name, list.outcome])).toEqual([
+      ['blue-binder', 'not-run'],
+    ])
+    expect(
+      events.some(
+        (event) =>
+          event.kind === 'log' &&
+          event.level === 'error' &&
+          event.messageKey === 'domain.sync.emptyRemoteCollection',
+      ),
+    ).toBe(true)
+    // Nothing was synced, so nothing is stamped.
+    expect(state.written).toEqual([])
+  })
+
+  test('a dry run reports the same refusal', async () => {
+    const { client } = mockArchidekt({ pages: [[]] })
+
+    const { run } = await sync({
+      direction: 'pull',
+      client,
+      store: binderWithSolRing(),
+      state: fakeState(),
+      dryRun: true,
+    })
+
+    expect(run.report.errorMessages[0]?.messageKey).toBe('domain.sync.emptyRemoteCollection')
+  })
+
+  test('an additions-only pull removes nothing, so it is not refused', async () => {
+    const store = binderWithSolRing()
+    const { client } = mockArchidekt({ pages: [[]] })
+
+    const { run } = await sync({
+      direction: 'pull',
+      client,
+      store,
+      state: fakeState(),
+      only: 'additions',
+    })
+
+    expect(run.report.errors).toEqual([])
+    // The removal was there and the filter dropped it — not a run with nothing to do.
+    expect(run.report.totals.skipped).toBe(1)
+    expect(run.report.totals.removed).toBe(0)
+    expect(store.applied).toEqual([])
+  })
+
+  test('a first pull on an empty account with no local cards is an ordinary no-op', async () => {
+    const { client } = mockArchidekt({ pages: [[]] })
+
+    const { run } = await sync({
+      direction: 'pull',
+      client,
+      store: fakeStore([{ name: 'blue-binder' }]),
+      state: fakeState(),
+    })
+
+    expect(run.report.errors).toEqual([])
+    expect(run.report.lists[0]?.outcome).toBe('unchanged')
+  })
+
+  test('allowRemoveAll lets the pull empty the lists', async () => {
+    const store = binderWithSolRing()
+    const { client } = mockArchidekt({ pages: [[]] })
+
+    const { run } = await sync({
+      direction: 'pull',
+      client,
+      store,
+      state: fakeState(),
+      allowRemoveAll: true,
+    })
+
+    expect(run.report.errors).toEqual([])
+    expect(store.applied.map((applied) => applied.list)).toEqual(['blue-binder'])
+    expect(run.report.totals.removed).toBe(1)
+  })
+
+  test('a push from lists holding no cards is refused and deletes nothing', async () => {
+    const { client, requests } = mockArchidekt({
+      pages: [[record({ id: 11, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' })]],
+    })
+
+    const { run } = await sync({
+      direction: 'push',
+      client,
+      store: fakeStore([{ name: 'blue-binder' }]),
+      state: fakeState(),
+    })
+
+    expect(run.report.errorMessages[0]?.messageKey).toBe('domain.sync.emptyLocalCollection')
+    expect(requests.some((request) => request.method !== 'GET')).toBe(false)
+  })
+})
+
 // ── Run-level failures ────────────────────────────────────────────────
 
 describe('runCollectionSync (run-level failures)', () => {
@@ -3019,7 +3156,13 @@ describe('runCollectionSync (run-level failures)', () => {
       bulkFails: true,
     })
 
-    const { run } = await sync({ direction: 'push', client, store, state: fakeState() })
+    const { run } = await sync({
+      direction: 'push',
+      allowRemoveAll: true,
+      client,
+      store,
+      state: fakeState(),
+    })
 
     expect(run.report.failedCount).toBe(0)
     expect(run.report.errors[0]).toBe('Failed to remove Sol Ring (LTC:284) from Archidekt')
@@ -3034,7 +3177,13 @@ describe('runCollectionSync (run-level failures)', () => {
       bulkFails: true,
     })
 
-    const { events } = await sync({ direction: 'push', client, store, state: fakeState() })
+    const { events } = await sync({
+      direction: 'push',
+      allowRemoveAll: true,
+      client,
+      store,
+      state: fakeState(),
+    })
 
     const failure = events.find(
       (event) => event.kind === 'log' && event.messageKey === 'domain.sync.removeFailed',

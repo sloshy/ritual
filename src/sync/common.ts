@@ -74,6 +74,36 @@ export function describeSkippedChanges(
   return syncMessage(SKIPPED_MESSAGE[filter], { count: skipped })
 }
 
+/**
+ * What {@link wouldRemoveAll} weighs. Named rather than positional: which side
+ * is the source flips with the direction, and a swapped pair is the one bug
+ * this guard cannot afford.
+ */
+export type RemoveAllCheck = {
+  /** The run's change filter. */
+  only: SyncChangeFilter | undefined
+  /** How much the side being copied from holds (Archidekt on a pull). */
+  source: number
+  /** How much the side being written to holds (the local files on a pull). */
+  destination: number
+}
+
+/**
+ * Whether a run would leave its destination with nothing in it: the side it
+ * copies from (Archidekt on a pull, the local files on a push) is empty while
+ * the side it writes to is not, and the run's filter lets removals through.
+ *
+ * Such a run is refused unless the caller opted in explicitly (the CLI's
+ * `--allow-remove-all`): an empty source reads exactly like "everything was
+ * deleted", but far more often means a new or emptied account, the wrong deck
+ * linked, or a file that lost its lines — and mirroring it would delete every
+ * card the destination holds. An additions-only run cannot remove anything, so
+ * it is never refused. Shared by both sync engines so the rule cannot drift.
+ */
+export function wouldRemoveAll(run: RemoveAllCheck): boolean {
+  return run.only !== 'additions' && run.source === 0 && run.destination > 0
+}
+
 // ── Rate limiting ─────────────────────────────────────────────────────
 
 /** One wait the Archidekt client is about to take after a 429 response. */

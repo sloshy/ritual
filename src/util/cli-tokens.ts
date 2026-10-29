@@ -39,6 +39,7 @@ export const FLAG = {
   add: '--add',
   all: '--all',
   allCopies: '--all-copies',
+  allowRemoveAll: '--allow-remove-all',
   allowUnauthenticated: '--allow-unauthenticated',
   api: '--api',
   append: '--append',

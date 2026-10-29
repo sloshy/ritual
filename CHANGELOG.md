@@ -49,6 +49,16 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Changed
 
+- A sync no longer empties one side because the other is empty. `collection-sync pull`
+  against an Archidekt collection with no cards (a new account, or one emptied elsewhere)
+  used to delete every local copy without asking; it is now refused before anything is
+  written, and so is a `collection-sync push` from collection lists that hold no cards.
+  `deck-sync pull` of an Archidekt deck with no cards, and `deck-sync push` of an empty
+  local deck, now fail that deck while the rest of the run carries on. Dry runs report the
+  same refusal, and `--only additions` is never refused. The new `--allow-remove-all` flag
+  on both commands (`allowRemoveAll` on the admin sync API and the MCP `sync_decks` and
+  `sync_collection` tools) lets a run empty that side when you mean it; `--force` does not.
+  A script that relied on an empty side clearing the other must add the flag.
 - `collection-sync push` now prints a `Changes: +N added, -N removed` count per list instead
   of one `Added 2 × Sol Ring (C21:240).` line per card. The per-card lines are behind
   `--verbose`, worded as `+ 2 Sol Ring (C21:240) to Archidekt`, and a dry run no longer says

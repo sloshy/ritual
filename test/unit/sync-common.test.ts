@@ -6,6 +6,7 @@ import {
   describeSkippedChanges,
   noChangesReason,
   unreadableConsequence,
+  wouldRemoveAll,
   type SyncChangeFilter,
 } from '../../src/sync/common'
 import { reasonFields, renderSyncMessage } from '../../src/sync/message'
@@ -33,6 +34,23 @@ describe('describeSkippedChanges', () => {
       expect(describeSkippedChanges(filter, 0)).toBeNull()
     }
     expect(describeSkippedChanges(undefined, 5)).toBeNull()
+  })
+})
+
+describe('wouldRemoveAll', () => {
+  test('an empty source over a destination that holds cards would empty it', () => {
+    expect(wouldRemoveAll({ only: undefined, source: 0, destination: 3 })).toBe(true)
+    expect(wouldRemoveAll({ only: 'removals', source: 0, destination: 3 })).toBe(true)
+  })
+
+  test('an additions-only run removes nothing, so it never would', () => {
+    expect(wouldRemoveAll({ only: 'additions', source: 0, destination: 3 })).toBe(false)
+  })
+
+  test('a source with anything in it, or an empty destination, is an ordinary run', () => {
+    expect(wouldRemoveAll({ only: undefined, source: 1, destination: 3 })).toBe(false)
+    // Both empty: a first pull on a new account, which removes nothing.
+    expect(wouldRemoveAll({ only: undefined, source: 0, destination: 0 })).toBe(false)
   })
 })
 

@@ -259,6 +259,20 @@ export const SYNC_CHANGE_FILTER = wrapProse(
     'additions).") and simply not applied.',
 )
 
+/** The remove-everything guard both sync commands share, and its `--allow-remove-all` override. */
+export const SYNC_REMOVE_ALL_GUARD = wrapProse(
+  '**Empty-side guard:** a run whose source is empty while its destination holds ' +
+    'cards would remove every one of them — an empty Archidekt collection or deck ' +
+    'on a pull, empty local files on a push — so it is **refused** before anything ' +
+    'is written (a dry run reports the same refusal). `deck-sync` fails just that ' +
+    'deck (`reasonKey` `domain.sync.emptyRemoteDeck` / `emptyLocalDeck`); ' +
+    '`collection-sync` fails the run (`errorMessages` key ' +
+    '`domain.sync.emptyRemoteCollection` / `emptyLocalCollection`, every list ' +
+    '`not-run`). Both exit 1. `--only additions` removes nothing and is never ' +
+    'refused. `--allow-remove-all` overrides it — pass it only when the user has ' +
+    'confirmed they want that side emptied; `--force` does not.',
+)
+
 /** The `ritual diff` matching-mode sentence (ends with a colon: an example block follows). */
 export const DIFF_BY_MODES =
   `\`--by name\` (the default) matches card names; \`--by printing\` requires the ` +

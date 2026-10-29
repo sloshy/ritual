@@ -205,6 +205,8 @@ export function DeckSync(): JSX.Element {
     // sync fails with that reason, and pulling first is the remedy this
     // page can already perform.
     force: false,
+    // Nor is `allowRemoveAll` offered: emptying a deck stays a deliberate CLI
+    // or API call, and the refusal's reason names the flag that allows it.
     syncPrintings: syncPrintings(),
     syncCategories: syncCategories(),
   })

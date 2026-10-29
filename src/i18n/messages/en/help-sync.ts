@@ -31,6 +31,8 @@ export const helpSyncMessages = {
   },
   'help.sync.only': "Apply only 'additions' or 'removals' (relative to the sync destination)",
   'help.sync.dryRun': 'Report what would sync without writing files or pushing changes',
+  'help.sync.allowRemoveAll':
+    'Sync even when the side being copied from is empty and every card would be removed from the other (refused by default)',
   'help.sync.verbose': {
     $select: 'subject',
     decks: 'List every card being synced under its deck',

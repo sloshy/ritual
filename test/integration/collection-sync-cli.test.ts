@@ -184,7 +184,9 @@ describe('collection-sync CLI (Integration)', () => {
     })
     stubCollection()
 
-    const exitCode = await runSync(['pull'])
+    // The remote is empty, so the pull would remove the only local card: the
+    // flag lets it run (and pins its wiring) — without it the run is refused.
+    const exitCode = await runSync(['pull', '--allow-remove-all'])
 
     expect(exitCode).toBe(0)
     expect(logged()).toContain('is not in the Scryfall card cache')

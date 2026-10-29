@@ -2095,10 +2095,13 @@ Sync decks with Archidekt, using the same engine as the [`deck-sync`](/commands/
 | `ignoreUnreadableLines` | Sync decks whose files hold content a rewrite cannot reproduce — unreadable lines or a fenced code block — deleting it (default `false`).                                                                                     | No       |
 | `only`                  | `additions` or `removals` — apply just one side of each deck's diff, relative to the sync destination (see [Change Filter](/commands/deck-sync/#change-filter)). Omitted applies every change; any other value returns `400`. | No       |
 | `force`                 | Push a deck whose remote copy changed since its recorded sync, overwriting those remote changes (default `false`). Must be a boolean or `400`. A pull ignores it.                                                             | No       |
+| `allowRemoveAll`        | Sync a deck even when its source holds no cards and every card would be removed from the destination (default `false`). Must be a boolean or `400`. See [Empty-deck guard](/commands/deck-sync/#empty-deck-guard).            | No       |
 | `syncPrintings`         | Also sync each card's exact printing — set, collector number, and foil/etched finish (default `false`). Must be a boolean or `400`. See [Printing Sync](/commands/deck-sync/#printing-sync---sync-printings).                 | No       |
 | `syncCategories`        | Also sync each card's categories — its role in the deck (default `false`). Must be a boolean or `400`. See [Category Sync](/commands/deck-sync/#category-sync---sync-categories).                                             | No       |
 
 **Divergence guard.** A `push` refuses any deck whose Archidekt `updatedAt` is newer than the `sourceUpdatedAt` its last sync recorded, so remote edits are never silently reverted. Such a deck is reported `failed` with `Remote deck changed since last sync (…) — pull first, or pass --force to overwrite remote changes.`, and the rest of the run continues. A `pull` of that deck records the new baseline (even when it finds no card changes), after which the push succeeds; `force: true` overrides the guard. See [Divergence Guard](/commands/deck-sync/#divergence-guard-push).
+
+**Empty-deck guard.** A deck whose source holds no cards while its destination holds some (an empty Archidekt deck on a `pull`, an empty local deck on a `push`) is reported `failed` with `reasonKey` `domain.sync.emptyRemoteDeck` or `domain.sync.emptyLocalDeck`, nothing is written for it, and the rest of the run continues. A `dryRun` reports the same refusal, `only: "additions"` is never refused, and `allowRemoveAll: true` overrides it (`force` does not).
 
 **Unreadable lines.** A sync rewrites each deck file, so a line the parser cannot read, or a [fenced code block](/list-format/#fenced-code-blocks), would be deleted by the save. Over HTTP there is nobody to prompt, so such decks **fail** (`N unreadable lines would be dropped by a sync`) unless the request sets `ignoreUnreadableLines` — the API equivalent of the CLI's [`--yes`](/commands/deck-sync/#unreadable-lines). The affected decks and their exact lines are reported in `report.unreadable` and, on the stream, as a `progress` frame with `kind: "unreadable-lines"` emitted before the decision is applied. A `dryRun` request is exempt: it writes nothing, so those decks are previewed rather than refused.
 
@@ -2176,7 +2179,7 @@ The same sync as `POST /api/deck-sync`, streamed as server-sent events. `EventSo
 - `direction` is required.
 - `deck` repeats once per deck; omit it entirely to sync all.
 - `only` takes `additions` or `removals`; omit it to apply every change.
-- `dryRun` / `ignoreUnreadableLines` / `force` / `syncPrintings` / `syncCategories` take `true` or `false`. Any other value is rejected, so a flag that decides whether files are written can never be misread as "no".
+- `dryRun` / `ignoreUnreadableLines` / `allowRemoveAll` / `force` / `syncPrintings` / `syncCategories` take `true` or `false`. Any other value is rejected, so a flag that decides whether files are written can never be misread as "no".
 
 Three event types are emitted:
 
@@ -2252,6 +2255,7 @@ Sync the account's Archidekt collection with the local collection lists, using t
 | `csv`                   | Upload a push's **new cards** as one CSV import instead of adding them one at a time (see below). Must be a boolean or `400`. A pull ignores it.                                                                                                                                                                                                                                                                      | No       |
 | `dryRun`                | Report what would sync without writing files or touching Archidekt (default `false`).                                                                                                                                                                                                                                                                                                                                 | No       |
 | `ignoreUnreadableLines` | Sync lists whose files contain lines the parser cannot read, dropping those lines (default `false`).                                                                                                                                                                                                                                                                                                                  | No       |
+| `allowRemoveAll`        | Run even when the source holds no cards and every card would be removed from the destination (default `false`). Must be a boolean or `400`. See below.                                                                                                                                                                                                                                                                | No       |
 
 A `csvFile` field is **rejected** with `400` rather than ignored: writing a CSV to a caller-named path is a CLI-only feature ([`--csv-file`](/commands/collection-sync/#writing-the-csv-instead-of-pushing---csv-file)), and a caller mirroring the CLI's flags should be told instead of having its additions uploaded.
 
@@ -2269,6 +2273,8 @@ The rows are keyed by the Scryfall ids the **local card cache** holds, so a run 
 - `removalAssignments` — an explicit per-removal decision.
 
 Without either, or with one that does not cover a removal, the run **fails and writes nothing at all**: the reason lands in `report.errors`, `report.unresolvedAmbiguity` is `true`, `report.ambiguous` carries each removal with its per-list copy counts, no list file is touched, and the account's `lastSynced` is left alone. A `dryRun` request never fails on an ambiguity itself; it reports it instead. (An unknown `removalPriority` name still fails a `dryRun`: that is a bad argument, not an unresolved removal.)
+
+**Empty side.** A pull against an Archidekt collection with no readable cards while the lists in scope hold some, or a push from lists holding no cards while the account's collection has some, would remove every card from the destination. The run is refused before anything is written: the reason lands in `report.errors` (`report.errorMessages` key `domain.sync.emptyRemoteCollection` or `domain.sync.emptyLocalCollection`), every list in scope is reported with the `outcome` `not-run`, and `lastSynced` is left alone. A `dryRun` reports the same refusal, `only: "additions"` is never refused, and `allowRemoveAll: true` lets the run go ahead. See [Empty-side guard](/commands/collection-sync/#empty-side-guard).
 
 **Unreadable lines.** A pull rewrites each list file and a push treats those files as the truth, so a line the parser cannot read would be lost either way. Such lists **fail** unless the request sets `ignoreUnreadableLines`, the API equivalent of the CLI's `--yes`. The affected lists and their exact lines are reported in `report.unreadable` (`{ name, file, warnings }`, each warning a [message triple](#the-message-triple)) and, on the stream, as a `progress` frame with `kind: "unreadable-lines"`. A `dryRun` request is exempt: it writes nothing, so those lists are previewed rather than refused.
 
@@ -2370,7 +2376,7 @@ The same sync as `POST /api/collection-sync`, streamed as server-sent events. `E
 - `removalPriority` repeats once per list **in priority order** (parameter order is the priority; a blank one is rejected).
 - `removalAssignments` is a single JSON-encoded parameter, validated by the same rules as the body's.
 - `only` and `into` are omitted (or empty) to accept their defaults.
-- `csv` / `dryRun` / `ignoreUnreadableLines` take `true` or `false`. Any other value is rejected, so a flag that decides whether files are written, or how a large batch of cards reaches Archidekt, can never be misread as "no".
+- `csv` / `dryRun` / `ignoreUnreadableLines` / `allowRemoveAll` take `true` or `false`. Any other value is rejected, so a flag that decides whether files are written, or how a large batch of cards reaches Archidekt, can never be misread as "no".
 - A `csvFile` parameter is rejected here too.
 
 Three event types are emitted:

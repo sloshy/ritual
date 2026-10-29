@@ -326,6 +326,22 @@ export const domainSyncMeta = {
     description:
       'Why a deck push refused a deck: someone changed the Archidekt deck after the last sync, and pushing would overwrite those edits. {remote} and {synced} are raw ISO timestamps. {flag} is the `--force` flag. It is typed or matched exactly by the user, so never translate it.',
   },
+  'domain.sync.emptyRemoteDeck': {
+    description:
+      'Why a deck pull refused a deck: the linked Archidekt deck has no cards on any board while the local deck has some, so mirroring it would delete every local card. {cards} is a pre-rendered card count ("12 cards"). {flag} is the `--allow-remove-all` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'domain.sync.emptyLocalDeck': {
+    description:
+      'Why a deck push refused a deck: the local deck file has no cards while the Archidekt deck has some, so mirroring it would delete every card on Archidekt. {cards} is a pre-rendered card count ("12 cards"). {flag} is the `--allow-remove-all` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'domain.sync.emptyRemoteCollection': {
+    description:
+      'Error: a collection pull refused to run because the Archidekt collection has no readable cards while the local collection lists have some, so mirroring it would delete every local card. {entries} is a pre-rendered count ("40 card entries"). {flag} is the `--allow-remove-all` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'domain.sync.emptyLocalCollection': {
+    description:
+      'Error: a collection push refused to run because the local collection lists hold no cards while the Archidekt collection has some, so mirroring them would delete every Archidekt record. {records} is a pre-rendered count ("40 collection records"). {flag} is the `--allow-remove-all` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'domain.sync.deckUrlRequired': {
     description: 'Error from `deck-sync link` and the admin/MCP equivalents when no URL was given.',
   },

@@ -130,6 +130,7 @@ export function parseDeckSyncBody(value: unknown): DeckSyncRequest | ApiMessage 
 const BOOLEAN_FLAGS = {
   dryRun: true,
   ignoreUnreadableLines: true,
+  allowRemoveAll: true,
   force: true,
   syncPrintings: true,
   syncCategories: true,
@@ -238,6 +239,7 @@ async function performSync(
     deckNames: request.decks,
     dryRun: request.dryRun,
     only: request.only,
+    allowRemoveAll: request.allowRemoveAll === true,
     force: request.force,
     syncPrintings: request.syncPrintings,
     syncCategories: request.syncCategories,

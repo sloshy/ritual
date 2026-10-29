@@ -28,19 +28,20 @@ Names resolve within collection lists only, following the usual [list name rules
 
 ## Options
 
-| Option                      | Description                                                                                                       | Default                     |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `-n, --dry-run`             | Report what would sync without writing files or pushing changes                                                   | `false`                     |
-| `-y, --yes`                 | Sync collection lists with unreadable lines without asking                                                        | `false`                     |
-| `--only <changes>`          | Apply only `additions` or `removals` (relative to the sync destination)                                           | all changes                 |
-| `--into <list>`             | Collection list a pull adds new cards to, created if needed                                                       | `collectionSync.pullTarget` |
-| `--removal-priority <list>` | Collection list an [ambiguous removal](#ambiguous-removals) may take copies from. Repeatable, in order            | none                        |
-| `--csv`                     | Upload a push's new cards as one [CSV import](#csv-import-for-new-cards) instead of adding them one by one        | automatic above 25          |
-| `--csv-file <path>`         | Write a push's new cards to this CSV file **instead of** pushing them                                             | none                        |
-| `-v, --verbose`             | List every card being synced under its list (see [Card Listing](#card-listing))                                   | `false`                     |
-| `--refresh <mode>`          | Card cache refresh policy when new cards take the [CSV path](#cache-freshness): `ask`, `auto`, `no-bulk`, `never` | `ask`                       |
-| `--output <format>`         | Output format: `text`, `json`, or `ndjson`                                                                        | `text`                      |
-| `--quiet`                   | Suppress non-essential output                                                                                     | `false`                     |
+| Option                      | Description                                                                                                                | Default                     |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `-n, --dry-run`             | Report what would sync without writing files or pushing changes                                                            | `false`                     |
+| `-y, --yes`                 | Sync collection lists with unreadable lines without asking                                                                 | `false`                     |
+| `--only <changes>`          | Apply only `additions` or `removals` (relative to the sync destination)                                                    | all changes                 |
+| `--allow-remove-all`        | Run even when one side is empty and every card would be removed from the other (see [Empty-side guard](#empty-side-guard)) | `false`                     |
+| `--into <list>`             | Collection list a pull adds new cards to, created if needed                                                                | `collectionSync.pullTarget` |
+| `--removal-priority <list>` | Collection list an [ambiguous removal](#ambiguous-removals) may take copies from. Repeatable, in order                     | none                        |
+| `--csv`                     | Upload a push's new cards as one [CSV import](#csv-import-for-new-cards) instead of adding them one by one                 | automatic above 25          |
+| `--csv-file <path>`         | Write a push's new cards to this CSV file **instead of** pushing them                                                      | none                        |
+| `-v, --verbose`             | List every card being synced under its list (see [Card Listing](#card-listing))                                            | `false`                     |
+| `--refresh <mode>`          | Card cache refresh policy when new cards take the [CSV path](#cache-freshness): `ask`, `auto`, `no-bulk`, `never`          | `ask`                       |
+| `--output <format>`         | Output format: `text`, `json`, or `ndjson`                                                                                 | `text`                      |
+| `--quiet`                   | Suppress non-essential output                                                                                              | `false`                     |
 
 `--into` and `--removal-priority` apply to a pull only; `--csv` and `--csv-file` to a push only. Passing one to the other direction warns and is otherwise ignored. Giving both `--csv` and `--csv-file` exits with code 2.
 
@@ -307,7 +308,22 @@ Archidekt did not import 2 of 37 CSV rows (1 not found, 1 rejected).
 
 A whole upload that fails (a non-2xx response) fails those additions and nothing else. Quantity changes and removals still apply. The additions are **not** retried one at a time, since a partial import would then be imported twice. Re-run the push once the problem is fixed; only the remaining differences are sent.
 
-A push refuses to run when there is nothing readable to push (every in-scope list failed to load, or none were named and none exist). Otherwise it would read that as "the collection is empty" and delete the whole account collection.
+A push refuses to run when there is nothing readable to push (every in-scope list failed to load, or none were named and none exist). Otherwise it would read that as "the collection is empty" and delete the whole account collection. A push from lists that load but hold no cards is covered by the [Empty-side guard](#empty-side-guard).
+
+## Empty-side guard
+
+A run whose source is empty while its destination holds cards would remove every one of those cards. Far more often that means a new or emptied Archidekt account, or the wrong lists, than a collection that really lost everything. So both directions refuse such a run before anything is written:
+
+- **pull**: the Archidekt collection holds no cards Ritual can read, and the lists in scope hold at least one.
+- **push**: the lists in scope hold no cards, and the Archidekt collection holds at least one.
+
+```
+The Archidekt collection holds no cards Ritual can read, so this pull would remove all 412 card entries from your collection lists. Nothing was changed. If the collection really is empty now, pass --allow-remove-all to pull anyway.
+```
+
+The refusal is a run-level error, like an [unresolved ambiguous removal](#ambiguous-removals): it lands in the report's `errors` (keyed `domain.sync.emptyRemoteCollection` or `domain.sync.emptyLocalCollection` in `errorMessages`), every list in scope is reported with outcome `not-run`, no sync timestamp is recorded, and the command exits 1. `--dry-run` reports the same refusal.
+
+`--only additions` removes nothing, so it is never refused: an additions-only pull against an empty collection is a no-op. When you do mean to empty one side, pass `--allow-remove-all`. The admin [Sync Collection](/admin/sync-collection/) page shows the refusal but offers no such override; use the CLI or the `allowRemoveAll` field of the API and the MCP `sync_collection` tool.
 
 ## What Is Compared
 
@@ -555,11 +571,11 @@ This is why a large push does not add cards one at a time: above 25 new printing
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                       |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Everything synced cleanly (or there was nothing to sync)                                                                                                                                      |
-| `1`  | A list or the run itself failed (an unresolved ambiguous removal or an undecided [CSV question](#csv-import-for-new-cards) included), or you are not signed into Archidekt with an account id |
-| `2`  | Missing or invalid `<direction>`, `--only`, a blank `--into` / `--removal-priority` / `--csv-file`, or `--csv` together with `--csv-file`                                                     |
+| Code | Meaning                                                                                                                                                                                                                                  |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Everything synced cleanly (or there was nothing to sync)                                                                                                                                                                                 |
+| `1`  | A list or the run itself failed (an unresolved ambiguous removal, an undecided [CSV question](#csv-import-for-new-cards) or the [empty-side guard](#empty-side-guard) included), or you are not signed into Archidekt with an account id |
+| `2`  | Missing or invalid `<direction>`, `--only`, a blank `--into` / `--removal-priority` / `--csv-file`, or `--csv` together with `--csv-file`                                                                                                |
 
 ## Examples
 

@@ -406,6 +406,17 @@ export type CollectionSyncOptions = {
    */
   only?: SyncChangeFilter
   /**
+   * Run even when it would remove every card from its destination: a pull
+   * against an Archidekt collection with no readable cards while the local lists
+   * hold some, or a push from lists holding no cards while the account's
+   * collection has some (the CLI's `--allow-remove-all`). Without it such a run
+   * is refused before anything is written — dry runs included — since an empty
+   * source far more often means a new or emptied account than a collection that
+   * really lost everything. An additions-only run (`only: 'additions'`) cannot
+   * remove anything and is never refused.
+   */
+  allowRemoveAll?: boolean
+  /**
    * The list a pull writes new cards into, created on first use. Callers
    * resolve it (`--into` → `collectionSync.pullTarget` → `Inbox`) before
    * calling. Matched against existing lists by **name only** — not by the

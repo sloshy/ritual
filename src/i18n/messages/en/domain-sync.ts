@@ -194,6 +194,16 @@ export const domainSyncMessages = {
   'domain.sync.diverged':
     'Remote deck changed since last sync (remote: {remote}, last synced against: {synced}) — pull first, or pass {flag} to overwrite remote changes.',
 
+  // ── Both syncs: the remove-everything guard ───────────────────────────
+  'domain.sync.emptyRemoteDeck':
+    'The Archidekt deck holds no cards, so pulling it would remove all {cards} from the local deck. Nothing was changed. If the deck really is empty now, pass {flag} to pull it anyway.',
+  'domain.sync.emptyLocalDeck':
+    'The local deck holds no cards, so pushing it would remove all {cards} from the Archidekt deck. Nothing was changed. If you mean to empty it, pass {flag} to push it anyway.',
+  'domain.sync.emptyRemoteCollection':
+    'The Archidekt collection holds no cards Ritual can read, so this pull would remove all {entries} from your collection lists. Nothing was changed. If the collection really is empty now, pass {flag} to pull anyway.',
+  'domain.sync.emptyLocalCollection':
+    'Your collection lists hold no cards, so this push would delete all {records} from the Archidekt collection. Nothing was changed. If you mean to empty it, pass {flag} to push anyway.',
+
   // ── Deck sync: linking a deck ─────────────────────────────────────────
   'domain.sync.deckUrlRequired': 'An Archidekt deck URL is required.',
   'domain.sync.deckUrlInvalid':

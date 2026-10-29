@@ -56,8 +56,9 @@ export function addSyncDirectionArgument(command: Command): Command {
 export type SyncSubject = 'decks' | 'collectionLists'
 
 /**
- * Register the `--only` / `-y, --yes` / `--dry-run` options every sync surface
- * takes, so their spellings, argParsers, and help text cannot drift. `subject`
+ * Register the `--only` / `--allow-remove-all` / `-y, --yes` / `--dry-run`
+ * options every sync surface takes, so their spellings, argParsers, and help
+ * text cannot drift. `subject`
  * selects the noun the `--yes` text names; it is a `$select` branch rather than
  * an interpolated noun so a translator controls the whole sentence.
  */
@@ -65,7 +66,8 @@ export function addSyncOptions(command: Command, subject: SyncSubject): Command 
   return addDryRunOption(
     command
       .option('-y, --yes', t('help.sync.yes', { subject }), false)
-      .option('--only <changes>', t('help.sync.only'), parseSyncChangeFilter),
+      .option('--only <changes>', t('help.sync.only'), parseSyncChangeFilter)
+      .option('--allow-remove-all', t('help.sync.allowRemoveAll'), false),
     t('help.sync.dryRun'),
   )
 }

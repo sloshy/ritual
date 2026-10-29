@@ -12,7 +12,7 @@ For a walkthrough, see [Sync with Archidekt](/guides/archidekt-sync/).
 
 ```bash
 ritual deck-sync pull [decks...] [--sync-printings] [--sync-categories] [-v]
-ritual deck-sync push [decks...] [--force] [--sync-printings] [--sync-categories] [-v]
+ritual deck-sync push [decks...] [--force] [--allow-remove-all] [--sync-printings] [--sync-categories] [-v]
 ritual deck-sync link <deck> <url>
 ritual deck-sync status
 ```
@@ -38,17 +38,18 @@ Names resolve within decks only, following the usual [list name rules](/list-res
 
 ## Options
 
-| Option              | Description                                                                                                             | Default     |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `-n, --dry-run`     | Report what would sync without writing files or pushing changes                                                         | `false`     |
-| `-y, --yes`         | Sync decks with unreadable lines without asking (those lines are removed); never a deck with a [held line](#held-lines) | `false`     |
-| `--only <changes>`  | Apply only `additions` or `removals` (relative to the sync destination)                                                 | all changes |
-| `--force`           | **push only** — overwrite a remote deck that changed since its last sync                                                | `false`     |
-| `--sync-printings`  | Also sync each card's exact printing (set, collector number, foil/etched finish)                                        | `false`     |
-| `--sync-categories` | Also sync each card's [categories](#category-sync---sync-categories) (its role)                                         | `false`     |
-| `-v, --verbose`     | List every card being synced under its deck (see [Card Listing](#card-listing))                                         | `false`     |
-| `--output <format>` | Output format: `text`, `json`, or `ndjson`                                                                              | `text`      |
-| `--quiet`           | Suppress non-essential output                                                                                           | `false`     |
+| Option               | Description                                                                                                                        | Default     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `-n, --dry-run`      | Report what would sync without writing files or pushing changes                                                                    | `false`     |
+| `-y, --yes`          | Sync decks with unreadable lines without asking (those lines are removed); never a deck with a [held line](#held-lines)            | `false`     |
+| `--only <changes>`   | Apply only `additions` or `removals` (relative to the sync destination)                                                            | all changes |
+| `--force`            | **push only** — overwrite a remote deck that changed since its last sync                                                           | `false`     |
+| `--allow-remove-all` | Sync a deck even when one side is empty and every card would be removed from the other (see [Empty-deck guard](#empty-deck-guard)) | `false`     |
+| `--sync-printings`   | Also sync each card's exact printing (set, collector number, foil/etched finish)                                                   | `false`     |
+| `--sync-categories`  | Also sync each card's [categories](#category-sync---sync-categories) (its role)                                                    | `false`     |
+| `-v, --verbose`      | List every card being synced under its deck (see [Card Listing](#card-listing))                                                    | `false`     |
+| `--output <format>`  | Output format: `text`, `json`, or `ndjson`                                                                                         | `text`      |
+| `--quiet`            | Suppress non-essential output                                                                                                      | `false`     |
 
 `--force` exists on `push` only. A pull never writes to Archidekt, so passing `--force` to it is a usage error.
 
@@ -194,6 +195,22 @@ Three cases skip the check and are pushed normally. The run log names the reason
 
 The admin Sync Decks page and the MCP `sync_decks` tool enforce the same guard. The tool takes `force: true` for the override; the admin page has no override, so pull first there.
 
+## Empty-deck guard
+
+Syncing a deck whose source is empty while the destination holds cards would remove every card from the destination. That far more often means a deck emptied by mistake or the wrong deck linked than a deck you meant to clear, so both directions refuse it. The deck **fails**, nothing is written for it, and the rest of the run carries on:
+
+- **pull**: the Archidekt deck holds no cards on any board, and the local deck holds at least one.
+- **push**: the local deck holds no cards, and the Archidekt deck holds at least one.
+
+```
+Syncing "Winota Stax" (pull)...
+  The Archidekt deck holds no cards, so pulling it would remove all 100 cards from the local deck. Nothing was changed. If the deck really is empty now, pass --allow-remove-all to pull it anyway.
+```
+
+`--dry-run` reports the same refusal. `--only additions` removes nothing, so it is never refused. Pass `--allow-remove-all` when you do mean to empty the deck. `--force` does not override this guard: it decides whose edits win when both sides changed, not whether a deck may be emptied, so a push that empties a diverged remote deck needs both flags.
+
+The refused deck's `reasonKey` is `domain.sync.emptyRemoteDeck` (pull) or `domain.sync.emptyLocalDeck` (push). The MCP `sync_decks` tool and the admin API take `allowRemoveAll: true` for the override; the admin Sync Decks page shows the refusal and offers no override.
+
 ## Linking a Deck (`deck-sync link`)
 
 `push` only operates on decks whose front matter carries `sourceUrl` + `sourceId`, which `import`/`import-account` write. `link` writes those two fields for a deck that already exists on Archidekt:
@@ -290,7 +307,7 @@ Decks must be linked to Archidekt: their YAML front matter carries `sourceUrl` a
 
 ### Pull (`deck-sync pull`)
 
-1. Fetches the current deck state from Archidekt.
+1. Fetches the current deck state from Archidekt. A remote deck with no cards over a local deck that has some fails the deck, unless `--allow-remove-all` was given (see [Empty-deck guard](#empty-deck-guard)).
 2. Compares cards and quantities against the local deck file, **per board** (Main, Commander, Sideboard, Maybeboard) and by card name.
 3. Applies the differences to the local file, respecting each card's board:
    - New cards are added to the section matching their remote board, creating that section if needed. A new section is inserted in canonical board order (Commander, Main, Sideboard, Maybeboard) without reordering existing sections.
@@ -307,13 +324,14 @@ Decks must be linked to Archidekt: their YAML front matter carries `sourceUrl` a
 1. Verifies you own the Archidekt deck (skips non-owned decks with a warning). Your deck list is read a page at a time; if Archidekt stops serving it part way (a next-page link that leads off Archidekt or cannot be read, a page it already served, or more than 100 pages), the run warns that the list may be incomplete, and a deck missing from it is skipped because its ownership cannot be told (`ownedDecksIncomplete` in the JSON report).
 2. Fetches the current Archidekt deck state.
 3. Refuses the deck when the remote changed since its `sourceUpdatedAt`, unless `--force` was given. See [Divergence Guard](#divergence-guard-push). A refused deck is never diffed.
-4. Compares local cards and quantities against the remote state, **per board** and by card name, the same way a pull does.
-5. Pushes differences to Archidekt via their batch API:
+4. Refuses the deck when the local file holds no cards and the remote deck does, unless `--allow-remove-all` was given. See [Empty-deck guard](#empty-deck-guard).
+5. Compares local cards and quantities against the remote state, **per board** and by card name, the same way a pull does.
+6. Pushes differences to Archidekt via their batch API:
    - New cards are resolved by name (with the local line's set as a search hint) and added to their local board (see [Board moves](#board-moves)).
    - Removed cards are set to quantity 0, on the board they were removed from only.
    - Quantity changes are set to the new absolute value.
    - A card the local file holds on a different board is moved there on Archidekt.
-6. Sets `lastSynced` and `sourceUpdatedAt` in front matter, **only for decks that pushed cleanly**. A deck whose cards could not all be turned into upload entries is reported `failed` and keeps its old stamps. `sourceUpdatedAt` is re-read from Archidekt after the push, since the push itself moved it.
+7. Sets `lastSynced` and `sourceUpdatedAt` in front matter, **only for decks that pushed cleanly**. A deck whose cards could not all be turned into upload entries is reported `failed` and keeps its old stamps. `sourceUpdatedAt` is re-read from Archidekt after the push, since the push itself moved it.
 
 ### What Is Compared
 
@@ -441,12 +459,12 @@ The admin [Sync Decks](/admin/sync-decks/) page offers the same behavior as a ch
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                              |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Every deck synced cleanly (or there was nothing to sync)                                                                                             |
-| `1`  | At least one deck failed — including a deck refused for [unreadable lines](#unreadable-lines) — or you are not signed into Archidekt                 |
-| `2`  | Unknown subcommand, an invalid `--only` value, a `link` URL that is not an Archidekt deck URL, or a `link` deck name that matches more than one deck |
-| `3`  | `link` named a deck that does not exist                                                                                                              |
+| Code | Meaning                                                                                                                                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Every deck synced cleanly (or there was nothing to sync)                                                                                                                             |
+| `1`  | At least one deck failed — including a deck refused for [unreadable lines](#unreadable-lines) or by the [empty-deck guard](#empty-deck-guard) — or you are not signed into Archidekt |
+| `2`  | Unknown subcommand, an invalid `--only` value, a `link` URL that is not an Archidekt deck URL, or a `link` deck name that matches more than one deck                                 |
+| `3`  | `link` named a deck that does not exist                                                                                                                                              |
 
 ## Examples
 

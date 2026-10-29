@@ -43,12 +43,14 @@ describe('parseSyncRequestCore', () => {
         dryRun: true,
         ignoreUnreadableLines: true,
         only: 'Removals',
+        allowRemoveAll: true,
       }),
     ).toEqual({
       direction: 'push',
       dryRun: true,
       ignoreUnreadableLines: true,
       only: 'removals',
+      allowRemoveAll: true,
     })
   })
 
@@ -68,6 +70,11 @@ describe('parseSyncRequestCore', () => {
       'a non-boolean ignoreUnreadableLines',
       { direction: 'pull', ignoreUnreadableLines: 1 },
       '"ignoreUnreadableLines" must be a boolean.',
+    ],
+    [
+      'a non-boolean allowRemoveAll',
+      { direction: 'pull', allowRemoveAll: 'yes' },
+      '"allowRemoveAll" must be a boolean.',
     ],
   ])('refuses %s', (_label, body, message) => {
     expect(keyedRefusal(parseSyncRequestCore(body))).toContain(message)
