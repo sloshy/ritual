@@ -30,6 +30,12 @@ export const domainConfigMeta = {
   'domain.config.mustBeNonNegativeInteger': {
     description: `${REFUSAL} ${FIELD} The value must be a whole number, zero or greater.`,
   },
+  'domain.config.blankEntry': {
+    description: `${REFUSAL} ${FIELD} The value is a JSON array of strings (for example file paths), and one of its entries is empty or only spaces.`,
+  },
+  'domain.config.siteThemeUnknown': {
+    description: `${REFUSAL} ${FIELD} The setting picks the color theme a first-time visitor of the published website sees. {value} is the theme name as written; {values} is the list of built-in theme names (code words such as "default", "izzet-inverted"), already joined in the reader's language — never translate them. {filesField} is another setting's key ("themeFiles"), which lists custom theme files whose names may also be used; never translate it.`,
+  },
   'domain.config.mustBeOneOf': {
     description: `${REFUSAL} ${FIELD} {values} is the list of accepted values (code words such as "scryfall", "feed"), already joined in the reader's language; never translate the values.`,
   },

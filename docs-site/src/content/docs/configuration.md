@@ -298,7 +298,7 @@ The `site` key holds public-site settings in three groups:
 
 - **Deployment settings** (`ciSystem`, `deployMode`, `distDir`, `detectChanges`). `ritual init-site` writes them, and they exist only after you run it. You may change them by hand; run [`ritual migrate`](/commands/migrate/) afterwards so the generated deploy workflow follows (for example, after setting `detectChanges`).
 - **Publish lists** (`includeDecks`, `includeCollections`, `includeWantedLists` and their `exclude*` counterparts) decide which lists `build-site` publishes. Set them from the admin **Settings** page, the per-list visibility toggles on the admin **Manage Lists** page, with [`config set`](/commands/config/), or by hand.
-- **Other user settings**: `bannedPrintings` (see [`config`](/commands/config/#properties)), `apiBaseUrl`, and `sellMode`, described below.
+- **Other user settings**: `bannedPrintings` (see [`config`](/commands/config/#properties)), `apiBaseUrl`, `sellMode`, `theme`, and `themeFiles`, described below.
 
 ```json
 {
@@ -320,27 +320,41 @@ The `site` key holds public-site settings in three groups:
 }
 ```
 
-| Field                | Default | Description                                                                                      |
-| -------------------- | ------- | ------------------------------------------------------------------------------------------------ |
-| `ciSystem`           | —       | `github-actions` or `manual`.                                                                    |
-| `deployMode`         | —       | `publish-for-me` or `local-build` (github-actions only).                                         |
-| `distDir`            | —       | The directory containing your built site (github-actions only).                                  |
-| `detectChanges`      | —       | Whether the workflow runs `detect-changes` (github-actions only).                                |
-| `includeDecks`       | `["*"]` | Which decks `build-site` publishes (see below).                                                  |
-| `includeCollections` | `["*"]` | Which collections `build-site` publishes.                                                        |
-| `includeWantedLists` | `["*"]` | Which wanted lists `build-site` publishes.                                                       |
-| `excludeDecks`       | `[]`    | Decks to drop even when `includeDecks` selects them.                                             |
-| `excludeCollections` | `[]`    | Collections to drop even when `includeCollections` selects them.                                 |
-| `excludeWantedLists` | `[]`    | Wanted lists to drop even when `includeWantedLists` selects them.                                |
-| `bannedPrintings`    | `[]`    | Printings barred from default-printing selection (see [`config`](/commands/config/#properties)). |
-| `apiBaseUrl`         | —       | Base URL of a live backend for a split deployment (see below).                                   |
-| `sellMode`           | `false` | Whether the sites offer [sell mode](/public-site/sell/), in beta (see below).                    |
+| Field                | Default   | Description                                                                                      |
+| -------------------- | --------- | ------------------------------------------------------------------------------------------------ |
+| `ciSystem`           | —         | `github-actions` or `manual`.                                                                    |
+| `deployMode`         | —         | `publish-for-me` or `local-build` (github-actions only).                                         |
+| `distDir`            | —         | The directory containing your built site (github-actions only).                                  |
+| `detectChanges`      | —         | Whether the workflow runs `detect-changes` (github-actions only).                                |
+| `includeDecks`       | `["*"]`   | Which decks `build-site` publishes (see below).                                                  |
+| `includeCollections` | `["*"]`   | Which collections `build-site` publishes.                                                        |
+| `includeWantedLists` | `["*"]`   | Which wanted lists `build-site` publishes.                                                       |
+| `excludeDecks`       | `[]`      | Decks to drop even when `includeDecks` selects them.                                             |
+| `excludeCollections` | `[]`      | Collections to drop even when `includeCollections` selects them.                                 |
+| `excludeWantedLists` | `[]`      | Wanted lists to drop even when `includeWantedLists` selects them.                                |
+| `bannedPrintings`    | `[]`      | Printings barred from default-printing selection (see [`config`](/commands/config/#properties)). |
+| `apiBaseUrl`         | —         | Base URL of a live backend for a split deployment (see below).                                   |
+| `sellMode`           | `false`   | Whether the sites offer [sell mode](/public-site/sell/), in beta (see below).                    |
+| `theme`              | `default` | The theme a first-time visitor of the built site sees (see below).                               |
+| `themeFiles`         | —         | Custom theme JSON files every build loads, relative to the workspace (see below).                |
 
 ### Pointing a static build at a live backend (`apiBaseUrl`)
 
 `site.apiBaseUrl` supports a [split deployment](/public-site/hosted/): the static build lives on a CDN, and a separately hosted [`serve --api`](/commands/serve/#live-api-mode---api) instance provides live list data and card search. When set, `build-site` writes the URL into `index.json`, and the site uses that backend. If the backend is unreachable, the site falls back to its static data.
 
 The value must be an `http(s)` URL (stored without a trailing slash), or the empty string for a site reverse-proxied on the same origin as its API. Leave it unset for a fully static site. `serve --api` itself needs no configuration.
+
+### Picking the site theme (`theme`, `themeFiles`)
+
+`site.theme` is the theme the built site opens on for a first-time visitor (visitors can still switch). It accepts any [built-in theme](/commands/build-site/#themes), `-inverted` variants included, and is stored lowercase. `site.themeFiles` lists [custom theme](/commands/build-site/#custom-themes) JSON files, as paths relative to the workspace, that every build loads beside the built-ins. `site.theme` may name one of their themes only while `site.themeFiles` is set; whether a file really declares that name is checked by the build, which stops with exit code `1` and names `site.theme`. `config set`, `config unset` and the admin Settings page refuse a change that would leave a custom `site.theme` without `site.themeFiles`; a hand edit that does so makes the whole `site` block invalid, and Ritual then ignores it with a warning (publish lists and deployment settings included) until you fix it.
+
+```bash
+ritual config set site.theme boros-inverted
+ritual config set site.themeFiles themes/my-palette.json
+ritual config set site.theme my-palette
+```
+
+Every build reads these keys, including the one the [`init-site`](/commands/init-site/) deploy workflow runs, which passes no theme flags. `build-site --theme` replaces `site.theme` for one run and `--theme-file` replaces (does not extend) `site.themeFiles`; each flag overrides only its own key. The same holds for `serve --build`. The admin [Settings](/admin/dashboard/#settings) page's **Site theme** select writes `site.theme`.
 
 ### Offering sell mode (`sellMode`)
 

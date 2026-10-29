@@ -144,9 +144,12 @@ export const helpInfraMeta = {
   },
   'help.buildSite.theme': {
     description:
-      '`build-site --theme`. {themes} is the comma-separated list of built-in themes. {flag} is the `--theme-file` flag. It is typed or matched exactly by the user, so never translate it.',
+      '`build-site --theme`. {themes} is the comma-separated list of built-in themes. {flag} is the `--theme-file` flag; {configKey} is the `site.theme` config key the flag overrides; {filesKey} is the `site.themeFiles` config key. Both are typed or matched exactly by the user, so never translate them.',
   },
-  'help.buildSite.themeFile': { description: '`build-site --theme-file`.' },
+  'help.buildSite.themeFile': {
+    description:
+      '`build-site --theme-file`. {configKey} is the `site.themeFiles` config key the flag replaces for one run. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.buildSite.locale': {
     description:
       '`build-site --locale` — the UI locale, deliberately distinguished from the card language. {configKey} is the `uiLocale` config key. It is typed or matched exactly by the user, so never translate it.',

@@ -122,9 +122,9 @@ export const helpInfraMessages = {
   'help.buildSite.priceSources':
     'Comma-separated price stores to offer: tcgplayer, cardmarket, cardkingdom, cardhoarder (default: every enabled {configKey} store; this can only narrow them). Each store brings its own currency',
   'help.buildSite.theme':
-    'Initial theme baked into the generated HTML ({themes}, or a custom theme name loaded via {flag})',
+    'Initial theme baked into the generated HTML ({themes}, or a custom theme name loaded via {flag} or {filesKey}; default: the {configKey} config value, else default)',
   'help.buildSite.themeFile':
-    'Load one or more custom theme JSON files; their names become selectable alongside the built-ins',
+    'Load one or more custom theme JSON files; their names become selectable alongside the built-ins (replaces the {configKey} config value for this run)',
   'help.buildSite.locale':
     "UI locale baked into the generated site (BCP-47, e.g. de-AT): the html lang/dir and the language the site opens in (default: the {configKey} config value). Ritual's own text, not the card language",
   'help.buildSite.locales':

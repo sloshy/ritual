@@ -916,17 +916,21 @@ export const cliInfraMeta = {
     description:
       'Usage error of `build-site --theme` / `admin --theme`: the named colour theme does not exist. {value} is what the user typed; {choices} is the list of built-in theme names (slugs such as "izzet", never translated), already joined in the reader\'s language.',
   },
+  'cli.buildSite.configThemeUnknown': {
+    description:
+      "A site build stops because the `site.theme` setting names a color theme that does not exist: not a built-in theme, and no custom theme file listed in `site.themeFiles` declares it. {configKey} is `site.theme` and {filesKey} is `site.themeFiles`, config keys typed by the user — never translate them. {value} is the theme name as stored. {choices} is the list of valid theme names (code words, never translated), already joined in the reader's language.",
+  },
   'cli.buildSite.themeFileUnreadable': {
     description:
-      'A --theme-file path could not be read. {flag} is the `--theme-file` flag. It is typed or matched exactly by the user, so never translate it.',
+      'A custom theme file could not be read. {source} is where the path came from: the `--theme-file` flag or the `site.themeFiles` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.buildSite.themeFileNotJson': {
     description:
-      'A --theme-file is not valid JSON. {flag} is the `--theme-file` flag. It is typed or matched exactly by the user, so never translate it.',
+      'A custom theme file is not valid JSON. {source} is where the path came from: the `--theme-file` flag or the `site.themeFiles` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.buildSite.themeFileInvalid': {
     description:
-      'A --theme-file parsed but is not a valid theme. {reason} explains why. {flag} is the `--theme-file` flag. It is typed or matched exactly by the user, so never translate it.',
+      'A custom theme file parsed but is not a valid theme. {reason} explains why. {source} is where the path came from: the `--theme-file` flag or the `site.themeFiles` config key. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.buildSite.spaBuildFailed': {
     description:

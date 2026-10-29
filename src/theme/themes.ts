@@ -131,6 +131,18 @@ export function isThemeName(value: string): value is ThemeName {
   return Object.prototype.hasOwnProperty.call(themes, value)
 }
 
+/** The theme a site opens on when neither a flag nor `site.theme` names one. */
+export const DEFAULT_THEME_NAME = 'default' satisfies ThemeName
+
+/**
+ * The one spelling rule for a requested theme name (built-in or custom):
+ * surrounding space dropped, lowercased. `--theme`, `site.theme` and the
+ * custom-name lookup all compare in this form.
+ */
+export function normalizeThemeName(raw: string): string {
+  return raw.trim().toLowerCase()
+}
+
 export type ThemeCssVars = Record<string, string>
 
 // The six app-icon flame gradient stops, keyed by the `--flame-*` var names.
@@ -463,7 +475,7 @@ function renderRule(selector: string, vars: ThemeCssVars, comment: string): stri
 // applies as the fallback when no `data-theme` is set; every other theme
 // gates on its attribute selector.
 export function generateThemeCss(name: ThemeName): string {
-  const selector = name === 'default' ? ':root' : `:root[data-theme="${name}"]`
+  const selector = name === DEFAULT_THEME_NAME ? ':root' : `:root[data-theme="${name}"]`
   return renderRule(selector, paletteToVars(themes[name]), `Theme: ${name}`)
 }
 
@@ -471,8 +483,8 @@ export function generateThemeCss(name: ThemeName): string {
 // base on bare `:root`) and the rest layered on as attribute-scoped rules.
 export function generateAllThemesCss(): string {
   const ordered: ThemeName[] = [
-    'default',
-    ...themeNames.filter((n): n is ThemeName => n !== 'default'),
+    DEFAULT_THEME_NAME,
+    ...themeNames.filter((n): n is ThemeName => n !== DEFAULT_THEME_NAME),
   ]
   return ordered.map(generateThemeCss).join('\n')
 }
@@ -581,8 +593,8 @@ export function resolveThemeName(
   raw: string | undefined,
   alsoAccepted: readonly string[] = [],
 ): ThemeName | MessageParseError {
-  if (raw === undefined) return 'default'
-  const normalized = raw.toLowerCase()
+  if (raw === undefined) return DEFAULT_THEME_NAME
+  const normalized = normalizeThemeName(raw)
   if (isThemeName(normalized)) return normalized
   return {
     error: syncMessage('cli.theme.unknown', {

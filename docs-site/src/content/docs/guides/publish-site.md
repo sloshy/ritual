@@ -121,14 +121,20 @@ The first run downloads the full Scryfall card data, so it takes a few minutes. 
 
 The site ships with eleven color palettes (each with an `-inverted` variant) and a theme editor. Each visitor picks a theme from the header's **Theme** button, and the choice stays in their browser.
 
-What a first-time visitor sees is the `default` theme. The "Publish for me" workflow runs `./ritual build-site --refresh auto` with no theme flags, and [`ritual migrate`](/commands/migrate/#generated-files) rewrites the workflow file on upgrades, so do not edit flags into it. To open on another theme, or to add a [custom theme](/commands/build-site/#custom-themes) you made in the theme editor, build locally with `--theme` / `--theme-file` and deploy that build (choose **Deploy my local build**, or see the next section):
+What a first-time visitor sees is the `default` theme unless you pick another in `site.theme`. Every build reads that setting, including the one the "Publish for me" workflow runs, so set it once and commit `ritual.config.json` (do not edit flags into the workflow file: [`ritual migrate`](/commands/migrate/#generated-files) rewrites it on upgrades):
 
 ```bash
-ritual build-site --theme izzet
-ritual build-site --theme-file ./my-palette.json --theme my-palette
+ritual config set site.theme izzet
 ```
 
-See [Themes](/commands/build-site/#themes) for the full list.
+The admin [Settings](/admin/dashboard/#settings) page's **Site theme** select writes the same key. To open on a [custom theme](/commands/build-site/#custom-themes) you made in the theme editor, commit its JSON file to the repository, list it in `site.themeFiles` (paths relative to the workspace), and name it in `site.theme`:
+
+```bash
+ritual config set site.themeFiles themes/my-palette.json
+ritual config set site.theme my-palette
+```
+
+A local build can still override both for one run with `--theme` / `--theme-file`. See [Themes](/commands/build-site/#themes) for the full list.
 
 ## 8. Use a Custom Domain
 
@@ -178,7 +184,7 @@ ritual serve --build    # or rebuild first; takes the same flags as build-site
 A few `build-site` flags matter most for hand-built sites:
 
 - `--decks`, `--collections`, `--wanted-lists`: publish only these lists for this build, overriding the `site.*` settings.
-- `--theme`, `--theme-file`: the opening theme and custom themes.
+- `--theme`, `--theme-file`: the opening theme and custom themes for this build, overriding `site.theme` / `site.themeFiles`.
 - `--price-sources`: narrow the offered stores for this build.
 - `--refresh auto`: refresh card data and prices without prompts. See [Card Cache Refresh](/commands/build-site/#card-cache-refresh).
 - `--out-dir`: build somewhere other than `dist/`. The build replaces that directory.

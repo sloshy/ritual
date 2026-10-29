@@ -138,6 +138,7 @@ export const FLAG = {
   syncCategories: '--sync-categories',
   syncPrintings: '--sync-printings',
   tag: '--tag',
+  theme: '--theme',
   themeFile: '--theme-file',
   to: '--to',
   toSection: '--to-section',
@@ -263,6 +264,8 @@ export const CONFIG_KEY = {
   siteIncludeDecks: 'site.includeDecks',
   siteIncludeWantedLists: 'site.includeWantedLists',
   siteSellMode: 'site.sellMode',
+  siteTheme: 'site.theme',
+  siteThemeFiles: 'site.themeFiles',
   uiLocale: 'uiLocale',
 } as const satisfies Record<string, ConfigKeyToken>
 

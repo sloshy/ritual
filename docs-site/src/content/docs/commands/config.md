@@ -78,22 +78,26 @@ The nested `collectionSync` key, for [`collection-sync`](/commands/collection-sy
 
 The nested `site` keys, the [public-site publish lists](/commands/build-site/#choosing-which-lists-to-build) and other public-site settings:
 
-| Property                  | Type       | Default |
-| ------------------------- | ---------- | ------- |
-| `site.includeDecks`       | `string[]` | `["*"]` |
-| `site.includeCollections` | `string[]` | `["*"]` |
-| `site.includeWantedLists` | `string[]` | `["*"]` |
-| `site.excludeDecks`       | `string[]` | `[]`    |
-| `site.excludeCollections` | `string[]` | `[]`    |
-| `site.excludeWantedLists` | `string[]` | `[]`    |
-| `site.bannedPrintings`    | `string[]` | `[]`    |
-| `site.apiBaseUrl`         | `string`   | —       |
-| `site.sellMode`           | `boolean`  | `false` |
+| Property                  | Type       | Default   |
+| ------------------------- | ---------- | --------- |
+| `site.includeDecks`       | `string[]` | `["*"]`   |
+| `site.includeCollections` | `string[]` | `["*"]`   |
+| `site.includeWantedLists` | `string[]` | `["*"]`   |
+| `site.excludeDecks`       | `string[]` | `[]`      |
+| `site.excludeCollections` | `string[]` | `[]`      |
+| `site.excludeWantedLists` | `string[]` | `[]`      |
+| `site.bannedPrintings`    | `string[]` | `[]`      |
+| `site.apiBaseUrl`         | `string`   | —         |
+| `site.sellMode`           | `boolean`  | `false`   |
+| `site.theme`              | `string`   | `default` |
+| `site.themeFiles`         | `string[]` | —         |
 
 - `site.exclude*`: drops lists by display name even when the matching `include*` list selects them. Exclusion always wins. No wildcard. The admin **Manage Lists** page edits these through per-list [visibility toggles](/admin/manage-lists/#publishing-visibility).
 - `site.bannedPrintings`: printings that may not be chosen as a card's **default (featured) printing** when none is specified. Each entry is a `SET:COLLECTOR` pair (e.g. `SLD:123`). Ritual normally features the most recent non-outlier printing among a card's five newest priced printings; a banned one is skipped for the next eligible printing. A banned printing can still be viewed and entered by hand. Set codes are stored lowercase; either case is accepted.
 - `site.apiBaseUrl`: points a statically deployed site at a separately hosted [`serve --api`](/commands/serve/#live-api-mode---api) backend. An `http(s)` URL (stored without a trailing slash), or the empty string for a same-origin reverse proxy. See [Hosting with a live backend](/public-site/hosted/).
 - `site.sellMode`: whether the sites, admin included, offer [sell mode](/public-site/sell/) (beta). Off by default because it makes every build and cache refresh download Card Kingdom's ~70 MB buylist. `--sell-mode` on [`build-site`](/commands/build-site/#sell-mode---sell-mode), [`serve`](/commands/serve/), [`admin`](/commands/admin/), or [`mcp`](/commands/mcp/#sell-tools-need-sell-mode) opts in for one run without a config write; `config get site.sellMode` still reports the stored value, and exits `3` (`not_found`) when the key was never set. The admin [Settings](/admin/dashboard/#settings) page's **Offer sell mode** checkbox writes this key; unticking it is a `config unset site.sellMode`, not a stored `false`. See [Offering sell mode](/configuration/#offering-sell-mode-sellmode).
+- `site.theme`: the theme the built site opens on: a built-in name (`-inverted` variants included, stored lowercase) or, while `site.themeFiles` is set, a custom theme's name. `build-site --theme` overrides it for one run. See [Picking the site theme](/configuration/#picking-the-site-theme-theme-themefiles).
+- `site.themeFiles`: custom theme JSON files every build loads, as paths relative to the workspace; works with `--add`/`--remove`. `build-site --theme-file` replaces the list for one run. Unsetting it, or removing its last entry, is refused while `site.theme` names a custom theme.
 
 The rest of the `site` key (the deployment settings) belongs to `ritual init-site` and cannot be set or unset here. Neither can the [`managed` key](/configuration/#ritual-bookkeeping-managed-key), which `init-site` and [`migrate`](/commands/migrate/) maintain. `exportPresets` belongs to [`ritual export --save-preset`](/commands/export/); `config get exportPresets` reads it, but it cannot be written here.
 
@@ -153,7 +157,7 @@ $ ritual config get admin.ipAllowList --output json
 ["192.168.1.0/24"]
 ```
 
-Optional keys that have never been set exit with `not_found` (code `3`): `cacheFeedUrl`, `defaultPriceSource` (its effective value, the first `priceSources` entry, is applied when prices are read, not reported by `get`), `exportPresets`, `site.bannedPrintings`, `site.apiBaseUrl`, `site.sellMode`, and the `site.*` selection lists before a `site` object exists. An unknown property is a usage error (code `2`) that lists the available keys.
+Optional keys that have never been set exit with `not_found` (code `3`): `cacheFeedUrl`, `defaultPriceSource` (its effective value, the first `priceSources` entry, is applied when prices are read, not reported by `get`), `exportPresets`, `site.bannedPrintings`, `site.apiBaseUrl`, `site.sellMode`, `site.theme`, `site.themeFiles`, and the `site.*` selection lists before a `site` object exists. An unknown property is a usage error (code `2`) that lists the available keys.
 
 ## config list
 

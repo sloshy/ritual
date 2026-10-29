@@ -16,6 +16,16 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Added
 
+- The site's opening theme is now a setting, so a site built by the "Publish for me"
+  workflow (which passes no theme flags) can open on a theme other than `default`.
+  `site.theme` names a built-in theme (`-inverted` variants included), and
+  `site.themeFiles` lists custom theme JSON files, relative to the workspace, that every
+  build loads; `site.theme` may then name one of their themes. Set them with
+  `ritual config set` or MCP `update_config`, or pick the theme from the admin Settings
+  page's new **Site theme** select; the admin Build Site action and MCP `build_site` honour
+  them too. `build-site --theme` and `--theme-file` (and `serve --build`) still win for one
+  run, each over its own key. If you built locally only to get a theme, you can now let
+  the workflow build instead.
 - The MCP server supports the Tasks extension (`io.modelcontextprotocol/tasks`). For a
   client that declares it, such as Claude Code 2.1.304 or later, `build_site`, `sync_decks`,
   `sync_collection` and `refresh_cache` run as tasks: the call returns at once, the client

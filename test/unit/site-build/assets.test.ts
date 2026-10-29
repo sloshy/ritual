@@ -8,8 +8,8 @@ import { pseudoCatalog, pseudoString, withGuardedLocaleAsync } from '../../helpe
 import { createWorkspace, removeWorkspace } from '../../helpers/workspace'
 
 /**
- * `--theme-file` loading: the first failure is the whole answer, and it names
- * the file. The theme *shape* rules are `parseCustomTheme`'s own tests.
+ * Custom theme loading (`--theme-file` or `site.themeFiles`): the first
+ * failure is the whole answer, and it names the file and where it came from. The theme *shape* rules are `parseCustomTheme`'s own tests.
  */
 
 async function withThemeDir(run: (dir: string) => Promise<void>): Promise<void> {
@@ -28,7 +28,7 @@ describe('loadCustomThemes', () => {
   test('an unreadable path is an error naming the path', async () => {
     await withThemeDir(async (dir) => {
       const missing = path.join(dir, 'nope.json')
-      const result = await loadCustomThemes([missing])
+      const result = await loadCustomThemes([missing], '--theme-file')
       // cli.buildSite.themeFileUnreadable: its fixed opening, then the OS reason.
       expect(result).toBeString()
       expect(result).toStartWith(`Failed to read --theme-file '${missing}': `)
@@ -42,7 +42,9 @@ describe('loadCustomThemes', () => {
       const parsed = parseCustomTheme(BAD_THEME)
       if (!isMessageParseError(parsed)) throw new Error('fixture must be rejected by the parser')
 
-      expect(await loadCustomThemes([file])).toBe(`--theme-file '${file}': ${parsed.error.message}`)
+      expect(await loadCustomThemes([file], '--theme-file')).toBe(
+        `--theme-file '${file}': ${parsed.error.message}`,
+      )
     })
   })
 
@@ -51,15 +53,27 @@ describe('loadCustomThemes', () => {
       const file = path.join(dir, 'bad.json')
       await fs.writeFile(file, JSON.stringify(BAD_THEME))
       await withGuardedLocaleAsync('en-XA', pseudoCatalog(), async () => {
-        const result = await loadCustomThemes([file])
+        const result = await loadCustomThemes([file], '--theme-file')
         const reason = pseudoString('site.theme.file.variableName').replace('{name}', 'bg')
         expect(result).toBe(
           pseudoString('cli.buildSite.themeFileInvalid')
-            .replace('{flag}', '--theme-file')
+            .replace('{source}', '--theme-file')
             .replace('{path}', file)
             .replace('{reason}', reason),
         )
       })
+    })
+  })
+
+  test('every file loads, in order', async () => {
+    await withThemeDir(async (dir) => {
+      const first = path.join(dir, 'first.json')
+      const second = path.join(dir, 'second.json')
+      await fs.writeFile(first, JSON.stringify(VALID_THEME))
+      await fs.writeFile(second, JSON.stringify({ ...VALID_THEME, name: 'dusk' }))
+      const result = await loadCustomThemes([first, second], 'site.themeFiles')
+      if (typeof result === 'string') throw new Error(result)
+      expect(result.map((theme) => theme.name)).toEqual(['sunset', 'dusk'])
     })
   })
 
@@ -70,10 +84,10 @@ describe('loadCustomThemes', () => {
       await fs.writeFile(good, JSON.stringify(VALID_THEME))
       await fs.writeFile(bad, '{')
 
-      const result = await loadCustomThemes([good, bad])
+      const result = await loadCustomThemes([good, bad], 'site.themeFiles')
       // cli.buildSite.themeFileNotJson, naming only the file that failed.
       expect(result).toBeString()
-      expect(result).toStartWith(`--theme-file '${bad}' is not valid JSON: `)
+      expect(result).toStartWith(`site.themeFiles '${bad}' is not valid JSON: `)
       expect(result).not.toContain(good)
     })
   })

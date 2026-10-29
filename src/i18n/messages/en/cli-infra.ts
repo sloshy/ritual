@@ -501,9 +501,11 @@ export const cliInfraMessages = {
 
   // ── build-site: flag and file parsing ─────────────────────────────────
   'cli.theme.unknown': "Unknown theme '{value}'. Choose one of: {choices}.",
-  'cli.buildSite.themeFileUnreadable': "Failed to read {flag} '{path}': {reason}",
-  'cli.buildSite.themeFileNotJson': "{flag} '{path}' is not valid JSON: {reason}",
-  'cli.buildSite.themeFileInvalid': "{flag} '{path}': {reason}",
+  'cli.buildSite.configThemeUnknown':
+    "{configKey} names theme '{value}', which is neither built in nor declared by a file in {filesKey}. Choose one of: {choices}.",
+  'cli.buildSite.themeFileUnreadable': "Failed to read {source} '{path}': {reason}",
+  'cli.buildSite.themeFileNotJson': "{source} '{path}' is not valid JSON: {reason}",
+  'cli.buildSite.themeFileInvalid': "{source} '{path}': {reason}",
   'cli.buildSite.spaBuildFailed': 'Site SPA {ext} build failed',
   'cli.buildSite.spaBuildNoOutput': 'Site SPA build produced no {ext} output',
   'cli.buildSite.outDirBlank': '{flag} requires a directory path.',

@@ -930,6 +930,9 @@ export const adminMessages = {
   'admin.settings.sellMode': 'Offer sell mode',
   'admin.settings.sellModeHint':
     'Show Card Kingdom buy prices, the buylist filters and groupings, and the sell-cart export — both on the published site and in this admin’s editors, Move Cards panes and Refresh Cache page. Off by default: turning it on makes every site build and cache refresh download and index Card Kingdom’s ~70 MB buylist. Saving applies immediately, with no reload or restart; a server started with {flag} offers sell mode whatever this is set to.',
+  'admin.settings.siteTheme': 'Site theme',
+  'admin.settings.siteThemeHint':
+    'The theme a first-time visitor of the published site sees; visitors can still switch themes. Site builds use it, including the ones the publishing workflow runs. A build run with {flag} overrides it. To open on a custom theme, list its JSON file in {configKey} and pick its name here.',
   'admin.settings.printingsHeading': 'Default Printings',
   'admin.settings.printingsHint':
     "Printings that may never be auto-selected as a card's default (featured) printing, one per line as {format} (e.g. {example}). When a banned printing would be chosen, the next eligible printing is featured instead. Banned printings can still be viewed and entered manually.",

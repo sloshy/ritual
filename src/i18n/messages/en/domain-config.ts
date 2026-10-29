@@ -36,6 +36,9 @@ export const domainConfigMessages = {
   'domain.config.mustBeSemver': '"{field}" must be a semver string',
   'domain.config.mustBeHash': '"{field}" must be a "sha256:" hash string',
   'domain.config.mustBeListName': '"{field}" must be a non-empty list name',
+  'domain.config.blankEntry': '"{field}" must not contain an empty entry',
+  'domain.config.siteThemeUnknown':
+    '"{field}" names no theme ("{value}"): use a built-in theme ({values}), or list custom theme files in "{filesField}" to use one of their names',
   'domain.config.bannedPrinting':
     'banned printing "{value}" must be in "{format}" form (e.g. "{example}")',
   'domain.config.uiLocaleMalformed': 'invalid UI locale: {reason}',

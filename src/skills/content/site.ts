@@ -184,8 +184,9 @@ ritual build-site --decks "Winota Stax" "Mono-Red Aggro"   # specific decks
 ritual build-site --collections "Main Binder"              # specific collections
 ritual build-site --wanted-lists "To Buy"                  # specific wanted lists
 ritual build-site --price-sources tcgplayer,cardmarket  # narrow the stores offered (default: every priceSources store; never adds one)
-ritual build-site --theme izzet                    # initial theme baked into the HTML
-ritual build-site --theme-file my-theme.json       # load custom theme JSON files (their names become selectable)
+ritual build-site --theme izzet                    # initial theme baked into the HTML (overrides site.theme)
+ritual build-site --theme-file my-theme.json       # load custom theme JSON files (their names become selectable;
+                                                   #   replaces site.themeFiles for this run)
 ritual build-site --locale de-AT                   # UI locale baked into the site (html lang/dir, opening language)
 ritual build-site --locales en de-AT               # dictionaries to publish (\`all\` = every locale this build has)
 ritual build-site --locale-file de-AT.json         # load dictionary JSON files, named for their tag
@@ -195,6 +196,24 @@ ritual build-site --out-dir ./preview               # publish into another direc
 ritual build-site --sell-mode                      # offer sell mode for this run: refresh the CK
                                                    #   buylist and bake its buy prices into the site
 \`\`\`
+
+The opening theme is configurable, so a build that passes no theme flags — the
+\`init-site\` deploy workflow's, which \`ritual migrate\` rewrites, so never edit
+flags into it — still opens on it. Precedence is flag > config > \`default\`, per
+key: \`--theme\` replaces \`site.theme\`, \`--theme-file\` replaces (never extends)
+\`site.themeFiles\`.
+
+\`\`\`bash
+ritual config set site.theme boros-inverted              # any built-in, -inverted variants included
+ritual config set site.themeFiles themes/my-theme.json   # custom theme files, relative to the workspace
+ritual config set site.theme my-theme                    # a custom name is accepted only while site.themeFiles is set
+\`\`\`
+
+\`site.theme\` is stored lowercase; the build refuses a custom name no loaded file
+declares. \`config unset site.themeFiles\` is refused while \`site.theme\` names a
+custom theme (unset or change the theme first). The admin **Settings** page's
+**Site theme** select writes \`site.theme\`, and the admin **Build Site** action
+and MCP \`build_site\` honour both keys (they run \`ritual build-site\`).
 
 \`--cache-images\` downloads card images locally instead of hot-linking Scryfall;
 \`-v\`/\`--verbose\` lists the cards to be fetched.
@@ -530,8 +549,9 @@ ritual admin --sell-mode           # offer sell mode this run even with site.sel
 \`\`\`
 
 The admin's **Settings** page edits the same config keys the CLI does, including
-\`uiLocale\` and \`site.sellMode\` (an **Offer sell mode** checkbox; saving it shows or
-hides this admin's sell surfaces at once, with no reload) — the admin serves every
+\`uiLocale\`, \`site.theme\` (a **Site theme** select) and \`site.sellMode\` (an **Offer sell
+mode** checkbox; saving it shows or hides this admin's sell surfaces at once, with no
+reload) — the admin serves every
 locale the binary carries and reads its own
 language from \`GET /api/config\`, so switching it rebuilds nothing. There is no
 \`--locale\` build flag here: \`ritual admin\` regenerates its bundle (and its

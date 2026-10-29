@@ -179,7 +179,7 @@ describe('ritual.config.json bytes under a foreign UI language (Integration)', (
     // `unknown[]`: the asymmetric matcher below is typed `any`.
     const expected: unknown[] = [
       '"cacheSource" must be one of: scryfall, feed',
-      'The "site" property is managed by "ritual init-site" and cannot be set with "config set", except for the public-site selection lists: site.includeDecks, site.includeCollections, site.includeWantedLists, site.excludeDecks, site.excludeCollections, site.excludeWantedLists, site.bannedPrintings, site.apiBaseUrl, site.sellMode.',
+      'The "site" property is managed by "ritual init-site" and cannot be set with "config set", except for the public-site selection lists: site.includeDecks, site.includeCollections, site.includeWantedLists, site.excludeDecks, site.excludeCollections, site.excludeWantedLists, site.bannedPrintings, site.apiBaseUrl, site.sellMode, site.theme, site.themeFiles.',
       expect.stringMatching(
         /^Unknown property: "nope". Available properties: decksDir, collectionsDir, /,
       ),

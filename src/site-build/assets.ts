@@ -11,7 +11,7 @@ import { refreshStaleAllowed, type RefreshMode } from '../cache/refresh'
 import { getErrorMessage } from '../util/errors'
 import { parseCustomTheme, type CustomTheme } from '../theme/themes'
 import { isMessageParseError, renderSyncMessage } from '../sync/message'
-import { FLAG, flagValue } from '../util/cli-tokens'
+import { FLAG, flagValue, type ConfigKeyToken, type FlagToken } from '../util/cli-tokens'
 
 export type SiteSpaAssets = {
   appSvg: string
@@ -137,8 +137,15 @@ export async function createSymbolCollector(
   return { symbolMap, ensureSymbols }
 }
 
-/** Loads every `--theme-file` JSON; returns an error message string on the first failure. */
-export async function loadCustomThemes(paths: readonly string[]): Promise<CustomTheme[] | string> {
+/**
+ * Loads every custom theme JSON (`--theme-file` or `site.themeFiles`); returns an
+ * error message string on the first failure. `source` is the flag or config key
+ * the paths came from, which the message names.
+ */
+export async function loadCustomThemes(
+  paths: readonly string[],
+  source: FlagToken | ConfigKeyToken,
+): Promise<CustomTheme[] | string> {
   const themes: CustomTheme[] = []
   for (const filePath of paths) {
     let raw: string
@@ -148,7 +155,7 @@ export async function loadCustomThemes(paths: readonly string[]): Promise<Custom
       return t('cli.buildSite.themeFileUnreadable', {
         path: filePath,
         reason: getErrorMessage(err),
-        flag: FLAG.themeFile,
+        source,
       })
     }
     let parsed: unknown
@@ -158,7 +165,7 @@ export async function loadCustomThemes(paths: readonly string[]): Promise<Custom
       return t('cli.buildSite.themeFileNotJson', {
         path: filePath,
         reason: getErrorMessage(err),
-        flag: FLAG.themeFile,
+        source,
       })
     }
     const result = parseCustomTheme(parsed)
@@ -166,7 +173,7 @@ export async function loadCustomThemes(paths: readonly string[]): Promise<Custom
       return t('cli.buildSite.themeFileInvalid', {
         path: filePath,
         reason: renderSyncMessage(result.error),
-        flag: FLAG.themeFile,
+        source,
       })
     }
     themes.push(result)

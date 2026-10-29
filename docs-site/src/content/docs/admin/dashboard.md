@@ -7,7 +7,7 @@ Besides the editors and the list tools, the admin dashboard has a handful of sin
 
 ## Build Site
 
-Run a full static site build from the browser. It is the same build as `ritual build-site`, run as a background process so the admin server stays responsive, and the result is published all at once when it finishes.
+Run a full static site build from the browser. It is the same build as `ritual build-site` (so it opens on the configured `site.theme`), run as a background process so the admin server stays responsive, and the result is published all at once when it finishes.
 
 The page streams the build as it runs: a progress bar over four steps (starting, building, publishing, done) and a live log of the build's own output. If the event stream cannot be opened, the page falls back to a plain request. If the stream drops mid-build, the build keeps running on the server and the page says so instead of starting a second one. See [`POST /api/build-site`](/admin/api/#build-site) and [`GET /api/build-site/stream`](/admin/api/#build-site-stream).
 
@@ -96,6 +96,7 @@ The headed groups below them:
 - **Decks to exclude** / **Collections to exclude** / **Wanted lists to exclude**: display names to leave out even when the publish list includes them. The visibility toggles on [Manage Lists](/admin/manage-lists/#publishing-visibility) edit these. See [Configuration](/configuration/#choosing-which-lists-to-publish)
 - **API base URL**: optional live backend for a split deployment. A statically deployed site fetches live list data and card search from a separately hosted `ritual serve --api` instance at this URL, baked in by the next site build. Leave empty for a fully static site
 - **Offer sell mode**: whether the published site and this admin offer [sell mode](/commands/admin/#sell-mode) (default off; `site.sellMode`). Unchecking removes the key rather than storing `false`. Saving applies at once with no reload: the sell surfaces appear or disappear as soon as the save returns. See [Sell mode](/commands/admin/#sell-mode) for what it costs and how `--sell-mode` overrides it
+- **Site theme**: the theme a first-time visitor of the published site sees (`site.theme`). Choosing `default` removes the key. Every build uses it, this page's **Build Site** and the deploy workflow's included; `build-site --theme` overrides it for one run. The select lists the built-in themes; a custom theme (from `site.themeFiles`) appears only when `site.theme` already names it, set with `config set` or by hand, and the page keeps it rather than rewriting it; see [Picking the site theme](/configuration/#picking-the-site-theme-theme-themefiles)
 
 **Default Printings**
 

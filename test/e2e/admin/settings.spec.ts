@@ -27,6 +27,8 @@ type ConfigPutBody = {
     apiBaseUrl?: string
     bannedPrintings?: string[]
     sellMode?: boolean
+    theme?: string
+    themeFiles?: string[]
   }
 }
 
@@ -302,12 +304,36 @@ test.describe('Settings Page', () => {
     const clearBody = JSON.parse((await clearRequestPromise).postData() ?? '{}') as ConfigPutBody
     expect(clearBody.site ?? {}).not.toHaveProperty('apiBaseUrl')
   })
+
+  test('picking a site theme persists site.theme, and picking default unsets it', async ({
+    page,
+  }) => {
+    const main = page.locator('main')
+    const select = main.locator('select[name="siteTheme"]')
+    await expect(select).toHaveValue('default')
+    await select.selectOption('izzet-inverted')
+
+    const setRequestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const setBody = JSON.parse((await setRequestPromise).postData() ?? '{}') as ConfigPutBody
+    expect(setBody.site?.theme).toBe('izzet-inverted')
+
+    await select.selectOption('default')
+    const clearRequestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const clearBody = JSON.parse((await clearRequestPromise).postData() ?? '{}') as ConfigPutBody
+    expect(clearBody.site ?? {}).not.toHaveProperty('theme')
+  })
 })
 
 test.describe('Settings Page — site key prefill', () => {
   test.beforeEach(async ({ page }) => {
     // Serve a config that already has a stored (lowercase) banned printing,
-    // sell mode on, and the update check off (the default is on), so each
+    // sell mode on, a custom site theme, and the update check off (the default is on), so each
     // prefill path is exercised. PUTs echo the plain mock config back.
     await fulfillJson(page, '**/api/config', (route: Route): ConfigResponse => ({
       success: true,
@@ -316,7 +342,13 @@ test.describe('Settings Page — site key prefill', () => {
           ? {
               ...MOCK_CONFIG,
               updateCheck: false,
-              site: { ...defaultSiteSelection(), bannedPrintings: ['sld:123'], sellMode: true },
+              site: {
+                ...defaultSiteSelection(),
+                bannedPrintings: ['sld:123'],
+                sellMode: true,
+                theme: 'my-palette',
+                themeFiles: ['themes/my-palette.json'],
+              },
             }
           : MOCK_CONFIG,
     }))
@@ -329,6 +361,26 @@ test.describe('Settings Page — site key prefill', () => {
 
   test('prefills stored banned printings with the set code uppercased', async ({ page }) => {
     await expect(page.locator('main textarea[name="bannedPrintings"]')).toHaveValue('SLD:123')
+  })
+
+  test('a custom site.theme is kept as the selected option', async ({ page }) => {
+    const select = page.locator('main select[name="siteTheme"]')
+    await expect(select).toHaveValue('my-palette')
+    // Picking a built-in and changing your mind keeps the custom option.
+    await select.selectOption('izzet')
+    await select.selectOption('my-palette')
+    await expect(select).toHaveValue('my-palette')
+
+    // Saving sends the custom theme back with the files that make it valid.
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await page.locator('main button:has-text("Save")').click()
+    const body = JSON.parse((await requestPromise).postData() ?? '{}') as ConfigPutBody
+    expect(body.site).toMatchObject({
+      theme: 'my-palette',
+      themeFiles: ['themes/my-palette.json'],
+    })
   })
 
   test('the sell mode checkbox reflects the stored site.sellMode', async ({ page }) => {

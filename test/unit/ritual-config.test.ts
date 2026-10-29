@@ -42,6 +42,7 @@ import {
   parseUpdateCheck,
   parseSiteApiBaseUrl,
   parseSiteConfig,
+  resolveSiteThemeInputs,
   RitualConfigParseError,
   saveRitualConfig,
   type RitualConfig,
@@ -758,6 +759,124 @@ describe('parseSiteConfig', () => {
 
   test('returns error when sellMode is not a boolean', () => {
     expectParseError(parseSiteConfig({ sellMode: 'false' }), 'sellMode')
+  })
+})
+
+describe('site theme keys', () => {
+  /** The key of the refusal nested in a `site config: …` error. */
+  function refusalKey(result: unknown): unknown {
+    if (!isConfigParseError(result)) throw new Error('expected a refusal')
+    expect(result.error.messageKey).toBe('domain.config.inSection')
+    const reason = result.error.messageParams?.['reason']
+    return typeof reason === 'object' && reason !== null && 'messageKey' in reason
+      ? reason.messageKey
+      : undefined
+  }
+
+  test('a built-in theme, inverted variants included, is stored trimmed and lowercase', () => {
+    expect(parseSiteConfig({ theme: ' Izzet-Inverted ' })).toMatchObject({
+      theme: 'izzet-inverted',
+    })
+    expect(parseSiteConfig({ theme: 'default' })).toMatchObject({ theme: 'default' })
+  })
+
+  test('an unknown theme name is refused while no theme files are configured', () => {
+    expect(refusalKey(parseSiteConfig({ theme: 'my-palette' }))).toBe(
+      'domain.config.siteThemeUnknown',
+    )
+    expect(refusalKey(parseSiteConfig({ theme: 'my-palette', themeFiles: [] }))).toBe(
+      'domain.config.siteThemeUnknown',
+    )
+  })
+
+  test('a custom theme name is accepted once theme files are configured', () => {
+    expect(
+      parseSiteConfig({ theme: 'my-palette', themeFiles: ['themes/my-palette.json'] }),
+    ).toMatchObject({ theme: 'my-palette', themeFiles: ['themes/my-palette.json'] })
+  })
+
+  test('a name no custom theme could carry is refused even with theme files', () => {
+    expect(refusalKey(parseSiteConfig({ theme: 'My Palette!', themeFiles: ['a.json'] }))).toBe(
+      'domain.config.siteThemeUnknown',
+    )
+  })
+
+  test.each([
+    ['domain.config.mustBeString', { theme: 3 }],
+    ['domain.config.mustBeStringArray', { themeFiles: 'a.json' }],
+    ['domain.config.mustBeStringArray', { themeFiles: ['a.json', 4] }],
+    ['domain.config.blankEntry', { themeFiles: ['a.json', '  '] }],
+  ])('a malformed value is refused with %s', (key, site) => {
+    expect(refusalKey(parseSiteConfig(site))).toBe(key)
+  })
+
+  test('the keys are carried through both deployment branches and absent when unset', () => {
+    const themed = { theme: 'boros', themeFiles: ['a.json'] }
+    expect(parseSiteConfig({ ciSystem: 'manual', ...themed })).toMatchObject(themed)
+    expect(
+      parseSiteConfig({
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+        detectChanges: false,
+        ...themed,
+      }),
+    ).toMatchObject(themed)
+    expect(parseSiteConfig({})).not.toHaveProperty('theme')
+    expect(parseSiteConfig({})).not.toHaveProperty('themeFiles')
+  })
+})
+
+describe('resolveSiteThemeInputs', () => {
+  const baseDir = path.resolve('/workspace')
+  const site: SiteConfig = {
+    ...defaultSiteSelection(),
+    theme: 'my-palette',
+    themeFiles: ['themes/my-palette.json'],
+  }
+  const configuredFiles = [path.join(baseDir, 'themes', 'my-palette.json')]
+
+  test('with no flags, the config supplies both, files resolved against the base dir', () => {
+    expect(resolveSiteThemeInputs({}, site, baseDir)).toEqual({
+      theme: 'my-palette',
+      themeOrigin: 'config',
+      themeFiles: configuredFiles,
+      themeFilesOrigin: 'config',
+    })
+  })
+
+  test('an absolute configured path is kept as-is', () => {
+    const absolute = path.resolve('/elsewhere/palette.json')
+    expect(
+      resolveSiteThemeInputs({}, { ...site, themeFiles: [absolute] }, baseDir).themeFiles,
+    ).toEqual([absolute])
+  })
+
+  test('--theme beats site.theme but keeps the configured files', () => {
+    expect(resolveSiteThemeInputs({ theme: 'izzet' }, site, baseDir)).toEqual({
+      theme: 'izzet',
+      themeOrigin: 'flag',
+      themeFiles: configuredFiles,
+      themeFilesOrigin: 'config',
+    })
+  })
+
+  test('--theme-file replaces site.themeFiles as given, and the configured theme still applies', () => {
+    expect(resolveSiteThemeInputs({ themeFile: ['./other.json'] }, site, baseDir)).toEqual({
+      theme: 'my-palette',
+      themeOrigin: 'config',
+      themeFiles: ['./other.json'],
+      themeFilesOrigin: 'flag',
+    })
+  })
+
+  test('with neither flags nor config, the built-in default applies', () => {
+    expect(resolveSiteThemeInputs({}, undefined, baseDir)).toEqual({
+      theme: undefined,
+      themeOrigin: 'config',
+      themeFiles: [],
+      themeFilesOrigin: 'config',
+    })
   })
 })
 

@@ -1607,6 +1607,14 @@ export const adminMeta = {
     description:
       'Explains what the sell mode checkbox governs, why it is off by default, and that it applies without a restart. {flag} is a CLI flag rendered as code — never translate it.',
   },
+  'admin.settings.siteTheme': {
+    description:
+      'Field label: a select of color theme names (code words such as "izzet-inverted", shown untranslated) choosing the theme the published website opens on.',
+  },
+  'admin.settings.siteThemeHint': {
+    description:
+      'Explains the site theme select. {flag} is a CLI flag and {configKey} a config key, both rendered as code — never translate them.',
+  },
   'admin.settings.printingsHeading': {
     description: 'Section heading for printings that may never be chosen as a card’s default.',
   },

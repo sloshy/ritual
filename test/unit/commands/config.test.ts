@@ -187,6 +187,66 @@ describe('applyConfigSet — site.apiBaseUrl', () => {
   })
 })
 
+describe('applyConfigSet — site theme keys', () => {
+  test('site.theme stores a built-in name lowercase', () => {
+    const result = applyConfigSet(base, 'site.theme', ['Boros-Inverted'], 'replace')
+    if ('error' in result) throw new Error(result.error.message)
+    expect(result.newValue).toBe('boros-inverted')
+    expect(result.updatedConfig.site?.theme).toBe('boros-inverted')
+  })
+
+  test('site.theme refuses a custom name until site.themeFiles loads theme files', () => {
+    const refused = applyConfigSet(base, 'site.theme', ['my-palette'], 'replace')
+    if (!('error' in refused)) throw new Error('expected a refusal')
+    expect(refused.error.message).toContain('"my-palette"')
+
+    const withFiles = applyConfigSet(base, 'site.themeFiles', ['themes/my.json'], 'replace')
+    if ('error' in withFiles) throw new Error(withFiles.error.message)
+    const accepted = applyConfigSet(
+      withFiles.updatedConfig,
+      'site.theme',
+      ['my-palette'],
+      'replace',
+    )
+    if ('error' in accepted) throw new Error(accepted.error.message)
+    expect(accepted.updatedConfig.site).toMatchObject({
+      theme: 'my-palette',
+      themeFiles: ['themes/my.json'],
+    })
+  })
+
+  test('unsetting site.themeFiles is refused while site.theme names a custom theme', () => {
+    const files = applyConfigSet(base, 'site.themeFiles', ['themes/my.json'], 'replace')
+    if ('error' in files) throw new Error(files.error.message)
+    const themed = applyConfigSet(files.updatedConfig, 'site.theme', ['my-palette'], 'replace')
+    if ('error' in themed) throw new Error(themed.error.message)
+    expect('error' in applyConfigUnset(themed.updatedConfig, 'site.themeFiles')).toBeTrue()
+    // Removing the last file empties the list, which is refused the same way.
+    expect(
+      'error' in
+        applyConfigSet(themed.updatedConfig, 'site.themeFiles', ['themes/my.json'], 'remove'),
+    ).toBeTrue()
+    const unthemed = applyConfigUnset(themed.updatedConfig, 'site.theme')
+    if ('error' in unthemed) throw new Error(unthemed.error.message)
+    expect(unthemed.updatedConfig.site?.themeFiles).toEqual(['themes/my.json'])
+  })
+
+  test('site.themeFiles refuses a blank entry', () => {
+    expect(
+      'error' in applyConfigSet(base, 'site.themeFiles', ['a.json', '  '], 'replace'),
+    ).toBeTrue()
+  })
+
+  test('unsetting site.theme reports the built-in default', () => {
+    const themed = applyConfigSet(base, 'site.theme', ['izzet'], 'replace')
+    if ('error' in themed) throw new Error(themed.error.message)
+    const result = applyConfigUnset(themed.updatedConfig, 'site.theme')
+    if ('error' in result) throw new Error(result.error.message)
+    expect(result.defaultValue).toBe('default')
+    expect(result.updatedConfig.site?.theme).toBeUndefined()
+  })
+})
+
 describe('applyConfigSet — string properties', () => {
   test.each([
     ['decksDir', './my-decks'],

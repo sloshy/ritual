@@ -25,8 +25,8 @@ ritual build-site [options]
 | `--wanted-lists [names...]`     | Wanted lists (display name or file base name) to include. Default: the `site.includeWantedLists` config selection. The flag with no names is a usage error.                                                                                                                                                      |
 | `--price-sources <list>`        | Comma-separated price stores to offer: `tcgplayer`, `cardmarket`, `cardkingdom`, `cardhoarder`. Default: every enabled [`priceSources`](/configuration/#price-stores-pricesources) store. Narrows that list, never adds to it; each store brings its one currency.                                               |
 | `--refresh <mode>`              | Card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh).                                                                                                                                                                                        |
-| `--theme <name>`                | Initial theme for first-time visitors: a built-in name or a custom name from `--theme-file`. Default: `default`.                                                                                                                                                                                                 |
-| `--theme-file <path...>`        | Load custom theme JSON files. Each is added to the theme list under its declared `name`.                                                                                                                                                                                                                         |
+| `--theme <name>`                | Initial theme for first-time visitors: a built-in name or a custom name from `--theme-file` (or `site.themeFiles`). Default: `site.theme`, else `default`.                                                                                                                                                       |
+| `--theme-file <path...>`        | Load custom theme JSON files. Each is added to the theme list under its declared `name`. Replaces `site.themeFiles` for this run.                                                                                                                                                                                |
 | `--locale <tag>`                | Interface language the site opens in (BCP-47, e.g. `de-AT`). Default: the [`uiLocale`](/configuration/#interface-language) config value. This is Ritual's own text, **not** the card language. See [Localized builds](#localized-builds).                                                                        |
 | `--locales <tags...>`           | Locale dictionaries to publish into `dist/locales/` for the in-app language switcher. Default: `en`. `all` publishes every locale this build has.                                                                                                                                                                |
 | `--locale-file <path...>`       | Load locale dictionary JSON files, each named for its tag (`de-AT.json`). Their locales become selectable alongside the built-in ones.                                                                                                                                                                           |
@@ -132,7 +132,7 @@ ritual build-site --decks https://moxfield.com/decks/abc123 --moxfield-user-agen
 
 ## Themes
 
-Visitors can switch themes at runtime. `--theme` sets the **initial** theme, what a first-time visitor sees. Ten Magic "guild" palettes are available alongside the default. Each has a background color and a contrasting highlight color for buttons, focus rings, and accents:
+Visitors can switch themes at runtime. `--theme` sets the **initial** theme, what a first-time visitor sees. Without the flag the build uses the [`site.theme`](/configuration/#picking-the-site-theme-theme-themefiles) config key, else `default`, so a CI build that passes no flags still opens on your theme. Ten Magic "guild" palettes are available alongside the default. Each has a background color and a contrasting highlight color for buttons, focus rings, and accents:
 
 | Theme      | Background  | Highlight |
 | ---------- | ----------- | --------- |
@@ -171,7 +171,7 @@ ritual build-site --theme-file ./palette-a.json --theme-file ./palette-b.json
 ritual build-site --theme-file ./my-palette.json --theme my-palette
 ```
 
-Each `--theme-file` adds a theme under the `name` declared in the JSON. Combine it with `--theme <custom-name>` to make that theme the initial one. The JSON shape is:
+Each `--theme-file` adds a theme under the `name` declared in the JSON. Combine it with `--theme <custom-name>` to make that theme the initial one. To load the files on every build (the deploy workflow's included), list them in [`site.themeFiles`](/configuration/#picking-the-site-theme-theme-themefiles), relative to the workspace, and name the theme in `site.theme`; a `--theme-file` flag replaces that list for one run. The JSON shape is:
 
 ```json
 {

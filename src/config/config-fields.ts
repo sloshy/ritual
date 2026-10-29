@@ -1,5 +1,6 @@
 import {
   DEFAULT_SITE_SELL_MODE,
+  DEFAULT_SITE_THEME,
   getDefaultRitualConfig,
   getSiteSelectionConfig,
   invalidDefaultLanguage,
@@ -11,6 +12,7 @@ import {
   parseCacheSource,
   parseCollectionSyncPullTarget,
   parseSiteApiBaseUrl,
+  parseSiteConfig,
   parseUiLocale,
   type AdminConfig,
   type CollectionSyncConfig,
@@ -209,6 +211,8 @@ type SettableSiteFieldsMap = {
   'site.bannedPrintings': ConfigFieldTypeFor<NonNullable<SiteConfig['bannedPrintings']>>
   'site.apiBaseUrl': ConfigFieldTypeFor<NonNullable<SiteConfig['apiBaseUrl']>>
   'site.sellMode': ConfigFieldTypeFor<NonNullable<SiteConfig['sellMode']>>
+  'site.theme': ConfigFieldTypeFor<NonNullable<SiteConfig['theme']>>
+  'site.themeFiles': ConfigFieldTypeFor<NonNullable<SiteConfig['themeFiles']>>
 }
 export const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
   'site.includeDecks': 'string[]',
@@ -220,6 +224,8 @@ export const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
   'site.bannedPrintings': 'string[]',
   'site.apiBaseUrl': 'string',
   'site.sellMode': 'boolean',
+  'site.theme': 'string',
+  'site.themeFiles': 'string[]',
 } satisfies SettableSiteFieldsMap
 
 /**
@@ -362,7 +368,37 @@ export function deleteAtPath(
   return { ...obj, [head]: updatedNested }
 }
 
+/** What a successful `config set` / `config unset` both carry: the config to persist. */
+type ConfigWriteSuccess = { updatedConfig: Partial<RitualConfig> }
+
+/**
+ * Re-validate the whole `site` object a successful write produced. The `site`
+ * keys depend on one another — a custom `site.theme` is only valid while
+ * `site.themeFiles` loads theme files — so checking the written key alone could
+ * persist (or, on unset, leave behind) a `site` object the loader would then
+ * discard wholesale with only a warning.
+ */
+function revalidateSite<T extends ConfigWriteSuccess>(
+  property: string,
+  outcome: T | ConfigSetError,
+): T | ConfigSetError {
+  if (!property.startsWith('site.') || !('updatedConfig' in outcome)) return outcome
+  const site = outcome.updatedConfig.site
+  if (site === undefined) return outcome
+  const parsed = parseSiteConfig(site)
+  return isConfigParseError(parsed) ? parsed : outcome
+}
+
 export function applyConfigSet(
+  config: RitualConfig,
+  property: string,
+  values: string[],
+  mode: ArrayMode,
+): ConfigSetOutcome {
+  return revalidateSite(property, applySingleConfigSet(config, property, values, mode))
+}
+
+function applySingleConfigSet(
   config: RitualConfig,
   property: string,
   values: string[],
@@ -576,6 +612,12 @@ export function applyConfigSet(
     }
     newValue = parsed
   }
+  // site.theme is stored lowercase, like the `--theme` flag reads it; whether
+  // it names a known theme depends on site.themeFiles, so the whole-site check
+  // in `revalidateSite` judges it.
+  if (property === 'site.theme') {
+    newValue = rawValue.trim().toLowerCase()
+  }
   // Safe: path is a validated keyof RitualConfig, value matches the field's string type.
   const updatedConfig = setAtPath(configObj, path, newValue) as unknown as RitualConfig
   return { property, newValue, updatedConfig }
@@ -598,6 +640,7 @@ export function applyConfigSet(
  */
 export function defaultConfigValueAtPath(property: string): unknown {
   if (property === 'site.sellMode') return DEFAULT_SITE_SELL_MODE
+  if (property === 'site.theme') return DEFAULT_SITE_THEME
   if (property.startsWith('site.')) {
     const selection = getSiteSelectionConfig(undefined) as unknown as Record<string, unknown>
     return selection[property.slice('site.'.length)]
@@ -671,6 +714,10 @@ export type ConfigUnsetOutcome = ConfigUnsetSuccess | ConfigSetError
  * round-trip stays intact; never hand-write the JSON file.
  */
 export function applyConfigUnset(config: RitualConfig, property: string): ConfigUnsetOutcome {
+  return revalidateSite(property, applySingleConfigUnset(config, property))
+}
+
+function applySingleConfigUnset(config: RitualConfig, property: string): ConfigUnsetOutcome {
   // Same guard as applyConfigSet: init-site owns the site deployment keys.
   if (isSiteDeployManagedPath(property)) {
     return siteDeployGuardError('unset')

@@ -276,7 +276,7 @@ const REFUSALS: readonly (readonly [string, () => unknown, string])[] = [
   [
     'config unset, the site deployment',
     () => applyConfigUnset(base, 'site.ciSystem'),
-    'The "site" property is managed by "ritual init-site" and cannot be unset with "config unset", except for the public-site selection lists: site.includeDecks, site.includeCollections, site.includeWantedLists, site.excludeDecks, site.excludeCollections, site.excludeWantedLists, site.bannedPrintings, site.apiBaseUrl, site.sellMode.',
+    'The "site" property is managed by "ritual init-site" and cannot be unset with "config unset", except for the public-site selection lists: site.includeDecks, site.includeCollections, site.includeWantedLists, site.excludeDecks, site.excludeCollections, site.excludeWantedLists, site.bannedPrintings, site.apiBaseUrl, site.sellMode, site.theme, site.themeFiles.',
   ],
 ]
 

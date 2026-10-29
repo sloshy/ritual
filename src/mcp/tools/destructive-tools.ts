@@ -248,8 +248,12 @@ export function registerDestructiveTools(
         'all site prices; enabling ' +
         'cardkingdom makes builds/servers download the Card Kingdom feed like sell mode does) — ' +
         'or defaultCategories — the global category vocabulary new lists suggest and order by — ' +
-        'or updateCheck — a boolean turning the CLI\'s daily "newer Ritual available" notice on or off. ' +
-        'Nested "admin" fields merge; other top-level keys replace. ' +
+        'or updateCheck — a boolean turning the CLI\'s daily "newer Ritual available" notice on or off — ' +
+        'or site.theme — the theme the built public site opens on (a built-in such as "izzet" or ' +
+        '"boros-inverted", or a custom theme name from the custom theme JSON files listed in ' +
+        'site.themeFiles, workspace-relative paths); build_site reads both. ' +
+        'Nested "admin" fields merge; other top-level keys replace — "site" too, so send the ' +
+        'whole site object read from get_config with your change applied. ' +
         'Unknown keys — top-level or nested in "admin" — are rejected. Writing a key a session ' +
         'flag overrides (get_config reports these under overrides) persists the value but does ' +
         'not change what this running server operates with — e.g. under --sell-mode, sell mode ' +
@@ -276,6 +280,7 @@ export function registerDestructiveTools(
       description:
         'Rebuild the public static site from the current lists. Runs asynchronously in a child ' +
         'process and publishes atomically, so an interrupted build never leaves a broken site. ' +
+        'It opens on the configured site.theme and loads site.themeFiles (see update_config). ' +
         'Emits progress notifications when the call supplies a progressToken, and honours ' +
         'cancellation.',
       inputSchema: z.object({}),

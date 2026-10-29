@@ -11,6 +11,7 @@ import { getCardPrintings } from '../scryfall'
 import { cardCache } from '../cache'
 import { isRunningFromSource } from '../config/runtime'
 import { resolveOutDir } from '../site-build/dist-dir'
+import { getBaseDir } from '../config/base-dir'
 import {
   addSellModeOption,
   applySellModeOverride,
@@ -37,6 +38,7 @@ import {
   getSiteSelectionConfig,
   getUiLocale,
   getWantedDir,
+  resolveSiteThemeInputs,
 } from '../config/ritual-config'
 import { siteBuylistContext } from '../cardkingdom'
 import type { SiteDetailContext } from '../site-build/types'
@@ -65,7 +67,7 @@ import {
 } from '../util/errors'
 import { parseEnumField } from '../util/parse-enum'
 import { emptyCacheAdvice } from '../cache/freshness'
-import { resolveThemeName, themeNames, type CustomTheme } from '../theme/themes'
+import { normalizeThemeName, resolveThemeName, themeNames, type CustomTheme } from '../theme/themes'
 import { isMessageParseError, renderSyncMessage, SyncMessageError } from '../sync/message'
 import type { RefreshMode, RefreshPolicy } from '../cache/refresh'
 import {
@@ -237,17 +239,37 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
     )
   }
 
-  const customThemes = await loadCustomThemes(options.themeFile ?? [])
+  // `--theme` / `--theme-file` win over `site.theme` / `site.themeFiles`, so a
+  // CI build (whose managed workflow passes no theme flags) still honours the
+  // configured theme.
+  const themeInputs = resolveSiteThemeInputs(options, getRitualConfig().site, getBaseDir())
+  const customThemes = await loadCustomThemes(
+    themeInputs.themeFiles,
+    themeInputs.themeFilesOrigin === 'flag' ? FLAG.themeFile : CONFIG_KEY.siteThemeFiles,
+  )
   if (typeof customThemes === 'string') return refuse(customThemes, ExitCode.RuntimeError)
-  const customNames = new Set(customThemes.map((theme) => theme.name))
+  const customNames = customThemes.map((theme) => theme.name)
+  const requested =
+    themeInputs.theme === undefined ? undefined : normalizeThemeName(themeInputs.theme)
   let initialThemeName: string
-  const rawTheme = (options.theme ?? 'default').toLowerCase()
-  if (customNames.has(rawTheme)) {
-    initialThemeName = rawTheme
+  if (requested !== undefined && customNames.includes(requested)) {
+    initialThemeName = requested
   } else {
-    const resolved = resolveThemeName(options.theme, [...customNames])
+    const resolved = resolveThemeName(requested, customNames)
     if (isMessageParseError(resolved)) {
-      return refuse(renderSyncMessage(resolved.error), ExitCode.UsageError)
+      // A bad `--theme` is a usage error; a `site.theme` naming a custom theme
+      // no loaded file declares is a workspace problem, and says which key.
+      return themeInputs.themeOrigin === 'flag'
+        ? refuse(renderSyncMessage(resolved.error), ExitCode.UsageError)
+        : refuse(
+            t('cli.buildSite.configThemeUnknown', {
+              value: themeInputs.theme ?? '',
+              configKey: CONFIG_KEY.siteTheme,
+              filesKey: CONFIG_KEY.siteThemeFiles,
+              choices: formatUnitList(currentLocale(), [...themeNames, ...customNames]),
+            }),
+            ExitCode.RuntimeError,
+          )
     }
     initialThemeName = resolved
   }
@@ -607,12 +629,21 @@ export function applyBuildSiteOptions(command: Command): Command {
       '--price-sources <list>',
       t('help.buildSite.priceSources', { configKey: CONFIG_KEY.priceSources }),
     )
+    // No commander default: an absent `--theme` must fall through to the
+    // `site.theme` config key (see `resolveSiteThemeInputs`).
     .option(
       '--theme <name>',
-      t('help.buildSite.theme', { themes: themeNames.join(', '), flag: FLAG.themeFile }),
-      'default',
+      t('help.buildSite.theme', {
+        themes: themeNames.join(', '),
+        flag: FLAG.themeFile,
+        filesKey: CONFIG_KEY.siteThemeFiles,
+        configKey: CONFIG_KEY.siteTheme,
+      }),
     )
-    .option('--theme-file <path...>', t('help.buildSite.themeFile'))
+    .option(
+      '--theme-file <path...>',
+      t('help.buildSite.themeFile', { configKey: CONFIG_KEY.siteThemeFiles }),
+    )
     // Declared here so `build-site --help` documents the flag on the command it
     // belongs to — but see `resolveBuildLocale`: the root program declares
     // `--locale` too, and commander gives the root the value from either

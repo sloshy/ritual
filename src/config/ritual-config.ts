@@ -50,6 +50,12 @@ import {
   type SyncMessageParamsFor,
 } from '../sync/message'
 import { CONFIG_KEY, EXAMPLE, FILE } from '../util/cli-tokens'
+import {
+  CUSTOM_THEME_NAME_PATTERN,
+  isThemeName,
+  normalizeThemeName,
+  themeNames,
+} from '../theme/themes'
 
 export { INCLUDE_ALL } from './list-selection'
 export type { SiteSelectionConfig } from './list-selection'
@@ -124,6 +130,20 @@ export type SiteConfig = SiteSelectionConfig & {
    * config through `--sell-mode` ({@link setSiteSellModeOverride}).
    */
   sellMode?: boolean
+  /**
+   * The theme a first-time visitor of the built site sees: a built-in theme
+   * name (lowercase, `-inverted` variants included) or, when
+   * {@link SiteConfig.themeFiles} loads custom themes, one of their names.
+   * Absent = `default`. `build-site --theme` overrides it for one run — see
+   * {@link resolveSiteThemeInputs}.
+   */
+  theme?: string
+  /**
+   * Custom theme JSON files every build loads, as paths relative to the base
+   * directory (the config analogue of `--theme-file`, which replaces this list
+   * for one run). Absent = no custom themes.
+   */
+  themeFiles?: string[]
 }
 
 /**
@@ -561,6 +581,23 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
   }
   const sell = obj.sellMode !== undefined ? { sellMode: obj.sellMode } : {}
 
+  let themeFiles: string[] | undefined
+  if (obj.themeFiles !== undefined) {
+    const parsed = parseSiteThemeFiles(obj.themeFiles)
+    if (isConfigParseError(parsed)) return parsed
+    themeFiles = parsed
+  }
+  let theme: string | undefined
+  if (obj.theme !== undefined) {
+    const parsed = parseSiteTheme(obj.theme, (themeFiles?.length ?? 0) > 0)
+    if (isConfigParseError(parsed)) return parsed
+    theme = parsed
+  }
+  const themed = {
+    ...(theme !== undefined ? { theme } : {}),
+    ...(themeFiles !== undefined ? { themeFiles } : {}),
+  }
+
   // Deployment settings are written only by `init-site`. Detect their presence
   // so a site object carrying just selection settings (set via `config set` or the
   // admin UI before init-site has run) is still valid.
@@ -571,7 +608,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     obj.detectChanges !== undefined
 
   if (!hasDeploy) {
-    return { ...selection, ...banned, ...api, ...sell }
+    return { ...selection, ...banned, ...api, ...sell, ...themed }
   }
 
   if (obj.ciSystem !== 'github-actions' && obj.ciSystem !== 'manual') {
@@ -610,6 +647,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
       ...banned,
       ...api,
       ...sell,
+      ...themed,
       ciSystem: obj.ciSystem,
       deployMode: obj.deployMode,
       distDir: obj.distDir,
@@ -617,7 +655,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     }
   }
 
-  return { ...selection, ...banned, ...api, ...sell, ciSystem: obj.ciSystem }
+  return { ...selection, ...banned, ...api, ...sell, ...themed, ciSystem: obj.ciSystem }
 }
 
 /**
@@ -1041,6 +1079,95 @@ export function parseSiteApiBaseUrl(value: unknown): string | ConfigParseError {
     syncRef('domain.config.mustBeHttpUrlOrEmpty', { field: 'apiBaseUrl' }),
   )
 }
+
+/**
+ * Parse a `site.theme` value, normalized to lowercase. A built-in theme name
+ * (`-inverted` variants included) is always accepted. A custom theme's name is
+ * accepted only when `site.themeFiles` loads theme files (`hasThemeFiles`) and
+ * it is shaped like one; whether a loaded file really declares it is checked by
+ * the build, which reads the files — this parser does no I/O.
+ */
+export function parseSiteTheme(value: unknown, hasThemeFiles: boolean): string | ConfigParseError {
+  if (typeof value !== 'string') {
+    return sectionError('site', syncRef('domain.config.mustBeString', { field: 'theme' }))
+  }
+  const normalized = normalizeThemeName(value)
+  if (isThemeName(normalized)) return normalized
+  if (hasThemeFiles && CUSTOM_THEME_NAME_PATTERN.test(normalized)) return normalized
+  return sectionError(
+    'site',
+    syncRef('domain.config.siteThemeUnknown', {
+      field: 'theme',
+      value,
+      values: syncList(themeNames, 'unit'),
+      filesField: 'themeFiles',
+    }),
+  )
+}
+
+/**
+ * Parse a `site.themeFiles` value: an array of non-blank paths, each relative
+ * to the base directory (an absolute path is kept as-is). Paths are stored as
+ * written; {@link resolveSiteThemeInputs} resolves them against the base dir.
+ */
+export function parseSiteThemeFiles(value: unknown): string[] | ConfigParseError {
+  if (!isStringArray(value)) {
+    return sectionError('site', syncRef('domain.config.mustBeStringArray', { field: 'themeFiles' }))
+  }
+  if (value.some((entry) => entry.trim() === '')) {
+    return sectionError('site', syncRef('domain.config.blankEntry', { field: 'themeFiles' }))
+  }
+  return [...value]
+}
+
+/** Which input a theme setting came from: its build flag or its `site.*` config key. */
+export type ThemeInputOrigin = 'flag' | 'config'
+
+/** The theme inputs one build runs with, after flag-over-config precedence. */
+export type SiteThemeInputs = {
+  /** The requested initial theme, as written; `undefined` means the built-in `default`. */
+  theme: string | undefined
+  /** Whether {@link SiteThemeInputs.theme} came from `--theme` or `site.theme`. */
+  themeOrigin: ThemeInputOrigin
+  /** Theme JSON files to load: flag paths as given, config paths resolved against the base dir. */
+  themeFiles: string[]
+  /** Whether {@link SiteThemeInputs.themeFiles} came from `--theme-file` or `site.themeFiles`. */
+  themeFilesOrigin: ThemeInputOrigin
+}
+
+/** The two build flags {@link resolveSiteThemeInputs} weighs against the config. */
+export type SiteThemeFlags = {
+  theme?: string
+  themeFile?: string[]
+}
+
+/**
+ * Apply the theme precedence for one build: a flag beats its config key, which
+ * beats the built-in default. The two keys resolve independently — `--theme`
+ * replaces `site.theme` and `--theme-file` replaces (never extends)
+ * `site.themeFiles` — so a run can pick a different opening theme while still
+ * loading the configured custom themes, or swap the files and keep the theme.
+ */
+export function resolveSiteThemeInputs(
+  flags: SiteThemeFlags,
+  site: SiteConfig | undefined,
+  baseDir: string,
+): SiteThemeInputs {
+  const theme = flags.theme ?? site?.theme
+  const themeOrigin: ThemeInputOrigin = flags.theme !== undefined ? 'flag' : 'config'
+  if (flags.themeFile !== undefined) {
+    return { theme, themeOrigin, themeFiles: [...flags.themeFile], themeFilesOrigin: 'flag' }
+  }
+  return {
+    theme,
+    themeOrigin,
+    themeFiles: (site?.themeFiles ?? []).map((file) => path.resolve(baseDir, file)),
+    themeFilesOrigin: 'config',
+  }
+}
+
+/** The theme a built site opens on when neither `--theme` nor `site.theme` names one. */
+export { DEFAULT_THEME_NAME as DEFAULT_SITE_THEME } from '../theme/themes'
 
 /**
  * How {@link applyDefaults} collapses one field's parser result: the value, or —

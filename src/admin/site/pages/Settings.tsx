@@ -38,7 +38,8 @@ import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
 import { PageHeading } from '../components/PageHeading'
-import { COMMAND, EXAMPLE, FLAG, commandLine } from '../../../util/cli-tokens'
+import { DEFAULT_THEME_NAME, isThemeName, themeNames } from '../../../theme/themes'
+import { COMMAND, CONFIG_KEY, EXAMPLE, FLAG, commandLine } from '../../../util/cli-tokens'
 
 function listToString(list: string[]): string {
   return list.join('\n')
@@ -56,7 +57,7 @@ function parseList(value: string): string[] {
  * default, so the control's "off"/blank position deletes the key rather than
  * writing the default back as an explicit value.
  */
-type OptionalSiteKey = 'apiBaseUrl' | 'sellMode'
+type OptionalSiteKey = 'apiBaseUrl' | 'sellMode' | 'theme'
 
 /** Render a stored `set:collector` printing key with the set code uppercased for display. */
 function displayBannedPrinting(key: string): string {
@@ -103,10 +104,17 @@ export function Settings(): JSX.Element {
     </For>
   )
 
+  /** The stored `site.theme` as last loaded from the server. */
+  const [loadedTheme, setLoadedTheme] = createSignal<string | undefined>()
+
   const fetchConfig = async () => {
     const cfg = await fetchRitualConfig()
-    if (cfg) setConfig(cfg)
-    else setError(apiMessage('admin.settings.loadFailed'))
+    if (cfg) {
+      // Before the config: the select renders once `config()` is set, and its
+      // options must already include a stored custom theme by then.
+      setLoadedTheme(cfg.site?.theme)
+      setConfig(cfg)
+    } else setError(apiMessage('admin.settings.loadFailed'))
   }
 
   onMount(() => {
@@ -221,6 +229,14 @@ export function Settings(): JSX.Element {
       return { ...prev, site }
     })
   }
+
+  const siteTheme = (): string => config()?.site?.theme ?? DEFAULT_THEME_NAME
+  // Options come from the theme as *loaded*, not the draft: a custom theme
+  // stays selectable after the user picks a built-in and changes their mind.
+  const siteThemeOptions = createMemo((): string[] => {
+    const loaded = loadedTheme()
+    return loaded === undefined || isThemeName(loaded) ? themeNames : [...themeNames, loaded]
+  })
 
   // Banned default printings live under `site`. Stored keys are lowercase
   // (`sld:123`) but shown with the set code uppercased; the server re-normalizes
@@ -766,6 +782,33 @@ export function Settings(): JSX.Element {
               }),
             )}
           </p>
+
+          {/* The opening theme of the built site. `default` deletes the key
+              (see `updateSiteKey`); a custom name stored by hand or `config
+              set` (one of `site.themeFiles`' themes) is kept as its own option
+              so this select never silently rewrites it. */}
+          <div>
+            <label class="form-label">{t('admin.settings.siteTheme')}</label>
+            <select
+              class="form-input"
+              name="siteTheme"
+              value={siteTheme()}
+              onChange={(e) => {
+                const value = e.currentTarget.value
+                updateSiteKey('theme', value === DEFAULT_THEME_NAME ? undefined : value)
+              }}
+            >
+              <For each={siteThemeOptions()}>{(name) => <option value={name}>{name}</option>}</For>
+            </select>
+            <p class="form-hint">
+              {withCode(
+                tSegments('admin.settings.siteThemeHint', {
+                  flag: FLAG.theme,
+                  configKey: CONFIG_KEY.siteThemeFiles,
+                }),
+              )}
+            </p>
+          </div>
 
           {/* Banned default printings */}
           <h3 class="section-subheading">{t('admin.settings.printingsHeading')}</h3>
