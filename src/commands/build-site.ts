@@ -38,6 +38,7 @@ import {
   getSiteSelectionConfig,
   getUiLocale,
   getWantedDir,
+  loadPublishableRitualConfig,
   resolveSiteThemeInputs,
 } from '../config/ritual-config'
 import { siteBuylistContext } from '../cardkingdom'
@@ -534,6 +535,9 @@ async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult>
 export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   // Before anything reads sell mode; see `applySellModeOverride` for the rule.
   applySellModeOverride(options)
+  // Refuse before anything is read or written when the `site` block is
+  // invalid: its exclusions would otherwise silently default to "publish all".
+  await loadPublishableRitualConfig()
 
   const settings = await resolveBuildSettings(options)
   if (!settings) return

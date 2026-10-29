@@ -90,6 +90,9 @@ export const domainConfigMeta = {
   'domain.config.field': {
     description: `${REFUSAL} The refusal of one setting, headed by the setting it is about. {field} is the setting's key exactly as in the file (e.g. "updateCheck"); never translate it. {reason} is the refusal, a phrase of its own. Keep the colon layout.`,
   },
+  'domain.config.siteInvalid': {
+    description: `${SETTINGS_FILE} A site build (or a live site server request) stops because the settings file's "site" block, which among other things lists which decks and collections are kept off the public website, is invalid. {file} is the settings file name; {reason} is the nested refusal naming the bad setting. Keep "site" in straight quotes and untranslated — it is a key in the file.`,
+  },
   'domain.config.ignoringInvalid': {
     description: `${SETTINGS_FILE} A warning the server or CLI console prints while loading the file: one setting holds a value Ritual cannot use, so it is ignored and its built-in default applies until the file is fixed. {field} is the setting's key (e.g. "cacheSource") or the name of a block of settings (domain.config.section, e.g. "admin config"); {reason} is why, a phrase of its own. Keep the file name and the colon layout. {file} is the \`ritual.config.json\` file name. It is typed or matched exactly by the user, so never translate it.`,
   },

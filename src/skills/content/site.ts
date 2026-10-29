@@ -214,6 +214,10 @@ declares. \`config unset site.themeFiles\` is refused while \`site.theme\` names
 custom theme (unset or change the theme first). The admin **Settings** page's
 **Site theme** select writes \`site.theme\`, and the admin **Build Site** action
 and MCP \`build_site\` honour both keys (they run \`ritual build-site\`).
+An invalid \`site\` block (any malformed field, e.g. a typo'd theme) stops every
+publish — \`build-site\` (exit 1, naming the field, no \`dist/\` written) and
+\`serve --api\` list requests — rather than publishing every list with the
+block's exclusions dropped; fix the named field.
 
 \`--cache-images\` downloads card images locally instead of hot-linking Scryfall;
 \`-v\`/\`--verbose\` lists the cards to be fetched.

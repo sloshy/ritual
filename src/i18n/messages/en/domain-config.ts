@@ -55,6 +55,8 @@ export const domainConfigMessages = {
   'domain.config.sectionNotObject': '{section} config must be a JSON object',
   'domain.config.inSection': '{section} config: {reason}',
   'domain.config.field': '{field}: {reason}',
+  'domain.config.siteInvalid':
+    '{file}: the "site" block is invalid ({reason}), so nothing was published — an invalid block would publish every list, ignoring its exclusions. Fix it and try again.',
   'domain.config.ignoringInvalid': '{file}: ignoring invalid {field} — {reason}',
 
   // ── The file itself ───────────────────────────────────────────────────

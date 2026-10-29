@@ -69,6 +69,12 @@ release changes a file format or a generated file, it ships the change as a
   on both commands (`allowRemoveAll` on the admin sync API and the MCP `sync_decks` and
   `sync_collection` tools) lets a run empty that side when you mean it; `--force` does not.
   A script that relied on an empty side clearing the other must add the flag.
+- An invalid `site` block in `ritual.config.json` (any malformed field, such as a typo in
+  `site.theme`) now stops `build-site`, and with it `serve --build`, the admin Build Site
+  action, MCP `build_site` and the deploy workflow, with an error naming the field, and
+  makes `serve --api`'s list requests fail. Before, the block was ignored with a warning
+  and the build published every list, including ones you had excluded. Other commands
+  still warn and carry on. If a build now stops here, fix the field it names.
 - `collection-sync push` now prints a `Changes: +N added, -N removed` count per list instead
   of one `Added 2 × Sol Ring (C21:240).` line per card. The per-card lines are behind
   `--verbose`, worded as `+ 2 Sol Ring (C21:240) to Archidekt`, and a dry run no longer says

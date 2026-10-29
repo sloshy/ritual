@@ -17,7 +17,7 @@ import {
   getSiteSelectionConfig,
   getSiteSellMode,
   getUiLocale,
-  loadRitualConfig,
+  loadPublishableRitualConfig,
   wantsCardKingdomFeed,
   type RitualConfig,
 } from '../config/ritual-config'
@@ -342,7 +342,9 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
   }
 
   async function getIndex(): Promise<LiveJson> {
-    const config = await loadRitualConfig()
+    // An invalid `site` block fails the request rather than serving every list
+    // under the defaulted selection (exclusions ignored).
+    const config = await loadPublishableRitualConfig()
     await refreshGeneration()
     const configStamp = configStampFor(config, await refreshBuylistFeed(config))
 

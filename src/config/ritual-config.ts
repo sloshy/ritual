@@ -1387,6 +1387,53 @@ async function readConfigFromDisk(): Promise<LoadedRitualConfig | null> {
 }
 
 /**
+ * The refusal of a `site` block that is present but fails
+ * {@link parseSiteConfig}, or `undefined` when the block is valid or absent.
+ * Absent is benign — every list is published, which is the documented default —
+ * but an invalid block is not: the lenient loader drops it, and the publish
+ * lists it carried (its exclusions above all) would silently fall back to
+ * "publish everything".
+ */
+export function findSiteConfigError(raw: RawConfig): ConfigParseError | undefined {
+  if (raw.site === undefined) return undefined
+  const parsed = parseSiteConfig(raw.site)
+  return isConfigParseError(parsed) ? parsed : undefined
+}
+
+/**
+ * Thrown by everything that publishes lists — `build-site` (and so `serve
+ * --build`, the admin Build Site action and MCP `build_site`, which run it) and
+ * `serve --api`'s live data — when ritual.config.json's `site` block is
+ * invalid. Publishing under the defaulted selection would put lists the user
+ * excluded on a public site, so nothing is published until the block is fixed.
+ * A runtime error (exit 1), like {@link RitualConfigParseError}.
+ */
+export class InvalidSiteConfigError extends SyncMessageError {
+  constructor(reason: ConfigParseError) {
+    super(
+      syncMessage('domain.config.siteInvalid', {
+        file: FILE.config,
+        reason: nestSync(reason.error),
+      }),
+    )
+    this.name = 'InvalidSiteConfigError'
+  }
+}
+
+/**
+ * Load the config for a run that publishes lists: {@link loadRitualConfig},
+ * except that a present-but-invalid `site` block raises
+ * {@link InvalidSiteConfigError} instead of being ignored with a warning.
+ */
+export async function loadPublishableRitualConfig(): Promise<RitualConfig> {
+  const raw = await readRawRitualConfig()
+  if (raw === null) return getDefaultRitualConfig()
+  const siteError = findSiteConfigError(raw)
+  if (siteError !== undefined) throw new InvalidSiteConfigError(siteError)
+  return applyDefaults(raw, warnAndDefault)
+}
+
+/**
  * Load ritual.config.json from the base dir, merging with defaults.
  * Returns the default config if the file does not exist.
  */

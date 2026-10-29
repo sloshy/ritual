@@ -42,6 +42,7 @@ import {
   parseUpdateCheck,
   parseSiteApiBaseUrl,
   parseSiteConfig,
+  findSiteConfigError,
   resolveSiteThemeInputs,
   RitualConfigParseError,
   saveRitualConfig,
@@ -824,6 +825,24 @@ describe('site theme keys', () => {
     ).toMatchObject(themed)
     expect(parseSiteConfig({})).not.toHaveProperty('theme')
     expect(parseSiteConfig({})).not.toHaveProperty('themeFiles')
+  })
+})
+
+describe('findSiteConfigError', () => {
+  test('an absent site block is benign: the publish-everything default applies', () => {
+    expect(findSiteConfigError({ decksDir: './decks' })).toBeUndefined()
+  })
+
+  test('a valid site block is benign', () => {
+    expect(
+      findSiteConfigError({ site: { excludeDecks: ['Secret'], theme: 'izzet' } }),
+    ).toBeUndefined()
+  })
+
+  test('a present but invalid site block is reported with the bad field', () => {
+    const error = findSiteConfigError({ site: { excludeDecks: ['Secret'], theme: 'izzzet' } })
+    expect(error?.error.messageKey).toBe('domain.config.inSection')
+    expect(error?.error.message).toContain('"theme"')
   })
 })
 

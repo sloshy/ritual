@@ -6,6 +6,8 @@ import { refreshRitualConfig } from '../../src/config/ritual-config'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { runBuildSite } from '../../src/commands/build-site'
 import { captureExitCode } from '../helpers/cli'
+import { runCli } from './helpers/cli'
+import { withWorkspace } from '../helpers/workspace'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import type { SiteIndex } from '../../src/list/site-data'
 
@@ -101,4 +103,21 @@ describe('build-site index baking (Integration)', () => {
     }
     expect(await Bun.file(path.join(ws.dir, 'dist', 'index.json')).exists()).toBeFalse()
   })
+})
+
+describe('build-site with an invalid site block (Integration)', () => {
+  test('refuses, naming the bad field, and writes no dist rather than publishing excluded lists', async () => {
+    await withWorkspace(async (dir) => {
+      // A typo'd theme invalidates the block; its exclusion must not be dropped.
+      await fs.writeFile(
+        path.join(dir, 'ritual.config.json'),
+        JSON.stringify({ site: { excludeDecks: ['Secret Deck'], theme: 'izzzet' } }),
+      )
+      const result = await runCli(['build-site', '--refresh', 'never'], dir)
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain('the "site" block is invalid')
+      expect(result.stderr).toContain('"theme"')
+      expect(await Bun.file(path.join(dir, 'dist', 'index.html')).exists()).toBeFalse()
+    })
+  }, 120_000)
 })
