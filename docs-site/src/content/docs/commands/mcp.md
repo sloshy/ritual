@@ -6,6 +6,8 @@ Start an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server 
 
 The server runs the **same operations as the [admin site](/commands/admin/)**, in-process, through the same route handlers. Editing through MCP behaves exactly like editing in the browser: same changelog, same content-hash conflict detection, same optional git auto-commit. It does not open the admin HTTP server or need an admin login. It is a local, trusted process you launch yourself.
 
+For a walkthrough, see [Use Ritual with AI agents](/guides/ai-agents/).
+
 ## Usage
 
 ```bash

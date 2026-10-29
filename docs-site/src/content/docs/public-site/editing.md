@@ -7,6 +7,8 @@ The public site has no server, but you can still edit a list in it. The navbar's
 
 Edits are **ephemeral**. Nothing is saved to a server, and nothing persists unless you choose to keep it. To keep your work, export it as a change bundle and apply it with the admin site or the [`import-changes`](/commands/import-changes/) command.
 
+For a walkthrough from edit to committed files, see [Take edits from your public site](/guides/public-edits/).
+
 ## Edited vs. published
 
 While editing, the navbar gains a second row to show you are viewing a local copy. It has an **Original / Edited** toggle to switch between your changes and the published version, and a **Discard** button to drop them. Press **Done** (the same navbar toggle) to leave edit mode. On phone-width screens both editor bars are condensed behind **⋯** menus; see [Editing on touch](/public-site/mobile/#editing-on-touch).

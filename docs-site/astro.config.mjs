@@ -42,6 +42,16 @@ export default defineConfig({
           items: ['start/install', 'start/first-deck', 'start/tour'],
         },
         {
+          label: 'Guides',
+          items: [
+            'guides/publish-site',
+            'guides/archidekt-sync',
+            'guides/collection-trade-sell',
+            'guides/ai-agents',
+            'guides/public-edits',
+          ],
+        },
+        {
           label: 'Concepts',
           items: [
             'list-format',

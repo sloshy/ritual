@@ -6,6 +6,8 @@ Install [Claude Code agent skills](https://docs.claude.com/en/docs/claude-code/s
 
 This is the CLI-driven counterpart to [`mcp`](/commands/mcp/). `ritual mcp` exposes Ritual to MCP clients as tool calls; the skills teach an agent to run the `ritual` CLI directly. That suits a coding agent working in the git repository that holds your lists.
 
+For a walkthrough, see [Use Ritual with AI agents](/guides/ai-agents/).
+
 ## Usage
 
 ```bash

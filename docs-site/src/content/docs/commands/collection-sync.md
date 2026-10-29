@@ -6,6 +6,8 @@ Sync your collection lists with the Archidekt collection of the account you are 
 
 The same sync runs from the admin site's [Sync Collection](/admin/sync-collection/) page and from the MCP `sync_collection` tool. All three share one engine, so the rules below apply everywhere.
 
+For a walkthrough, see [Sync with Archidekt](/guides/archidekt-sync/).
+
 Unlike [deck-sync](/commands/deck-sync/), there is no per-file link. An Archidekt account has **one** collection, while Ritual has **many** collection lists (Blue Binder, Long Box, …). A run compares the union of the lists in scope against the whole remote collection. The connection is the logged-in account.
 
 ## Usage

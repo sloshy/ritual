@@ -6,6 +6,8 @@ Apply a change bundle to your list files. A bundle is the JSON exported by the p
 
 The same JSON can be applied on the [admin site](/admin/import/#import-changes) (**Import Changes** page) and via the [MCP](/commands/mcp/) `import_change_bundle` tool.
 
+For a walkthrough, see [Take edits from your public site](/guides/public-edits/).
+
 ## Usage
 
 ```bash

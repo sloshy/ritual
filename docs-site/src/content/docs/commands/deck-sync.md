@@ -6,6 +6,8 @@ Sync deck card lists between local files and Archidekt.
 
 The same sync runs from the admin site's [Sync Decks](/admin/sync-decks/) page and from the MCP `sync_decks` tool. All three share one engine, so the rules below apply everywhere.
 
+For a walkthrough, see [Sync with Archidekt](/guides/archidekt-sync/).
+
 ## Usage
 
 ```bash

@@ -10,6 +10,8 @@ The report uses Card Kingdom's public pricelist feed: one ~70 MB download coveri
 Every _other_ buylist surface (sell mode on the sites, the admin's sell routes and startup buylist refresh, the buylist part of [`cache preload-all`](/commands/cache/#the-buylist-rides-along-under-sell-mode)) is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. `ritual sell` ignores both keys. Running it is itself the request for Card Kingdom prices, so it downloads, refreshes, and quotes regardless. A feed downloaded this way is also what a later `--sell-mode` build uses.
 :::
 
+For a walkthrough, see [Manage a collection, trade and sell](/guides/collection-trade-sell/).
+
 ## Usage
 
 ```bash

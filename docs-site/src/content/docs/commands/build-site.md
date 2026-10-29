@@ -6,6 +6,8 @@ Generate the [public site](/public-site/): a static website for your decks, coll
 
 This page covers the build: which lists it publishes, themes and languages, where the output goes, and how the card cache is refreshed. What the finished site can do is documented in the [Public Site](/public-site/) section.
 
+For a walkthrough, see [Publish your deck site](/guides/publish-site/).
+
 ## Usage
 
 ```bash

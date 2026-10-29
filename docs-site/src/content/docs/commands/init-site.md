@@ -4,6 +4,8 @@ title: 'init-site'
 
 Set up the current directory for publishing a Ritual site: a README, a `.gitignore`, the site settings in `ritual.config.json`, and, for GitHub Actions, a deploy workflow.
 
+For a walkthrough, see [Publish your deck site](/guides/publish-site/).
+
 ## Usage
 
 ```bash

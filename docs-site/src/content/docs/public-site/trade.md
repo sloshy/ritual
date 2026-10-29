@@ -3,9 +3,11 @@ title: 'Trade Planner'
 description: Plan a trade from the cards on the site, with printing pickers, live price updates, and shareable links.
 ---
 
-The **Trade Planner** (the **Trade** link in the navbar, at `#/trade`) lays out a trade in two columns: the cards you offer on the left, the cards the other party offers on the right, with a price total under each. It runs entirely in the browser. Nothing persists across page refreshes, but a trade can be shared by URL.
+The Trade Planner (the **Trade** link in the navbar, at `#/trade`; the page is titled **Trade Editor**) lays out a trade in two columns: the cards you offer on the left, the cards the other party offers on the right, with a price total under each. It runs entirely in the browser. Nothing persists across page refreshes, but a trade can be shared by URL.
 
-## Left Column — My Cards
+For a walkthrough, see [Manage a collection, trade and sell](/guides/collection-trade-sell/).
+
+## Left Column — Offering
 
 The left column holds cards you are offering. It searches the collections on the site. An **Include Decks in Search** toggle (off by default) adds cards from your decks.
 
@@ -21,7 +23,7 @@ The left column holds cards you are offering. It searches the collections on the
 
 **Editing picker-sourced rows:** rows added through the printing picker (everything on the right, and deck cards without a pinned printing on the left) have a small yellow pencil button left of the quantity controls. It re-opens the picker for that card, and choosing a printing replaces the row in place, keeping its quantity.
 
-## Right Column — Their Cards
+## Right Column — Receiving
 
 The right column holds cards the other party is offering. What it searches depends on whether the site has a [live backend](/public-site/hosted/).
 
@@ -47,4 +49,4 @@ Hovering a card thumbnail in the trade list, autocomplete suggestions, or printi
 
 ## Mobile Layout
 
-On narrow screens (≤768px), the two columns collapse into a single pane. Tab buttons at the top switch between **My Cards** and **Their Cards**. Each pane fills the screen width with its own search, sort controls, card list, and price total.
+On narrow screens (≤768px), the two columns collapse into a single pane. Tab buttons at the top switch between **Offering** and **Receiving**. Each pane fills the screen width with its own search, sort controls, card list, and price total.

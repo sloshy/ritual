@@ -101,3 +101,7 @@ ritual mcp              # or expose your lists to an MCP client
 ```
 
 [Skills](/commands/skills/) are instructions a coding agent such as Claude Code loads when a task matches. The [MCP server](/commands/mcp/) gives MCP clients tools to read and edit your lists, with the same checks and change history as the admin site.
+
+## Where Next
+
+The guides walk one job end to end: [publish your site](/guides/publish-site/), [sync with Archidekt](/guides/archidekt-sync/), [manage a collection, trade and sell](/guides/collection-trade-sell/), [use Ritual with AI agents](/guides/ai-agents/), and [take edits from your public site](/guides/public-edits/).
