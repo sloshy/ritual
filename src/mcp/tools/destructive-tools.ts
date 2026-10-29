@@ -453,7 +453,7 @@ export function registerDestructiveTools(
         'says so. On a push a card held in several lists is one key, listed under each with ' +
         'the key’s whole quantity. A push’s removals of cards no list holds any more are in ' +
         'report.unlisted. Returns a per-list report; a run with ' +
-        'failures still reports success — check report.failedCount. Branch on each list’s ' +
+        'failures still reports success — check report.failedCount and report.errors. Branch on each list’s ' +
         'outcome (changed, unchanged, dry-run, cancelled, not-run — the last for a list a ' +
         'refused run never reached; absent on a failure or another kind of skip), never on ' +
         'its reason, which is English prose. Emits one progress ' +

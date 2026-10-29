@@ -11,7 +11,7 @@ For a walkthrough, see [Sync with Archidekt](/guides/archidekt-sync/).
 ## Usage
 
 ```bash
-ritual deck-sync pull [decks...] [--sync-printings] [--sync-categories] [-v]
+ritual deck-sync pull [decks...] [--allow-remove-all] [--sync-printings] [--sync-categories] [-v]
 ritual deck-sync push [decks...] [--force] [--allow-remove-all] [--sync-printings] [--sync-categories] [-v]
 ritual deck-sync link <deck> <url>
 ritual deck-sync status
@@ -207,7 +207,7 @@ Syncing "Winota Stax" (pull)...
   The Archidekt deck holds no cards, so pulling it would remove all 100 cards from the local deck. Nothing was changed. If the deck really is empty now, pass --allow-remove-all to pull it anyway.
 ```
 
-`--dry-run` reports the same refusal. `--only additions` removes nothing, so it is never refused. Pass `--allow-remove-all` when you do mean to empty the deck. `--force` does not override this guard: it decides whose edits win when both sides changed, not whether a deck may be emptied, so a push that empties a diverged remote deck needs both flags.
+`--dry-run` reports the same refusal. A refused pull records no baseline either, so pulling a deck that is empty on Archidekt does not clear a [divergence](#divergence-guard-push) refusal on its push. `--only additions` removes nothing, so it is never refused. Pass `--allow-remove-all` when you do mean to empty the deck. `--force` does not override this guard: it decides whose edits win when both sides changed, not whether a deck may be emptied, so a push that empties a diverged remote deck needs both flags.
 
 The refused deck's `reasonKey` is `domain.sync.emptyRemoteDeck` (pull) or `domain.sync.emptyLocalDeck` (push). The MCP `sync_decks` tool and the admin API take `allowRemoveAll: true` for the override; the admin Sync Decks page shows the refusal and offers no override.
 

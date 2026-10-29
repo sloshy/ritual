@@ -380,14 +380,14 @@ Archidekt.
 
 ${SYNC_CHANGE_FILTER}
 
-${SYNC_REMOVE_ALL_GUARD}
-
 ${wrapProse(
   'Use it when the remote and local decks are deliberately out of step and only ' +
     'one direction of change should carry over. It filters cards only: a pull ' +
     'still adopts the remote format. `collection-sync` takes the identical flag ' +
     '(see the **ritual-collections** skill).',
 )}
+
+${SYNC_REMOVE_ALL_GUARD}
 
 Syncing rewrites the deck file, so a line the parser cannot read would be deleted.
 Such decks are listed with their exact lines and confirmed before syncing;

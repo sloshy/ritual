@@ -85,7 +85,7 @@ A push makes Archidekt match your local file, so a card added on archidekt.com s
 Remote deck changed since last sync (remote: …, last synced against: …) — pull first, or pass --force to overwrite remote changes.
 ```
 
-The deck is reported as failed and the rest of the run continues. The remedy on this page is to **pull that deck first**. A pull records the new baseline even when it finds no card changes, after which the push goes through. The `--force` override is not offered here; it exists on the CLI (`deck-sync push --force`) and MCP (`sync_decks` with `force: true`) only.
+The deck is reported as failed and the rest of the run continues. The remedy on this page is to **pull that deck first**. A pull records the new baseline even when it finds no card changes, after which the push goes through, unless the Archidekt deck is now empty: that pull is [refused](#decks-that-would-be-emptied) and records nothing. The `--force` override is not offered here; it exists on the CLI (`deck-sync push --force`) and MCP (`sync_decks` with `force: true`) only.
 
 See [Divergence Guard](/commands/deck-sync/#divergence-guard-push) for the full rules.
 

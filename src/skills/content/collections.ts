@@ -272,8 +272,6 @@ ${wrapProse(
 
 ${SYNC_CHANGE_FILTER}
 
-${SYNC_REMOVE_ALL_GUARD}
-
 ${wrapProse(
   'That is what makes a subset scope safe with an incomplete local picture: ' +
     '`collection-sync push "Blue Binder" --only additions` uploads what that ' +
@@ -282,6 +280,8 @@ ${wrapProse(
     'Archidekt cards without deleting anything locally. `deck-sync` takes the ' +
     'identical flag (see the **ritual-decks** skill).',
 )}
+
+${SYNC_REMOVE_ALL_GUARD}
 
 ${wrapProse(
   '**Where pulled cards land:** a card that appeared on Archidekt belongs in *some* binder and nothing in the ' +
