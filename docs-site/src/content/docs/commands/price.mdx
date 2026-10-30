@@ -2,6 +2,8 @@
 title: 'price'
 ---
 
+import Recording from '../../../components/Recording.astro'
+
 Browse the prices of every deck, collection, and wanted list in one place.
 
 Run in a terminal with no flags, `price` opens an [interactive browser](#the-interactive-browser). The same information prints non-interactively when you pass scripting flags, when stdin or stdout is piped, or under the global `--no-input` flag.
@@ -41,6 +43,8 @@ The name is matched across all three list types; see [List Names](/list-resoluti
 | `--quiet`              | Suppress progress lines and the price disclaimer; never the payload or the parser warnings                                                                                                                                         |
 
 ## The Interactive Browser
+
+<Recording name="price" />
 
 The main screen shows:
 

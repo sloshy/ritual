@@ -3,6 +3,8 @@ title: 'Your First Deck'
 description: 'Create a deck, add cards, and see the markdown file Ritual writes for it.'
 ---
 
+import Recording from '../../../components/Recording.astro'
+
 Ritual works in the directory you run it from. That directory is your **workspace**: a folder of plain files, and usually a git repository. Make a folder for your cards, step into it, and create a deck:
 
 ```bash
@@ -12,6 +14,8 @@ ritual add-card "My Commander Deck" Sol Ring
 ```
 
 The first command that needs card data offers to download Scryfall's card database into a local cache. Say yes. Later commands read from that cache, so they are fast and work offline.
+
+<Recording name="first-deck" />
 
 ## The File
 

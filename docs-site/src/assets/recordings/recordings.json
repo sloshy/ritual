@@ -1,0 +1,30 @@
+{
+  "edit": {
+    "title": "Add a card to a deck with ritual edit",
+    "cols": 100,
+    "rows": 28,
+    "duration": 24.222,
+    "poster": 22.992
+  },
+  "first-deck": {
+    "title": "Create a deck, add a card, and read the file",
+    "cols": 100,
+    "rows": 18,
+    "duration": 17.094,
+    "poster": 15.864
+  },
+  "price": {
+    "title": "Browse the price of every list",
+    "cols": 100,
+    "rows": 28,
+    "duration": 15.202,
+    "poster": 9.739
+  },
+  "scry": {
+    "title": "Search Scryfall from the terminal",
+    "cols": 100,
+    "rows": 22,
+    "duration": 16.128,
+    "poster": 14.878
+  }
+}

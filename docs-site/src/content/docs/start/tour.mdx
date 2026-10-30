@@ -3,6 +3,8 @@ title: 'Quick Tour'
 description: 'Import your lists, price them, edit them, and publish them as a website, one command at a time.'
 ---
 
+import Recording from '../../../components/Recording.astro'
+
 This page follows one workspace from empty to a published website. Each step is one or two commands; the links go to the full reference. It assumes Ritual is [installed](/start/install/) and you are in an empty folder.
 
 ## 1. Bring in Your Lists
@@ -31,15 +33,19 @@ See [`import`](/commands/import/) for text files, Arena/MTGO exports, and every 
 ritual edit
 ```
 
+<Recording name="edit" />
+
 The [interactive editor](/commands/edit/) lists your decks, collections, and wanted lists. Add cards with autocomplete over the card database, edit the cards already there, undo mistakes, and save when you are done. One-shot commands such as [`add-card`](/commands/add-card/), [`move`](/commands/move/) and [`set-card`](/commands/set-card/) do the same from scripts.
 
-Prefer a browser? `ritual admin` starts the [admin site](/admin/) on <http://localhost:8080>, with the same editors plus imports, syncs, history, and site builds.
+Prefer a browser? `ritual admin` starts the [admin site](/admin/) on [http://localhost:8080](http://localhost:8080), with the same editors plus imports, syncs, history, and site builds.
 
 ## 3. Price Them
 
 ```bash
 ritual price
 ```
+
+<Recording name="price" />
 
 [`price`](/commands/price/) opens a browser of every list and its value, down to the card. Prices come from TCGplayer, Cardmarket, Card Kingdom, or Cardhoarder (MTGO tix); [`priceSources`](/configuration/#price-stores-pricesources) picks which stores you use. [`sell`](/commands/sell/) shows what Card Kingdom's buylist would pay for your cards.
 
@@ -83,7 +89,7 @@ A `collection-sync push` goes the other way and makes your **whole** Archidekt c
 ritual serve --build
 ```
 
-This builds the [public site](/public-site/) into `dist/` and serves it at <http://localhost:3000>. Visitors can browse and filter your lists, look at each card, see prices, plan a trade, and send you edits as a file. The [live demo](https://ritual.rpeters.dev/demo/) is a site built this way.
+This builds the [public site](/public-site/) into `dist/` and serves it at [http://localhost:3000](http://localhost:3000). Visitors can browse and filter your lists, look at each card, see prices, plan a trade, and send you edits as a file. The [live demo](https://ritual.rpeters.dev/demo/) is a site built this way.
 
 `dist/` is plain static files, so any web host works. To publish with GitHub Pages, keep the workspace in a GitHub repository and run:
 

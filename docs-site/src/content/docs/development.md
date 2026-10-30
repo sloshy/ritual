@@ -227,6 +227,20 @@ The script copies `demo/` into a temporary directory (linking its card cache), b
 
 `demo/` is a user workspace like any other. When a change adds a [`ritual migrate`](/commands/migrate/) migration, apply it to the demo in the same change (`bun run index.ts --base-dir demo migrate`). `test/integration/demo-workspace.test.ts` checks a copy of `demo/` with `migrate --check`, `detect-changes --verify` and `cleanup --check`, and fails until the demo is current.
 
+### Terminal Recordings
+
+The terminal recordings on the Start Here and command pages are [asciinema](https://asciinema.org/) casts, played in the page by asciinema-player. To record them again after a change to what those commands print:
+
+```bash
+bun run build                                      # the recordings run ./ritual
+bun run scripts/docs-recordings.ts                 # all of them; needs the demo's card cache
+bun run scripts/docs-recordings.ts --only price    # just one
+```
+
+Each recording types its commands into a shell in a 100-column pseudo-terminal, in a temporary copy of `demo/` (or an empty folder, for `first-deck`) with the card cache linked, so nothing is written to the committed files. The shell has a fixed home directory, no rc files and no update check, and the script fails if a cast mentions a local path, user or host name. The steps for each recording are listed at the top of the script. The casts and `recordings.json` (title, length and poster frame) go to `docs-site/src/assets/recordings/`, and `<Recording name="…" />` (`docs-site/src/components/Recording.astro`) embeds one in an `.mdx` page. The `scry` recording searches Scryfall, so it needs a network connection and its results follow Scryfall's.
+
+`--gif` also renders `<name>.gif` beside each cast with [agg](https://github.com/asciinema/agg), for places that cannot run the player, such as the README. Install it with `cargo install --locked --git https://github.com/asciinema/agg` or from its releases page; the `agg` crate on crates.io is a different tool.
+
 ## Continuous Integration
 
 `.github/workflows/ci.yml` runs on every pull request and every push to `main`:

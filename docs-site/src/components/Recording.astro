@@ -1,0 +1,259 @@
+---
+/**
+ * A terminal recording, played by asciinema-player.
+ *
+ * The casts and `recordings.json` (each one's title, length and poster frame)
+ * are written by `scripts/docs-recordings.ts`. The player script loads only
+ * when the recording scrolls near the viewport, and never autoplays; until
+ * then, and without JavaScript, the caption says what the recording shows.
+ *
+ *   <Recording name="first-deck" />
+ */
+import recordings from '../assets/recordings/recordings.json'
+
+type RecordingInfo = { title: string; rows: number; duration: number; poster: number }
+
+interface Props {
+  /** The cast's file name in `src/assets/recordings/`, without `.cast`. */
+  name: string
+  /** Caption under the player; defaults to the recording's title. */
+  caption?: string
+}
+
+// `no-inline`: small casts would otherwise be inlined into the page as data URLs.
+const casts = import.meta.glob<string>('../assets/recordings/*.cast', {
+  query: '?url&no-inline',
+  import: 'default',
+  eager: true,
+})
+
+const { name, caption } = Astro.props
+const all: Record<string, RecordingInfo> = recordings
+const info: RecordingInfo | undefined = all[name]
+const src = casts[`../assets/recordings/${name}.cast`]
+if (info === undefined || src === undefined) {
+  throw new Error(`No recording named "${name}". Run scripts/docs-recordings.ts to make it.`)
+}
+const seconds = Math.round(info.duration)
+---
+
+<figure class="recording not-content">
+  <div
+    class="recording-player"
+    data-src={src}
+    data-poster={info.poster}
+    style={`--recording-rows: ${info.rows}`}
+    role="region"
+    aria-label={`Terminal recording: ${info.title} (${seconds} seconds)`}
+  >
+    <noscript>
+      <p>This terminal recording needs JavaScript to play.</p>
+    </noscript>
+  </div>
+  <figcaption>{caption ?? info.title}</figcaption>
+</figure>
+
+<script>
+  import type { Player } from 'asciinema-player'
+
+  /** Load the player this far before the recording scrolls into view. */
+  const ROOT_MARGIN = '200px'
+  /** The terminal colours `.recording-player` defines, by asciinema-player's names. */
+  const COLOR_NAMES = [
+    'foreground',
+    'background',
+    ...Array.from({ length: 16 }, (_, index) => String(index)),
+  ]
+
+  type Mounted = { player: Player; started: boolean; playing: boolean }
+  const mounted = new Map<HTMLElement, Mounted>()
+
+  /**
+   * asciinema-player reads its palette once, at creation, and only as hex
+   * `--term-color-*` values. Starlight's colours are `hsl()` / `oklch()` and
+   * change with the theme, so resolve the current ones to hex with a canvas,
+   * as `--recording-hex-*`, which the theme class below hands to the player.
+   */
+  function setPalette(container: HTMLElement): void {
+    const canvas = document.createElement('canvas')
+    canvas.width = 1
+    canvas.height = 1
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (context === null) return
+    const style = getComputedStyle(container)
+    for (const name of COLOR_NAMES) {
+      const value = style.getPropertyValue(`--recording-term-${name}`).trim()
+      // A skipped colour drops the previous theme's value, so the player's default shows instead.
+      if (value === '') {
+        container.style.removeProperty(`--recording-hex-${name}`)
+        continue
+      }
+      context.clearRect(0, 0, 1, 1)
+      // A colour the canvas cannot parse leaves the previous fill in place;
+      // starting from transparent turns that into a skip, not a wrong colour.
+      context.fillStyle = 'transparent'
+      context.fillStyle = value
+      context.fillRect(0, 0, 1, 1)
+      const [red = 0, green = 0, blue = 0, alpha = 0] = context.getImageData(0, 0, 1, 1).data
+      if (alpha === 0) {
+        container.style.removeProperty(`--recording-hex-${name}`)
+        continue
+      }
+      const hex = [red, green, blue].map((channel) => channel.toString(16).padStart(2, '0'))
+      container.style.setProperty(`--recording-hex-${name}`, `#${hex.join('')}`)
+    }
+  }
+
+  async function mount(container: HTMLElement, startAt?: number, play = false): Promise<void> {
+    const [{ create }] = await Promise.all([
+      import('asciinema-player'),
+      import('asciinema-player/dist/bundle/asciinema-player.css'),
+    ])
+    const { src, poster } = container.dataset
+    if (src === undefined) return
+    setPalette(container)
+    const resumed = startAt !== undefined
+    const player = create(src, container, {
+      // `.asciinema-player-theme-ritual` below: the palette set above.
+      theme: 'ritual',
+      fit: 'width',
+      autoPlay: play,
+      preload: resumed,
+      startAt,
+      poster: resumed || poster === undefined ? undefined : `npt:${poster}`,
+      terminalFontFamily: 'var(--__sl-font-mono)',
+    })
+    const state: Mounted = { player, started: resumed, playing: play }
+    mounted.set(container, state)
+    // The poster is a frame from late in the recording; the first play starts
+    // from the beginning, not from there.
+    player.addEventListener('play', () => {
+      if (state.started) return
+      state.started = true
+      void player.seek(0)
+    })
+    player.addEventListener('playing', () => {
+      state.playing = true
+    })
+    player.addEventListener('pause', () => {
+      state.playing = false
+    })
+    player.addEventListener('ended', () => {
+      state.playing = false
+    })
+  }
+
+  /** Rebuild each player in the new theme's colours, where it was. */
+  function onThemeChange(): void {
+    for (const [container, { player, started, playing }] of mounted) {
+      const time = player.getCurrentTime()
+      player.dispose()
+      mounted.delete(container)
+      void mount(container, started ? time : undefined, started && playing)
+    }
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting || !(entry.target instanceof HTMLElement)) continue
+        observer.unobserve(entry.target)
+        void mount(entry.target)
+      }
+    },
+    { rootMargin: ROOT_MARGIN },
+  )
+  for (const container of document.querySelectorAll<HTMLElement>('.recording-player')) {
+    observer.observe(container)
+  }
+  new MutationObserver(onThemeChange).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  })
+</script>
+
+<style is:global>
+  /*
+   * The terminal palette follows the docs theme: Starlight's foreground and
+   * gray scale, and its hues at the lightness each theme uses for text.
+   */
+  .recording-player {
+    --recording-term-foreground: var(--sl-color-white);
+    --recording-term-background: var(--sl-color-gray-6);
+    --recording-term-0: var(--sl-color-gray-5);
+    --recording-term-1: var(--sl-color-red);
+    --recording-term-2: var(--sl-color-green);
+    --recording-term-3: var(--sl-color-orange);
+    --recording-term-4: var(--sl-color-blue);
+    --recording-term-5: var(--sl-color-accent-high);
+    --recording-term-6: color-mix(in oklch, var(--sl-color-blue), var(--sl-color-green));
+    --recording-term-7: var(--sl-color-gray-1);
+    --recording-term-8: var(--sl-color-gray-3);
+    --recording-term-9: var(--recording-term-1);
+    --recording-term-10: var(--recording-term-2);
+    --recording-term-11: var(--recording-term-3);
+    --recording-term-12: var(--recording-term-4);
+    --recording-term-13: var(--recording-term-5);
+    --recording-term-14: var(--recording-term-6);
+    --recording-term-15: var(--sl-color-white);
+  }
+  :root[data-theme='light'] .recording-player {
+    --recording-term-background: var(--sl-color-gray-7);
+    --recording-term-1: var(--sl-color-red-high);
+    --recording-term-2: var(--sl-color-green-high);
+    --recording-term-3: var(--sl-color-orange-high);
+    --recording-term-4: var(--sl-color-blue-high);
+    --recording-term-5: var(--sl-color-accent);
+    --recording-term-6: color-mix(in oklch, var(--sl-color-blue-high), var(--sl-color-green-high));
+  }
+
+  /* The player's palette, as resolved to hex by setPalette(). */
+  .recording-player .asciinema-player-theme-ritual {
+    --term-color-foreground: var(--recording-hex-foreground);
+    --term-color-background: var(--recording-hex-background);
+    --term-color-0: var(--recording-hex-0);
+    --term-color-1: var(--recording-hex-1);
+    --term-color-2: var(--recording-hex-2);
+    --term-color-3: var(--recording-hex-3);
+    --term-color-4: var(--recording-hex-4);
+    --term-color-5: var(--recording-hex-5);
+    --term-color-6: var(--recording-hex-6);
+    --term-color-7: var(--recording-hex-7);
+    --term-color-8: var(--recording-hex-8);
+    --term-color-9: var(--recording-hex-9);
+    --term-color-10: var(--recording-hex-10);
+    --term-color-11: var(--recording-hex-11);
+    --term-color-12: var(--recording-hex-12);
+    --term-color-13: var(--recording-hex-13);
+    --term-color-14: var(--recording-hex-14);
+    --term-color-15: var(--recording-hex-15);
+  }
+
+  .recording {
+    margin-block: 1.5rem;
+  }
+  .recording-player {
+    /* Holds the player's place before it loads: 100 columns by its rows, plus padding. */
+    aspect-ratio: 100 / calc(var(--recording-rows, 28) * 2.17 + 7.5);
+    overflow: hidden;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.5rem;
+    background: var(--recording-term-background);
+  }
+  .recording-player:has(.ap-wrapper) {
+    aspect-ratio: auto;
+  }
+  .recording-player .ap-player {
+    border-radius: 0;
+  }
+  .recording-player noscript p {
+    margin: 0;
+    padding: 1rem;
+    color: var(--sl-color-gray-2);
+  }
+  .recording figcaption {
+    margin-top: 0.5rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+  }
+</style>
