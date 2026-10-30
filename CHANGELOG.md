@@ -1023,6 +1023,9 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
   into an existing deck line now takes back the art it set there. Adding several copies of
   a deck card you had just removed no longer clears the card's existing custom art, and
   adding a copy that cancels a pending decrement keeps art already picked for that line.
+  Art you set from a card's Custom Art dialog after adding a copy is kept: neither undoing
+  that add nor the next save puts the add's art back over it. Undo is unavailable while a
+  save is in progress.
 
 - On the sites' card-image views, a card's count badge (`2x`, `4x`) sits below the selection
   checkbox instead of beside it, so it no longer covers the start of the card's name. Stack

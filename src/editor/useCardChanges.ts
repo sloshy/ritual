@@ -1,4 +1,5 @@
 import { type Accessor, batch, createSignal, createMemo } from 'solid-js'
+import type { ArtRestore } from './pending-art'
 import type { Finish } from '../card/finish-condition'
 import type { ChangeInput } from '../changes/change-event'
 import {
@@ -95,6 +96,11 @@ export type UndoEntry<T = unknown> = {
    * Restored verbatim when this entry is undone.
    */
   displacedChanges?: ChangeEvent[]
+  /**
+   * The staged custom art this operation changed, before and after (an Add
+   * Card copy's art; see `addCardArtPlan`). Undo puts back exactly that.
+   */
+  artRestores?: ArtRestore[]
 }
 
 export type UndoResult<T = unknown> = {

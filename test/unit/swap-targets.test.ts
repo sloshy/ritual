@@ -7,7 +7,7 @@ import type { CardContextInfo } from '../../src/list-view/card-context'
 import type { SwapMove, SwapTarget } from '../../src/editor/swap-printings'
 import {
   buildSwapRequest,
-  deckSwapMergeTargetId,
+  deckSwapMergeLine,
   deckSwapPinConvertsInPlace,
   deckSwapTargets,
   flatSwapTargets,
@@ -437,7 +437,7 @@ describe('swapMovesToChanges', () => {
   function context(
     kind: SwapApplyContext['kind'],
     quantities: Record<number, number>,
-    mergeTargetId: SwapApplyContext['mergeTargetId'] = () => undefined,
+    mergeLine: SwapApplyContext['mergeLine'] = () => null,
     pinConvertsInPlace: SwapApplyContext['pinConvertsInPlace'] = () => true,
   ): SwapApplyContext {
     let next = 50
@@ -445,7 +445,7 @@ describe('swapMovesToChanges', () => {
       kind,
       allocateId: () => next++,
       quantityOf: (id) => quantities[id] ?? 0,
-      mergeTargetId,
+      mergeLine,
       pinConvertsInPlace,
     }
   }
@@ -529,7 +529,7 @@ describe('swapMovesToChanges', () => {
       allocateId: () => next++,
       quantityOf: (id) =>
         current.sections.flatMap((s) => s.cards).find((c) => c.cardId === id)?.quantity ?? 0,
-      mergeTargetId: (move, i) => deckSwapMergeTargetId(current, move, { listLabels }, i),
+      mergeLine: (move, i) => deckSwapMergeLine(current, move, { listLabels }, i),
       pinConvertsInPlace: (move, i, lineId) =>
         deckSwapPinConvertsInPlace(current, move, { listLabels }, i, lineId),
     })) {
@@ -610,10 +610,25 @@ describe('swapMovesToChanges', () => {
         allocated += 1
         return 50
       },
-      mergeTargetId: (move) => (move.set === 'lea' ? 7 : undefined),
+      mergeLine: (move) => (move.set === 'lea' ? { cardId: 7 } : null),
     }
     const ops = opsOf([inMove()], ctx)
     expect(ops.map((op) => cardIdOf(op.change))).toEqual([7, 7])
+    expect(allocated).toBe(0)
+  })
+
+  test('deck: a copy merging onto a line with no id yet carries none and draws nothing', () => {
+    let allocated = 0
+    const ctx: SwapApplyContext = {
+      ...context('deck', {}),
+      allocateId: () => {
+        allocated += 1
+        return 50
+      },
+      mergeLine: () => ({ cardId: undefined }),
+    }
+    const ops = opsOf([inMove()], ctx)
+    expect(ops.map((op) => cardIdOf(op.change))).toEqual([undefined, undefined])
     expect(allocated).toBe(0)
   })
 
@@ -621,7 +636,7 @@ describe('swapMovesToChanges', () => {
     // The probe "sees" the first arriving copy's line once that op is pulled:
     // the second copy must land on the same id it reports, never a fresh one.
     const seen: number[] = []
-    const ctx = context('deck', {}, () => (seen.length > 0 ? seen[0] : undefined))
+    const ctx = context('deck', {}, () => (seen.length > 0 ? { cardId: seen[0] } : null))
     const ops: number[] = []
     for (const op of swapMovesToChanges([inMove()], ctx)) {
       const id = cardIdOf(op.change)!
@@ -631,7 +646,7 @@ describe('swapMovesToChanges', () => {
     expect(ops).toEqual([50, 50])
   })
 
-  test("deckSwapMergeTargetId probes the add reducer's merge rule over live deck data", () => {
+  test("deckSwapMergeLine probes the add reducer's merge rule over live deck data", () => {
     const live = deck([
       {
         name: 'Main',
@@ -641,15 +656,15 @@ describe('swapMovesToChanges', () => {
         ],
       },
     ])
-    expect(deckSwapMergeTargetId(live, inMove(), { listLabels: undefined })).toBe(9)
+    expect(deckSwapMergeLine(live, inMove(), { listLabels: undefined })?.cardId).toBe(9)
     expect(
-      deckSwapMergeTargetId(live, inMove({ finish: 'foil' }), { listLabels: undefined }),
-    ).toBeUndefined()
+      deckSwapMergeLine(live, inMove({ finish: 'foil' }), { listLabels: undefined }),
+    ).toBeNull()
     expect(
-      deckSwapMergeTargetId(live, inMove({ set: 'sta', collectorNumber: '42' }), {
+      deckSwapMergeLine(live, inMove({ set: 'sta', collectorNumber: '42' }), {
         listLabels: undefined,
       }),
-    ).toBeUndefined()
+    ).toBeNull()
   })
 
   test('flat: every arriving copy gets its own fresh id; every leaving copy releases its own', () => {
@@ -728,7 +743,7 @@ describe('swapMovesToChanges', () => {
   test('deck: a split copy merges onto a standing line of its printing rather than allocating', () => {
     const ops = opsOf(
       [inMove({ count: 1, pinsCardIds: [4], sourceCardIds: [100] })],
-      context('deck', { 4: 3 }, () => 9),
+      context('deck', { 4: 3 }, () => ({ cardId: 9 })),
     )
     expect(cardIdOf(ops[0]!.change)).toBe(9)
   })

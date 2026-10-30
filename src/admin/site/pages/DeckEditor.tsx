@@ -124,9 +124,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
       })
     },
     addCardData: (cardName, card, printings) => cardActions.addCard(cardName, card, printings),
-    onCardArt: cardArt.stage,
-    onCardArtReset: cardArt.reset,
-    stagedArt: cardArt.staged,
+    art: cardArt,
     onSaved: cardArt.flush,
     onCardAdded: async (cardName, scryfallCard) => {
       const data = await fetchCardPrice(cardName)

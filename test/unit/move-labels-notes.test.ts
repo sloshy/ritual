@@ -23,7 +23,7 @@ import {
 import {
   applyChangeToDeck,
   droppedMoveNote,
-  findDeckAddMergeTargetId,
+  findDeckAddMergeLine,
   type MoveToInput,
 } from '../../src/changes/deck-changes'
 import { applyChangeToCollection } from '../../src/changes/collection-changes'
@@ -36,6 +36,10 @@ import {
 import { parseChangelog } from '../../src/changes/changelog-parser'
 import type { LabelOverride } from '../../src/card/card-labels'
 import type { DeckData } from '../../src/list/deck'
+
+/** The id of the line a copy merges onto, or `undefined` — the probe's answer as a number. */
+const mergeTargetIdOf = (...args: Parameters<typeof findDeckAddMergeLine>): number | undefined =>
+  findDeckAddMergeLine(...args)?.card.cardId
 
 const BINDER: ListRef = { type: 'collection', name: 'Binder' }
 const MY_DECK: ListRef = { type: 'deck', name: 'My Deck' }
@@ -200,10 +204,8 @@ describe('a move-to landing on a deck', () => {
   test('the merge-target probe uses the same filtered, default-measured labels', () => {
     // A proxy arriving in a proxy-default deck writes no override, so it folds
     // onto the deck's override-less line — the probe must agree with the reducer.
-    expect(
-      findDeckAddMergeTargetId(deckWith(), arriving(['proxy']), { listLabels: ['proxy'] }),
-    ).toBe(1)
-    expect(findDeckAddMergeTargetId(deckWith(), arriving(['proxy']), NONE)).toBeUndefined()
+    expect(mergeTargetIdOf(deckWith(), arriving(['proxy']), { listLabels: ['proxy'] })).toBe(1)
+    expect(mergeTargetIdOf(deckWith(), arriving(['proxy']), NONE)).toBeUndefined()
   })
 
   test('a quantity merge keeps the line’s own note, and droppedMoveNote reports the copy’s', () => {
@@ -257,7 +259,7 @@ describe('a move-to landing on a deck: default labels and merge scope', () => {
     })
     expect(deck.sections[0]!.cards[0]).toMatchObject({ cardId: 1, quantity: 2 })
     expect(
-      findDeckAddMergeTargetId(deckWith(undefined, ['proxy']), arriving(['proxy']), {
+      mergeTargetIdOf(deckWith(undefined, ['proxy']), arriving(['proxy']), {
         listLabels: ['proxy'],
       }),
     ).toBe(1)
@@ -272,7 +274,7 @@ describe('a move-to landing on a deck: default labels and merge scope', () => {
     // The Main line is the same copy, but the move names the Sideboard: a new
     // line there, so no note is lost and the probe names no line.
     expect(droppedMoveNote(withSideboard, change, NONE)).toBeUndefined()
-    expect(findDeckAddMergeTargetId(withSideboard, change, NONE)).toBeUndefined()
+    expect(mergeTargetIdOf(withSideboard, change, NONE)).toBeUndefined()
     const after = applyChangeToDeck(withSideboard, change, { listLabels: undefined })
     expect(after.sections.map((section) => section.cards.map((c) => c.quantity))).toEqual([
       [1, 1],

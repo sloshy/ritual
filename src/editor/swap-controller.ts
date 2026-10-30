@@ -6,6 +6,7 @@
 
 import { type Accessor, batch, createSignal } from 'solid-js'
 import type { ChangeInput } from '../changes/change-event'
+import type { EntryWithCardId } from '../card/card-id'
 import type { ListType } from '../list/list-type'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { listRefKey, type NamedListRef } from '../list-view/combined-list'
@@ -37,10 +38,10 @@ export type SwapControllerDeps<TData, TCardEntry> = {
   quantityOf: (data: TData, cardId: number) => number
   /**
    * The standing line an arriving copy of `move`'s printing would merge onto
-   * (see `SwapApplyContext.mergeTargetId`); probed against the data as the ops
-   * before it left it. A flat-list host answers undefined.
+   * (see `SwapApplyContext.mergeLine`); probed against the data as the ops
+   * before it left it. A flat-list host answers null.
    */
-  mergeTargetId: (data: TData, move: SwapMove, copyIndex: number) => number | undefined
+  mergeLine: (data: TData, move: SwapMove, copyIndex: number) => EntryWithCardId | null
   /** See `SwapApplyContext.pinConvertsInPlace`; probed against the live data. A flat host answers true. */
   pinConvertsInPlace: (data: TData, move: SwapMove, copyIndex: number, lineId: number) => boolean
 }
@@ -124,7 +125,7 @@ export function createSwapController<TData, TCardEntry>(
         kind: deps.kind,
         allocateId: editor.pool.allocate,
         quantityOf: (cardId) => deps.quantityOf(current, cardId),
-        mergeTargetId: (move, copyIndex) => deps.mergeTargetId(current, move, copyIndex),
+        mergeLine: (move, copyIndex) => deps.mergeLine(current, move, copyIndex),
         pinConvertsInPlace: (move, copyIndex, lineId) =>
           deps.pinConvertsInPlace(current, move, copyIndex, lineId),
       })

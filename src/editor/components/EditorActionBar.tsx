@@ -254,7 +254,12 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
             <span class="changes-badge">{props.changeCount}</span>
           </Show>
         </button>
-        <button type="button" class="btn-undo" disabled={!props.canUndo} onClick={props.onUndo}>
+        <button
+          type="button"
+          class="btn-undo"
+          disabled={!props.canUndo || props.saving}
+          onClick={props.onUndo}
+        >
           {t('ui.editor.undo')}
         </button>
         <Show when={props.showSave ?? true}>

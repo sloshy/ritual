@@ -5,6 +5,7 @@
  */
 
 import type { DeckData } from '../list/deck'
+import type { EntryWithCardId } from '../card/card-id'
 import type { ScryfallCard } from '../scryfall/types'
 import {
   type ChangeInput,
@@ -21,7 +22,7 @@ import { displayFinish } from '../card/finish-condition'
 import { printingKey } from '../card/printing-key'
 import { displayLanguage } from '../card/card-language'
 import {
-  findDeckAddMergeTargetId,
+  findDeckAddMergeLine,
   pinConvertsInPlace,
   type DeckLandingOptions,
 } from '../changes/deck-changes'
@@ -221,38 +222,40 @@ export type SwapApplyContext = {
    */
   quantityOf: (cardId: number) => number
   /**
-   * The `&N` of the line the edited list ALREADY holds that an arriving copy
-   * of `move`'s printing would fold onto, or undefined when it would start a
-   * new line. A deck host probes its live data ({@link deckSwapMergeTargetId});
-   * a flat list never merges, so its host answers undefined. Consulted when
-   * each `in` op is produced — after the ops before it have applied — so a
-   * line an earlier op created or drained is seen as it stands.
+   * The line the edited list ALREADY holds that an arriving copy of `move`'s
+   * printing would fold onto, or null when it would start a new line — the
+   * line, not just its id, since a line may have no id yet (and a copy merging
+   * onto it then draws none). A deck host probes its live data
+   * ({@link deckSwapMergeLine}); a flat list never merges, so its host answers
+   * null. Consulted when each `in` op is produced — after the ops before it
+   * have applied — so a line an earlier op created or drained is seen as it
+   * stands.
    */
-  mergeTargetId: (move: SwapMove, copyIndex: number) => number | undefined
+  mergeLine: (move: SwapMove, copyIndex: number) => EntryWithCardId | null
   /**
    * Whether arriving copy `copyIndex` of `move` may convert the name-only line
    * `lineId` in place — on a deck, only when its landed labels equal the line's
    * effective ones ({@link deckSwapPinConvertsInPlace}, the reducer's own rule);
    * otherwise it splits off as its own arrival. A flat host answers true (a
    * wanted list carries no labels to disagree about). Probed live, like
-   * {@link mergeTargetId}.
+   * {@link mergeLine}.
    */
   pinConvertsInPlace: (move: SwapMove, copyIndex: number, lineId: number) => boolean
 }
 
 /**
- * The deck host's {@link SwapApplyContext.mergeTargetId}: the line arriving
- * copy `copyIndex` of `move` would merge onto under the reducer's own landing
- * rule (`mergesOntoCard`: name, `isSamePrinting` tuple, tags, and effective
- * labels — the copy's carried labels landed against the deck's `listLabels`).
+ * The deck host's {@link SwapApplyContext.mergeLine}: the line arriving copy
+ * `copyIndex` of `move` would merge onto under the reducer's own landing rule
+ * (`mergesOntoCard`: name, `isSamePrinting` tuple, tags, and effective labels —
+ * the copy's carried labels landed against the deck's `listLabels`).
  */
-export function deckSwapMergeTargetId(
+export function deckSwapMergeLine(
   deck: DeckData,
   move: SwapMove,
   options: DeckLandingOptions,
   copyIndex = 0,
-): number | undefined {
-  return findDeckAddMergeTargetId(
+): EntryWithCardId | null {
+  const line = findDeckAddMergeLine(
     deck,
     {
       action: 'move-to',
@@ -267,6 +270,7 @@ export function deckSwapMergeTargetId(
     },
     options,
   )
+  return line?.card ?? null
 }
 
 /**
@@ -337,7 +341,7 @@ type PinnedLineFill = { arriving: number; moves: number }
  * copies each own their id and release it as they go. Then replacements (`in`):
  * one `move-to` per copy with the source line's id as `sourceCardId` and the
  * target's section. On a deck an arriving copy lands on the line the reducer
- * would fold it onto — `ctx.mergeTargetId`, probed live after every earlier op
+ * would fold it onto — `ctx.mergeLine`, probed live after every earlier op
  * has applied, so it sees a line an earlier copy started and the changelog and
  * the art plan name the real `&N` rather than a phantom one — and only
  * otherwise takes a fresh id; a flat list gives every copy its own. A move-to
@@ -435,9 +439,11 @@ export function* swapMovesToChanges(
   // Deck: the line the copy merges onto as the list stands now — the probe is
   // live (each op applies before the next is pulled), so a line an earlier
   // copy started is found here too — else a fresh id. Flat: one per copy.
-  const destinationId = (move: SwapMove, index: number): number => {
+  const destinationId = (move: SwapMove, index: number): number | undefined => {
     if (ctx.kind === 'flat') return ctx.allocateId()
-    return ctx.mergeTargetId(move, index) ?? ctx.allocateId()
+    // A line with no id yet draws none either.
+    const merge = ctx.mergeLine(move, index)
+    return merge ? merge.cardId : ctx.allocateId()
   }
 
   for (const move of moves) {

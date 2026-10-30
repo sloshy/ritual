@@ -241,7 +241,10 @@ export type AddCardArt = {
  *   before them restored by cancelling its removal). That line has its own
  *   art, so only an explicit reference has anything to say; adding without art
  *   must never clear what the line wears — staging a clear there would delete
- *   its art from the sidecar on save.
+ *   its art from the sidecar on save. A line with no id yet cannot take art
+ *   (the art route keys on `&N`), so art aimed at one is refused the way a
+ *   cancellation with no surviving line refuses it: nothing is staged, and the
+ *   tile shows none rather than art no save would write.
  * - **A copy cancelled a pending removal.** The session now touches nothing, so
  *   the id it carried gives up its staging — but an add that *named art* is
  *   one of the two ways art legitimately returns to a card after a removal (the
@@ -260,16 +263,14 @@ export type AddCardArt = {
 export function addCardArtPlan(add: AddCardArt): ArtStagingAction[][] {
   const plan: ArtStagingAction[][] = []
   let mine: ArtStagingAction[] = []
+  // Every `set` in one plan stages the same `add.art`, so kind and id say
+  // whether an edit was already made.
+  const made = new Set<string>()
   const push = (action: ArtStagingAction): void => {
-    const seen = plan
-      .flat()
-      .some(
-        (p) =>
-          p.kind === action.kind &&
-          p.cardId === action.cardId &&
-          (p.kind === 'reset' || (action.kind === 'set' && p.art === action.art)),
-      )
-    if (!seen) mine.push(action)
+    const key = `${action.kind}:${action.cardId}`
+    if (made.has(key)) return
+    made.add(key)
+    mine.push(action)
   }
   let joins = add.mergeTarget
   for (const copy of add.copies) {
@@ -301,29 +302,73 @@ export function addCardArtPlan(add: AddCardArt): ArtStagingAction[][] {
   return plan
 }
 
-/**
- * What one staged-art id held before an action changed it — `undefined` when
- * nothing was staged — so an undo can put back exactly that.
- */
-export type ArtRestore = { cardId: number; before: CardArtRef | null | undefined }
+/** What is staged against an id: a reference, `null` (a staged clear), or `undefined` (nothing). */
+export type StagedArt = CardArtRef | null | undefined
 
 /**
- * The staged-art state `actions` are about to change, read through `staged`
- * before they run: one entry per id, in the order the ids are first touched.
- *
- * An undo restores these and nothing else. It never infers art from which ids
- * the pool moved — that would wipe art a still-pending add staged on a line
- * when an unrelated decrement of it is undone, and would leave the art a
- * merged add staged when the add itself is undone.
+ * The staged-art table as an editor host offers it (the admin's `useCardArt`).
+ * One object, so a host cannot stage art without also letting an undo read
+ * what it staged.
  */
-export function artBeforeActions(
+export type ArtStaging = {
+  /** Stage a reference (or, with `null`, a clear) against an id. */
+  stage: (cardId: number, art: CardArtRef | null) => void
+  /** Drop whatever is staged against an id, so the list's own art applies again. */
+  reset: (cardId: number) => void
+  /** What is staged against an id right now. */
+  staged: (cardId: number) => StagedArt
+}
+
+/**
+ * What an action did to one staged-art id: what the id held before it, and
+ * what it held right after — so an undo can put back `before`, and only while
+ * the id still holds `after`.
+ */
+export type ArtRestore = { cardId: number; before: StagedArt; after: StagedArt }
+
+/**
+ * Make `actions` through `staging`, recording each touched id's staged art
+ * before and after them (one entry per id, in the order first touched).
+ */
+export function applyArtActions(
   actions: readonly ArtStagingAction[],
-  staged: (cardId: number) => CardArtRef | null | undefined,
+  staging: ArtStaging,
 ): ArtRestore[] {
-  const restores: ArtRestore[] = []
+  const before = new Map<number, StagedArt>()
   for (const action of actions) {
-    if (restores.some((r) => r.cardId === action.cardId)) continue
-    restores.push({ cardId: action.cardId, before: staged(action.cardId) })
+    if (!before.has(action.cardId)) before.set(action.cardId, staging.staged(action.cardId))
   }
-  return restores
+  for (const action of actions) {
+    if (action.kind === 'reset') staging.reset(action.cardId)
+    else staging.stage(action.cardId, action.art)
+  }
+  return [...before].map(([cardId, was]) => ({
+    cardId,
+    before: was,
+    after: staging.staged(cardId),
+  }))
+}
+
+/**
+ * The edits that undo an action's art: each id it touched goes back to what it
+ * held before — and nothing else. Art is never inferred from which ids the
+ * pool moved: that would wipe art a still-pending add staged on a line when an
+ * unrelated decrement of it is undone, and would leave the art a merged add
+ * staged when the add itself is undone.
+ *
+ * An id that no longer holds what the action left there was changed since (the
+ * art dialog, on a line the session added), and that later edit stands.
+ */
+export function artUndoActions(
+  restores: readonly ArtRestore[],
+  staged: (cardId: number) => StagedArt,
+): ArtStagingAction[] {
+  const actions: ArtStagingAction[] = []
+  for (const { cardId, before, after } of restores) {
+    if (staged(cardId) !== after) continue
+    actions.push(
+      before === undefined ? { kind: 'reset', cardId } : { kind: 'set', cardId, art: before },
+    )
+  }
+  return actions
 }

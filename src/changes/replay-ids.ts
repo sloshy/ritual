@@ -231,6 +231,9 @@ export function replayAssigningIds<TData>(
       'cardId' in change && change.cardId !== undefined && isProvisional(change.cardId)
         ? change.cardId
         : undefined
+    // Assumes the line a resolved placeholder names is still there: a later
+    // change that removes it leaves the mapping, and a reference after that
+    // misses by id and falls back to the card's name in the reducer.
     if (placeholder !== undefined && resolved.has(placeholder)) {
       change = stampCardId(change, resolved.get(placeholder))
     }

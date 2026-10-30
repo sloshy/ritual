@@ -264,6 +264,9 @@ export function retargetImportedChanges(params: RetargetParams): RetargetResult 
     }
 
     if (change.action === 'add' || change.action === 'move-to') {
+      // A pin on an `append` list lands here too, keeping its exported
+      // `replacesCardId`: the decoder requires it beside a `replacement`, and
+      // the wanted reducer never reads it.
       const mapped = change.cardId === undefined ? undefined : idMap.get(change.cardId)
       const newId = mapped ?? allocateId()
       if (change.cardId !== undefined) idMap.set(change.cardId, newId)

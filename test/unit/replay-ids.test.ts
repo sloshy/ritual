@@ -409,4 +409,19 @@ describe('replayAssigningIds', () => {
     expect(result.resolved.has(-1)).toBe(false)
     expect(result.changes[1]).not.toHaveProperty('cardId')
   })
+
+  test('a client’s id-less split pin that merges is stamped with the line’s id', () => {
+    const result = replayAssigningIds(
+      deck('2 Lightning Bolt &1\n1 Lightning Bolt (LEA:161) &2\n'),
+      [pin('Lightning Bolt', { replacesCardId: 1 })],
+      DECK_ID_OPS,
+      { listLabels: [] },
+    )
+    expect(result.unmatched).toEqual([])
+    expect(idsOf(result.changes)).toEqual([2])
+    expect(result.data.sections[0]?.cards.map((card) => [card.cardId, card.quantity])).toEqual([
+      [1, 1],
+      [2, 2],
+    ])
+  })
 })

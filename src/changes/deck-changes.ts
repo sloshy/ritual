@@ -98,29 +98,15 @@ function mergesOntoCard(
 }
 
 /**
- * The `&N` an `add` would land on because it merges into a line the deck
- * already has, or `undefined` when it would start a new one (or the line it
- * merges into carries no id yet).
+ * The line an `add` / `move-to` folds onto under the reducer's merge rule (in
+ * the change's section), or `null` when it would start a line of its own (a
+ * line with no id yet is still the line). Any other action is `null`.
  *
  * Deliberately ignores `change.cardId`: the caller asks *before* it applies the
  * copy, and the id it would carry is one no line holds yet. What the answer is
  * for is aiming the copy — its id and per-line metadata such as custom art — at
  * the line it will actually share, rather than at an id that evaporates when
  * {@link applyChangeToDeck} folds it in.
- */
-export function findDeckAddMergeTargetId(
-  deck: DeckData,
-  change: ChangeInput,
-  options: DeckLandingOptions,
-): number | undefined {
-  return findDeckAddMergeLine(deck, change, options)?.card.cardId
-}
-
-/**
- * The line an `add` / `move-to` folds onto under the reducer's merge rule (in
- * the change's section), or `null` when it would start a line of its own —
- * {@link findDeckAddMergeTargetId} without collapsing an id-less line into "no
- * merge". Ignores `change.cardId`, like that probe; any other action is `null`.
  */
 export function findDeckAddMergeLine(
   deck: DeckData,
@@ -649,7 +635,7 @@ function pinDeckLine(
   }
   // The copy lands as a normal arrival: its own landed labels and tags, merged
   // by the rule (and in the scope) the merge-target probe uses — judged before
-  // the copy leaves its line, which never merges with it (it is name-only).
+  // the copy leaves its line.
   const copy = arrivingCopy(change, listLabels)
   const landing = findLandingLine(sections, change.cardId, change.cardName, copy, {
     listLabels,
@@ -658,6 +644,10 @@ function pinDeckLine(
   // A split that starts a line needs the id for it: an id-less line would be
   // one the art/effects plan never allocated. Landing on a line needs none.
   if (!landing && change.cardId === undefined) return false
+  // The copy would land back on the line it leaves (that line already wears
+  // the printing): nothing moves. Taking it off first would splice a last copy
+  // out and then count it onto the detached line, losing the card.
+  if (landing === line) return true
 
   line.quantity -= 1
   if (line.quantity <= 0) found.section.cards.splice(found.idx, 1)

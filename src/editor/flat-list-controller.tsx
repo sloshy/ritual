@@ -168,7 +168,7 @@ export function useFlatListEditController<E extends FlatEntry>(
     // One entry per copy: a flat line always holds exactly one, and an
     // arriving copy never merges onto a standing line.
     quantityOf: () => 1,
-    mergeTargetId: () => undefined,
+    mergeLine: () => null,
     pinConvertsInPlace: () => true,
   })
 

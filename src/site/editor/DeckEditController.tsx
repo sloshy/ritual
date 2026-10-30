@@ -54,7 +54,7 @@ import { EditorShell } from '../../editor/components/EditorShell'
 import type { SwapPrintingsWizardProps } from '../../editor/components/SwapPrintingsWizard'
 import { createSwapController, type SwapController } from '../../editor/swap-controller'
 import {
-  deckSwapMergeTargetId,
+  deckSwapMergeLine,
   deckSwapPinConvertsInPlace,
   deckSwapTargets,
 } from '../../editor/swap-targets'
@@ -345,8 +345,8 @@ export function useDeckEditController(
     applyChange: applyDeck,
     quantityOf: (deck, cardId) =>
       deck.sections.flatMap((s) => s.cards).find((c) => c.cardId === cardId)?.quantity ?? 0,
-    mergeTargetId: (deck, move, copyIndex) =>
-      deckSwapMergeTargetId(deck, move, { listLabels: listLabels() }, copyIndex),
+    mergeLine: (deck, move, copyIndex) =>
+      deckSwapMergeLine(deck, move, { listLabels: listLabels() }, copyIndex),
     pinConvertsInPlace: (deck, move, copyIndex, lineId) =>
       deckSwapPinConvertsInPlace(deck, move, { listLabels: listLabels() }, copyIndex, lineId),
   })

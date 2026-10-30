@@ -494,6 +494,9 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
     }
     return Response.json(refused, { status: 400 })
   }
+  // The events as applied, ids stamped — what the changelog records. An add
+  // that merged onto a line with no id yet stays id-less: the finalize step
+  // below numbers that line, and the event never named one (accepted).
   const changes = replayed.changes
 
   // The other side of any cross-list moves goes first — the destination of each

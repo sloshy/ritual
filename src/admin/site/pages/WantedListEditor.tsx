@@ -106,9 +106,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
       cardActions.load({ cards: r.cards, printings: r.printings, symbolMap: r.symbolMap })
     },
     addCardData: (cardName, card, printings) => cardActions.addCard(cardName, card, printings),
-    onCardArt: cardArt.stage,
-    onCardArtReset: cardArt.reset,
-    stagedArt: cardArt.staged,
+    art: cardArt,
     onSaved: cardArt.flush,
     onCardAdded: async (cardName, scryfallCard) => {
       const data = await fetchCardPrice(cardName)

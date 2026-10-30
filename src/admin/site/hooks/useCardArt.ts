@@ -116,7 +116,16 @@ export function useCardArt(type: ListType): UseCardArtResult {
     const next = new Map(baseline())
     if (ref === null) next.delete(cardId)
     else next.set(cardId, ref)
-    setBaseline(next)
+    // The sidecar now holds what the user just chose: anything staged for the
+    // line earlier (an add's art) must not overwrite it at the next flush.
+    batch(() => {
+      setBaseline(next)
+      if (pending().has(cardId)) {
+        const rest = new Map(pending())
+        rest.delete(cardId)
+        setPending(rest)
+      }
+    })
   }
 
   return {

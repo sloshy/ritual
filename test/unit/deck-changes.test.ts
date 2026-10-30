@@ -15,10 +15,14 @@ import type {
   ChangeEvent,
   ChangeInput,
 } from '../../src/changes/change-event'
-import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../src/changes/deck-changes'
+import { applyChangeToDeck, findDeckAddMergeLine } from '../../src/changes/deck-changes'
 import type { DeckData } from '../../src/list/deck'
 import { runMissMatrix, type MissMatrixCase } from '../test-utils'
 import type { MissReason } from '../../src/changes/apply-batch'
+
+/** The id of the line a copy merges onto, or `undefined` — the probe's answer as a number. */
+const mergeTargetIdOf = (...args: Parameters<typeof findDeckAddMergeLine>): number | undefined =>
+  findDeckAddMergeLine(...args)?.card.cardId
 
 type MakeChangeOverrides = {
   action: ChangeAction
@@ -1167,7 +1171,7 @@ describe('applyChangeToDeck — labels', () => {
 /** No front-matter default: the probe compares overrides as written. */
 const NO_DEFAULT = { listLabels: undefined }
 
-describe('findDeckAddMergeTargetId', () => {
+describe('findDeckAddMergeLine', () => {
   /** The add an editing session builds: a freshly allocated id no line carries. */
   const addOf = (overrides: Partial<AddChange> = {}): ChangeInput => ({
     action: 'add',
@@ -1181,7 +1185,7 @@ describe('findDeckAddMergeTargetId', () => {
   test('names the line the add merges into, whose id is not the one it carries', () => {
     const deck = makeDeck()
     const add = addOf()
-    expect(findDeckAddMergeTargetId(deck, add, NO_DEFAULT)).toBe(5)
+    expect(mergeTargetIdOf(deck, add, NO_DEFAULT)).toBe(5)
     // The reason it matters: the allocated `&99` reaches no card line, so
     // per-line metadata (custom art) aimed at it would be written for nothing.
     const result = applyChangeToDeck(deck, add, { listLabels: undefined })
@@ -1191,38 +1195,28 @@ describe('findDeckAddMergeTargetId', () => {
   })
 
   test('an add naming another section merges with nothing outside it', () => {
-    expect(
-      findDeckAddMergeTargetId(makeDeck(), addOf({ section: 'Sideboard' }), NO_DEFAULT),
-    ).toBeUndefined()
+    expect(mergeTargetIdOf(makeDeck(), addOf({ section: 'Sideboard' }), NO_DEFAULT)).toBeUndefined()
     // A case-folded spelling of the section the line is in still finds it.
-    expect(findDeckAddMergeTargetId(makeDeck(), addOf({ section: 'main' }), NO_DEFAULT)).toBe(5)
+    expect(mergeTargetIdOf(makeDeck(), addOf({ section: 'main' }), NO_DEFAULT)).toBe(5)
   })
 
   test('a printing the deck does not have starts its own line', () => {
     expect(
-      findDeckAddMergeTargetId(
-        makeDeck(),
-        addOf({ set: 'm10', collectorNumber: '146' }),
-        NO_DEFAULT,
-      ),
+      mergeTargetIdOf(makeDeck(), addOf({ set: 'm10', collectorNumber: '146' }), NO_DEFAULT),
     ).toBeUndefined()
   })
 
   test('a copy under a different label override starts its own line', () => {
-    expect(
-      findDeckAddMergeTargetId(makeDeck(), addOf({ labels: ['proxy'] }), NO_DEFAULT),
-    ).toBeUndefined()
+    expect(mergeTargetIdOf(makeDeck(), addOf({ labels: ['proxy'] }), NO_DEFAULT)).toBeUndefined()
   })
 
   test('a card the deck does not have starts its own line', () => {
-    expect(
-      findDeckAddMergeTargetId(makeDeck(), addOf({ cardName: 'Sol Ring' }), NO_DEFAULT),
-    ).toBeUndefined()
+    expect(mergeTargetIdOf(makeDeck(), addOf({ cardName: 'Sol Ring' }), NO_DEFAULT)).toBeUndefined()
   })
 
   test('answers nothing for a change that is not an add', () => {
     expect(
-      findDeckAddMergeTargetId(
+      mergeTargetIdOf(
         makeDeck(),
         {
           action: 'remove',
@@ -1668,6 +1662,27 @@ describe('applyChangeToDeck — move-to pinning a name-only line', () => {
       [1, 4],
       [1, 5],
       [2, 8],
+    ])
+  })
+
+  test('a split whose copy would land back on the line it pins leaves the deck as it was', () => {
+    // The pinned line already wears the printing (an import's name fallback
+    // can aim a pin at such a line), so the copy's landing is the line itself.
+    const base = nameOnlyDeck(1)
+    Object.assign(base.sections[0]!.cards[0]!, {
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'foil',
+    })
+    const misses: MissReason[] = []
+    const deck = applyChangeToDeck(base, pin(7), {
+      listLabels: undefined,
+      onMiss: (reason) => misses.push(reason),
+    })
+    expect(misses).toEqual([])
+    expect(deck.sections[0]!.cards.map((card) => [card.cardId, card.quantity])).toEqual([
+      [4, 1],
+      [5, 1],
     ])
   })
 

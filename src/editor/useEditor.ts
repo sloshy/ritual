@@ -48,9 +48,9 @@ import { reconcileIdPoolForUndo, replayChanges, type ReplayResult } from './reco
 import type { UnmatchedChange } from '../changes/apply-batch'
 import {
   addCardArtPlan,
-  artBeforeActions,
+  applyArtActions,
+  artUndoActions,
   type AddedCopyOutcome,
-  type ArtRestore,
 } from './pending-art'
 import { useNavigationGuard } from './navigation-guard'
 import { clampQuantity } from '../ui/quantity'
@@ -114,9 +114,6 @@ export function useEditor<TData, TCardEntry = unknown>(
   const listType = (): ListType => config.listType
   const dialogs = useDialogState()
   const pool = useCardIdPool()
-  // The staged art each Add Card copy replaced, filed under the copy's undo
-  // entry — weakly, so entries a load or import drops take theirs with them.
-  const artUndo = new WeakMap<UndoEntry, ArtRestore[]>()
   const changes = useCardChanges<TCardEntry>()
   const navigationGuard = useNavigationGuard()
 
@@ -418,18 +415,18 @@ export function useEditor<TData, TCardEntry = unknown>(
       }
       // Where the art belongs, planned over every copy at once: a copy that
       // cancelled a removal brings its line back, and the copies after it join
-      // that line rather than staging a clear over its art.
-      // Each copy's undo entry keeps what its edits replaced, so undoing the
-      // copy puts back exactly that.
-      const plan = addCardArtPlan({ mergeTarget, art, copies: outcomes })
-      for (const [index, actions] of plan.entries()) {
-        const entry = entries[index]
-        if (entry && actions.length > 0 && config.stagedArt) {
-          artUndo.set(entry, artBeforeActions(actions, config.stagedArt))
-        }
-        for (const action of actions) {
-          if (action.kind === 'reset') config.onCardArtReset?.(action.cardId)
-          else config.onCardArt?.(action.cardId, action.art)
+      // that line rather than staging a clear over its art. Each copy's undo
+      // entry keeps what its edits replaced, so undoing the copy puts back
+      // exactly that. (Filed on the entry itself — written after the copy was
+      // recorded, since the plan needs every copy's outcome — so the copies the
+      // stack makes of an entry carry it along.)
+      const staging = config.art
+      if (staging) {
+        const plan = addCardArtPlan({ mergeTarget, art, copies: outcomes })
+        for (const [index, actions] of plan.entries()) {
+          const entry = entries[index]
+          const restores = applyArtActions(actions, staging)
+          if (entry && restores.length > 0) entry.artRestores = restores
         }
       }
     })
@@ -727,9 +724,10 @@ export function useEditor<TData, TCardEntry = unknown>(
 
   const handleUndo = () => {
     // Nothing to replay over: leave the stack alone rather than pop an entry
-    // the list never reverts.
+    // the list never reverts. Nor while a save is in flight: it is sending
+    // these changes, and the staged art its flush is about to write.
     const origData = original
-    if (!origData) return
+    if (!origData || status.saving) return
     batch(() => {
       const result = changes.undo()
       if (!result) return
@@ -746,11 +744,10 @@ export function useEditor<TData, TCardEntry = unknown>(
       const pending = changes.changes()
       reconcileIdPoolForUndo(pool.release, pool.claim, entry, pending, liveIds)
       // The art the undone action staged goes back to what it replaced — and
-      // only that: art is restored from the entry, never inferred from which
-      // ids the pool moved.
-      for (const { cardId, before } of (artUndo.get(entry) ?? []).toReversed()) {
-        if (before === undefined) config.onCardArtReset?.(cardId)
-        else config.onCardArt?.(cardId, before)
+      // only that, and only where nothing staged since has replaced it.
+      const staging = config.art
+      if (staging && entry.artRestores) {
+        applyArtActions(artUndoActions(entry.artRestores, staging.staged), staging)
       }
     })
   }

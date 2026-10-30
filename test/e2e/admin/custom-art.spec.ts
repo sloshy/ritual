@@ -3,7 +3,8 @@ import type { CardArtRef } from '../../../src/list/card-art'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
-import { fulfillJson } from '../helpers/fulfill'
+import { fulfillJson, fulfillJsonRoute } from '../helpers/fulfill'
+import { captureDeckSaves, mockDeckEditorLoad } from '../helpers/mock-admin'
 import { TINY_PNG, makeMockScryfallCard, withImage } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
 import { expectPseudo, languageSelect, offerLocales, PSEUDO_LOCALE } from '../helpers/i18n'
@@ -380,6 +381,125 @@ test.describe('Collection Editor — art at add time', () => {
     await expect(add).toBeEnabled()
     await commitAdd(page)
     await expect(page.locator('.card-item')).toHaveCount(2)
+  })
+})
+
+test.describe('Deck Editor — undoing art an add put on an existing line', () => {
+  /** Every art write the editor makes for the deck. */
+  let artRequests: ArtRequestBody[]
+  /** The changes the latest save sent. */
+  let saved: () => { action: string; cardName: string }[] | null
+
+  test.beforeEach(async ({ page }) => {
+    await disableSearchDebounce(page)
+    const png = Buffer.from(TINY_PNG.slice(TINY_PNG.indexOf(',') + 1), 'base64')
+    await page.route('https://example.test/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'image/png', body: png }),
+    )
+    artRequests = []
+    await page.route('**/api/art/deck/art-deck', async (route) => {
+      const body = route.request().postDataJSON() as ArtRequestBody
+      artRequests.push(body)
+      await fulfillJsonRoute(route, { success: true, slug: 'art-deck', ...body })
+    })
+    await fulfillJson(page, '**/api/autocomplete*', { success: true, names: [RING.name] })
+    await fulfillJson(page, '**/api/card-printings*', { success: true, printings: [RING] })
+    saved = await captureDeckSaves(page, 'art-deck')
+    await mockDeckEditorLoad(page, {
+      slug: 'art-deck',
+      name: 'Art Deck',
+      cards: [
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+        { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 2 },
+      ],
+      printings: { 'Sol Ring': [RING], 'Lightning Bolt': [BOLT] },
+      extra: { contentHash: 'hash-1' },
+    })
+    await gotoAdminDashboard(page)
+    await openListEditor(page, 'deck')
+    await selectList(page, 'deck', 'art-deck')
+    await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+  })
+
+  test('undo takes back art a merged copy staged, and the save writes none', async ({ page }) => {
+    const ring = page.locator('.card-item').filter({ hasText: 'Sol Ring' })
+    const ringImage = ring.locator('img').first()
+    await expect(ringImage).not.toHaveAttribute('src', ART_URL)
+
+    // The same printing the deck holds: the copy merges onto `&1`, and the art
+    // it names is staged for that line.
+    // A deck takes the copy straight from the printing grid, whose options row
+    // carries the custom-art field.
+    await page.keyboard.press('Control+Enter')
+    const searchInput = page.locator('.search-modal input[type="text"]')
+    await expect(searchInput).toBeVisible({ timeout: 5_000 })
+    await searchInput.fill('Sol Ring')
+    await expect(page.locator('.search-result-item', { hasText: 'Sol Ring' })).toBeVisible()
+    await page.keyboard.press('Enter')
+    await page.locator('.add-card-options #add-card-art').fill(ART_URL)
+    await page.locator('.printing-select-card').first().click()
+    await expect(page.locator('.modal-heading-flex')).toHaveCount(0, { timeout: 5_000 })
+    await expect(ring.locator('.qty-badge')).toHaveText('2x')
+    await expect(ringImage).toHaveAttribute('src', ART_URL)
+
+    await page.locator('.btn-undo').click()
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
+    await expect(ring.locator('.qty-badge')).toHaveCount(0)
+    await expect(ringImage).not.toHaveAttribute('src', ART_URL)
+
+    // An unrelated edit, saved: nothing of the undone add may ride along.
+    await page
+      .locator('.card-item')
+      .filter({ hasText: 'Lightning Bolt' })
+      .locator('.edit-btn-increment')
+      .click()
+    await page.locator('.btn-save').click()
+    await expect.poll(() => saved()?.length).toBe(1)
+    expect(saved()![0]).toMatchObject({ action: 'add', cardName: 'Lightning Bolt' })
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
+    expect(artRequests.filter((request) => request.cardId === 1)).toEqual([])
+  })
+
+  test('art set in the dialog after the add survives undoing the add', async ({ page }) => {
+    const DIALOG_URL = 'https://example.test/altered/dialog.png'
+    const ring = page.locator('.card-item').filter({ hasText: 'Sol Ring' })
+    const ringImage = ring.locator('img').first()
+
+    await page.keyboard.press('Control+Enter')
+    const searchInput = page.locator('.search-modal input[type="text"]')
+    await expect(searchInput).toBeVisible({ timeout: 5_000 })
+    await searchInput.fill('Sol Ring')
+    await expect(page.locator('.search-result-item', { hasText: 'Sol Ring' })).toBeVisible()
+    await page.keyboard.press('Enter')
+    await page.locator('.add-card-options #add-card-art').fill(ART_URL)
+    await page.locator('.printing-select-card').first().click()
+    await expect(ringImage).toHaveAttribute('src', ART_URL)
+
+    // The line is on disk, so the dialog writes straight through — and that
+    // choice replaces what the add had staged.
+    await ring.locator('.edit-btn-context').click()
+    await page.locator('.card-context-menu button', { hasText: 'Set Custom Art…' }).click()
+    const modal = page.locator('.modal-panel', { hasText: 'Custom Art' })
+    await modal.locator('label', { hasText: 'Image on the web' }).click()
+    await modal.locator('#card-art-value').fill(DIALOG_URL)
+    await modal.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(modal).not.toBeVisible()
+    await expect(ringImage).toHaveAttribute('src', DIALOG_URL)
+
+    await page.locator('.btn-undo').click()
+    await expect(ring.locator('.qty-badge')).toHaveCount(0)
+    await expect(ringImage).toHaveAttribute('src', DIALOG_URL)
+
+    await page
+      .locator('.card-item')
+      .filter({ hasText: 'Lightning Bolt' })
+      .locator('.edit-btn-increment')
+      .click()
+    await page.locator('.btn-save').click()
+    await expect.poll(() => saved()?.length).toBe(1)
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
+    // Only the dialog's own write ever reached the art route.
+    expect(artRequests).toEqual([{ cardId: 1, art: { url: DIALOG_URL } }])
   })
 })
 

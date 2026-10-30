@@ -9,7 +9,9 @@ import {
   artDisplayRefs,
   artIdRemap,
   artIdsClearedBySave,
-  artBeforeActions,
+  applyArtActions,
+  artUndoActions,
+  type ArtStaging,
   resolvePendingArt,
   savedCardIdsAfterSave,
 } from '../../src/editor/pending-art'
@@ -310,26 +312,73 @@ describe('addCardArtPlan', () => {
   })
 })
 
-describe('artBeforeActions', () => {
-  test('records what each touched id held, once per id, nothing staged as undefined', () => {
-    const staged = new Map<number, CardArtRef | null>([
+/** An in-memory staged-art table, as the art hook keeps it. */
+function stagingTable(initial: [number, CardArtRef | null][] = []): ArtStaging & {
+  table: Map<number, CardArtRef | null>
+} {
+  const table = new Map(initial)
+  return {
+    table,
+    stage: (cardId, art) => void table.set(cardId, art),
+    reset: (cardId) => void table.delete(cardId),
+    staged: (cardId) => (table.has(cardId) ? (table.get(cardId) ?? null) : undefined),
+  }
+}
+
+describe('applyArtActions', () => {
+  test('makes the edits and records each touched id before and after, once per id', () => {
+    const staging = stagingTable([
       [2, RING],
       [3, null],
     ])
-    expect(
-      artBeforeActions(
-        [
-          { kind: 'reset', cardId: 7 },
-          { kind: 'set', cardId: 2, art: BOLT },
-          { kind: 'set', cardId: 3, art: BOLT },
-          { kind: 'set', cardId: 2, art: null },
-        ],
-        (cardId) => (staged.has(cardId) ? (staged.get(cardId) ?? null) : undefined),
-      ),
-    ).toEqual([
-      { cardId: 7, before: undefined },
-      { cardId: 2, before: RING },
-      { cardId: 3, before: null },
+    const restores = applyArtActions(
+      [
+        { kind: 'reset', cardId: 7 },
+        { kind: 'set', cardId: 2, art: BOLT },
+        { kind: 'set', cardId: 3, art: BOLT },
+      ],
+      staging,
+    )
+    expect(restores).toEqual([
+      { cardId: 7, before: undefined, after: undefined },
+      { cardId: 2, before: RING, after: BOLT },
+      { cardId: 3, before: null, after: BOLT },
     ])
+    expect([...staging.table]).toEqual([
+      [2, BOLT],
+      [3, BOLT],
+    ])
+  })
+})
+
+describe('artUndoActions', () => {
+  test('puts each id back to what it held, resetting one that held nothing', () => {
+    const staging = stagingTable([
+      [2, BOLT],
+      [5, RING],
+    ])
+    const restores = [
+      { cardId: 2, before: RING, after: BOLT },
+      { cardId: 5, before: undefined, after: RING },
+    ]
+    expect(artUndoActions(restores, staging.staged)).toEqual([
+      { kind: 'set', cardId: 2, art: RING },
+      { kind: 'reset', cardId: 5 },
+    ])
+  })
+
+  test('leaves alone an id changed since the action (the art dialog’s later edit stands)', () => {
+    const DIALOG: CardArtRef = { url: 'https://example.test/dialog.png' }
+    const staging = stagingTable([[5, DIALOG]])
+    expect(artUndoActions([{ cardId: 5, before: undefined, after: RING }], staging.staged)).toEqual(
+      [],
+    )
+  })
+
+  test('an undo restores exactly what the add changed, end to end', () => {
+    const staging = stagingTable([[5, RING]])
+    const restores = applyArtActions([{ kind: 'set', cardId: 5, art: BOLT }], staging)
+    applyArtActions(artUndoActions(restores, staging.staged), staging)
+    expect([...staging.table]).toEqual([[5, RING]])
   })
 })
