@@ -49,6 +49,26 @@ describe('the workspace’s old cache while migration 3 is pending', () => {
     expect(getCacheDirLocation()).toEqual({ dir: path.join(dir, 'cache'), source: 'legacy' })
   })
 
+  test('ends as soon as another process records the migration, though this one never reloads', async () => {
+    const dir = await workspaceWithCache({})
+    expect(getCacheDirLocation().source).toBe('legacy')
+
+    // Another process migrates: the file now records migration 3, while this
+    // process's loaded config (like a running server's) still says 0.
+    await fs.writeFile(
+      path.join(dir, 'ritual.config.json'),
+      JSON.stringify({ managed: { migration: 3 } }),
+    )
+    expect(getCacheDirLocation().source).toBe('default')
+  })
+
+  test('ends when the old folder is moved away', async () => {
+    const dir = await workspaceWithCache({})
+    expect(getCacheDirLocation().source).toBe('legacy')
+    await fs.rename(path.join(dir, 'cache'), path.join(userCache, 'moved'))
+    expect(getCacheDirLocation().source).toBe('default')
+  })
+
   test('stops being read once the migration is recorded', async () => {
     await workspaceWithCache({ managed: { migration: 3 } })
     expect(getCacheDirLocation()).toEqual({

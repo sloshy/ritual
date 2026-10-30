@@ -519,7 +519,11 @@ export const cliInfraMeta = {
   },
   'cli.cacheStore.unwritable': {
     description:
-      "Refusal of a write to the card cache: the cache file is there but unreadable or not valid JSON, and writing would replace everything in it (it may be shared by all the user's workspaces) with an empty cache plus one entry. {path} is the absolute file path; {reason} is the system's or parser's own error text, untranslated.",
+      "Refusal of a write to the card cache: the cache file is there but unreadable or not valid JSON, and writing would replace everything in it (it may be shared by all the user's workspaces) with an empty cache plus one entry. {path} is the absolute file path; {reason} is the system's or parser's own error text, untranslated. {command} is `ritual cache preload-all`, which rebuilds the whole cache; never translate it.",
+  },
+  'cli.cacheStore.writeContended': {
+    description:
+      'Error: a save to the card cache was abandoned because, every time Ritual tried, another Ritual process (possibly in another workspace sharing the cache) had rewritten the file first. {path} is the absolute file path.',
   },
   'cli.cacheStore.saveFailed': {
     description: 'The cache file could not be written. The error is printed after this line.',
@@ -1345,10 +1349,6 @@ export const cliInfraMeta = {
     description:
       'Plan line (indented): the workspace\'s card cache folder {from} (e.g. "cache") will be moved to the absolute folder {to}, which an environment variable names rather than the default shared cache. {envVar} is RITUAL_CACHE_DIR; never translate it.',
   },
-  'cli.migrate.opCacheFinish': {
-    description:
-      'Plan line (indented): an earlier, interrupted run already moved the workspace\'s card cache into the shared folder {shared} (absolute path); what remains is removing the now-empty old folder {path} (e.g. "cache").',
-  },
   'cli.migrate.opCacheKeep': {
     description:
       'Plan line (indented): the workspace\'s old card cache folder {path} (e.g. "cache") will not be moved, because the shared cache folder {shared} (absolute path) already holds card data. Nothing is deleted; the user may delete the old folder.',
@@ -1397,13 +1397,17 @@ export const cliInfraMeta = {
     description:
       'Printed after migrating: the workspace\'s card cache folder {path} (e.g. "cache") was moved to the shared per-user cache folder {shared} (absolute path).',
   },
-  'cli.migrate.cacheMovedPartly': {
+  'cli.migrate.cacheCopiedLink': {
     description:
-      'Printed after migrating: the card cache moved from the workspace folder {path} (e.g. "cache") to the shared folder {shared} (absolute path), but some files were still in (or newly appeared in) the old folder, probably because an older Ritual was running. {entries} is the list of those file names, already joined. Ritual ignores the old folder from now on.',
+      'Printed after migrating: the workspace\'s old card cache {path} (e.g. "cache") was a shortcut (symbolic link) to another folder {linked} (absolute path). Its contents were copied into the shared cache folder {shared} (absolute path) and the shortcut removed; the folder it pointed at was not touched.',
+  },
+  'cli.migrate.cacheMovedNotRemoved': {
+    description:
+      'Printed after migrating: the card cache was fully copied from the workspace folder {path} (e.g. "cache") to the shared folder {shared} (absolute path), but the old folder could not be deleted. {reason} is the system\'s own error text, untranslated.',
   },
   'cli.migrate.cacheMoveFailed': {
     description:
-      "Error: a file or folder {path} (absolute path) in the workspace's old card cache could not be moved into the shared cache. {reason} is the system's own error text, untranslated. {command} is `ritual migrate`, which resumes the move. Never translate {command}.",
+      "Error: a file or folder {path} (absolute path) in the workspace's old card cache could not be moved into the shared cache. {reason} is the system's own error text, untranslated. The old folder is left exactly as it was. {command} is `ritual migrate`, which tries again. Never translate {command}.",
   },
   'cli.migrate.cacheKept': {
     description:

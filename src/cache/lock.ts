@@ -1,5 +1,6 @@
 import path from 'node:path'
 import os from 'node:os'
+import fs from 'node:fs/promises'
 import type { FileSystemClient } from '../util/interfaces'
 import { getCacheDir } from './file-cache'
 import { getCacheLockTimeoutSeconds } from '../config/ritual-config'
@@ -35,6 +36,8 @@ export type CacheLockOptions = {
   timeoutMs?: number
   /** Directory holding the lock file. Defaults to the cache dir. */
   lockDir?: string
+  /** The lock file's name. Defaults to {@link CACHE_LOCK_FILENAME}. */
+  lockName?: string
   pollIntervalMs?: number
   /** Age past which a lock is considered stale even when liveness is unknowable. */
   staleMaxAgeMs?: number
@@ -148,7 +151,7 @@ export async function acquireCacheLock(
   options: CacheLockOptions = {},
 ): Promise<CacheLockHandle> {
   const lockDir = options.lockDir ?? getCacheDir()
-  const lockPath = path.join(lockDir, CACHE_LOCK_FILENAME)
+  const lockPath = path.join(lockDir, options.lockName ?? CACHE_LOCK_FILENAME)
   const timeoutMs = options.timeoutMs ?? getCacheLockTimeoutSeconds() * 1000
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS
   const staleMaxAgeMs = options.staleMaxAgeMs ?? DEFAULT_STALE_MAX_AGE_MS
@@ -229,4 +232,24 @@ export async function withCacheLock<T>(
   } finally {
     await lock.release()
   }
+}
+
+/**
+ * Whether `dir` holds a cache-write lock some process still holds: one whose
+ * holder is alive (or cannot be checked, from another host) and that is not
+ * past the stale age. A missing or malformed lock is not held.
+ */
+export async function isCacheLockHeld(
+  dir: string,
+  isPidAlive: (pid: number) => boolean = defaultIsPidAlive,
+): Promise<boolean> {
+  let raw: string
+  try {
+    raw = await fs.readFile(path.join(dir, CACHE_LOCK_FILENAME), 'utf-8')
+  } catch (e) {
+    if (hasErrorCode(e, 'ENOENT') || hasErrorCode(e, 'ENOTDIR')) return false
+    throw e
+  }
+  const info = parseCacheLockInfo(raw)
+  return typeof info !== 'string' && !isLockStale(info, isPidAlive, DEFAULT_STALE_MAX_AGE_MS)
 }

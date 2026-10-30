@@ -39,11 +39,7 @@ import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
 import { isRecord } from '../util/json'
 import { backUpFiles } from '../util/safekeeping'
 import { renameWithRetry } from '../util/atomic-write'
-import {
-  finishLegacyCacheMove,
-  moveLegacyCache,
-  type LegacyCacheMoveResult,
-} from '../cache/relocate'
+import { moveLegacyCache, type LegacyCacheMoveResult } from '../cache/relocate'
 import { SKILLS } from '../skills/catalog'
 import type { RitualSkill } from '../skills/types'
 import {
@@ -494,10 +490,6 @@ async function applyCacheOp(op: CacheOp): Promise<CacheOpResult> {
     case 'cache-move': {
       const result = await moveLegacyCache(path.join(getBaseDir(), op.from), op.to)
       return { ...result, path: op.from, shared: op.to }
-    }
-    case 'cache-finish': {
-      const result = await finishLegacyCacheMove(path.join(getBaseDir(), op.path), op.shared)
-      return { ...result, path: op.path, shared: op.shared }
     }
     case 'cache-keep':
       return { outcome: 'kept', path: op.path, shared: op.shared }

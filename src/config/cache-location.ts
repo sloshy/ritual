@@ -18,6 +18,7 @@
 
 import path from 'node:path'
 import { ENV_VAR } from '../util/cli-tokens'
+import { isSameOrWithin } from '../util/path-validation'
 import {
   defaultUserCacheDir,
   nonBlank,
@@ -102,14 +103,8 @@ export type CacheDirCheckContext = {
   /** The workspace's deck, collection and wanted-list folders, as configured. */
   listDirs: readonly string[]
   home: string
-}
-
-/** Whether `child` is `parent` or lies inside it, by path. */
-function isSameOrWithin(child: string, parent: string): boolean {
-  const relative = path.relative(parent, child)
-  if (relative === '') return true
-  if (path.isAbsolute(relative)) return false
-  return relative !== '..' && !relative.startsWith(`..${path.sep}`)
+  /** Whose path rules apply (case); the running platform by default. */
+  platform?: NodeJS.Platform
 }
 
 /**
@@ -124,11 +119,15 @@ export function cacheDirProblem(
 ): CacheDirProblem | null {
   const trimmed = value.trim()
   if (trimmed.startsWith('~')) return 'tilde'
+  const platform = context.platform ?? process.platform
   const resolved = path.resolve(context.baseDir, trimmed)
   if (path.parse(resolved).root === resolved) return 'root'
-  if (resolved === path.resolve(context.home)) return 'home'
-  if (isSameOrWithin(path.resolve(context.baseDir), resolved)) return 'workspace'
+  const home = path.resolve(context.home)
+  if (isSameOrWithin(resolved, home, platform) && isSameOrWithin(home, resolved, platform)) {
+    return 'home'
+  }
+  if (isSameOrWithin(path.resolve(context.baseDir), resolved, platform)) return 'workspace'
   const listDirs = context.listDirs.map((dir) => path.resolve(context.baseDir, dir))
-  if (listDirs.some((dir) => isSameOrWithin(resolved, dir))) return 'list-dir'
+  if (listDirs.some((dir) => isSameOrWithin(resolved, dir, platform))) return 'list-dir'
   return null
 }

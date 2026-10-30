@@ -1,15 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import os, { tmpdir } from 'node:os'
 import path from 'node:path'
-import {
-  CACHE_MOVE_MARKER,
-  canonicalPath,
-  legacyCacheAction,
-  moveLegacyCache,
-  pathsOverlap,
-} from '../../src/cache/relocate'
+import { INCOMING_PREFIX, legacyCacheAction, moveLegacyCache } from '../../src/cache/relocate'
 import { CACHE_LOCK_FILENAME } from '../../src/cache/lock'
 import { sharedCacheMigration } from '../../src/migrate/migrations'
 import { applyMigration, planMigration, type MigrationPlan } from '../../src/migrate/runner'
@@ -19,9 +13,10 @@ import type { UserDirsEnvironment } from '../../src/util/user-dirs'
 import { bindWorkspace, snapshotTree, writeConfig, type BoundWorkspace } from '../helpers/workspace'
 
 /**
- * Migration 3: a workspace's old `cache/` folder moves into the cache directory
- * it now resolves to, unless that directory already holds data — then the old
- * folder is left exactly as it was. Runs against throwaway workspaces and a
+ * Migration 3: a workspace's old `cache/` folder moves, whole, into the cache
+ * directory it now resolves to — only when that directory does not exist or
+ * holds nothing but OS litter. Anything else there and nothing moves; nothing
+ * in the target is ever touched. Runs against throwaway workspaces and a
  * throwaway "per-user" cache directory, never the real one.
  */
 
@@ -57,28 +52,39 @@ const LEGACY_TREE = {
   'images/sol-ring.jpg': 'jpeg',
 }
 
-const OTHER_WORKSPACE_TREE = { 'cache.json': '{"from":"another workspace"}' }
+async function seedTree(dir: string): Promise<void> {
+  await fs.mkdir(path.join(dir, 'images'), { recursive: true })
+  await fs.writeFile(path.join(dir, 'cache.json'), LEGACY_TREE['cache.json'])
+  await fs.writeFile(path.join(dir, 'images', 'sol-ring.jpg'), 'jpeg')
+}
 
 async function seedLegacyCache(): Promise<void> {
-  await fs.mkdir(path.join(legacyDir(), 'images'), { recursive: true })
-  await fs.writeFile(path.join(legacyDir(), 'cache.json'), LEGACY_TREE['cache.json'])
-  await fs.writeFile(path.join(legacyDir(), 'images', 'sol-ring.jpg'), 'jpeg')
+  await seedTree(legacyDir())
 }
 
-/** Give the shared cache data of its own, as another workspace would have. */
-async function seedShared(): Promise<void> {
+/** Put one file into the shared folder, as another workspace or the user would. */
+async function seedShared(name: string, body: string): Promise<void> {
   await fs.mkdir(sharedDir(), { recursive: true })
-  await fs.writeFile(path.join(sharedDir(), 'cache.json'), OTHER_WORKSPACE_TREE['cache.json'])
+  await fs.writeFile(path.join(sharedDir(), name), body)
 }
 
-async function plan(): Promise<MigrationPlan> {
+/** The temporary folders a cross-device move left beside the target. */
+async function incomingLeftovers(): Promise<string[]> {
+  return (await fs.readdir(userCache)).filter((entry) => entry.startsWith(INCOMING_PREFIX))
+}
+
+async function plan(env: UserDirsEnvironment = environment): Promise<MigrationPlan> {
   const outcome = await planMigration({
-    migrations: [sharedCacheMigration(3, environment)],
+    migrations: [sharedCacheMigration(3, env)],
     build: { version: '0.0.0-dev', release: false },
   })
   if (outcome.kind !== 'plan') throw new Error(`expected a plan, got ${outcome.kind}`)
   return outcome
 }
+
+/** A rename that always fails as a cross-device rename does. */
+const exdev = (): Promise<void> =>
+  Promise.reject(Object.assign(new Error('cross-device link'), { code: 'EXDEV' }))
 
 describe('migration 3: shared card cache', () => {
   test('its plan line names the folder, the variable and the key as typed', () => {
@@ -87,7 +93,7 @@ describe('migration 3: shared card cache', () => {
     )
   })
 
-  test('moves the workspace cache into an empty shared cache and removes the old folder', async () => {
+  test('renames the whole old folder to an absent shared cache', async () => {
     await seedLegacyCache()
     const planned = await plan()
     expect(planned.migrations[0]?.ops).toEqual([
@@ -103,9 +109,25 @@ describe('migration 3: shared card cache', () => {
     expect(await fs.readdir(result.backupDir ?? '')).toEqual(['ritual.config.json'])
   })
 
-  test('leaves the workspace cache untouched when the shared cache already has data', async () => {
+  test('moves into an existing shared folder holding only litter and an unheld lock', async () => {
     await seedLegacyCache()
-    await seedShared()
+    await seedShared('.DS_Store', '')
+    // A lock from a process that cannot exist (above Linux's largest pid).
+    await seedShared(
+      CACHE_LOCK_FILENAME,
+      JSON.stringify({ pid: 2 ** 22 + 1, hostname: os.hostname(), createdAt: 0, operation: 'x' }),
+    )
+
+    expect((await moveLegacyCache(legacyDir(), sharedDir())).outcome).toBe('moved')
+    expect(await snapshotTree(sharedDir())).toEqual(LEGACY_TREE)
+  })
+
+  test.each([
+    ['another workspace’s cache', 'cache.json', '{"from":"another workspace"}'],
+    ['a file of the user’s own', 'notes.partial-final.docx', 'my notes'],
+  ])('leaves both folders byte for byte when the target holds %s', async (_label, name, body) => {
+    await seedLegacyCache()
+    await seedShared(name, body)
 
     const planned = await plan()
     expect(planned.migrations[0]?.ops).toEqual([
@@ -115,19 +137,33 @@ describe('migration 3: shared card cache', () => {
 
     expect(result.cache).toEqual([{ outcome: 'kept', path: 'cache', shared: sharedDir() }])
     expect(await snapshotTree(legacyDir())).toEqual(LEGACY_TREE)
-    expect(await snapshotTree(sharedDir())).toEqual(OTHER_WORKSPACE_TREE)
+    expect(await snapshotTree(sharedDir())).toEqual({ [name]: body })
   })
 
-  test('a shared cache filled between planning and applying turns the move into a keep', async () => {
+  test('a target that fills between planning and applying keeps the old folder', async () => {
     await seedLegacyCache()
     const planned = await plan()
-    await seedShared()
+    await seedShared('notes.txt', 'mine')
 
     const result = await applyMigration(planned)
 
     expect(result.cache).toEqual([{ outcome: 'kept', path: 'cache', shared: sharedDir() }])
     expect(await snapshotTree(legacyDir())).toEqual(LEGACY_TREE)
-    expect(await snapshotTree(sharedDir())).toEqual(OTHER_WORKSPACE_TREE)
+    expect(await snapshotTree(sharedDir())).toEqual({ 'notes.txt': 'mine' })
+  })
+
+  test('a target another process holds the lock in is kept clear of', async () => {
+    await seedLegacyCache()
+    await seedShared(
+      CACHE_LOCK_FILENAME,
+      JSON.stringify({
+        pid: process.pid,
+        hostname: os.hostname(),
+        createdAt: Date.now(),
+        operation: 'x',
+      }),
+    )
+    expect(await legacyCacheAction(legacyDir(), sharedDir())).toBe('keep')
   })
 
   test('has nothing to do when the cache still resolves to the workspace folder', async () => {
@@ -138,11 +174,20 @@ describe('migration 3: shared card cache', () => {
     expect((await plan()).migrations[0]?.ops).toEqual([])
   })
 
-  test('an empty workspace cache, or one holding only a lock file, does not apply', async () => {
+  test('never moves into a folder RITUAL_CACHE_DIR may not name', async () => {
+    await seedLegacyCache()
+    const unsafe: UserDirsEnvironment = { ...environment, env: { RITUAL_CACHE_DIR: '/' } }
+    expect(sharedCacheMigration(3, unsafe).applies({ config: {}, baseDir: ws.dir })).toBe(false)
+    expect((await plan(unsafe)).migrations[0]?.ops).toEqual([])
+    expect(await snapshotTree(legacyDir())).toEqual(LEGACY_TREE)
+  })
+
+  test('an empty workspace cache, or one holding only a lock file or litter, does not apply', async () => {
     const migration = sharedCacheMigration(3, environment)
     await fs.mkdir(legacyDir())
     expect(migration.applies({ config: {}, baseDir: ws.dir })).toBe(false)
     await fs.writeFile(path.join(legacyDir(), CACHE_LOCK_FILENAME), '{}')
+    await fs.writeFile(path.join(legacyDir(), '.DS_Store'), '')
     expect(migration.applies({ config: {}, baseDir: ws.dir })).toBe(false)
     expect((await plan()).migrations[0]?.ops).toEqual([])
   })
@@ -165,66 +210,16 @@ describe('legacyCacheAction', () => {
     expect(await legacyCacheAction(legacyDir(), link)).toBe('none')
   })
 
-  test('pathsOverlap treats a name starting with two dots as a child, not a parent', () => {
-    expect(pathsOverlap('/w/..cache', '/w')).toBe(true)
-    expect(pathsOverlap('/w/cache', '/elsewhere/cache')).toBe(false)
-  })
-
-  test('OS litter is not cache data on either side', async () => {
-    await fs.mkdir(legacyDir())
-    await fs.writeFile(path.join(legacyDir(), '.DS_Store'), '')
-    expect(await legacyCacheAction(legacyDir(), sharedDir())).toBe('none')
-
-    await seedLegacyCache()
-    await fs.mkdir(sharedDir(), { recursive: true })
-    await fs.writeFile(path.join(sharedDir(), 'Thumbs.db'), '')
-    expect(await legacyCacheAction(legacyDir(), sharedDir())).toBe('move')
-  })
-
   test('a target nested in the old cache under another case counts as overlapping', async () => {
     await seedLegacyCache()
     // On a case-insensitive file system, CACHE/shared is inside cache/.
     const target = path.join(ws.dir, 'CACHE', 'shared')
     expect(await legacyCacheAction(legacyDir(), target, { platform: 'darwin' })).toBe('none')
   })
-
-  test('a marker another workspace left counts as data: this cache is kept, not merged', async () => {
-    await seedLegacyCache()
-    await writeMarker('/some/other/workspace/cache')
-    expect(await legacyCacheAction(legacyDir(), sharedDir())).toBe('keep')
-    expect(await moveLegacyCache(legacyDir(), sharedDir())).toEqual({ outcome: 'kept' })
-    expect(await snapshotTree(legacyDir())).toEqual(LEGACY_TREE)
-  })
-
-  test('this workspace’s own marker over an emptied folder plans the finish, which clears both', async () => {
-    await fs.mkdir(legacyDir())
-    await writeMarker(await canonicalPath(legacyDir()))
-    expect(sharedCacheMigration(3, environment).applies({ config: {}, baseDir: ws.dir })).toBe(true)
-
-    const planned = await plan()
-    expect(planned.migrations[0]?.ops).toEqual([
-      { type: 'cache-finish', path: 'cache', shared: sharedDir() },
-    ])
-    const result = await applyMigration(planned)
-
-    expect(result.cache).toEqual([{ outcome: 'moved', path: 'cache', shared: sharedDir() }])
-    expect(existsSync(legacyDir())).toBe(false)
-    expect(existsSync(path.join(sharedDir(), CACHE_MOVE_MARKER))).toBe(false)
-  })
 })
 
-/** Leave a move marker in the shared cache, as an interrupted move would. */
-async function writeMarker(source: string): Promise<void> {
-  await fs.mkdir(sharedDir(), { recursive: true })
-  await fs.writeFile(path.join(sharedDir(), CACHE_MOVE_MARKER), JSON.stringify({ source }))
-}
-
-/** A rename that always fails as a cross-device rename does. */
-const exdev = (): Promise<void> =>
-  Promise.reject(Object.assign(new Error('cross-device link'), { code: 'EXDEV' }))
-
-describe('moveLegacyCache', () => {
-  test('falls back to copy-then-delete across file systems', async () => {
+describe('moveLegacyCache across file systems', () => {
+  test('copies to a temporary folder beside the target, renames it in, then removes the old one', async () => {
     await seedLegacyCache()
 
     const result = await moveLegacyCache(legacyDir(), sharedDir(), { rename: exdev })
@@ -232,31 +227,59 @@ describe('moveLegacyCache', () => {
     expect(result).toEqual({ outcome: 'moved' })
     expect(await snapshotTree(sharedDir())).toEqual(LEGACY_TREE)
     expect(existsSync(legacyDir())).toBe(false)
+    expect(await incomingLeftovers()).toEqual([])
   })
 
-  test('a crash while deleting a copied source resumes without touching the complete copy', async () => {
+  test('a failure after the copy leaves the old folder intact and removes only its own copy', async () => {
     await seedLegacyCache()
-    // The first run copies `images/` across devices, then dies part-way
-    // through deleting the source: the old folder is half gone.
-    const crash = async (destination: string): Promise<void> => {
-      if (path.basename(destination) !== 'images') return
-      await fs.rm(path.join(legacyDir(), 'images', 'sol-ring.jpg'))
-      throw new Error('killed')
-    }
+    const crash = (): Promise<void> => Promise.reject(new Error('killed'))
+
     const failure = await moveLegacyCache(legacyDir(), sharedDir(), {
       rename: exdev,
       afterCopy: crash,
     }).catch((e: unknown) => e)
-    expect(failure).toBeInstanceOf(Error)
 
-    expect(await legacyCacheAction(legacyDir(), sharedDir())).toBe('move')
-    expect(await moveLegacyCache(legacyDir(), sharedDir())).toEqual({ outcome: 'moved' })
-
-    expect(await snapshotTree(sharedDir())).toEqual(LEGACY_TREE)
-    expect(existsSync(legacyDir())).toBe(false)
+    expect(failure).toMatchObject({ code: 'runtime_error' })
+    expect(await snapshotTree(legacyDir())).toEqual(LEGACY_TREE)
+    expect(existsSync(sharedDir())).toBe(false)
+    expect(await incomingLeftovers()).toEqual([])
   })
 
-  test('a failed rename says another Ritual may be using the cache, and deletes nothing', async () => {
+  test('a failure part-way through the copy removes only its own copy', async () => {
+    if (process.getuid?.() === 0) return // root reads any file
+    await seedLegacyCache()
+    const unreadable = path.join(legacyDir(), 'images', 'sol-ring.jpg')
+    await fs.chmod(unreadable, 0o000)
+    try {
+      const failure = await moveLegacyCache(legacyDir(), sharedDir(), { rename: exdev }).catch(
+        (e: unknown) => e,
+      )
+      expect(failure).toMatchObject({ code: 'runtime_error' })
+    } finally {
+      await fs.chmod(unreadable, 0o644)
+    }
+    expect(await snapshotTree(legacyDir())).toEqual(LEGACY_TREE)
+    expect(existsSync(sharedDir())).toBe(false)
+    expect(await incomingLeftovers()).toEqual([])
+  })
+
+  test('an abandoned temporary folder is removed only once it is an hour old', async () => {
+    await seedLegacyCache()
+    const old = path.join(userCache, `${INCOMING_PREFIX}1-old`)
+    const fresh = path.join(userCache, `${INCOMING_PREFIX}2-fresh`)
+    await fs.mkdir(old)
+    await fs.mkdir(fresh)
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
+    await fs.utimes(old, twoHoursAgo, twoHoursAgo)
+
+    await moveLegacyCache(legacyDir(), sharedDir())
+
+    expect(await incomingLeftovers()).toEqual([`${INCOMING_PREFIX}2-fresh`])
+  })
+})
+
+describe('moveLegacyCache', () => {
+  test('a failed rename says another Ritual may be using the cache, and changes nothing', async () => {
     await seedLegacyCache()
     const denied = (): Promise<void> =>
       Promise.reject(Object.assign(new Error('permission denied'), { code: 'EACCES' }))
@@ -269,34 +292,19 @@ describe('moveLegacyCache', () => {
     expect(String((failure as Error).message)).toContain('Another Ritual')
     expect(String((failure as Error).message)).toContain('ritual migrate')
     expect(await snapshotTree(legacyDir())).toEqual(LEGACY_TREE)
+    expect(existsSync(sharedDir())).toBe(false)
   })
 
-  test('files that appear in the old folder mid-move are reported, not called moved', async () => {
-    await seedLegacyCache()
-    const busy = async (from: string, to: string): Promise<void> => {
-      await fs.rename(from, to)
-      // An older Ritual still running writes its cache back into the old folder.
-      if (path.basename(from) === 'images')
-        await fs.writeFile(path.join(legacyDir(), 'tags.json'), '{}')
-    }
+  test('a symlinked old cache is copied in and the link removed; its folder is left alone', async () => {
+    const linked = path.join(userCache, 'linked-cache')
+    await seedTree(linked)
+    await fs.symlink(linked, legacyDir(), 'dir')
 
-    const result = await moveLegacyCache(legacyDir(), sharedDir(), { rename: busy })
+    const result = await moveLegacyCache(legacyDir(), sharedDir())
 
-    expect(result).toEqual({ outcome: 'partial', left: ['tags.json'] })
-    expect(await snapshotTree(sharedDir())).toEqual(LEGACY_TREE)
-  })
-
-  test('a symlinked old cache moves its contents and removes only the link', async () => {
-    const elsewhere = path.join(userCache, 'linked-cache')
-    await fs.mkdir(path.join(elsewhere, 'images'), { recursive: true })
-    await fs.writeFile(path.join(elsewhere, 'cache.json'), LEGACY_TREE['cache.json'])
-    await fs.writeFile(path.join(elsewhere, 'images', 'sol-ring.jpg'), 'jpeg')
-    await fs.symlink(elsewhere, legacyDir(), 'dir')
-
-    expect(await moveLegacyCache(legacyDir(), sharedDir())).toEqual({ outcome: 'moved' })
-
+    expect(result).toEqual({ outcome: 'copied-link', linked: await fs.realpath(linked) })
     expect(await snapshotTree(sharedDir())).toEqual(LEGACY_TREE)
     expect(existsSync(legacyDir())).toBe(false)
-    expect(await fs.readdir(elsewhere)).toEqual([])
+    expect(await snapshotTree(linked)).toEqual(LEGACY_TREE)
   })
 })

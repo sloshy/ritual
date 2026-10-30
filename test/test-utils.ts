@@ -43,13 +43,21 @@ export async function seedCardNames(...names: string[]): Promise<void> {
   )
 }
 
+/** A missing-file error shaped like Node's, `code` included, as callers narrow on it. */
+function enoent(filePath: string): NodeJS.ErrnoException {
+  return Object.assign(new Error(`ENOENT: no such file or directory, '${filePath}'`), {
+    code: 'ENOENT',
+    path: filePath,
+  })
+}
+
 /** In-memory FileSystemClient for tests that must not touch the real filesystem. */
 export class MemoryFileSystemClient implements FileSystemClient {
   readonly files = new Map<string, string>()
 
   async readFile(filePath: string): Promise<string> {
     const data = this.files.get(filePath)
-    if (data === undefined) throw new Error(`ENOENT: ${filePath}`)
+    if (data === undefined) throw enoent(filePath)
     return data
   }
 
@@ -68,7 +76,7 @@ export class MemoryFileSystemClient implements FileSystemClient {
 
   async rename(source: string, destination: string): Promise<void> {
     const data = this.files.get(source)
-    if (data === undefined) throw new Error(`ENOENT: ${source}`)
+    if (data === undefined) throw enoent(source)
     this.files.delete(source)
     this.files.set(destination, data)
   }
@@ -78,12 +86,12 @@ export class MemoryFileSystemClient implements FileSystemClient {
   }
 
   async access(filePath: string): Promise<void> {
-    if (!this.files.has(filePath)) throw new Error(`ENOENT: ${filePath}`)
+    if (!this.files.has(filePath)) throw enoent(filePath)
   }
 
   async copyFile(source: string, destination: string): Promise<void> {
     const data = this.files.get(source)
-    if (data === undefined) throw new Error(`ENOENT: ${source}`)
+    if (data === undefined) throw enoent(source)
     this.files.set(destination, data)
   }
 

@@ -70,8 +70,6 @@ function formatOp(op: MigrationOp): string {
         default:
           return op.source satisfies never
       }
-    case 'cache-finish':
-      return t('cli.migrate.opCacheFinish', { path: op.path, shared: op.shared })
     case 'cache-keep':
       return t('cli.migrate.opCacheKeep', { path: op.path, shared: op.shared })
     default:
@@ -87,8 +85,10 @@ function formatCacheResult(cache: CacheOpResult): string {
       return t('cli.migrate.cacheMoved', { path, shared })
     case 'kept':
       return t('cli.migrate.cacheKept', { path, shared })
+    case 'copied-link':
+      return t('cli.migrate.cacheCopiedLink', { path, shared, linked: cache.linked })
     case 'partial':
-      return t('cli.migrate.cacheMovedPartly', { path, shared, entries: cache.left.join(', ') })
+      return t('cli.migrate.cacheMovedNotRemoved', { path, shared, reason: cache.reason })
     default:
       return cache satisfies never
   }

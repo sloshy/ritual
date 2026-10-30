@@ -18,13 +18,15 @@ import {
 } from '../util/cli-tokens'
 import {
   LEGACY_CACHE_DIR,
+  cacheDirProblem,
   resolveCacheDir,
   SHARED_CACHE_MIGRATION_ID,
   type CacheDirLocation,
 } from '../config/cache-location'
 import { hasCacheDataSync } from '../cache/cache-entries'
-import { CACHE_MOVE_MARKER, legacyCacheAction, pathsOverlap } from '../cache/relocate'
-import type { UserDirsEnvironment } from '../util/user-dirs'
+import { legacyCacheAction } from '../cache/relocate'
+import { pathsOverlap } from '../util/path-validation'
+import { PROCESS_ENVIRONMENT, type UserDirsEnvironment } from '../util/user-dirs'
 
 /** A migration that removes one retired key from the `site` block, when present. */
 function dropSiteKey(
@@ -46,14 +48,42 @@ function dropSiteKey(
   }
 }
 
-/** Where the workspace's cache resolves to, read from the config as this migration sees it. */
-function cacheTarget(ctx: MigrationContext, environment?: UserDirsEnvironment): CacheDirLocation {
-  const configured = ctx.config.cacheDir
-  return resolveCacheDir({
+/** A raw config value, when it is a string. */
+function rawString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+/**
+ * Where the workspace's cache resolves to, read from the config as this
+ * migration sees it — or null when `RITUAL_CACHE_DIR` or `cacheDir` names a
+ * folder the cache must never take over (a root, the home folder, the
+ * workspace, a list folder): nothing moves there.
+ */
+function cacheTarget(
+  ctx: MigrationContext,
+  environment?: UserDirsEnvironment,
+): CacheDirLocation | null {
+  const running = environment ?? PROCESS_ENVIRONMENT
+  const configured = rawString(ctx.config.cacheDir)
+  const location = resolveCacheDir({ baseDir: ctx.baseDir, configured, environment: running })
+  const named =
+    location.source === 'env'
+      ? running.env[ENV_VAR.cacheDir]
+      : location.source === 'config'
+        ? configured
+        : undefined
+  if (named === undefined) return location
+  const problem = cacheDirProblem(named, {
     baseDir: ctx.baseDir,
-    configured: typeof configured === 'string' ? configured : undefined,
-    environment,
+    listDirs: [
+      rawString(ctx.config.decksDir) ?? './decks',
+      rawString(ctx.config.collectionsDir) ?? './collections',
+      rawString(ctx.config.wantedDir) ?? './wanted',
+    ],
+    home: running.home,
+    platform: running.platform,
   })
+  return problem === null ? location : null
 }
 
 /**
@@ -63,13 +93,11 @@ function cacheTarget(ctx: MigrationContext, environment?: UserDirsEnvironment): 
  * keeps reading that folder (`src/cache/file-cache.ts`), so nothing downloads
  * into the shared cache first.
  *
- * - The target holds no cache data: the old cache moves there (see
- *   `src/cache/relocate.ts` for how a move stays safe across file systems,
- *   interruptions and other workspaces).
- * - The target already holds another cache: the old folder is left untouched
- *   and the user is told it can be deleted. Nothing the target did not
- *   receive is ever deleted.
- * - This workspace's interrupted move: it is resumed, or finished.
+ * - The target does not exist, or holds only OS litter: the old cache moves
+ *   there whole, all or nothing (see `src/cache/relocate.ts`).
+ * - The target holds anything else (another workspace's cache, the user's own
+ *   files): the old folder is left untouched and the user is told it can be
+ *   deleted. Nothing in the target is ever merged into or deleted.
  * - The cache still resolves to `cache/` itself (`cacheDir: "cache"`), or the
  *   folder holds no cache data: nothing to do.
  *
@@ -83,18 +111,19 @@ export function sharedCacheMigration(id: number, environment?: UserDirsEnvironme
       envVar: ENV_VAR.cacheDir,
       configKey: CONFIG_KEY.cacheDir,
     }),
-    // Cheap by contract: a listing of `cache/`, a stat and path comparisons
-    // (the plan also resolves symlinks and case-insensitive spellings). An
-    // empty `cache/` applies only while it has this workspace's move to finish.
+    // Cheap by contract: a listing of `cache/` and path comparisons (the plan
+    // also resolves symlinks and case-insensitive spellings).
     applies: (ctx: MigrationContext): boolean => {
       const legacy = path.join(ctx.baseDir, LEGACY_CACHE_DIR)
-      const target = cacheTarget(ctx, environment).dir
-      if (!existsSync(legacy) || pathsOverlap(target, path.resolve(legacy))) return false
-      return hasCacheDataSync(legacy) || existsSync(path.join(target, CACHE_MOVE_MARKER))
+      const target = cacheTarget(ctx, environment)
+      if (target === null || !existsSync(legacy)) return false
+      if (pathsOverlap(target.dir, path.resolve(legacy))) return false
+      return hasCacheDataSync(legacy)
     },
     plan: async (ctx: MigrationContext): Promise<MigrationOp[]> => {
       const legacy = path.join(ctx.baseDir, LEGACY_CACHE_DIR)
       const target = cacheTarget(ctx, environment)
+      if (target === null) return []
       switch (await legacyCacheAction(legacy, target.dir)) {
         case 'none':
           return []
@@ -102,8 +131,6 @@ export function sharedCacheMigration(id: number, environment?: UserDirsEnvironme
           return [
             { type: 'cache-move', from: LEGACY_CACHE_DIR, to: target.dir, source: target.source },
           ]
-        case 'finish':
-          return [{ type: 'cache-finish', path: LEGACY_CACHE_DIR, shared: target.dir }]
         case 'keep':
           return [{ type: 'cache-keep', path: LEGACY_CACHE_DIR, shared: target.dir }]
       }

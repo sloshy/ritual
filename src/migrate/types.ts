@@ -56,20 +56,15 @@ export type CacheMoveOp = {
  * folder is no longer read and can be deleted.
  */
 export type CacheKeepOp = { type: 'cache-keep'; path: string; shared: string }
-/**
- * Finish this workspace's interrupted move into `shared`: every entry had
- * already moved, but the move marker and the emptied `path` were left.
- */
-export type CacheFinishOp = { type: 'cache-finish'; path: string; shared: string }
 
 export type ConfigOp = ConfigSetOp | ConfigDeleteOp
 export type FileOp = WriteOp | DeleteOp | RenameOp
-export type CacheOp = CacheMoveOp | CacheKeepOp | CacheFinishOp
+export type CacheOp = CacheMoveOp | CacheKeepOp
 export type MigrationOp = ConfigOp | FileOp | CacheOp
 
 /** Whether an op concerns the card cache folder. */
 export function isCacheOp(op: MigrationOp): op is CacheOp {
-  return op.type === 'cache-move' || op.type === 'cache-keep' || op.type === 'cache-finish'
+  return op.type === 'cache-move' || op.type === 'cache-keep'
 }
 
 /** Whether an op touches workspace files rather than the config. */

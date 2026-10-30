@@ -245,7 +245,9 @@ export const cliInfraMessages = {
   'cli.cacheStore.loadFailed': 'Failed to load cache, starting fresh.',
   'cli.cacheStore.saveFailed': 'Failed to save cache:',
   'cli.cacheStore.unwritable':
-    'The card cache file {path} exists but could not be read ({reason}), so Ritual will not overwrite it. Fix or delete the file, then try again.',
+    'The card cache file {path} exists but could not be read ({reason}), so Ritual will not overwrite it. Run `{command}` to rebuild the cache from Scryfall, or delete the file.',
+  'cli.cacheStore.writeContended':
+    'Could not save to the card cache file {path}: other Ritual processes kept rewriting it. Try again.',
   'cli.cacheStore.blocklisted': "Card '{name}' added to blocklist (expires {expires}).",
   'cli.cacheStore.unblocklisted': "Card '{name}' removed from blocklist (expired).",
   'cli.cacheStore.bulkWeekOld': 'Card cache bulk download is more than a week old. Refreshing...',
@@ -710,8 +712,6 @@ export const cliInfraMessages = {
   'cli.migrate.opCacheMoveConfigured':
     '  move the card cache {from} → {to} (the folder {configKey} in {file} names)',
   'cli.migrate.opCacheMoveEnv': '  move the card cache {from} → {to} (the folder {envVar} names)',
-  'cli.migrate.opCacheFinish':
-    '  finish moving the card cache into {shared}: remove the emptied {path} folder',
   'cli.migrate.opCacheKeep':
     '  leave {path} in place: {shared} already has a card cache (you can delete {path} afterwards)',
   'cli.migrate.refreshHeading': 'Refresh generated files:',
@@ -728,10 +728,12 @@ export const cliInfraMessages = {
   'cli.migrate.applied': '✓ Applied migration {id}: {description}',
   'cli.migrate.backedUp': '✓ Saved a copy of the files it changed in {path}',
   'cli.migrate.cacheMoved': '✓ Moved the card cache from {path} to {shared}',
-  'cli.migrate.cacheMovedPartly':
-    '✓ Moved the card cache from {path} to {shared}, but {path} still holds {entries}: another Ritual may have been using it. Ritual no longer reads {path}; delete it once no other Ritual is running.',
+  'cli.migrate.cacheCopiedLink':
+    '✓ Copied the card cache {path} links to into {shared} and removed the link. The folder it pointed at, {linked}, is left as it was; delete it if nothing else uses it.',
+  'cli.migrate.cacheMovedNotRemoved':
+    '✓ Copied the card cache from {path} to {shared}, but could not remove {path} ({reason}). Ritual no longer reads it; delete it yourself.',
   'cli.migrate.cacheMoveFailed':
-    'Could not move {path} into the shared card cache: {reason}. Another Ritual (or another program) may be using it; close it and run `{command}` again to finish the move.',
+    'Could not move {path} into the shared card cache: {reason}. Nothing was moved. Another Ritual (or another program) may be using it; close it and run `{command}` again.',
   'cli.migrate.cacheKept':
     'Left {path} in place: {shared} already has a card cache, which every workspace now uses. Ritual no longer reads {path}; delete it to free the space.',
   'cli.migrate.wrote': '✓ Wrote {path}',

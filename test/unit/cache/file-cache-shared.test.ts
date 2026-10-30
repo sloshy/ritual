@@ -90,6 +90,45 @@ describe('FileCacheManager over a shared file', () => {
     const refused = await manager.set('Mana Crypt', card('Mana Crypt')).catch((e: unknown) => e)
 
     expect(String((refused as Error).message)).toContain('will not overwrite it')
+    expect(String((refused as Error).message)).toContain('ritual cache preload-all')
     expect(await fs.readFile(file, 'utf-8')).toBe('{"cards": {"Sol Ring": [trunc')
+  })
+
+  test('a read failure is not remembered: a repaired file is read again', async () => {
+    await fs.writeFile(file, 'not json')
+    const manager = new FileCacheManager(file, 'cards', 0)
+    expect(await manager.isEmpty()).toBe(true)
+
+    await new FileCacheManager(path.join(dir, 'other.json'), 'cards', 0).set('x', card('x'))
+    await fs.copyFile(path.join(dir, 'other.json'), file)
+
+    expect(await manager.keys()).toEqual(['x'])
+  })
+
+  test('a full bulk refresh heals an unreadable cache file', async () => {
+    await fs.writeFile(file, 'not json')
+    const manager = new FileCacheManager(file, 'cards', 0)
+
+    await manager.bulkSet({ 'Sol Ring': card('Sol Ring') }, { replace: true })
+
+    expect(await new FileCacheManager(file, 'cards', 0).keys()).toEqual(['Sol Ring'])
+  })
+
+  test('a write that keeps losing to other writers rejects instead of claiming success', async () => {
+    await new FileCacheManager(file, 'cards', 0).set('Sol Ring', card('Sol Ring'))
+    let rewrites = 0
+    // Every attempt finds the file rewritten by "another process" just before its rename.
+    const contended = new FileCacheManager(file, 'cards', 0, Date.now, {
+      beforeWrite: async (target) => {
+        rewrites++
+        await fs.appendFile(target, ' ')
+      },
+    })
+
+    const failure = await contended.set('Mana Crypt', card('Mana Crypt')).catch((e: unknown) => e)
+
+    expect(String((failure as Error).message)).toContain('kept rewriting it')
+    expect(rewrites).toBeGreaterThan(1)
+    expect(await new FileCacheManager(file, 'cards', 0).keys()).toEqual(['Sol Ring'])
   })
 })

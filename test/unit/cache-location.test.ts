@@ -125,6 +125,11 @@ describe('cacheDirProblem', () => {
     expect(cacheDirProblem(value, context)).toBe(problem)
   })
 
+  test('the home folder is recognized under another case where names ignore case', () => {
+    expect(cacheDirProblem('/HOME/ADA', { ...context, platform: 'darwin' })).toBe('home')
+    expect(cacheDirProblem('/HOME/ADA', { ...context, platform: 'linux' })).toBeNull()
+  })
+
   test.each([['cache'], ['../shared-cache'], ['/var/cache/ritual'], [`${HOME}/.cache/ritual`]])(
     'accepts %p',
     (value) => {
