@@ -18,11 +18,12 @@ import {
 } from '../util/cli-tokens'
 import {
   LEGACY_CACHE_DIR,
-  cacheDirProblem,
   resolveCacheDir,
   SHARED_CACHE_MIGRATION_ID,
+  type CacheDirCheckContext,
   type CacheDirLocation,
 } from '../config/cache-location'
+import { warnRejectedCacheDirOnce } from '../cache/file-cache'
 import { hasCacheDataSync } from '../cache/cache-entries'
 import { legacyCacheAction } from '../cache/relocate'
 import { pathsOverlap } from '../util/path-validation'
@@ -55,25 +56,11 @@ function rawString(value: unknown): string | undefined {
 
 /**
  * Where the workspace's cache resolves to, read from the config as this
- * migration sees it — or null when `RITUAL_CACHE_DIR` or `cacheDir` names a
- * folder the cache must never take over (a root, the home folder, the
- * workspace, a list folder): nothing moves there.
+ * migration sees it. The legacy tier is left out: the old folder is what moves.
  */
-function cacheTarget(
-  ctx: MigrationContext,
-  environment?: UserDirsEnvironment,
-): CacheDirLocation | null {
+function cacheTarget(ctx: MigrationContext, environment?: UserDirsEnvironment): CacheDirLocation {
   const running = environment ?? PROCESS_ENVIRONMENT
-  const configured = rawString(ctx.config.cacheDir)
-  const location = resolveCacheDir({ baseDir: ctx.baseDir, configured, environment: running })
-  const named =
-    location.source === 'env'
-      ? running.env[ENV_VAR.cacheDir]
-      : location.source === 'config'
-        ? configured
-        : undefined
-  if (named === undefined) return location
-  const problem = cacheDirProblem(named, {
+  const check: CacheDirCheckContext = {
     baseDir: ctx.baseDir,
     listDirs: [
       rawString(ctx.config.decksDir) ?? './decks',
@@ -82,8 +69,17 @@ function cacheTarget(
     ],
     home: running.home,
     platform: running.platform,
+  }
+  // Exactly as the cache resolves at run time: an override naming a folder the
+  // cache may not take over is skipped (with the same one-time warning), and
+  // the next tier is the target.
+  return resolveCacheDir({
+    baseDir: ctx.baseDir,
+    configured: rawString(ctx.config.cacheDir),
+    environment: running,
+    check,
+    onRejected: (rejected) => warnRejectedCacheDirOnce(rejected, check),
   })
-  return problem === null ? location : null
 }
 
 /**
@@ -116,14 +112,13 @@ export function sharedCacheMigration(id: number, environment?: UserDirsEnvironme
     applies: (ctx: MigrationContext): boolean => {
       const legacy = path.join(ctx.baseDir, LEGACY_CACHE_DIR)
       const target = cacheTarget(ctx, environment)
-      if (target === null || !existsSync(legacy)) return false
+      if (!existsSync(legacy)) return false
       if (pathsOverlap(target.dir, path.resolve(legacy))) return false
       return hasCacheDataSync(legacy)
     },
     plan: async (ctx: MigrationContext): Promise<MigrationOp[]> => {
       const legacy = path.join(ctx.baseDir, LEGACY_CACHE_DIR)
       const target = cacheTarget(ctx, environment)
-      if (target === null) return []
       switch (await legacyCacheAction(legacy, target.dir)) {
         case 'none':
           return []

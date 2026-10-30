@@ -213,6 +213,7 @@ async function copyIntoPlace(
 function legacyBusy(legacy: string): Error {
   return localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.migrate.cacheBusy', {
     path: legacy,
+    lockFile: path.join(legacy, CACHE_LOCK_FILENAME),
     command: commandLine(COMMAND.migrate),
   })
 }

@@ -85,7 +85,8 @@ describe('the workspace’s old cache while migration 3 is pending', () => {
 
   test('an unsafe RITUAL_CACHE_DIR is skipped with a warning, and does not hide it', async () => {
     const dir = await workspaceWithCache({})
-    process.env.RITUAL_CACHE_DIR = '/'
+    // The workspace itself: unusable, and unique to this test (each value warns once per process).
+    process.env.RITUAL_CACHE_DIR = dir
     const logger = new MemoryLogger()
     setLogger(logger)
     try {
@@ -99,7 +100,7 @@ describe('the workspace’s old cache while migration 3 is pending', () => {
       .map((entry) => String(entry.args[0]))
       .filter((line) => line.includes('Ignoring the card cache folder'))
     expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('"RITUAL_CACHE_DIR" must not be a file system root')
+    expect(warnings[0]).toContain('"RITUAL_CACHE_DIR" must not be the workspace')
   })
 
   test('gives way to a configured cacheDir', async () => {

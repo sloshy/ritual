@@ -26,6 +26,7 @@ import {
   resolveCacheDir,
   SHARED_CACHE_MIGRATION_ID,
   type CacheDirLocation,
+  type CacheDirCheckContext,
   type RejectedCacheDir,
 } from '../config/cache-location'
 import { hasCacheDataSync } from './cache-entries'
@@ -97,6 +98,7 @@ function legacyCachePending(baseDir: string): boolean {
 export function getCacheDirLocation(): CacheDirLocation {
   const baseDir = getBaseDir()
   const config = getRitualConfig()
+  const check = cacheDirCheckContext(config)
   return resolveCacheDir({
     baseDir,
     configured: config.cacheDir,
@@ -104,21 +106,28 @@ export function getCacheDirLocation(): CacheDirLocation {
     // The CLI refuses an unsafe RITUAL_CACHE_DIR before any command runs; a
     // server or the MCP server reaching here skips it (and an unsafe cacheDir
     // the loader let through) rather than writing into such a folder.
-    check: cacheDirCheckContext(config),
-    onRejected: warnRejectedOnce,
+    check,
+    onRejected: (rejected) => warnRejectedCacheDirOnce(rejected, check),
   })
 }
 
 /** The overrides already warned about, so each is reported once per process. */
 const warnedRejections = new Set<string>()
 
-/** Warn, once per value, that an unusable cache folder setting is being ignored. */
-function warnRejectedOnce(rejected: RejectedCacheDir): void {
+/**
+ * Warn, once per value, that an unusable cache folder setting is being
+ * ignored, worded by the same refusal `config set` gives, checked against
+ * `context`.
+ */
+export function warnRejectedCacheDirOnce(
+  rejected: RejectedCacheDir,
+  context: CacheDirCheckContext,
+): void {
   const key = `${rejected.source}\0${rejected.value}`
   if (warnedRejections.has(key)) return
   warnedRejections.add(key)
   const field = rejected.source === 'env' ? ENV_VAR.cacheDir : CONFIG_KEY.cacheDir
-  const parsed = parseCacheDir(rejected.value, cacheDirCheckContext(getRitualConfig()), field)
+  const parsed = parseCacheDir(rejected.value, context, field)
   if (!isConfigParseError(parsed)) return
   getLogger().warn(t('cli.cacheStore.unsafeDirIgnored', { reason: renderSyncMessage(parsed.error) }))
 }

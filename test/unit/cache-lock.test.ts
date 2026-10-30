@@ -296,10 +296,20 @@ describe('isCacheLockHeld', () => {
     return JSON.stringify({ pid, hostname, createdAt, operation: 'bulk card cache download' })
   }
 
-  test('a lock from this host is held exactly while its holder lives, whatever its age', async () => {
-    await writeLock(lockFrom(os.hostname(), 4242, 0))
+  test('a lock from this host is held while its holder lives and it is younger than the stale age', async () => {
+    await writeLock(lockFrom(os.hostname(), 4242, Date.now()))
     expect(await isCacheLockHeld(dir, () => true)).toBe(true)
     expect(await isCacheLockHeld(dir, () => false)).toBe(false)
+  })
+
+  test('an old same-host lock is not held even if its pid is alive (the pid may be reused)', async () => {
+    await writeLock(lockFrom(os.hostname(), 4242, 0))
+    expect(await isCacheLockHeld(dir, () => true)).toBe(false)
+  })
+
+  test('a lock naming this very process is not held (a previous run with the same pid)', async () => {
+    await writeLock(lockFrom(os.hostname(), process.pid, Date.now()))
+    expect(await isCacheLockHeld(dir, () => true)).toBe(false)
   })
 
   test('a lock from another host is held until the stale age', async () => {

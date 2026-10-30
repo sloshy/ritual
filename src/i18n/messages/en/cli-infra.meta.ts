@@ -1419,7 +1419,7 @@ export const cliInfraMeta = {
   },
   'cli.migrate.cacheBusy': {
     description:
-      "Error: the migration did not move the workspace's old card cache folder {path} (absolute path) because another running Ritual program holds its lock (it is refreshing or reading the cache). Nothing changed. {command} is `ritual migrate`; never translate it.",
+      "Error: the migration did not move the workspace's old card cache folder {path} (absolute path) because another running Ritual program holds its lock (it is refreshing or reading the cache). Nothing changed. {command} is `ritual migrate`; never translate it. {lockFile} is the absolute path of the lock file, which the user may delete when no Ritual is actually running (a lock left behind by a crash).",
   },
   'cli.migrate.wrote': { description: 'A generated file was rewritten. {path} is relative.' },
   'cli.migrate.skillUpdated': { description: 'An installed agent skill {name} was rewritten.' },

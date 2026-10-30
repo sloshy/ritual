@@ -738,7 +738,7 @@ export const cliInfraMessages = {
   'cli.migrate.cacheKept':
     "Left {path} in place: {shared} is not empty (it may hold another workspace's cache), and Ritual never moves a cache into a folder with anything in it. Ritual now reads {shared} and no longer {path}; delete {path} to free the space. To keep this cache instead, empty or delete {shared} and move the contents of {path} there yourself.",
   'cli.migrate.cacheBusy':
-    'Did not move {path}: a running Ritual is using this cache. Close it, then run `{command}` again.',
+    'Did not move {path}: a running Ritual is using this cache. Close it, then run `{command}` again. If you are sure no Ritual is running, delete the lock file {lockFile} first.',
   'cli.migrate.wrote': '✓ Wrote {path}',
   'cli.migrate.skillUpdated': '✓ Updated agent skill {name}',
   'cli.migrate.skillRemoved': '✕ Removed agent skill {name}',

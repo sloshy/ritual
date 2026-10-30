@@ -249,10 +249,15 @@ export async function withCacheLock<T>(
 const UNWRITTEN_LOCK_GRACE_MS = 5000
 
 /**
- * Whether `dir` holds a cache-write lock some process still holds:
+ * Whether `dir` holds a cache-write lock some other process still holds — by
+ * the same rule {@link acquireCacheLock} breaks locks by, so the two never
+ * disagree:
  *
- * - from this host, exactly when its holder process is alive, whatever its age;
+ * - from this host, while its holder process is alive and the lock is younger
+ *   than the stale age (an older one may name a reused pid);
  * - from another host (whose processes cannot be checked), until the stale age;
+ * - naming this very process, never (a container may give every Ritual the
+ *   same pid, so such a lock is a previous run's);
  * - empty or unparseable, only while it is a few seconds old — a lock is
  *   created and then written, so a reader can catch it empty in between.
  *
@@ -274,6 +279,6 @@ export async function isCacheLockHeld(
   }
   const info = parseCacheLockInfo(raw)
   if (typeof info === 'string') return Date.now() - modifiedMs < UNWRITTEN_LOCK_GRACE_MS
-  if (info.hostname === os.hostname()) return isPidAlive(info.pid)
-  return Date.now() - info.createdAt <= DEFAULT_STALE_MAX_AGE_MS
+  if (info.hostname === os.hostname() && info.pid === process.pid) return false
+  return !isLockStale(info, isPidAlive, DEFAULT_STALE_MAX_AGE_MS)
 }

@@ -154,12 +154,12 @@ describe('migration 3: shared card cache', () => {
     expect(await snapshotTree(sharedDir())).toEqual({ 'notes.txt': 'mine' })
   })
 
-  test('a target another process holds the lock in is kept clear of', async () => {
+  test('a target holding another process’s lock is kept clear of', async () => {
     await seedLegacyCache()
     await seedShared(
       CACHE_LOCK_FILENAME,
       JSON.stringify({
-        pid: process.pid,
+        pid: process.ppid,
         hostname: os.hostname(),
         createdAt: Date.now(),
         operation: 'x',
@@ -170,10 +170,11 @@ describe('migration 3: shared card cache', () => {
 
   test('a running Ritual holding the old cache’s lock stops the move, changing nothing', async () => {
     await seedLegacyCache()
+    // The parent process: alive, and not this one.
     const lock = JSON.stringify({
-      pid: process.pid,
+      pid: process.ppid,
       hostname: os.hostname(),
-      createdAt: 0,
+      createdAt: Date.now(),
       operation: 'bulk card cache download',
     })
     await fs.writeFile(path.join(legacyDir(), CACHE_LOCK_FILENAME), lock)
@@ -183,6 +184,9 @@ describe('migration 3: shared card cache', () => {
 
     expect(failure).toMatchObject({ code: 'runtime_error' })
     expect(String((failure as Error).message)).toContain('a running Ritual is using this cache')
+    expect(String((failure as Error).message)).toContain(
+      path.join(legacyDir(), CACHE_LOCK_FILENAME),
+    )
     expect(await snapshotTree(legacyDir())).toEqual(before)
     expect(existsSync(sharedDir())).toBe(false)
   })
@@ -195,12 +199,16 @@ describe('migration 3: shared card cache', () => {
     expect((await plan()).migrations[0]?.ops).toEqual([])
   })
 
-  test('never moves into a folder RITUAL_CACHE_DIR may not name', async () => {
+  test('skips a folder RITUAL_CACHE_DIR may not name, as the cache itself does, and moves to the next', async () => {
     await seedLegacyCache()
-    const unsafe: UserDirsEnvironment = { ...environment, env: { RITUAL_CACHE_DIR: '/' } }
-    expect(sharedCacheMigration(3, unsafe).applies({ config: {}, baseDir: ws.dir })).toBe(false)
-    expect((await plan(unsafe)).migrations[0]?.ops).toEqual([])
-    expect(await snapshotTree(legacyDir())).toEqual(LEGACY_TREE)
+    const unsafe: UserDirsEnvironment = {
+      ...environment,
+      env: { ...environment.env, RITUAL_CACHE_DIR: '/' },
+    }
+    expect(sharedCacheMigration(3, unsafe).applies({ config: {}, baseDir: ws.dir })).toBe(true)
+    expect((await plan(unsafe)).migrations[0]?.ops).toEqual([
+      { type: 'cache-move', from: 'cache', to: sharedDir(), source: 'default' },
+    ])
   })
 
   test('an empty workspace cache, or one holding only a lock file or litter, does not apply', async () => {
