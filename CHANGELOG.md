@@ -38,18 +38,20 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
   `cache/` into the shared cache when that is still empty, so the first workspace you
   migrate keeps its download; for every later one, the shared cache already has data, so
   its `cache/` is left untouched and `migrate` tells you that Ritual no longer reads it and
-  you can delete it. A move interrupted part-way (a killed process, a file another program
-  holds open on Windows) is resumed by the next `migrate` in that workspace, and nothing is
-  deleted from `cache/` until its copy has arrived whole. For a "Publish for me" site,
-  `migrate` also refreshes the deploy workflow, which now sets `RITUAL_CACHE_DIR: cache` so
+  you can delete it. The move is all or nothing: the whole folder is renamed (or, across
+  disks, copied beside the target and renamed into place) only into a shared folder that
+  does not exist or holds nothing but OS litter, and Ritual never merges into or deletes
+  anything already there; if a step fails, `cache/` is left as it was. For a "Publish for
+  me" site, `migrate` also refreshes the deploy workflow, which now sets `RITUAL_CACHE_DIR: cache` so
   CI keeps caching the checkout's `cache/` folder; commit the updated workflow. A
   hand-written CI job that caches `cache/` needs the same variable. A workspace without a
   `ritual.config.json` has nothing to migrate and keeps reading its own `cache/`.
 
   `cacheDir` and `RITUAL_CACHE_DIR` refuse a value starting with `~` (write the full path),
   a file system root, your home folder, the workspace itself and its list folders. If
-  `cache.json` exists but can't be read or parsed, Ritual refuses to write to it rather than
-  replace it with an almost empty cache; fix or delete the file.
+  `cache.json` exists but can't be read or parsed, Ritual refuses to write single cards to
+  it rather than replace it with an almost empty cache; `ritual cache preload-all` (a full
+  refresh) repairs it.
 
 - The site's opening theme is now a setting, so a site built by the "Publish for me"
   workflow (which passes no theme flags) can open on a theme other than `default`.

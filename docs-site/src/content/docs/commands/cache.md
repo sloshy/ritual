@@ -25,7 +25,7 @@ A relative path in the first two is resolved against the workspace, so `cacheDir
 
 Everything below that names a cache file (`cache.json`, `card-bulk.json`, `tags.json`, `cardkingdom.json`, `images/`, `feed-client/`, `feed/`, `.ritual-cache-lock`) means that file inside this folder.
 
-An older workspace's `cache/` folder is moved here by [`ritual migrate`](/commands/migrate/#migration-3-the-shared-card-cache) (migration 3) when the shared cache is still empty. If the shared cache already has data, the old folder is left untouched and the migration tells you that you can delete it.
+An older workspace's `cache/` folder is moved here by [`ritual migrate`](/commands/migrate/#migration-3-the-shared-card-cache) (migration 3), whole, when the shared folder does not exist yet or holds nothing but OS litter. If it holds anything else, both folders are left untouched and the migration tells you that you can delete the old one.
 
 ### Sharing the cache between workspaces
 
@@ -35,7 +35,7 @@ Processes in different workspaces can use the cache at the same time, as two pro
 - **Files are never seen half-written.** Every cache file is written to a temporary file and renamed into place.
 - **A running process notices another's write.** Before using what it has loaded, a process checks whether `cache.json` changed on disk and reloads it if so.
 - **A write never replaces a newer file with an older copy.** Saving a card rewrites the whole `cache.json`. Just before the new file replaces the old one, Ritual checks that the old one is still the copy it changed; if another process rewrote it meanwhile, the change is made again on the newer copy instead. What remains is the instant between that check and the replacement: two saves landing within it can lose one card, which the next lookup fetches again. (Bulk refreshes also hold the lock, so two of them never race.)
-- **An unreadable cache is never overwritten.** If `cache.json` exists but cannot be read or is not valid JSON, lookups treat the cache as empty and every write is refused with an error naming the file, rather than replacing it (and every other workspace's data) with a nearly empty one. Fix or delete the file.
+- **An unreadable cache is never overwritten.** If `cache.json` exists but cannot be read or is not valid JSON, lookups treat the cache as empty and every single-card write is refused with an error naming the file, rather than replacing it (and every other workspace's data) with a nearly empty one. A full refresh (`ritual cache preload-all`, or `--refresh auto`) replaces the whole file and so repairs it; deleting the file works too.
 
 The cache's contents never depend on the workspace (with one exception: [`defaultLanguage`](/configuration/#default-language) decides which Scryfall bulk the cache holds). If workspaces with different `defaultLanguage` values share a cache, each refresh replaces the other's bulk; give one of them its own `cacheDir`.
 
