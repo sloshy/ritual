@@ -1,0 +1,35 @@
+---
+// A demo screenshot in both themes: the dark capture shows on the dark docs
+// theme and the light one on the light theme. The images are taken by
+// `scripts/docs-screenshots.ts` as `<name>-dark.webp` and `<name>-light.webp`.
+import type { ImageMetadata } from 'astro'
+import { Image } from 'astro:assets'
+
+interface Props {
+  /** The shot's name in `scripts/docs-screenshots.ts`. */
+  name: string
+  /** What the image shows, for readers who cannot see it. */
+  alt: string
+  caption: string
+  /** A phone-width capture, shown narrower than the text column. */
+  phone?: boolean
+}
+
+const images = import.meta.glob<{ default: ImageMetadata }>('../assets/screenshots/*.webp', {
+  eager: true,
+})
+const { name, alt, caption, phone = false } = Astro.props
+const pick = (theme: 'dark' | 'light'): ImageMetadata | undefined =>
+  images[`../assets/screenshots/${name}-${theme}.webp`]?.default
+const dark = pick('dark')
+const light = pick('light')
+if (!dark || !light) {
+  throw new Error(`src/assets/screenshots/ has no ${name}-dark.webp and ${name}-light.webp`)
+}
+---
+
+<figure class:list={['screenshot', { 'screenshot-phone': phone }]}>
+  <Image src={dark} alt={alt} class="light:sl-hidden" />
+  <Image src={light} alt={alt} class="dark:sl-hidden" />
+  <figcaption>{caption}</figcaption>
+</figure>

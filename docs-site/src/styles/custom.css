@@ -38,7 +38,7 @@
   --sl-color-black: oklch(97.5% 0.004 285);
 }
 
-/* Demo-site screenshots on the homepage (index.mdx). */
+/* Demo-site screenshots: the homepage (index.mdx) and the Screenshot component. */
 .screenshot {
   margin-inline: 0;
 }
