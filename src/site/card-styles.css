@@ -1867,10 +1867,18 @@ h3 {
 
 /* ===== MULTI-SELECT CHECKBOX ===== */
 
-/* Reserve the top-left corner on selectable art cards so the quantity badge is
-   never hidden behind the checkbox that lives there. */
+/* On selectable art cards the checkbox owns the top-left corner, so the
+   quantity badge sits just below it, clear of the card name. Stack view shows
+   only a 35px strip of each card, with no room below the checkbox, so there
+   the badge stays beside it. */
 .card-item.is-selectable .card-binder .qty-badge,
 .card-item.is-selectable .card-overlap .qty-badge {
+  top: 27px;
+  left: 4px;
+}
+
+.view-stack .card-item.is-selectable .card-overlap .qty-badge {
+  top: 3px;
   left: 28px;
 }
 

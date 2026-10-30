@@ -1000,6 +1000,10 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
 
 ### Fixed
 
+- On the sites' card-image views, a card's count badge (`2x`, `4x`) sits below the selection
+  checkbox instead of beside it, so it no longer covers the start of the card's name. Stack
+  view keeps it beside the checkbox, since only the top strip of each card shows there.
+
 - `build-site`'s `- Loaded <list> (N cards, …)` line shows the list's total at the site's
   default store, in that store's currency (`€12.50` for Cardmarket). It always printed the
   TCGplayer figure with a `$`.

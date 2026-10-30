@@ -105,11 +105,17 @@
     height: 28px;
   }
 
-  /* Keep the quantity badge clear of the larger checkbox. The corner stays
+  /* Keep the quantity badge below the larger checkbox. The corner stays
      reserved even while the checkbox is hidden, matching how desktop reserves it
      against the hover-revealed checkbox. */
   .card-item.is-selectable .card-binder .qty-badge,
   .card-item.is-selectable .card-overlap .qty-badge {
+    top: 35px;
+    left: 4px;
+  }
+
+  .view-stack .card-item.is-selectable .card-overlap .qty-badge {
+    top: 3px;
     left: 38px;
   }
 
