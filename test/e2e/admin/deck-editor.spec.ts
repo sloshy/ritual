@@ -391,4 +391,84 @@ test.describe('Deck Editor Page', () => {
       })
     })
   })
+  test.describe('add card — a copy that merges onto a line', () => {
+    const BOLT = makeMockScryfallCard({
+      id: 'bolt-lea',
+      name: 'Lightning Bolt',
+      cmc: 1,
+      type_line: 'Instant',
+      set: 'lea',
+      set_name: 'Limited Edition Alpha',
+      collector_number: '161',
+    })
+    /** One save request's events, as far as this test reads them. */
+    type SavedAdd = { action: string; cardName: string; cardId?: number }
+
+    test.beforeEach(async ({ page }) => {
+      await gotoAdminDashboard(page)
+      await fulfillJson(
+        page,
+        '**/api/decks',
+        { decks: [{ slug: 'merge-deck', name: 'Merge Deck' }] },
+        { method: 'GET' },
+      )
+      await fulfillJson(page, '**/api/deck/merge-deck', {
+        success: true,
+        slug: 'merge-deck',
+        contentHash: 'hash-1',
+        deck: {
+          name: 'Merge Deck',
+          sections: [
+            {
+              name: 'Main',
+              // &1 and &2 are free: a fresh id would be &1.
+              cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 3 }],
+            },
+          ],
+        },
+        cards: { 'Lightning Bolt': BOLT },
+        printings: { 'Lightning Bolt': [BOLT] },
+        lowestPriceCards: {},
+        lowestPriceCardsEur: {},
+        lowestPriceCardsTix: {},
+        symbolMap: {},
+        frontMatter: {},
+      })
+      await fulfillJson(page, '**/api/autocomplete*', { success: true, names: ['Lightning Bolt'] })
+      await fulfillJson(page, '**/api/card-printings*', {
+        success: true,
+        printings: [BOLT],
+        complete: true,
+      })
+      await openListEditor(page, 'deck')
+      await selectList(page, 'deck', 'merge-deck')
+      await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+    })
+
+    test('the add carries the line’s own id rather than drawing a fresh one', async ({ page }) => {
+      let saved: SavedAdd[] | null = null
+      await fulfillJson(page, '**/api/deck/merge-deck/save', (route) => {
+        saved = (JSON.parse(route.request().postData() ?? '{}') as { changes: SavedAdd[] }).changes
+        return { success: true, message: 'Saved', contentHash: 'hash-2', effects: [] }
+      })
+
+      // Added with no specific printing — the same tuple as the deck's line,
+      // so the copy folds onto it.
+      await page.keyboard.press('Control+Enter')
+      const searchInput = page.locator('.search-modal input[type="text"]')
+      await expect(searchInput).toBeVisible({ timeout: 5_000 })
+      await searchInput.fill('Lightning Bolt')
+      await expect(page.locator('.search-result-item', { hasText: 'Lightning Bolt' })).toBeVisible()
+      await page.keyboard.press('Enter')
+      await page.getByRole('button', { name: 'No specific printing' }).click()
+      await expect(page.locator('.changes-badge')).toHaveText('1')
+      await expect(page.locator('.modal-heading-flex')).toHaveCount(0, { timeout: 5_000 })
+      // Folded onto the existing line: still one tile.
+      await expect(page.locator('.card-item')).toHaveCount(1)
+
+      await page.locator('.btn-save').click()
+      await expect.poll(() => saved?.length).toBe(1)
+      expect(saved![0]).toMatchObject({ action: 'add', cardName: 'Lightning Bolt', cardId: 3 })
+    })
+  })
 })

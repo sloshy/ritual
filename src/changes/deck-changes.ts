@@ -113,18 +113,32 @@ export function findDeckAddMergeTargetId(
   change: ChangeInput,
   options: DeckLandingOptions,
 ): number | undefined {
+  return findDeckAddMergeLine(deck, change, options)?.card.cardId
+}
+
+/**
+ * The line an `add` / `move-to` folds onto under the reducer's merge rule (in
+ * the change's section), or `null` when it would start a line of its own —
+ * {@link findDeckAddMergeTargetId} without collapsing an id-less line into "no
+ * merge". Ignores `change.cardId`, like that probe; any other action is `null`.
+ */
+export function findDeckAddMergeLine(
+  deck: DeckData,
+  change: ChangeInput,
+  options: DeckLandingOptions,
+): DeckLineAt | null {
   if (change.action === 'add') {
     return findDeckMergeLine(deck.sections, change.cardName, change, {
       ...options,
       section: change.section,
-    })?.card.cardId
+    })
   }
-  if (change.action !== 'move-to') return undefined
+  if (change.action !== 'move-to') return null
   const copy = arrivingCopy(change, options.listLabels)
   return findDeckMergeLine(deck.sections, change.cardName, copy, {
     ...options,
     section: change.section,
-  })?.card.cardId
+  })
 }
 
 /** Where a line sits: its section, its index within it, and the line itself. */

@@ -45,6 +45,18 @@ describe('reconcileIdPoolForUndo', () => {
     expect(t.released).toEqual([])
   })
 
+  test('undoing an add whose line is still there (an increment or a merge) releases nothing', () => {
+    const t = track()
+    reconcileIdPoolForUndo(
+      t.release,
+      t.claim,
+      { addedChange: createAddChange('Bolt', { cardId: 4 }), cancelledChange: null },
+      [],
+      new Set([4]),
+    )
+    expect(t.released).toEqual([])
+  })
+
   test('undoing an added remove reclaims, undoing an added add releases', () => {
     const removeT = track()
     reconcileIdPoolForUndo(removeT.release, removeT.claim, {

@@ -10,10 +10,9 @@ import {
 } from '../../list/resolve-list'
 import { isPathWithinDir } from '../../util/path-validation'
 import {
-  allocateId,
   cardNamesById,
   collectDeckCardIds,
-  createIdPool,
+  collectExistingIds,
   deckCardNamesById,
 } from '../../card/card-id'
 import {
@@ -25,14 +24,17 @@ import { planImportBatches, type ImportBatch } from './import-batches'
 import {
   createRetargetState,
   importConflictReason,
+  isProvisionalId,
+  provisionalIdAllocator,
+  settleRetargetState,
   type ImportConflict,
   type RetargetResult,
   type RetargetState,
   retargetImportedChanges,
 } from '../../editor/import-changes'
-import { applyChangesCollectingMisses, type ApplyChange } from '../../changes/apply-batch'
+import { deckMergeLine, replayAssigningIds, type IdReplayOps } from '../../changes/replay-ids'
 import { applyChangeToCollection, toCollectionCardEntries } from '../../changes/collection-changes'
-import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../changes/deck-changes'
+import { applyChangeToDeck } from '../../changes/deck-changes'
 import { applyChangeToWantedList } from '../../changes/wanted-changes'
 import type { CardLabel } from '../../card/card-labels'
 import { dedupeDroppedNotes, type DroppedNote } from '../../list/move-staging'
@@ -166,20 +168,20 @@ async function call<T>(
 }
 
 /**
- * Re-aim a list's imported changes at its current card IDs: adds draw fresh IDs
- * from a pool seeded with the list's existing IDs, other changes resolve by ID
- * then by card name, and unresolvable ones become conflicts.
+ * Re-aim a list's imported changes at its current card IDs: adds get
+ * placeholder ids (the replay in {@link splitApplicable} gives them real ones),
+ * other changes resolve by ID then by card name, and unresolvable ones become
+ * conflicts.
  */
 function retarget(
   changes: ChangeEvent[],
   currentNames: ReadonlyMap<number, string>,
   state: RetargetState,
 ): RetargetResult {
-  const pool = createIdPool([...currentNames.keys()])
   return retargetImportedChanges({
     changes,
     currentNames,
-    allocateId: () => allocateId(pool),
+    allocateId: provisionalIdAllocator(),
     state,
   })
 }
@@ -199,95 +201,47 @@ type SplitApplicableResult<TData> = {
 }
 
 /**
- * Apply the retargeted changes, demoting any that still do not apply to
- * conflicts instead of silently counting them as applied. Retargeting only
- * guarantees the target *card* resolves — a change can still miss at apply
- * time (an `unset-commander` on a card outside the commander section, or a
- * commander action aimed at a flat list). Misses no-op inside the engines, so
- * `updated` computed over the full list equals applying only the applicable
- * changes; the split exists so the save's changelog names only real edits.
+ * Replay the retargeted changes with the save route's own reducer, giving each
+ * new line its real id (`replayAssigningIds`) and demoting any change that
+ * still does not apply to a conflict instead of silently counting it as
+ * applied. Retargeting only guarantees the target *card* resolves — a change
+ * can still miss at apply time (an `unset-commander` on a card outside the
+ * commander section, or a commander action aimed at a flat list). Misses no-op
+ * inside the engines, so `updated` computed over the full list equals applying
+ * only the applicable changes; the split exists so the save's changelog names
+ * only real edits.
+ *
+ * The ids are given out in apply order, the way an editor's pool does: a line
+ * an earlier change in the batch removed has released its id for a later add,
+ * and a deck copy that folds onto a line it already has takes that line's id
+ * and draws none. The re-target state follows, so a later batch's reference to
+ * a copy this one added resolves to its real id.
  */
 function splitApplicable<TData>(
   data: TData,
   retargeted: ChangeEvent[],
-  apply: ApplyChange<TData, ChangeEvent>,
+  ops: IdReplayOps<TData>,
+  state: RetargetState,
   listLabels: readonly CardLabel[] | undefined,
 ): SplitApplicableResult<TData> {
-  const { data: updated, unmatched } = applyChangesCollectingMisses(data, retargeted, apply, {
+  const replayed = replayAssigningIds(data, retargeted, ops, {
     listLabels,
+    isProvisional: isProvisionalId,
   })
-  if (unmatched.length === 0) return { updated, applicable: retargeted, missConflicts: [] }
-  const missed = new Set(unmatched.map((item) => item.change))
+  settleRetargetState(state, replayed.resolved)
+  const missed = new Set(replayed.unmatched.map((item) => item.change))
   return {
-    updated,
-    applicable: retargeted.filter((change) => !missed.has(change)),
+    updated: replayed.data,
+    applicable: replayed.changes.filter((change) => !missed.has(change)),
     // The engine's reason travels through: `no-target` really is "card not
     // found", but `needs-printing` names a card that is present and only needs
     // a printing pinned first, and reporting that as "not found" would send the
     // user hunting for a card they can see.
-    missConflicts: unmatched.map((item) => ({
+    missConflicts: replayed.unmatched.map((item) => ({
       change: item.change,
       reason: importConflictReason(item.reason),
     })),
   }
-}
-
-/**
- * Re-aim a deck batch's `add`/`move-to` copies that the deck reducer folds
- * onto a line it already has. Each such copy was allocated a fresh id by the
- * re-target, but the reducer merges same-tuple copies onto one line, so the
- * fresh id would name no line in the written deck — and end up in the
- * changelog and the art plan as a phantom `&N`. The change is rewritten to the
- * line's real id (the one the exporting editor would have used), and the
- * re-target state follows, so a later reference to that copy resolves.
- *
- * Decided one change at a time, against the deck as it stands just before that
- * change — the order the save route replays them in — so the rewritten batch
- * replays to the same deck the dry run did. Judging every add against the
- * finished deck instead could point an early add at a line only a later change
- * creates.
- *
- * Exported for its unit test: the per-step decision is unreachable to assert through a whole import.
- */
-export function rewriteMergedDeckIds(
-  deck: DeckData,
-  changes: readonly ChangeEvent[],
-  state: RetargetState,
-  listLabels: readonly CardLabel[] | undefined,
-): ChangeEvent[] {
-  let current = deck
-  return changes.map((change) => {
-    const rewritten = mergeTargetOf(current, change, state, listLabels)
-    current = applyChangeToDeck(current, rewritten, { listLabels })
-    return rewritten
-  })
-}
-
-/** `change` re-aimed at the line `deck` would merge it onto, or `change` itself. */
-function mergeTargetOf(
-  deck: DeckData,
-  change: ChangeEvent,
-  state: RetargetState,
-  listLabels: readonly CardLabel[] | undefined,
-): ChangeEvent {
-  if (change.action !== 'add' && change.action !== 'move-to') return change
-  if (change.cardId === undefined || collectDeckCardIds(deck).includes(change.cardId)) {
-    return change
-  }
-  // Labels and tags are part of the merge identity (`mergesOntoCard`): a
-  // `[proxy]` arrival folds onto the `[proxy]` line, never its plain sibling,
-  // and a tagged copy onto the same-tagged line. The probe is the reducer's
-  // own, so a `move-to`'s carried labels are measured against this deck's
-  // default exactly as they will be when it lands.
-  const merged = findDeckAddMergeTargetId(deck, change, { listLabels })
-  if (merged === undefined) return change
-  for (const [exported, allocated] of state.idMap) {
-    if (allocated === change.cardId) state.idMap.set(exported, merged)
-  }
-  if (state.addedByName.get(change.cardName) === change.cardId) {
-    state.addedByName.set(change.cardName, merged)
-  }
-  return { ...change, cardId: merged }
 }
 
 /** How many of a list's changes landed, the notes their saves dropped, and why the rest did not. */
@@ -364,19 +318,15 @@ type LoadedForImport<TData> = {
   listLabels?: CardLabel[]
 }
 
-/** What the import engine needs to know about one list type. */
-type ImportTarget<TData> = {
+/**
+ * What the import engine needs to know about one list type: how to load it,
+ * plus the save route's own reducer and id probes (`apply`, `cardIds`,
+ * `mergeLine`), so the dry run applies — and numbers — exactly what the save
+ * will.
+ */
+type ImportTarget<TData> = IdReplayOps<TData> & {
   type: ListType
   load: (slug: string) => Promise<ApiCallResult<LoadedForImport<TData>>>
-  /** The save route's own reducer, so the dry run applies exactly what the save will. */
-  apply: ApplyChange<TData, ChangeEvent>
-  /** A last pass over the applicable changes before they are sent. */
-  settle?: (
-    before: TData,
-    applicable: readonly ChangeEvent[],
-    state: RetargetState,
-    listLabels: readonly CardLabel[] | undefined,
-  ) => ChangeEvent[]
 }
 
 /**
@@ -410,7 +360,8 @@ const DECK_TARGET: ImportTarget<DeckData> = {
   // The batch hands every apply the target's own default (`listLabels` above).
   apply: (deck, change, options) =>
     applyChangeToDeck(deck, change, { ...options, listLabels: options?.listLabels }),
-  settle: rewriteMergedDeckIds,
+  cardIds: collectDeckCardIds,
+  mergeLine: deckMergeLine,
 }
 
 const COLLECTION_TARGET: ImportTarget<CollectionCardEntry[]> = {
@@ -431,6 +382,7 @@ const COLLECTION_TARGET: ImportTarget<CollectionCardEntry[]> = {
       },
     ),
   apply: applyChangeToCollection,
+  cardIds: collectExistingIds,
 }
 
 const WANTED_TARGET: ImportTarget<WantedListCardEntry[]> = {
@@ -446,6 +398,7 @@ const WANTED_TARGET: ImportTarget<WantedListCardEntry[]> = {
       },
     ),
   apply: applyChangeToWantedList,
+  cardIds: collectExistingIds,
 }
 
 async function applyToList<TData>(
@@ -465,8 +418,8 @@ async function applyToList<TData>(
   // whole batch when any change does not apply, so the inapplicable ones are
   // split off here first — with the route's own reducer — and only the rest
   // are sent.
-  const split = splitApplicable(data, retargeted, target.apply, listLabels)
-  const applicable = target.settle?.(data, split.applicable, state, listLabels) ?? split.applicable
+  const split = splitApplicable(data, retargeted, target, state, listLabels)
+  const applicable = split.applicable
   const allConflicts = [...conflicts, ...split.missConflicts]
   if (applicable.length === 0) {
     return { retargeted: applicable, conflicts: allConflicts, droppedNotes: [] }

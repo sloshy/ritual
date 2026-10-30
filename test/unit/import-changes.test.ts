@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'bun:test'
 import type { ChangeEvent } from '../../src/changes/change-event'
-import { createRetargetState, retargetImportedChanges } from '../../src/editor/import-changes'
+import {
+  createRetargetState,
+  retargetImportedChanges,
+  settleRetargetState,
+} from '../../src/editor/import-changes'
 
 /** A counting allocator starting after the current IDs, mirroring the editor's pool. */
 function allocator(start: number): () => number {
@@ -394,5 +398,24 @@ describe('retargetImportedChanges — pinning move-to', () => {
     })
     expect(retargeted).toEqual(changes)
     expect(conflicts).toEqual([])
+  })
+})
+
+describe('settleRetargetState', () => {
+  it('points placeholders at the ids the replay gave them and forgets unresolved ones', () => {
+    const state = createRetargetState()
+    state.idMap.set(7, -1)
+    state.idMap.set(8, -2)
+    state.idMap.set(9, 4)
+    state.addedByName.set('Sol Ring', -1)
+    state.addedByName.set('Opt', -2)
+
+    settleRetargetState(state, new Map([[-1, 2]]))
+
+    expect([...state.idMap]).toEqual([
+      [7, 2],
+      [9, 4],
+    ])
+    expect([...state.addedByName]).toEqual([['Sol Ring', 2]])
   })
 })

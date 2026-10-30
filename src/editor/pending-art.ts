@@ -210,12 +210,13 @@ export function savedCardIdsAfterSave(
 export function artIdsResetByUndo(
   entry: UndoEntry,
   remainingChanges: ChangeEvent[] = [],
+  liveIds: ReadonlySet<number> = new Set(),
 ): number[] {
   const ids: number[] = []
   const collect = (id: number): void => {
     if (!ids.includes(id)) ids.push(id)
   }
-  reconcileIdPoolForUndo(collect, collect, entry, remainingChanges)
+  reconcileIdPoolForUndo(collect, collect, entry, remainingChanges, liveIds)
   return ids
 }
 

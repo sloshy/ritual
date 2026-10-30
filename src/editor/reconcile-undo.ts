@@ -14,15 +14,21 @@ import {
  * destination id (the swap wizard emits them) — only frees its ID when nothing
  * left still uses it: a multi-copy add emits one event per copy under a single
  * ID (decks fold the copies into one entry), so undoing one copy must not hand
- * that ID out again while the other copies still carry it.
+ * that ID out again while the other copies still carry it. Nor does it free an
+ * id a line of the list still holds after the undo (`liveIds`): a copy added
+ * onto a line the list already had — an increment, or an add that merged —
+ * carries that line's id, and handing it out again would give a second line
+ * the same `&N`.
  */
 export function reconcileIdPoolForUndo(
   release: (id: number) => void,
   claim: (id: number) => void,
   entry: UndoEntry,
   remainingChanges: ChangeEvent[] = [],
+  liveIds: ReadonlySet<number> = new Set(),
 ): void {
   const stillInUse = (id: number): boolean =>
+    liveIds.has(id) ||
     remainingChanges.some((c) => (c.action === 'add' || c.action === 'move-to') && c.cardId === id)
 
   if (entry.addedChange) {

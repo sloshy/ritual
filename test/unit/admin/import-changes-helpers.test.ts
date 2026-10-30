@@ -1,12 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import type { ChangeEvent } from '../../../src/changes/change-event'
-import type { DeckData } from '../../../src/list/deck'
 import { MAX_SAVE_CHANGES } from '../../../src/changes/save-limits'
 import { listSaveRequest } from '../../../src/changes/wire-changes'
 import { MAX_EDIT_BODY_SIZE } from '../../../src/admin/validation'
-import { parseDeckText } from '../../../src/importers/text-file'
-import { createRetargetState } from '../../../src/editor/import-changes'
-import { rewriteMergedDeckIds, saveChunks } from '../../../src/admin/api/import-changes'
+import { saveChunks } from '../../../src/admin/api/import-changes'
 
 /** A name-only add, `i` making each one distinguishable. */
 function add(i: number): ChangeEvent {
@@ -61,57 +58,5 @@ describe('saveChunks', () => {
     expect(saveChunks([])).toEqual([])
     const huge = bigNote(1, MAX_EDIT_BODY_SIZE)
     expect(saveChunks([add(0), huge, add(2)])).toEqual([[add(0)], [huge], [add(2)]])
-  })
-})
-
-/** The `&N` each change ends up naming. */
-function cardIds(changes: readonly ChangeEvent[]): (number | undefined)[] {
-  return changes.map((change) => ('cardId' in change ? change.cardId : undefined))
-}
-
-function solRingAdd(id: string, cardId: number, set: string, collectorNumber: string): ChangeEvent {
-  return { id, timestamp: 1, action: 'add', cardName: 'Sol Ring', cardId, set, collectorNumber }
-}
-
-describe('rewriteMergedDeckIds', () => {
-  const deck = (): DeckData =>
-    parseDeckText('# Test\n\n## Main\n1 Sol Ring (2XM:5) &3\n', 'Test').deck
-
-  test('an add with no line to merge onto at its own step keeps its id', () => {
-    // Judged against the finished deck instead, the first add would be pointed
-    // at &11 — a line only the third change creates — and the remove would then
-    // miss the line it names.
-    const changes: ChangeEvent[] = [
-      solRingAdd('1', 10, 'lea', '1'),
-      { id: '2', timestamp: 2, action: 'remove', cardName: 'Sol Ring', cardId: 10 },
-      solRingAdd('3', 11, 'lea', '1'),
-    ]
-    expect(
-      cardIds(rewriteMergedDeckIds(deck(), changes, createRetargetState(), undefined)),
-    ).toEqual([10, 10, 11])
-  })
-
-  test('an add matching a line the deck holds at that step is rewritten to that line', () => {
-    const changes: ChangeEvent[] = [
-      solRingAdd('1', 10, 'lea', '1'),
-      // Merges onto the line the first add just created.
-      solRingAdd('2', 11, 'lea', '1'),
-      // Merges onto the line the deck already had.
-      solRingAdd('3', 12, '2xm', '5'),
-    ]
-    expect(
-      cardIds(rewriteMergedDeckIds(deck(), changes, createRetargetState(), undefined)),
-    ).toEqual([10, 10, 3])
-  })
-
-  test('the re-target state follows a rewritten id, so a later reference resolves', () => {
-    const state = createRetargetState()
-    state.idMap.set(77, 12)
-    state.addedByName.set('Sol Ring', 12)
-
-    rewriteMergedDeckIds(deck(), [solRingAdd('1', 12, '2xm', '5')], state, undefined)
-
-    expect(state.idMap.get(77)).toBe(3)
-    expect(state.addedByName.get('Sol Ring')).toBe(3)
   })
 })

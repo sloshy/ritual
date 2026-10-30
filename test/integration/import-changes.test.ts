@@ -1280,6 +1280,76 @@ describe('applyChangeBundle save replay', () => {
     expect(deck).toMatch(/1 Sol Ring \(LEA:1\) &\d+\n/)
   }, 60_000)
 
+  test('an add after a removal in the same bundle takes the id the removal released', async () => {
+    const wantedPath = await writeWantedFile(ws.dir, 'wishlist', {
+      title: 'Wishlist',
+      entries: [
+        { name: 'Opt', cardId: 1 },
+        { name: 'Ponder', cardId: 2 },
+        { name: 'Preordain', cardId: 3 },
+      ],
+    })
+
+    const result = await applyChangeBundle(
+      bundleOf(
+        [
+          {
+            kind: 'wanted',
+            slug: 'wishlist',
+            name: 'Wishlist',
+            changes: [
+              { id: 'r1', timestamp: 1, action: 'remove', cardName: 'Ponder', cardId: 2 },
+              { id: 'a1', timestamp: 2, action: 'add', cardName: 'Sol Ring', cardId: 15 },
+            ],
+          },
+        ],
+        [],
+      ),
+    )
+
+    expect(result.failedCount).toBe(0)
+    expect(await fs.readFile(wantedPath, 'utf-8')).toContain('- Sol Ring &2\n')
+    const changelog = await fs.readFile(wantedPath.replace(/\.md$/, '.changes.md'), 'utf-8')
+    expect(changelog).toContain('Added "Sol Ring" &2')
+  }, 60_000)
+
+  test('a copy that merges onto a deck line draws no id, so a later new card takes the freed one', async () => {
+    const deckPath = await writeDeckFile(ws.dir, 'test-deck', {
+      name: 'Test Deck',
+      cards: [
+        { quantity: 1, name: 'Opt', cardId: 1 },
+        { quantity: 2, name: 'Counterspell', cardId: 2 },
+        { quantity: 1, name: 'Ponder', cardId: 3 },
+      ],
+    })
+
+    const result = await applyChangeBundle(
+      bundleOf(
+        [
+          {
+            ...DECK_REF,
+            changes: [
+              { id: 'r1', timestamp: 1, action: 'remove', cardName: 'Counterspell', cardId: 2 },
+              { id: 'r2', timestamp: 2, action: 'remove', cardName: 'Counterspell', cardId: 2 },
+              // Folds onto the Opt line; the exporting editor's id names nothing here.
+              { id: 'a1', timestamp: 3, action: 'add', cardName: 'Opt', cardId: 40 },
+              { id: 'a2', timestamp: 4, action: 'add', cardName: 'Lightning Bolt', cardId: 41 },
+            ],
+          },
+        ],
+        [],
+      ),
+    )
+
+    expect(result.failedCount).toBe(0)
+    const deck = await fs.readFile(deckPath, 'utf-8')
+    expect(deck).toContain('2 Opt &1\n')
+    expect(deck).toContain('1 Lightning Bolt &2\n')
+    const changelog = await fs.readFile(deckPath.replace(/\.md$/, '.changes.md'), 'utf-8')
+    expect(changelog).toContain('Added "Opt" &1')
+    expect(changelog).toContain('Added "Lightning Bolt" &2')
+  }, 60_000)
+
   test('a list receiving more changes than one save carries is saved in chunks under one changelog entry', async () => {
     const wantedPath = await writeWantedFile(ws.dir, 'wishlist', {
       title: 'Wishlist',

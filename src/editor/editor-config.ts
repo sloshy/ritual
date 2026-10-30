@@ -195,13 +195,14 @@ export type EditorConfig<TData> = {
   /**
    * The `&N` an add of this card would land on because it *merges* into a line
    * the list already has, or `undefined` when it starts a new line. Decks fold a
-   * repeat of the same printing (and label override) into one entry, so the id
-   * the editor just allocated never reaches a card line — and art staged against
-   * it would be written for a line that does not exist. Art is per line, so the
-   * copies share the target line's.
+   * repeat of the same printing (and label override) into one entry, so a fresh
+   * id would never reach a card line — it would be logged as a phantom `&N`,
+   * burn a pool id, and art staged against it would be written for a line that
+   * does not exist. Art is per line, so the copies share the target line's.
    *
-   * Only consulted for art targeting; the add itself still carries the allocated
-   * id, exactly as before. Omitted by list types whose adds never merge.
+   * The add carries that id instead of drawing a fresh one from the pool, and
+   * art staged for it lands on that line; an import's replay folds copies the
+   * same way. Omitted by list types whose adds never merge.
    */
   findAddMergeTargetId?: (data: TData, add: ChangeInput) => number | undefined
   /**

@@ -64,6 +64,46 @@ export function createRetargetState(): RetargetState {
   return { idMap: new Map(), addedByName: new Map() }
 }
 
+/**
+ * Placeholder ids for the lines an import creates. The re-target cannot know
+ * the real `&N` a new line gets: that depends on what the batch removes before
+ * it (a released id is reused) and on whether a deck folds the copy onto a line
+ * it already has. So it hands out these instead — negative, so none can name a
+ * line — and the replay (`replayAssigningIds`, with {@link isProvisionalId})
+ * stamps each with the id its line actually gets, in apply order.
+ */
+export function provisionalIdAllocator(): () => number {
+  let next = 0
+  return () => --next
+}
+
+/** Whether `id` is a {@link provisionalIdAllocator} placeholder. */
+export const isProvisionalId = (id: number): boolean => id < 0
+
+/**
+ * Point the re-target state at the real ids the replay gave its placeholders
+ * (`resolved`: placeholder → id, `undefined` for a copy merged onto a line with
+ * no id). A placeholder the replay never resolved — its line was not created —
+ * is forgotten, so a later batch falls back to the card's name rather than
+ * naming a line that does not exist.
+ */
+export function settleRetargetState(
+  state: RetargetState,
+  resolved: ReadonlyMap<number, number | undefined>,
+): void {
+  const settle = (id: number): number | undefined => (isProvisionalId(id) ? resolved.get(id) : id)
+  for (const [exported, id] of state.idMap) {
+    const real = settle(id)
+    if (real === undefined) state.idMap.delete(exported)
+    else state.idMap.set(exported, real)
+  }
+  for (const [name, id] of state.addedByName) {
+    const real = settle(id)
+    if (real === undefined) state.addedByName.delete(name)
+    else state.addedByName.set(name, real)
+  }
+}
+
 type RetargetParams = {
   changes: ChangeEvent[]
   /**
@@ -72,7 +112,11 @@ type RetargetParams = {
    * ids are recycled, so the line holding it now may be a different card.
    */
   currentNames: ReadonlyMap<number, string>
-  /** Allocate a fresh card ID from the editor's pool (for `add` changes). */
+  /**
+   * The id for a line an `add` / `move-to` creates — a
+   * {@link provisionalIdAllocator} placeholder, which the replay then stamps
+   * with the line's real id.
+   */
   allocateId: () => number
   /** Carried across batches of the same list; a fresh state when omitted. */
   state?: RetargetState
@@ -107,8 +151,8 @@ const withCardId = (change: ChangeEvent, cardId: number): ChangeEvent =>
  * Re-aim an imported change list at the current list's card IDs. The exported IDs
  * come from the source list at export time and rarely match the live list, so:
  *
- * - `add` and `move-to` changes get a fresh ID from the pool (both *create* an
- *   entry in this list, so an exported ID is nothing to target), and later
+ * - `add` and `move-to` changes get a fresh ID from `allocateId` (both *create*
+ *   an entry in this list, so an exported ID is nothing to target), and later
  *   changes that referenced that card by its exported ID are remapped to it. A
  *   second add/move-to naming an exported id already allocated here reuses
  *   that id: the exporting editor put those copies on one line (a deck merges

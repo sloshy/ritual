@@ -35,8 +35,8 @@ import {
 } from '../../changes/collection-changes'
 import { applyChangeToWantedList } from '../../changes/wanted-changes'
 import { replaySectionOrder } from '../../changes/change-event'
+import { deckMergeLine, replayAssigningIds, type IdReplayOps } from '../../changes/replay-ids'
 import {
-  applyChangesCollectingMisses,
   describeUnmatchedChanges,
   listUnmatchedChanges,
   type ApplyChange,
@@ -172,6 +172,8 @@ interface ListSaveAdapter<TData> {
   apply: ApplyChange<TData, ChangeEvent>
   lineQuantities: (data: TData) => LineQuantities
   cardIds: (data: TData) => number[]
+  /** See {@link IdReplayOps.mergeLine}: a deck folds a copy onto a matching line. */
+  mergeLine?: IdReplayOps<TData>['mergeLine']
   cardNames: (data: TData) => string[]
   /** Assign ids to every line, reporting what each line ended up with. */
   finalize: (before: TData, after: TData) => FinalizedList<TData>
@@ -238,6 +240,7 @@ const deckAdapter: ListSaveAdapter<DeckData> = {
   },
   lineQuantities: deckLineQuantities,
   cardIds: collectDeckCardIds,
+  mergeLine: deckMergeLine,
   cardNames: deckCardNames,
   finalize: (before, after) => {
     const { deck, assignments } = assignDeckCardIds(after)
@@ -437,8 +440,8 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
 
   const decoded = decodeWireChanges(body.changes, type, Date.now())
   if (!decoded.ok) return nestedRefusal(changeProblemMessage(decoded.problem))
-  const changes = decoded.value
-  const refusal = adapter.refuseChanges?.(changes) ?? null
+  const rawChanges = decoded.value
+  const refusal = adapter.refuseChanges?.(rawChanges) ?? null
   if (refusal) return nestedRefusal(refusal)
 
   const resolved = await resolveListFileOrRefuse(adapter.resolveFile, {
@@ -456,7 +459,7 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
     content: hashCheck.content,
     slug,
     fallbackName: path.basename(filePath, '.md'),
-    changes,
+    changes: rawChanges,
   })
   if (!read.ok) return read.response
   const { baseline } = read
@@ -465,14 +468,14 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
   const unreadable = refuseUnreadableBaseline(filePath, baseline.parsed)
   if (unreadable) return unreadable
 
-  const runaway = refuseRunawayIds(changes, adapter.cardIds(baseline.data))
+  const runaway = refuseRunawayIds(rawChanges, adapter.cardIds(baseline.data))
   if (runaway) return apiError(runaway, 400)
 
   // Checked against the file, never the replayed list: that already holds the
   // change and would vouch for the very name being added.
   const nameError = await refuseUnknownCardNames(
     options.validateCardNames,
-    changeCardNames(changes),
+    changeCardNames(rawChanges),
     () => adapter.cardNames(baseline.data),
   )
   if (nameError) return nameError
@@ -484,8 +487,13 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
   // Replayed against the file's own default labels, so an incoming move writes
   // the minimal override; a `move-to` that merges onto a deck line with a
   // different note is recorded as it lands, the way the move engines report it.
+  //
+  // Ids are given out during the replay, in apply order (`replayAssigningIds`):
+  // an `add` that arrived without one takes the smallest id free at that point
+  // — one a removal earlier in the batch released included — and the event
+  // carries it from here on, so the changelog records the id the line got.
   const replayDrops: DroppedNote[] = []
-  const replayed = applyChangesCollectingMisses(baseline.data, changes, adapter.apply, {
+  const replayed = replayAssigningIds(baseline.data, rawChanges, adapter, {
     listLabels: baseline.listLabels,
     before: (current, change) => {
       const dropped = adapter.droppedNote?.(current, change, baseline.listLabels)
@@ -500,6 +508,7 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
     }
     return Response.json(refused, { status: 400 })
   }
+  const changes = replayed.changes
 
   // The other side of any cross-list moves goes first — the destination of each
   // `move-from`, the source of each `move-to` — every one validated in memory

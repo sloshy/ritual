@@ -35,7 +35,8 @@ import { applyCardTagsEdit } from './card-tags-edit'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { DEFAULT_CURRENCY } from '../pricing/price-currency'
 import type { ChangeEvent, CardPrintingOptions } from '../changes/change-event'
-import { retargetImportedChanges } from './import-changes'
+import { isProvisionalId, provisionalIdAllocator, retargetImportedChanges } from './import-changes'
+import { replayAssigningIds, type IdReplayOps } from '../changes/replay-ids'
 import type { ContextMenuState, CardContextInfo } from '../list-view/card-context'
 import { statusMessage, statusText, useEditorStatus } from './useEditorStatus'
 import type { ListType } from '../list/list-type'
@@ -347,11 +348,6 @@ export function useEditor<TData, TCardEntry = unknown>(
     // Capped as much to keep a bad caller from emitting an unbounded run of
     // change events as to bound what the dialog can ask for.
     const copies = clampQuantity(quantity, 1, MAX_ADD_COPIES)
-    // One `add` event per copy — the change format has no quantity field. Decks
-    // fold the copies into one entry, so they all share a card ID; flat lists
-    // store one entry per copy and each needs its own. Batched so the view
-    // repaints once rather than per copy.
-    const sharedId = config.copyModel === 'quantity' ? pool.allocate() : undefined
     const labels = extras?.labels
     const art = extras?.art ?? null
     // Resolved against the data as it stands *before* the first copy is applied:
@@ -370,6 +366,14 @@ export function useEditor<TData, TCardEntry = unknown>(
             labels,
           })
         : undefined
+    // One `add` event per copy — the change format has no quantity field. Decks
+    // fold the copies into one entry, so they all share a card ID — the line's
+    // own when the copies merge onto one the deck already has, so no id is
+    // drawn for a line that never exists; flat lists store one entry per copy
+    // and each needs its own. Batched so the view repaints once rather than per
+    // copy.
+    const sharedId =
+      config.copyModel === 'quantity' ? (mergeTargetId ?? pool.allocate()) : undefined
     batch(() => {
       for (let i = 0; i < copies; i++) {
         const cardId = sharedId ?? pool.allocate()
@@ -700,15 +704,18 @@ export function useEditor<TData, TCardEntry = unknown>(
     if (!result || !original) return
     const origData = original
     const { entry, remainingChanges } = result
-    reconcileIdPoolForUndo(pool.release, pool.claim, entry, remainingChanges)
-    // Same rule, one source: an id the undo moved carries no staged art any
-    // more, and shows whatever the list holds for it on disk again.
-    for (const cardId of artIdsResetByUndo(entry, remainingChanges)) {
-      config.onCardArtReset?.(cardId)
-    }
     // A change the replay could not take is no longer a pending edit: keeping it
     // would put an edit in the changelog that the saved file does not contain.
-    replayAndDrop(origData, remainingChanges)
+    const replayed = replayAndDrop(origData, remainingChanges)
+    // Replayed first, so an undone copy whose line is still there (an increment,
+    // or an add that merged onto a line) keeps that line's id out of the pool.
+    const liveIds = new Set(config.getOriginalCardNames(replayed.data).keys())
+    reconcileIdPoolForUndo(pool.release, pool.claim, entry, remainingChanges, liveIds)
+    // Same rule, one source: an id the undo moved carries no staged art any
+    // more, and shows whatever the list holds for it on disk again.
+    for (const cardId of artIdsResetByUndo(entry, remainingChanges, liveIds)) {
+      config.onCardArtReset?.(cardId)
+    }
   }
 
   const handleSave = async () => {
@@ -793,14 +800,27 @@ export function useEditor<TData, TCardEntry = unknown>(
     const orig = original
     const d = data()
     if (!orig || !d) return { loaded: 0, conflicts: [] }
-    // Re-target against the on-disk baseline, allocating fresh IDs for adds.
+    // Re-target against the on-disk baseline, then give each new line its id
+    // in apply order — a line the import removes first releases its id for a
+    // later add, and a deck copy that merges onto a line takes that line's id.
     const currentNames = config.getOriginalCardNames(orig)
-    pool.resetPool([...currentNames.keys()])
-    const { retargeted, conflicts } = retargetImportedChanges({
+    const { retargeted: provisional, conflicts } = retargetImportedChanges({
       changes: imported,
       currentNames,
-      allocateId: () => pool.allocate(),
+      allocateId: provisionalIdAllocator(),
     })
+    const idOps: IdReplayOps<TData> = {
+      apply: config.applyChange,
+      cardIds: (list) => [...config.getOriginalCardNames(list).keys()],
+      mergeLine: (list, add) => {
+        const cardId = config.findAddMergeTargetId?.(list, add)
+        return cardId === undefined ? null : { cardId }
+      },
+    }
+    const retargeted = replayAssigningIds(orig, provisional, idOps, {
+      isProvisional: isProvisionalId,
+    }).changes
+    pool.resetPool(usedIdsAfterRestore([...currentNames.keys()], retargeted))
     changes.loadChanges(retargeted)
     const replayed = replayAndDrop(orig, retargeted)
 

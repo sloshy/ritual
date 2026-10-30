@@ -173,6 +173,30 @@ describe('POST /api/:type/:slug/save', () => {
     )
   })
 
+  test('an add sent without an id is logged with the id its line got', async () => {
+    // Raw API clients (the MCP server among them) send adds with no `&N`; the
+    // route gives one out as it replays, so the changelog records it too — the
+    // id the removal before it released.
+    const filePath = await writeWantedFile(ws.dir, 'wishlist', {
+      entries: [
+        { name: 'Sol Ring', cardId: 1 },
+        { name: 'Opt', cardId: 2 },
+        { name: 'Ponder', cardId: 3 },
+      ],
+    })
+
+    const resp = await saveList('wanted', 'wishlist', filePath, [
+      toWireChange(createRemoveChange('Opt', { cardId: 2 })),
+      toWireChange(createAddChange('Lightning Bolt')),
+    ])
+
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('- Lightning Bolt &2\n')
+    const changelog = await fs.readFile(changelogOf(filePath), 'utf-8')
+    expect(changelog).toContain('Added "Lightning Bolt" &2')
+    expect(changelog).toContain('{"action":"add","cardName":"Lightning Bolt","cardId":2}')
+  })
+
   test('the save route accepts a signed set-label on the wire and logs it signed', async () => {
     const filePath = await writeDeckFile(ws.dir, 'proxies', {
       frontMatter: { labels: ['proxy'] },
