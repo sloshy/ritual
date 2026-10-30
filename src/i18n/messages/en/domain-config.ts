@@ -37,6 +37,14 @@ export const domainConfigMessages = {
   'domain.config.mustBeHash': '"{field}" must be a "sha256:" hash string',
   'domain.config.mustBeListName': '"{field}" must be a non-empty list name',
   'domain.config.mustBePath': '"{field}" must be a non-empty directory path',
+  'domain.config.cacheDirTilde':
+    '"{field}" must not start with "~" ("{value}"): only a shell expands it, so write the full path',
+  'domain.config.cacheDirRoot': '"{field}" must not be a file system root ("{value}")',
+  'domain.config.cacheDirHome': '"{field}" must not be your home folder itself ("{value}")',
+  'domain.config.cacheDirWorkspace':
+    '"{field}" must not be the workspace or a folder containing it ("{value}"); use a folder inside it, such as "cache"',
+  'domain.config.cacheDirListDir':
+    '"{field}" must not be a list folder or a folder inside one ("{value}")',
   'domain.config.blankEntry': '"{field}" must not contain an empty entry',
   'domain.config.siteThemeUnknown':
     '"{field}" names no theme ("{value}"): use a built-in theme ({values}), or list custom theme files in "{filesField}" to use one of their names',

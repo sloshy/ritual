@@ -183,8 +183,7 @@ export async function acquireCacheLock(
       // The holder released between our create attempt and read — retry now.
       // Only that narrow race is retried; any other read failure (permissions,
       // I/O) would otherwise spin here forever without honoring the deadline.
-      const err = e as NodeJS.ErrnoException
-      if (err.code === 'ENOENT' || err.message?.includes('ENOENT')) continue
+      if (hasErrorCode(e, 'ENOENT')) continue
       throw e
     }
 

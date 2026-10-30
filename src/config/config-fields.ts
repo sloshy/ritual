@@ -7,6 +7,7 @@ import {
   isConfigParseError,
   type ConfigParseError,
   parseBannedPrinting,
+  cacheDirCheckContext,
   parseCacheDir,
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
@@ -598,7 +599,7 @@ function applySingleConfigSet(
   }
   // cacheDir must name a directory; a blank value would silently mean "unset".
   if (property === 'cacheDir') {
-    const parsed = parseCacheDir(rawValue)
+    const parsed = parseCacheDir(rawValue, cacheDirCheckContext(config))
     if (isConfigParseError(parsed)) {
       return parsed
     }

@@ -60,4 +60,36 @@ describe('FileCacheManager over a shared file', () => {
 
     expect((await new FileCacheManager(file, 'cards', 0).keys()).sort()).toEqual(names)
   })
+
+  test('two managers over one file (prices and cards) never lose each other’s writes', async () => {
+    const cards = new FileCacheManager(file, 'cards', 0)
+    const prices = new FileCacheManager(file, 'prices', 0)
+    const names = ['A', 'B', 'C', 'D']
+    await Promise.all(
+      names.flatMap((name) => [
+        cards.set(name, card(name)),
+        prices.set(name, { latest: 1, min: 1, max: 1 }),
+        // Reads interleaved with the writes must not push a write onto a stale copy.
+        cards.get(name),
+      ]),
+    )
+
+    const onDisk = JSON.parse(await fs.readFile(file, 'utf-8')) as {
+      cards: Record<string, unknown>
+      prices: Record<string, unknown>
+    }
+    expect(Object.keys(onDisk.cards).sort()).toEqual(names)
+    expect(Object.keys(onDisk.prices).sort()).toEqual(names)
+  })
+
+  test('a cache file that cannot be parsed reads as empty but is never overwritten', async () => {
+    await fs.writeFile(file, '{"cards": {"Sol Ring": [trunc')
+    const manager = new FileCacheManager(file, 'cards', 0)
+
+    expect(await manager.isEmpty()).toBe(true)
+    const refused = await manager.set('Mana Crypt', card('Mana Crypt')).catch((e: unknown) => e)
+
+    expect(String((refused as Error).message)).toContain('will not overwrite it')
+    expect(await fs.readFile(file, 'utf-8')).toBe('{"cards": {"Sol Ring": [trunc')
+  })
 })

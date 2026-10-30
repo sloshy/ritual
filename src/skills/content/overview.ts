@@ -41,8 +41,10 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
   \`cacheDir\` config key names another (relative paths resolve against the workspace, so
   \`cacheDir: cache\` keeps a per-workspace \`cache/\`). \`ritual cache status\` prints the
   folder in use (\`cacheDir\`, \`cacheDirSource\` in JSON). An older workspace's own
-  \`cache/\` folder is moved there by \`ritual migrate\` (or left for the user to delete
-  when the shared cache already has data). It is downloaded data, never hand-edited (rebuild it with
+  \`cache/\` folder keeps being read (\`cacheDirSource: legacy\`) until \`ritual migrate\` moves
+  it there (or leaves it for the user to delete when the shared cache already has data).
+  \`cacheDir\`/\`RITUAL_CACHE_DIR\` refuse a leading \`~\` (write the full path), a root, the
+  home folder, the workspace itself and list folders (usage error, exit 2). It is downloaded data, never hand-edited (rebuild it with
   \`ritual cache preload-all\`): \`cache.json\` is the Scryfall card cache (\`cards\` keyed by
   card name, each holding that name's printings as Scryfall card objects: set and collector
   number, EDHREC rank, TCGplayer (USD) and Cardmarket (EUR) market prices per finish,

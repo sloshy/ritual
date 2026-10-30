@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { getBaseDir } from './base-dir'
 import { getErrorMessage, hasErrorCode } from '../util/errors'
@@ -19,6 +20,7 @@ import {
 import { isValidSemver } from './semver'
 import { isRecord } from '../util/json'
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../cache/constants'
+import { cacheDirProblem, type CacheDirCheckContext } from './cache-location'
 import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './list-selection'
 import { parseExportPresets, type ExportPreset } from '../export/presets'
 import { exportProblemMessage } from '../export-wording/message'
@@ -1071,9 +1073,50 @@ export function parseCacheFeedUrl(value: unknown): string | ConfigParseError {
  * per-user cache" and is the caller's concern — an `undefined` input is
  * malformed here.
  */
-export function parseCacheDir(value: unknown): string | ConfigParseError {
-  if (typeof value === 'string' && value.trim() !== '') return value.trim()
-  return configError('domain.config.mustBePath', { field: 'cacheDir' })
+export function parseCacheDir(
+  value: unknown,
+  context: CacheDirCheckContext,
+  field: string = CONFIG_KEY.cacheDir,
+): string | ConfigParseError {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return configError('domain.config.mustBePath', { field })
+  }
+  const trimmed = value.trim()
+  const problem = cacheDirProblem(trimmed, context)
+  if (problem === null) return trimmed
+  const params = { field, value: trimmed }
+  switch (problem) {
+    case 'tilde':
+      return configError('domain.config.cacheDirTilde', params)
+    case 'root':
+      return configError('domain.config.cacheDirRoot', params)
+    case 'home':
+      return configError('domain.config.cacheDirHome', params)
+    case 'workspace':
+      return configError('domain.config.cacheDirWorkspace', params)
+    case 'list-dir':
+      return configError('domain.config.cacheDirListDir', params)
+    default:
+      return problem satisfies never
+  }
+}
+
+/** The list folders a cache directory is checked against. */
+export type CacheDirListDirs = Pick<RitualConfig, 'decksDir' | 'collectionsDir' | 'wantedDir'>
+
+/**
+ * What {@link parseCacheDir} checks a value against: the current workspace,
+ * its list folders as `dirs` configures them, and the home directory.
+ */
+export function cacheDirCheckContext(
+  dirs: CacheDirListDirs,
+  home: string = os.homedir(),
+): CacheDirCheckContext {
+  return {
+    baseDir: getBaseDir(),
+    listDirs: [dirs.decksDir, dirs.collectionsDir, dirs.wantedDir],
+    home,
+  }
 }
 
 /**
@@ -1286,7 +1329,14 @@ function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
   // Absent means the shared per-user cache; a malformed value falls back to absent.
   if (parsed.cacheDir !== undefined) {
     const cacheDir = field<string | undefined>(
-      parseCacheDir(parsed.cacheDir),
+      parseCacheDir(
+        parsed.cacheDir,
+        cacheDirCheckContext({
+          decksDir: parsed.decksDir ?? DEFAULT_CONFIG.decksDir,
+          collectionsDir: parsed.collectionsDir ?? DEFAULT_CONFIG.collectionsDir,
+          wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
+        }),
+      ),
       'cacheDir',
       undefined,
     )

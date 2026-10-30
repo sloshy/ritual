@@ -699,6 +699,13 @@ describe('applyConfigSet — cacheDir', () => {
     expect('cacheDir' in outcome.updatedConfig).toBeFalse()
   })
 
+  test('rejects a path the cache must never take over, naming it', () => {
+    const result = applyConfigSet(base, 'cacheDir', ['decks'], 'replace')
+    expect('error' in result && result.error.message).toBe(
+      '"cacheDir" must not be a list folder or a folder inside one ("decks")',
+    )
+  })
+
   test('rejects a blank path, which would silently mean "unset"', () => {
     const result = applyConfigSet(base, 'cacheDir', ['  '], 'replace')
     expect('error' in result && result.error.message).toBe(

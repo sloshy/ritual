@@ -3,55 +3,44 @@
  * resolves to (the per-user shared cache, unless `RITUAL_CACHE_DIR` or the
  * `cacheDir` key names another). Used by workspace migration 3
  * (`src/migrate/migrations.ts`), which plans with {@link legacyCacheAction} and
- * applies with {@link moveLegacyCache}.
+ * applies with {@link moveLegacyCache} / {@link finishLegacyCacheMove}.
  *
- * The rule: a cache is only ever moved into a target that holds no cache data,
- * and nothing is deleted that the target did not receive. When the target
- * already has data (another workspace filled it first), the legacy folder is
- * left exactly as it is for the user to delete. A move interrupted part-way
- * leaves a marker in the target, so the next run resumes it rather than
- * mistaking the half-filled target for another workspace's cache.
+ * The rules:
+ *
+ * - A cache only ever moves into a target that holds no cache data.
+ * - Nothing is deleted that the target did not receive whole: an entry
+ *   copied across file systems is copied under a temporary name and renamed
+ *   into place before its source is removed, and a destination entry is never
+ *   deleted.
+ * - A move covers itself with a marker in the target naming the folder it
+ *   moves from. An interrupted move is resumed only by that same workspace;
+ *   to any other workspace a marked target counts as holding data.
  */
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { renameWithRetry } from '../util/atomic-write'
-import { hasErrorCode } from '../util/errors'
+import { ExitCode, getErrorMessage, hasErrorCode, localizedCommandError } from '../util/errors'
 import { createDefaultFileSystemClient } from '../util/interfaces'
 import { isSameFile } from '../util/same-file'
+import { COMMAND, commandLine } from '../util/cli-tokens'
+import { entriesOf, hasCacheData } from './cache-entries'
 import { CACHE_LOCK_FILENAME, withCacheLock } from './lock'
 
-/** The workspace-relative folder every workspace kept its cache in before the shared cache. */
-export const LEGACY_CACHE_DIR = 'cache'
-
-/** Written into the target while a move runs; its presence means "resume me". */
+/** Written into the target while a move runs; it names the folder being moved. */
 export const CACHE_MOVE_MARKER = '.ritual-cache-move'
 
-/** Entries that are bookkeeping, not cache data. */
-const NOT_DATA: ReadonlySet<string> = new Set([CACHE_LOCK_FILENAME, CACHE_MOVE_MARKER])
+/** The marker's contents: the real path of the folder the move empties. */
+export type CacheMoveMarker = { source: string }
 
-/** A directory's entries, or none when it does not exist (or is not a directory). */
-async function entriesOf(dir: string): Promise<string[]> {
-  try {
-    return await fs.readdir(dir)
-  } catch (e) {
-    if (hasErrorCode(e, 'ENOENT') || hasErrorCode(e, 'ENOTDIR')) return []
-    throw e
-  }
-}
+/** Legacy entries a move leaves where they are: they are not cache data. */
+const NOT_MOVED: ReadonlySet<string> = new Set([CACHE_LOCK_FILENAME, CACHE_MOVE_MARKER])
 
-/**
- * Whether a cache directory holds cache data: any entry but the cache-write
- * lock file and the move marker. A missing directory holds none.
- */
-export async function hasCacheData(dir: string): Promise<boolean> {
-  return (await entriesOf(dir)).some((entry) => !NOT_DATA.has(entry))
-}
+/** Files operating systems drop into folders on their own. */
+const OS_LITTER: ReadonlySet<string> = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini'])
 
-/** Whether a move into `dir` was interrupted and should be resumed. */
-async function moveInterrupted(dir: string): Promise<boolean> {
-  return (await entriesOf(dir)).includes(CACHE_MOVE_MARKER)
-}
+/** The infix of an entry being copied across file systems, before it is renamed into place. */
+const PARTIAL_INFIX = '.partial-'
 
 /**
  * Whether `child` is `parent` or lies inside it, by path. A name that merely
@@ -69,107 +58,245 @@ export function pathsOverlap(a: string, b: string): boolean {
   return isSameOrWithin(a, b) || isSameOrWithin(b, a)
 }
 
-/** `dir` with symlinks resolved, or as given when it does not exist yet. */
-async function realOrResolved(dir: string): Promise<string> {
+/**
+ * `dir` with symlinks resolved as far as it exists: the real path of its
+ * deepest existing ancestor, with the rest appended. Only a missing path is
+ * tolerated; any other failure to resolve is an error.
+ */
+export async function canonicalPath(dir: string): Promise<string> {
+  const resolved = path.resolve(dir)
   try {
-    return await fs.realpath(dir)
-  } catch {
-    return path.resolve(dir)
+    return await fs.realpath(resolved)
+  } catch (e) {
+    if (!hasErrorCode(e, 'ENOENT') && !hasErrorCode(e, 'ENOTDIR')) throw e
+    const parent = path.dirname(resolved)
+    if (parent === resolved) return resolved
+    return path.join(await canonicalPath(parent), path.basename(resolved))
   }
 }
 
+/** File systems whose default volumes compare names without case. */
+function caseInsensitive(platform: NodeJS.Platform): boolean {
+  return platform === 'darwin' || platform === 'win32'
+}
+
 /**
- * Whether the two directories overlap on disk: by path once symlinks are
- * resolved, or as one directory reached by two spellings (a case-insensitive
- * file system's `Cache` and `cache`).
+ * Whether the two directories overlap on disk: by real path, by real path
+ * ignoring case on a platform whose file system usually does (`Cache/sub`
+ * inside `cache`), or as one directory reached two ways (same inode).
+ * Erring towards "overlap" only ever means "do not move".
  */
-async function dirsOverlap(a: string, b: string): Promise<boolean> {
-  if (pathsOverlap(await realOrResolved(a), await realOrResolved(b))) return true
+async function dirsOverlap(a: string, b: string, platform: NodeJS.Platform): Promise<boolean> {
+  const [realA, realB] = [await canonicalPath(a), await canonicalPath(b)]
+  if (pathsOverlap(realA, realB)) return true
+  if (caseInsensitive(platform) && pathsOverlap(realA.toLowerCase(), realB.toLowerCase())) {
+    return true
+  }
   return isSameFile(a, b)
 }
 
-/** What to do with a legacy cache folder. */
-export type LegacyCacheAction = 'none' | 'move' | 'keep'
+/** Who started the move a target's marker records. */
+type MarkerOwner = 'none' | 'ours' | 'foreign'
 
-/**
- * Decide what a legacy cache folder needs: `none` when there is nothing to
- * move (no data, or the target is that folder — or inside it, or around it),
- * `keep` when the target already has data of its own, `move` otherwise
- * (including resuming an interrupted move).
- */
-export async function legacyCacheAction(legacy: string, target: string): Promise<LegacyCacheAction> {
-  if (await dirsOverlap(legacy, target)) return 'none'
-  if (!(await hasCacheData(legacy))) return 'none'
-  if (await moveInterrupted(target)) return 'move'
+/** Read the target's move marker and say whether this legacy folder wrote it. */
+async function markerOwner(target: string, legacyReal: string): Promise<MarkerOwner> {
+  let raw: string
+  try {
+    raw = await fs.readFile(path.join(target, CACHE_MOVE_MARKER), 'utf-8')
+  } catch (e) {
+    if (hasErrorCode(e, 'ENOENT') || hasErrorCode(e, 'ENOTDIR')) return 'none'
+    throw e
+  }
+  try {
+    const marker = JSON.parse(raw) as Partial<CacheMoveMarker>
+    return marker.source === legacyReal ? 'ours' : 'foreign'
+  } catch {
+    // Unreadable: nobody can prove it is theirs, so it is no one's to resume.
+    return 'foreign'
+  }
+}
+
+/** What to do with a legacy cache folder. */
+export type LegacyCacheAction =
+  /** Nothing: no data, or the target is (around, inside) the folder itself. */
+  | 'none'
+  /** Move it, or resume this workspace's interrupted move. */
+  | 'move'
+  /** Leave it: the target already holds another cache. */
+  | 'keep'
+  /** This workspace's move moved everything but did not remove its marker and folder. */
+  | 'finish'
+
+/** Seams for tests; production uses the running platform. */
+export type LegacyCacheActionOptions = { platform?: NodeJS.Platform }
+
+/** Decide what a legacy cache folder needs, as {@link LegacyCacheAction} describes. */
+export async function legacyCacheAction(
+  legacy: string,
+  target: string,
+  options: LegacyCacheActionOptions = {},
+): Promise<LegacyCacheAction> {
+  if (await dirsOverlap(legacy, target, options.platform ?? process.platform)) return 'none'
+  const owner = await markerOwner(target, await canonicalPath(legacy))
+  const legacyHasData = await hasCacheData(legacy)
+  if (owner === 'ours') return legacyHasData ? 'move' : 'finish'
+  if (!legacyHasData) return 'none'
+  if (owner === 'foreign') return 'keep'
   return (await hasCacheData(target)) ? 'keep' : 'move'
 }
 
-/** How a move went: everything moved, or the target turned out to have data. */
-export type LegacyCacheMoveOutcome = 'moved' | 'kept'
+/** How a move or finish went. */
+export type LegacyCacheMoveResult =
+  | { outcome: 'moved' }
+  /** The target turned out to hold another cache; nothing moved. */
+  | { outcome: 'kept' }
+  /** Everything moved, but these entries were left in (or appeared in) the old folder. */
+  | { outcome: 'partial'; left: string[] }
 
 /** Seams for tests; production uses the real file system. */
 export type MoveLegacyCacheDeps = {
-  /** Rename one entry; `EXDEV` falls back to copy-then-delete. */
+  /** Rename one entry; `EXDEV` falls back to copy-then-rename-then-delete. */
   rename?: (from: string, to: string) => Promise<void>
+  /** Runs after a cross-device copy is in place and before its source is removed. */
+  afterCopy?: (destination: string) => Promise<void>
 }
 
-/**
- * Move one directory entry: a rename on the same file system (retried through
- * Windows' transient locks), else a recursive copy followed by deleting the
- * source — only once the copy has finished.
- */
-async function moveEntry(
-  from: string,
-  to: string,
-  rename: ((from: string, to: string) => Promise<void>) | undefined,
-): Promise<void> {
+/** Whether a path exists, without following a final symlink. */
+async function exists(file: string): Promise<boolean> {
   try {
-    await renameWithRetry(from, to, rename === undefined ? {} : { rename })
+    await fs.lstat(file)
+    return true
   } catch (e) {
-    if (!hasErrorCode(e, 'EXDEV')) throw e
-    await fs.cp(from, to, { recursive: true, errorOnExist: true, force: false })
-    await fs.rm(from, { recursive: true, force: true })
+    if (hasErrorCode(e, 'ENOENT')) return false
+    throw e
   }
 }
 
 /**
- * Move every entry of `legacy` (except a cache-write lock file) into `target`,
- * then remove `legacy` if that left it empty. Holds the cache-write lock in
- * `target` throughout and re-checks it first: another workspace's process may
- * have filled the target since the move was planned, and then nothing is
- * moved (`kept`). A marker in `target` covers the move, so an interrupted one
- * is resumed by the next run; an entry already present in `target` then is a
- * partial copy of this move's own and is replaced.
+ * Move one entry: a rename on the same file system (retried through Windows'
+ * transient locks); across file systems, a copy under a temporary name, a
+ * rename into place, then removal of the source.
  */
-export async function moveLegacyCache(
-  legacy: string,
-  target: string,
-  deps: MoveLegacyCacheDeps = {},
-): Promise<LegacyCacheMoveOutcome> {
+async function moveEntry(from: string, to: string, deps: MoveLegacyCacheDeps): Promise<void> {
+  try {
+    try {
+      await renameWithRetry(from, to, deps.rename === undefined ? {} : { rename: deps.rename })
+      return
+    } catch (e) {
+      if (!hasErrorCode(e, 'EXDEV')) throw e
+    }
+    const partial = `${to}${PARTIAL_INFIX}${process.pid}`
+    await fs.rm(partial, { recursive: true, force: true })
+    await fs.cp(from, partial, { recursive: true, errorOnExist: true, force: false })
+    await renameWithRetry(partial, to)
+    await deps.afterCopy?.(to)
+    await fs.rm(from, { recursive: true, force: true })
+  } catch (e) {
+    throw localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.migrate.cacheMoveFailed', {
+      path: from,
+      reason: getErrorMessage(e),
+      command: commandLine(COMMAND.migrate),
+    })
+  }
+}
+
+/**
+ * Remove the emptied legacy folder — unlinking it when it is a symlink —
+ * after removing the marker. Entries still in it (an older Ritual's lock
+ * file, or files it wrote meanwhile) make the result `partial`.
+ */
+async function removeLegacy(legacy: string, target: string): Promise<LegacyCacheMoveResult> {
+  await fs.rm(path.join(target, CACHE_MOVE_MARKER), { force: true })
+  const left = (await entriesOf(legacy)).filter((entry) => entry !== CACHE_MOVE_MARKER)
+  if (left.length > 0) return { outcome: 'partial', left: left.sort() }
+  const stats = await fs.lstat(legacy).catch(() => null)
+  if (stats === null) return { outcome: 'moved' }
+  if (stats.isSymbolicLink()) {
+    await fs.unlink(legacy)
+    return { outcome: 'moved' }
+  }
+  try {
+    await fs.rmdir(legacy)
+  } catch (e) {
+    // Something arrived between the listing and the removal.
+    if (!hasErrorCode(e, 'ENOTEMPTY') && !hasErrorCode(e, 'EEXIST')) throw e
+    return { outcome: 'partial', left: (await entriesOf(legacy)).sort() }
+  }
+  return { outcome: 'moved' }
+}
+
+/** Run `body` holding the cache-write lock in `target`. */
+function underTargetLock<T>(target: string, body: () => Promise<T>): Promise<T> {
   return withCacheLock(
     createDefaultFileSystemClient(),
     // i18n-exempt: lock-file `operation`, read back by other ritual processes — English by contract
     'workspace cache move',
-    async (): Promise<LegacyCacheMoveOutcome> => {
-      const resuming = await moveInterrupted(target)
-      if (!resuming && (await hasCacheData(target))) return 'kept'
-      const marker = path.join(target, CACHE_MOVE_MARKER)
-      await fs.writeFile(marker, '')
-      for (const entry of await entriesOf(legacy)) {
-        if (entry === CACHE_LOCK_FILENAME) continue
-        const destination = path.join(target, entry)
-        if (resuming) await fs.rm(destination, { recursive: true, force: true })
-        await moveEntry(path.join(legacy, entry), destination, deps.rename)
-      }
-      await fs.rm(marker, { force: true })
-      try {
-        await fs.rmdir(legacy)
-      } catch (e) {
-        // Still holds the lock file of a running older Ritual: leave it be.
-        if (!hasErrorCode(e, 'ENOTEMPTY') && !hasErrorCode(e, 'EEXIST')) throw e
-      }
-      return 'moved'
-    },
+    body,
     { lockDir: target },
   )
+}
+
+/**
+ * Move every entry of `legacy` (but a lock file) into `target`, then remove
+ * `legacy`. Holds the cache-write lock in `target` and decides again under it:
+ * another workspace may have filled (or started moving into) the target since
+ * the move was planned, and then nothing moves (`kept`).
+ *
+ * Resuming this workspace's own interrupted move, an entry already present in
+ * `target` arrived whole (only a complete copy is ever renamed into place),
+ * so only its source is removed; leftover partial copies are discarded.
+ */
+export function moveLegacyCache(
+  legacy: string,
+  target: string,
+  deps: MoveLegacyCacheDeps = {},
+): Promise<LegacyCacheMoveResult> {
+  return underTargetLock(target, async (): Promise<LegacyCacheMoveResult> => {
+    const legacyReal = await canonicalPath(legacy)
+    const owner = await markerOwner(target, legacyReal)
+    if (owner === 'foreign') return { outcome: 'kept' }
+    if (owner === 'none' && (await hasCacheData(target))) return { outcome: 'kept' }
+
+    const marker: CacheMoveMarker = { source: legacyReal }
+    await fs.writeFile(path.join(target, CACHE_MOVE_MARKER), JSON.stringify(marker))
+    for (const entry of await entriesOf(target)) {
+      if (entry.includes(PARTIAL_INFIX)) {
+        await fs.rm(path.join(target, entry), { recursive: true, force: true })
+      }
+    }
+    for (const entry of await entriesOf(legacy)) {
+      if (NOT_MOVED.has(entry)) continue
+      const source = path.join(legacy, entry)
+      const destination = path.join(target, entry)
+      if (await exists(destination)) {
+        // Resuming, the destination was moved whole by the earlier attempt, so
+        // only the source is left to remove. Otherwise the name is taken by the
+        // target's own file: drop the source only when it is OS litter, and
+        // leave anything else in place (it is reported as left behind).
+        if (owner === 'ours' || OS_LITTER.has(entry)) {
+          await fs.rm(source, { recursive: true, force: true })
+        }
+        continue
+      }
+      await moveEntry(source, destination, deps)
+    }
+    return removeLegacy(legacy, target)
+  })
+}
+
+/**
+ * Finish this workspace's move that moved every entry but stopped before
+ * removing its marker and the old folder. A marker that is no longer this
+ * workspace's is left alone (`kept`).
+ */
+export function finishLegacyCacheMove(
+  legacy: string,
+  target: string,
+): Promise<LegacyCacheMoveResult> {
+  return underTargetLock(target, async (): Promise<LegacyCacheMoveResult> => {
+    if ((await markerOwner(target, await canonicalPath(legacy))) !== 'ours') {
+      return { outcome: 'kept' }
+    }
+    return removeLegacy(legacy, target)
+  })
 }

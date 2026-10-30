@@ -81,6 +81,10 @@ export const cliInfraMeta = {
     description:
       '`cache status` Location value when the workspace settings file chose the folder. {path} is the absolute folder path; {configKey} is the setting name (cacheDir) and {file} the settings file name (ritual.config.json). Never translate them.',
   },
+  'cli.cache.locationLegacy': {
+    description:
+      '`cache status` Location value when the workspace (project folder) still uses its own old cache folder, because the migration that moves it into the per-user cache shared by all workspaces has not run yet. {path} is the absolute folder path; {command} is the command that runs the migration (`ritual migrate`). Never translate either.',
+  },
   'cli.cache.locationDefault': {
     description:
       '`cache status` Location value when nothing overrides the folder: the per-user cache folder that every workspace (project folder) on this computer uses. {path} is the absolute folder path; never translate it.',
@@ -512,6 +516,10 @@ export const cliInfraMeta = {
   'cli.cacheStore.loadFailed': {
     description:
       'The cache file could not be read; an empty cache is used instead. The error is printed after this line.',
+  },
+  'cli.cacheStore.unwritable': {
+    description:
+      "Refusal of a write to the card cache: the cache file is there but unreadable or not valid JSON, and writing would replace everything in it (it may be shared by all the user's workspaces) with an empty cache plus one entry. {path} is the absolute file path; {reason} is the system's or parser's own error text, untranslated.",
   },
   'cli.cacheStore.saveFailed': {
     description: 'The cache file could not be written. The error is printed after this line.',
@@ -1329,6 +1337,18 @@ export const cliInfraMeta = {
     description:
       'Plan line (indented): the workspace\'s card cache folder {from} (e.g. "cache") will be moved to the absolute folder {to}, the shared per-user cache.',
   },
+  'cli.migrate.opCacheMoveConfigured': {
+    description:
+      'Plan line (indented): the workspace\'s card cache folder {from} (e.g. "cache") will be moved to the absolute folder {to}, which the workspace settings name rather than the default shared cache. {configKey} is the cacheDir setting and {file} the ritual.config.json file name; never translate them.',
+  },
+  'cli.migrate.opCacheMoveEnv': {
+    description:
+      'Plan line (indented): the workspace\'s card cache folder {from} (e.g. "cache") will be moved to the absolute folder {to}, which an environment variable names rather than the default shared cache. {envVar} is RITUAL_CACHE_DIR; never translate it.',
+  },
+  'cli.migrate.opCacheFinish': {
+    description:
+      'Plan line (indented): an earlier, interrupted run already moved the workspace\'s card cache into the shared folder {shared} (absolute path); what remains is removing the now-empty old folder {path} (e.g. "cache").',
+  },
   'cli.migrate.opCacheKeep': {
     description:
       'Plan line (indented): the workspace\'s old card cache folder {path} (e.g. "cache") will not be moved, because the shared cache folder {shared} (absolute path) already holds card data. Nothing is deleted; the user may delete the old folder.',
@@ -1376,6 +1396,14 @@ export const cliInfraMeta = {
   'cli.migrate.cacheMoved': {
     description:
       'Printed after migrating: the workspace\'s card cache folder {path} (e.g. "cache") was moved to the shared per-user cache folder {shared} (absolute path).',
+  },
+  'cli.migrate.cacheMovedPartly': {
+    description:
+      'Printed after migrating: the card cache moved from the workspace folder {path} (e.g. "cache") to the shared folder {shared} (absolute path), but some files were still in (or newly appeared in) the old folder, probably because an older Ritual was running. {entries} is the list of those file names, already joined. Ritual ignores the old folder from now on.',
+  },
+  'cli.migrate.cacheMoveFailed': {
+    description:
+      "Error: a file or folder {path} (absolute path) in the workspace's old card cache could not be moved into the shared cache. {reason} is the system's own error text, untranslated. {command} is `ritual migrate`, which resumes the move. Never translate {command}.",
   },
   'cli.migrate.cacheKept': {
     description:

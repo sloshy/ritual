@@ -39,7 +39,11 @@ import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
 import { isRecord } from '../util/json'
 import { backUpFiles } from '../util/safekeeping'
 import { renameWithRetry } from '../util/atomic-write'
-import { moveLegacyCache } from '../cache/relocate'
+import {
+  finishLegacyCacheMove,
+  moveLegacyCache,
+  type LegacyCacheMoveResult,
+} from '../cache/relocate'
 import { SKILLS } from '../skills/catalog'
 import type { RitualSkill } from '../skills/types'
 import {
@@ -477,9 +481,8 @@ async function applyFileOp(op: FileOp): Promise<void> {
   }
 }
 
-/** What a cache op did: the legacy folder `path` moved into, or was kept beside, `shared`. */
-export type CacheOpResult = {
-  outcome: 'moved' | 'kept'
+/** What a cache op did to the legacy folder `path` and the cache directory `shared`. */
+export type CacheOpResult = LegacyCacheMoveResult & {
   /** The legacy folder, relative to the base dir. */
   path: string
   /** The cache directory it moved to, or that already had data. */
@@ -489,8 +492,12 @@ export type CacheOpResult = {
 async function applyCacheOp(op: CacheOp): Promise<CacheOpResult> {
   switch (op.type) {
     case 'cache-move': {
-      const outcome = await moveLegacyCache(path.join(getBaseDir(), op.from), op.to)
-      return { outcome, path: op.from, shared: op.to }
+      const result = await moveLegacyCache(path.join(getBaseDir(), op.from), op.to)
+      return { ...result, path: op.from, shared: op.to }
+    }
+    case 'cache-finish': {
+      const result = await finishLegacyCacheMove(path.join(getBaseDir(), op.path), op.shared)
+      return { ...result, path: op.path, shared: op.shared }
     }
     case 'cache-keep':
       return { outcome: 'kept', path: op.path, shared: op.shared }

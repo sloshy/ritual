@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { CACHE_DIR_SOURCES } from '../../../src/cache/location'
+import { CACHE_DIR_SOURCES } from '../../../src/config/cache-location'
 import type { Client } from '@modelcontextprotocol/client'
 import { fromJsonSchema, type JsonSchemaType } from '@modelcontextprotocol/server'
 import {

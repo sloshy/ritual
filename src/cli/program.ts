@@ -31,7 +31,15 @@ import {
 import { parseBaseDir, resolveBaseDir, setBaseDir } from '../config/base-dir'
 import { resolveNoInput, setNoInputOverride } from '../util/no-input'
 import { ensureCardIdsForAllLists } from '../list/ensure-card-ids'
-import { parseUiLocale, refreshRitualConfig } from '../config/ritual-config'
+import {
+  cacheDirCheckContext,
+  getRitualConfig,
+  isConfigParseError,
+  parseCacheDir,
+  parseUiLocale,
+  refreshRitualConfig,
+} from '../config/ritual-config'
+import { nonBlank } from '../util/user-dirs'
 import { ExitCode, CardCommandError, messageCommandError } from '../util/errors'
 import { isMessageParseError } from '../sync/message'
 import { PreActionFailure } from './action'
@@ -542,6 +550,21 @@ async function prepareAction(build: BuildProgramOptions, actionCommand: Command)
   const isMigrate = qualifiedCommandName(actionCommand) === 'migrate'
   if (!isMigrate) {
     await refreshRitualConfig()
+  }
+  // A RITUAL_CACHE_DIR naming a folder the cache must never take over (a
+  // root, the home folder, the workspace, a list folder) is a usage error,
+  // like a malformed RITUAL_CACHE_SERVER — checked against the list folders
+  // the config just loaded names.
+  const envCacheDir = nonBlank(process.env[ENV_VAR.cacheDir])
+  if (envCacheDir !== undefined) {
+    const parsedCacheDir = parseCacheDir(
+      envCacheDir,
+      cacheDirCheckContext(getRitualConfig()),
+      ENV_VAR.cacheDir,
+    )
+    if (isConfigParseError(parsedCacheDir)) {
+      throw messageCommandError('usage_error', ExitCode.UsageError, parsedCacheDir.error)
+    }
   }
   // The authoritative locale pass: `--base-dir` has been applied, so the
   // `uiLocale` tier reads the config file this run will actually use, and the

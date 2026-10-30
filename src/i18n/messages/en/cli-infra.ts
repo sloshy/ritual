@@ -34,6 +34,8 @@ export const cliInfraMessages = {
   'cli.cache.rowLocation': 'Location',
   'cli.cache.locationEnv': '{path} (from {envVar})',
   'cli.cache.locationConfig': '{path} (from {configKey} in {file})',
+  'cli.cache.locationLegacy':
+    "{path} (this workspace's own old cache folder, until `{command}` moves it to the cache all workspaces share)",
   'cli.cache.locationDefault': '{path} (per-user default, shared by every workspace)',
   'cli.cache.rowDefaultLanguage': 'Default language',
   'cli.cache.rowCardBulk': 'Card bulk',
@@ -242,6 +244,8 @@ export const cliInfraMessages = {
   'cli.cacheStore.invalidFormatReset': 'Detected invalid cache format. Resetting cache.',
   'cli.cacheStore.loadFailed': 'Failed to load cache, starting fresh.',
   'cli.cacheStore.saveFailed': 'Failed to save cache:',
+  'cli.cacheStore.unwritable':
+    'The card cache file {path} exists but could not be read ({reason}), so Ritual will not overwrite it. Fix or delete the file, then try again.',
   'cli.cacheStore.blocklisted': "Card '{name}' added to blocklist (expires {expires}).",
   'cli.cacheStore.unblocklisted': "Card '{name}' removed from blocklist (expired).",
   'cli.cacheStore.bulkWeekOld': 'Card cache bulk download is more than a week old. Refreshing...',
@@ -703,6 +707,11 @@ export const cliInfraMessages = {
   'cli.migrate.opDelete': '  delete {path}',
   'cli.migrate.opRename': '  move {from} → {to}',
   'cli.migrate.opCacheMove': '  move the card cache {from} → {to}',
+  'cli.migrate.opCacheMoveConfigured':
+    '  move the card cache {from} → {to} (the folder {configKey} in {file} names)',
+  'cli.migrate.opCacheMoveEnv': '  move the card cache {from} → {to} (the folder {envVar} names)',
+  'cli.migrate.opCacheFinish':
+    '  finish moving the card cache into {shared}: remove the emptied {path} folder',
   'cli.migrate.opCacheKeep':
     '  leave {path} in place: {shared} already has a card cache (you can delete {path} afterwards)',
   'cli.migrate.refreshHeading': 'Refresh generated files:',
@@ -719,6 +728,10 @@ export const cliInfraMessages = {
   'cli.migrate.applied': '✓ Applied migration {id}: {description}',
   'cli.migrate.backedUp': '✓ Saved a copy of the files it changed in {path}',
   'cli.migrate.cacheMoved': '✓ Moved the card cache from {path} to {shared}',
+  'cli.migrate.cacheMovedPartly':
+    '✓ Moved the card cache from {path} to {shared}, but {path} still holds {entries}: another Ritual may have been using it. Ritual no longer reads {path}; delete it once no other Ritual is running.',
+  'cli.migrate.cacheMoveFailed':
+    'Could not move {path} into the shared card cache: {reason}. Another Ritual (or another program) may be using it; close it and run `{command}` again to finish the move.',
   'cli.migrate.cacheKept':
     'Left {path} in place: {shared} already has a card cache, which every workspace now uses. Ritual no longer reads {path}; delete it to free the space.',
   'cli.migrate.wrote': '✓ Wrote {path}',

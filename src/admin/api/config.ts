@@ -5,6 +5,7 @@ import {
   isConfigParseError,
   loadRitualConfig,
   parseAdminConfig,
+  cacheDirCheckContext,
   parseCacheDir,
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
@@ -227,7 +228,17 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
         clearCacheDir = true
         delete updates.cacheDir
       } else {
-        const parsed = parseCacheDir(raw.cacheDir)
+        // Checked against the list folders this save leaves in place.
+        const current = await loadRitualConfig()
+        const parsed = parseCacheDir(
+          raw.cacheDir,
+          cacheDirCheckContext({
+            decksDir: typeof raw.decksDir === 'string' ? raw.decksDir : current.decksDir,
+            collectionsDir:
+              typeof raw.collectionsDir === 'string' ? raw.collectionsDir : current.collectionsDir,
+            wantedDir: typeof raw.wantedDir === 'string' ? raw.wantedDir : current.wantedDir,
+          }),
+        )
         if (isConfigParseError(parsed)) {
           return nestedRefusal(parsed.error)
         }

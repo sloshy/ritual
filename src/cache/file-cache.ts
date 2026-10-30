@@ -10,19 +10,56 @@ import {
 import { writeFileAtomic } from '../util/atomic-write'
 import { getLogger } from '../util/logger'
 import { t } from '../i18n/t'
+import { getErrorMessage } from '../util/errors'
 import { getBaseDir } from '../config/base-dir'
 import { getRitualConfig } from '../config/ritual-config'
 import { foldRepeatedFaceNames } from '../scryfall/card-utils'
-import { resolveCacheDir, type CacheDirLocation } from './location'
+import {
+  LEGACY_CACHE_DIR,
+  resolveCacheDir,
+  SHARED_CACHE_MIGRATION_ID,
+  type CacheDirLocation,
+} from '../config/cache-location'
+import { hasCacheDataSync } from './cache-entries'
+import { ENV_VAR } from '../util/cli-tokens'
+import { nonBlank } from '../util/user-dirs'
+
+/**
+ * Whether a workspace's old `cache/` folder still holds cache data, keyed by
+ * base dir. Asked only while migration 3 is pending there, and remembered for
+ * the process: nothing but `ritual migrate` moves that folder, and a migrate
+ * run changes the recorded migration, which ends the question.
+ */
+const legacyCacheHasData = new Map<string, boolean>()
+
+/** Whether the workspace at `baseDir` should still read its own old `cache/` folder. */
+function legacyCachePending(baseDir: string, migration: number): boolean {
+  if (migration >= SHARED_CACHE_MIGRATION_ID) return false
+  let known = legacyCacheHasData.get(baseDir)
+  if (known === undefined) {
+    known = hasCacheDataSync(path.join(baseDir, LEGACY_CACHE_DIR))
+    legacyCacheHasData.set(baseDir, known)
+  }
+  return known
+}
 
 /**
  * Where this process's card cache lives, and which setting chose it
- * (`RITUAL_CACHE_DIR`, the `cacheDir` config key, or the shared per-user
+ * (`RITUAL_CACHE_DIR`, the `cacheDir` config key, the workspace's own old
+ * `cache/` folder while migration 3 is pending, or the shared per-user
  * default). Resolved on every call: the base dir and config can change within
  * one process (tests, the admin server's config writes).
  */
 export function getCacheDirLocation(): CacheDirLocation {
-  return resolveCacheDir({ baseDir: getBaseDir(), configured: getRitualConfig().cacheDir })
+  const baseDir = getBaseDir()
+  const config = getRitualConfig()
+  const overridden =
+    nonBlank(process.env[ENV_VAR.cacheDir]) !== undefined || nonBlank(config.cacheDir) !== undefined
+  return resolveCacheDir({
+    baseDir,
+    configured: config.cacheDir,
+    legacyPending: !overridden && legacyCachePending(baseDir, config.managed?.migration ?? 0),
+  })
 }
 
 /** The card cache directory — every cache file's parent. See {@link getCacheDirLocation}. */
@@ -38,7 +75,6 @@ export function getCacheFile(): string {
 export const DEFAULT_EXPIRATION_MS = 86400000 // 24 hours
 const BLOCKLIST_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
-
 export interface CachedItem<T> {
   timestamp: number
   data: T
@@ -52,7 +88,13 @@ export interface CacheSchema {
   cards?: Record<string, CachedItem<ScryfallCard[]>>
   cardNameIndex?: Record<string, string>
   cardBlocklist?: Record<string, number>
-  metadata?: Partial<Record<CacheSection, { lastRefreshedAt?: number }>>
+  metadata?: Partial<Record<CacheSection, SectionMetadata>>
+}
+
+/** What the cache records about one section as a whole. */
+export type SectionMetadata = {
+  /** When a bulk load last filled the section, in epoch ms. */
+  lastRefreshedAt?: number
 }
 
 // Conditional type helper: extracts the data type for a given CacheSection key
@@ -73,6 +115,38 @@ async function fileStamp(filePath: string): Promise<string | null> {
   } catch {
     return null
   }
+}
+
+/** A loaded cache: its contents, the file and stamp it was read at, and why it could not be read. */
+type LoadedCache = {
+  cache: CacheSchema
+  path: string
+  stamp: string | null
+  /** Set when the file exists but could not be read or parsed; the cache then reads as empty. */
+  failure: unknown
+}
+
+/** Thrown from `beforeRename` when the cache file changed since it was loaded. */
+class StaleCacheWrite extends Error {}
+
+/** How many times a write starts over on a newer copy before it gives up. */
+const STALE_WRITE_ATTEMPTS = 5
+
+/**
+ * The tail of each cache file's write queue in this process, keyed by path:
+ * every manager over one file (the price and card managers share
+ * `cache.json`) writes through the same queue, one write at a time.
+ */
+const writeQueues = new Map<string, Promise<void>>()
+
+function enqueueWrite(filePath: string, run: () => Promise<void>): Promise<void> {
+  const next = (writeQueues.get(filePath) ?? Promise.resolve()).then(run, run)
+  const tail = next.catch(() => undefined)
+  writeQueues.set(filePath, tail)
+  void tail.then(() => {
+    if (writeQueues.get(filePath) === tail) writeQueues.delete(filePath)
+  })
+  return next
 }
 
 export function streamFromBatchResults<T>(
@@ -109,6 +183,8 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
    * or, worse, saved back over the other process's write.
    */
   private memoryCacheStamp: string | null = null
+  /** Why the file at {@link memoryCachePath} could not be read, when it could not. */
+  private memoryCacheFailure: unknown = undefined
   private expirationMs: number
   private now: () => number
 
@@ -133,6 +209,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     this.memoryCache = null
     this.memoryCachePath = null
     this.memoryCacheStamp = null
+    this.memoryCacheFailure = undefined
   }
 
   /**
@@ -145,24 +222,26 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     return this.section === 'cards' ? foldRepeatedFaceNames(key) : key
   }
 
-  private async load(): Promise<CacheSchema> {
+  /**
+   * The cache as the file holds it now, with the stamp it was read at. A file
+   * that exists but cannot be read or parsed reads as an empty cache — and
+   * comes back `unreadable`, so no write ever replaces it with that emptiness.
+   * The failure is remembered for the file's current stamp, so it is reported
+   * once rather than on every lookup.
+   */
+  private async loadState(): Promise<LoadedCache> {
     const filePath = this.filePathGetter()
     const stamp = await fileStamp(filePath)
-    if (
-      this.memoryCache &&
-      this.memoryCachePath === filePath &&
-      this.memoryCacheStamp === stamp
-    ) {
-      return this.memoryCache
+    if (this.memoryCache && this.memoryCachePath === filePath && this.memoryCacheStamp === stamp) {
+      return { cache: this.memoryCache, path: filePath, stamp, failure: this.memoryCacheFailure }
     }
 
-    const defaultSchema: CacheSchema = { prices: {}, cards: {} }
-    let result: CacheSchema = defaultSchema
-    try {
-      const file = Bun.file(filePath)
-      if (await file.exists()) {
-        const text = await file.text()
-        const json = JSON.parse(text) as Partial<CacheSchema>
+    const empty: CacheSchema = { prices: {}, cards: {} }
+    let result: CacheSchema = empty
+    let failure: unknown = undefined
+    if (stamp !== null) {
+      try {
+        const json = JSON.parse(await Bun.file(filePath).text()) as Partial<CacheSchema>
 
         // Basic validation
         if (typeof json === 'object' && json !== null) {
@@ -184,62 +263,95 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
         } else {
           getLogger().warn(t('cli.cacheStore.invalidFormatReset'))
         }
+      } catch (e) {
+        failure = e
+        getLogger().error(t('cli.cacheStore.loadFailed'), e)
       }
-    } catch (e) {
-      getLogger().error(t('cli.cacheStore.loadFailed'), e)
     }
     this.memoryCache = result
     this.memoryCachePath = filePath
     this.memoryCacheStamp = stamp
-    return result
+    this.memoryCacheFailure = failure
+    return { cache: result, path: filePath, stamp, failure }
   }
 
-  /** The tail of this instance's write queue: writes run one at a time, in call order. */
-  private writes: Promise<void> = Promise.resolve()
+  private async load(): Promise<CacheSchema> {
+    return (await this.loadState()).cache
+  }
 
   /**
    * Change the cache and write it back. `apply` edits the loaded cache in place
    * and says whether it changed anything (nothing is written when it did not).
    *
-   * The cache file may be shared by every workspace's processes, and a write
-   * rewrites the whole file. So just before writing, the file is checked again:
-   * when another process rewrote it since it was loaded, it is reloaded and
-   * `apply` runs again on the newer copy, rather than this process saving its
-   * older copy over the other's write. (Writes inside one process are queued, so
-   * they never interleave.) What remains is the moment between that check and
-   * the rename: two single-entry writes landing in the same instant can still
-   * lose one entry, which the next lookup fetches again.
+   * The cache file may be shared by every workspace's processes (and, within
+   * one process, by every manager over it), and a write rewrites the whole
+   * file. So:
+   *
+   * - writes to one file from this process are queued, whichever manager makes them;
+   * - each write is checked against the file as this write loaded it, just
+   *   before the new contents replace it; when another process rewrote it in
+   *   the meantime, the write is abandoned, the file reloaded and `apply` run
+   *   again on the newer copy — never an older copy saved over a newer one;
+   * - a file that exists but cannot be read is never overwritten: the write
+   *   is refused with an error saying so.
+   *
+   * What remains is the instant between that last check and the rename: two
+   * processes whose renames land within it can still lose one write (a
+   * single-card save, fetched again on the next lookup; bulk refreshes also
+   * hold the cache lock, so two of them never race).
    */
   private mutate(apply: (cache: CacheSchema) => boolean): Promise<void> {
     const run = async (): Promise<void> => {
-      let cache = await this.load()
-      if (!apply(cache)) return
-      const filePath = this.filePathGetter()
-      if ((await fileStamp(filePath)) !== this.memoryCacheStamp) {
+      for (let attempt = 1; ; attempt++) {
+        const state = await this.loadState()
+        if (state.failure !== undefined) {
+          throw new Error(
+            t('cli.cacheStore.unwritable', {
+              path: state.path,
+              reason: getErrorMessage(state.failure),
+            }),
+          )
+        }
+        if (!apply(state.cache)) return
+        const written = await this.save(state)
+        if (written || attempt === STALE_WRITE_ATTEMPTS) return
+        // Another process rewrote the file since it was loaded: start over from it.
         this.invalidate()
-        cache = await this.load()
-        if (!apply(cache)) return
       }
-      await this.save(cache, filePath)
     }
-    const next = this.writes.then(run, run)
-    this.writes = next.catch(() => undefined)
-    return next
+    return enqueueWrite(this.filePathGetter(), run)
   }
 
-  private async save(cache: CacheSchema, filePath: string): Promise<void> {
+  /**
+   * Write `state.cache` over the file, unless the file has changed since
+   * `state` was loaded. Returns false for that (the caller reloads and
+   * retries); a failed write is reported and returns true — there is nothing
+   * to retry.
+   */
+  private async save(state: LoadedCache): Promise<boolean> {
+    // Serialized before any await: what is written is exactly what was applied.
+    const text = JSON.stringify(state.cache, null, 2)
+    let written: string | null = null
     try {
-      // Serialized before any await: what is written is exactly what was applied.
-      const text = JSON.stringify(cache, null, 2)
-      await mkdir(path.dirname(filePath), { recursive: true })
-      await writeFileAtomic(filePath, text)
-      // Our own write must not read as another process's.
-      this.memoryCache = cache
-      this.memoryCachePath = filePath
-      this.memoryCacheStamp = await fileStamp(filePath)
+      await mkdir(path.dirname(state.path), { recursive: true })
+      await writeFileAtomic(state.path, text, {
+        beforeRename: async (tmpPath) => {
+          if ((await fileStamp(state.path)) !== state.stamp) throw new StaleCacheWrite()
+          // A rename keeps the stamp, so this is the file's stamp once it lands.
+          written = await fileStamp(tmpPath)
+        },
+      })
     } catch (e) {
+      if (e instanceof StaleCacheWrite) return false
       getLogger().error(t('cli.cacheStore.saveFailed'), e)
+      return true
     }
+    // Our own write must not read as another process's.
+    this.memoryCache = state.cache
+    this.memoryCachePath = state.path
+    this.memoryCacheStamp = written
+    this.memoryCacheFailure = undefined
+    return true
   }
 
   async get(key: string): Promise<DataType<K> | null> {

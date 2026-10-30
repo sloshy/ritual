@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import path from 'node:path'
-import { resolveCacheDir } from '../../../src/cache/location'
-import { defaultUserCacheDir, type UserDirsEnvironment } from '../../../src/util/user-dirs'
+import {
+  cacheDirProblem,
+  resolveCacheDir,
+  type CacheDirProblem,
+} from '../../src/config/cache-location'
+import { defaultUserCacheDir, type UserDirsEnvironment } from '../../src/util/user-dirs'
 
 const HOME = '/home/ada'
 const WORKSPACE = '/work/decks-repo'
@@ -16,13 +20,20 @@ describe('defaultUserCacheDir', () => {
       '/var/cache/ada/ritual',
     )
     expect(defaultUserCacheDir(linux())).toBe('/home/ada/.cache/ritual')
-    // Blank reads as unset.
+    // Blank reads as unset, and so does a relative value (the XDG spec calls it invalid).
     expect(defaultUserCacheDir(linux({ XDG_CACHE_HOME: '  ' }))).toBe('/home/ada/.cache/ritual')
+    expect(defaultUserCacheDir(linux({ XDG_CACHE_HOME: 'rel/cache' }))).toBe(
+      '/home/ada/.cache/ritual',
+    )
   })
 
   test('macOS uses ~/Library/Caches/ritual and ignores XDG', () => {
     expect(
-      defaultUserCacheDir({ env: { XDG_CACHE_HOME: '/x' }, platform: 'darwin', home: '/Users/ada' }),
+      defaultUserCacheDir({
+        env: { XDG_CACHE_HOME: '/x' },
+        platform: 'darwin',
+        home: '/Users/ada',
+      }),
     ).toBe('/Users/ada/Library/Caches/ritual')
   })
 
@@ -91,4 +102,33 @@ describe('resolveCacheDir', () => {
       }),
     ).toEqual({ dir: '/home/ada/.cache/ritual', source: 'default' })
   })
+})
+
+describe('cacheDirProblem', () => {
+  const context = {
+    baseDir: WORKSPACE,
+    listDirs: ['./decks', './collections', '/srv/wanted'],
+    home: HOME,
+  }
+
+  test.each<[string, CacheDirProblem]>([
+    ['~/ritual-cache', 'tilde'],
+    ['/', 'root'],
+    [HOME, 'home'],
+    ['.', 'workspace'],
+    ['..', 'workspace'],
+    [WORKSPACE, 'workspace'],
+    ['decks', 'list-dir'],
+    ['./collections/cache', 'list-dir'],
+    ['/srv/wanted', 'list-dir'],
+  ])('refuses %p (%s)', (value, problem) => {
+    expect(cacheDirProblem(value, context)).toBe(problem)
+  })
+
+  test.each([['cache'], ['../shared-cache'], ['/var/cache/ritual'], [`${HOME}/.cache/ritual`]])(
+    'accepts %p',
+    (value) => {
+      expect(cacheDirProblem(value, context)).toBeNull()
+    },
+  )
 })

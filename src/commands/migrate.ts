@@ -15,6 +15,7 @@ import {
   planMigration,
   refusalError,
   type MigrationPlan,
+  type CacheOpResult,
   type MigrationResult,
   type PinBump,
 } from '../migrate/runner'
@@ -23,7 +24,7 @@ import { ExitCode } from '../util/errors'
 import { requireFlag } from '../util/no-input'
 import { printGitignoreRefresh } from './init-site'
 import { workspaceRelative } from '../config/base-dir'
-import { COMMAND, CONFIG_KEY, FILE, FLAG, commandLine } from '../util/cli-tokens'
+import { COMMAND, CONFIG_KEY, ENV_VAR, FILE, FLAG, commandLine } from '../util/cli-tokens'
 import { renderSyncParam } from '../sync/message'
 
 export type MigrateCommandOptions = DryRunOptions & {
@@ -49,11 +50,47 @@ function formatOp(op: MigrationOp): string {
     case 'rename':
       return t('cli.migrate.opRename', { from: op.from, to: op.to })
     case 'cache-move':
-      return t('cli.migrate.opCacheMove', { from: op.from, to: op.to })
+      switch (op.source) {
+        case 'config':
+          return t('cli.migrate.opCacheMoveConfigured', {
+            from: op.from,
+            to: op.to,
+            configKey: CONFIG_KEY.cacheDir,
+            file: FILE.config,
+          })
+        case 'env':
+          return t('cli.migrate.opCacheMoveEnv', {
+            from: op.from,
+            to: op.to,
+            envVar: ENV_VAR.cacheDir,
+          })
+        case 'default':
+        case 'legacy':
+          return t('cli.migrate.opCacheMove', { from: op.from, to: op.to })
+        default:
+          return op.source satisfies never
+      }
+    case 'cache-finish':
+      return t('cli.migrate.opCacheFinish', { path: op.path, shared: op.shared })
     case 'cache-keep':
       return t('cli.migrate.opCacheKeep', { path: op.path, shared: op.shared })
     default:
       return op satisfies never
+  }
+}
+
+/** The result line for one cache op. */
+function formatCacheResult(cache: CacheOpResult): string {
+  const { path, shared } = cache
+  switch (cache.outcome) {
+    case 'moved':
+      return t('cli.migrate.cacheMoved', { path, shared })
+    case 'kept':
+      return t('cli.migrate.cacheKept', { path, shared })
+    case 'partial':
+      return t('cli.migrate.cacheMovedPartly', { path, shared, entries: cache.left.join(', ') })
+    default:
+      return cache satisfies never
   }
 }
 
@@ -122,13 +159,7 @@ function printResult(plan: MigrationPlan, result: MigrationResult): void {
       }),
     )
   }
-  for (const cache of result.cache) {
-    console.log(
-      cache.outcome === 'moved'
-        ? t('cli.migrate.cacheMoved', { path: cache.path, shared: cache.shared })
-        : t('cli.migrate.cacheKept', { path: cache.path, shared: cache.shared }),
-    )
-  }
+  for (const cache of result.cache) console.log(formatCacheResult(cache))
   if (result.backupDir !== null) {
     console.log(t('cli.migrate.backedUp', { path: workspaceRelative(result.backupDir) }))
   }

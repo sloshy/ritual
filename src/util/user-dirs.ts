@@ -3,7 +3,7 @@
  * Ritual keeps for itself between runs (see `src/util/user-state.ts`), which
  * are neither configuration nor cache — losing them costs at most a repeated
  * prompt or check — and the default home of the card cache, which every
- * workspace shares unless it names its own (see `src/cache/location.ts`).
+ * workspace shares unless it names its own (see `src/config/cache-location.ts`).
  */
 
 import os from 'node:os'
@@ -27,6 +27,16 @@ export const PROCESS_ENVIRONMENT: UserDirsEnvironment = {
   get home(): string {
     return os.homedir()
   },
+}
+
+/**
+ * An XDG base-directory variable's value: unset when blank or relative, since
+ * the XDG Base Directory specification says a relative path is invalid and
+ * must be ignored.
+ */
+function xdgDir(value: string | undefined): string | undefined {
+  const set = nonBlank(value)
+  return set !== undefined && path.posix.isAbsolute(set) ? set : undefined
 }
 
 /** An environment variable's value, with blank read as unset. */
@@ -59,16 +69,17 @@ export function resolveUserStateDir(
   if (platform === 'darwin') {
     return path.posix.join(home, 'Library', 'Application Support', APP_DIR)
   }
-  const stateHome = nonBlank(env.XDG_STATE_HOME) ?? path.posix.join(home, '.local', 'state')
+  const stateHome = xdgDir(env.XDG_STATE_HOME) ?? path.posix.join(home, '.local', 'state')
   return path.posix.join(stateHome, APP_DIR)
 }
 
 /**
  * The platform's per-user cache directory for Ritual — where the card cache
  * lives when neither `RITUAL_CACHE_DIR` nor the `cacheDir` config key names
- * another (the precedence lives in `src/cache/location.ts`):
+ * another (the precedence lives in `src/config/cache-location.ts`):
  *
- * - Linux and other Unixes: `$XDG_CACHE_HOME/ritual`, or `~/.cache/ritual`;
+ * - Linux and other Unixes: `$XDG_CACHE_HOME/ritual`, or `~/.cache/ritual` (an unset,
+ *   blank or relative `XDG_CACHE_HOME` reads as unset, per the XDG specification);
  * - macOS: `~/Library/Caches/ritual`;
  * - Windows: `%LOCALAPPDATA%\ritual\cache`, or `~\AppData\Local\ritual\cache`
  *   (a `cache` folder inside the state directory, which uses no such name).
@@ -86,6 +97,6 @@ export function defaultUserCacheDir(
   if (platform === 'darwin') {
     return path.posix.join(home, 'Library', 'Caches', APP_DIR)
   }
-  const cacheHome = nonBlank(env.XDG_CACHE_HOME) ?? path.posix.join(home, '.cache')
+  const cacheHome = xdgDir(env.XDG_CACHE_HOME) ?? path.posix.join(home, '.cache')
   return path.posix.join(cacheHome, APP_DIR)
 }

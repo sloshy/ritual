@@ -15,6 +15,13 @@ export type AtomicWriteOptions = WriteFileOptions & {
    * {@link FileSystemClient} has no way to ask.
    */
   fs?: FileSystemClient
+  /**
+   * Runs once the new contents are fully written, just before they replace
+   * the target. Throwing abandons the write: the temporary file is removed and
+   * the target is left as it was. Lets a caller re-check, as late as possible,
+   * that the file is still the one it read. Receives the temporary file's path.
+   */
+  beforeRename?: (tmpPath: string) => Promise<void>
 }
 
 const defaultFileSystem = createDefaultFileSystemClient()
@@ -113,6 +120,7 @@ export async function writeFileAtomic(
     // `writeFile`'s mode is filtered through the umask; the replaced file's
     // bits are restored exactly.
     if (real && fileMode !== undefined) await nodeFs.chmod(tmpPath, fileMode)
+    await options.beforeRename?.(tmpPath)
     try {
       await renameWithRetry(tmpPath, target, { rename: (from, to) => fs.rename(from, to) })
     } catch (e) {

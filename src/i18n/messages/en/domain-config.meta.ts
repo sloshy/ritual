@@ -60,6 +60,21 @@ export const domainConfigMeta = {
   'domain.config.mustBePath': {
     description: `${REFUSAL} ${FIELD} The value must name a folder on disk — an absolute path, or one relative to the workspace folder — and must not be empty or only spaces.`,
   },
+  'domain.config.cacheDirTilde': {
+    description: `${REFUSAL} ${FIELD} The setting (or the RITUAL_CACHE_DIR environment variable, which {field} then names) chooses the folder where Ritual stores hundreds of megabytes of downloaded card data, writing and deleting files there, so it must not be a folder holding the user's other files. {value} is the value as written; never translate it. Here it starts with "~" (the home-folder shorthand), which a terminal expands but Ritual does not, so it would create a folder literally named "~".`,
+  },
+  'domain.config.cacheDirRoot': {
+    description: `${REFUSAL} ${FIELD} The setting (or the RITUAL_CACHE_DIR environment variable, which {field} then names) chooses the folder where Ritual stores hundreds of megabytes of downloaded card data, writing and deleting files there, so it must not be a folder holding the user's other files. {value} is the value as written; never translate it. Here it is the top of a drive or file system (such as "/" or "C:\\").`,
+  },
+  'domain.config.cacheDirHome': {
+    description: `${REFUSAL} ${FIELD} The setting (or the RITUAL_CACHE_DIR environment variable, which {field} then names) chooses the folder where Ritual stores hundreds of megabytes of downloaded card data, writing and deleting files there, so it must not be a folder holding the user's other files. {value} is the value as written; never translate it. Here it is the user's home folder itself.`,
+  },
+  'domain.config.cacheDirWorkspace': {
+    description: `${REFUSAL} ${FIELD} The setting (or the RITUAL_CACHE_DIR environment variable, which {field} then names) chooses the folder where Ritual stores hundreds of megabytes of downloaded card data, writing and deleting files there, so it must not be a folder holding the user's other files. {value} is the value as written; never translate it. Here it is the workspace (the project folder holding the user's lists) or a folder that contains it. "cache" is a literal folder name to suggest; keep it as is.`,
+  },
+  'domain.config.cacheDirListDir': {
+    description: `${REFUSAL} ${FIELD} The setting (or the RITUAL_CACHE_DIR environment variable, which {field} then names) chooses the folder where Ritual stores hundreds of megabytes of downloaded card data, writing and deleting files there, so it must not be a folder holding the user's other files. {value} is the value as written; never translate it. Here it is one of the folders holding the user's decks, collections or wanted lists, or a folder inside one.`,
+  },
   'domain.config.mustBeListName': {
     description: `${REFUSAL} ${FIELD} The value must name a list (a collection of cards the user keeps) and cannot be blank.`,
   },

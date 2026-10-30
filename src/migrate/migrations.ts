@@ -16,8 +16,14 @@ import {
   RETIRED_CONFIG_KEY,
   type RetiredConfigKey,
 } from '../util/cli-tokens'
-import { resolveCacheDir, type CacheDirLocation } from '../cache/location'
-import { LEGACY_CACHE_DIR, legacyCacheAction, pathsOverlap } from '../cache/relocate'
+import {
+  LEGACY_CACHE_DIR,
+  resolveCacheDir,
+  SHARED_CACHE_MIGRATION_ID,
+  type CacheDirLocation,
+} from '../config/cache-location'
+import { hasCacheDataSync } from '../cache/cache-entries'
+import { CACHE_MOVE_MARKER, legacyCacheAction, pathsOverlap } from '../cache/relocate'
 import type { UserDirsEnvironment } from '../util/user-dirs'
 
 /** A migration that removes one retired key from the `site` block, when present. */
@@ -53,13 +59,19 @@ function cacheTarget(ctx: MigrationContext, environment?: UserDirsEnvironment): 
 /**
  * Migration 3: the card cache moved out of every workspace's `cache/` folder
  * into one per-user cache (unless `RITUAL_CACHE_DIR` or the `cacheDir` key
- * names another directory). A workspace's old cache is moved into the
- * directory it now resolves to when that directory holds no cache data yet —
- * a rename on the same file system, else copy-then-delete. When it already
- * holds data (another workspace got there first), the old folder is left
- * untouched and the user is told it can be deleted: a cache is never deleted
- * that the new location did not receive. A workspace whose cache still
- * resolves to its own `cache/` (`cacheDir: "cache"`) has nothing to do.
+ * names another directory). Until it runs, a workspace with data in `cache/`
+ * keeps reading that folder (`src/cache/file-cache.ts`), so nothing downloads
+ * into the shared cache first.
+ *
+ * - The target holds no cache data: the old cache moves there (see
+ *   `src/cache/relocate.ts` for how a move stays safe across file systems,
+ *   interruptions and other workspaces).
+ * - The target already holds another cache: the old folder is left untouched
+ *   and the user is told it can be deleted. Nothing the target did not
+ *   receive is ever deleted.
+ * - This workspace's interrupted move: it is resumed, or finished.
+ * - The cache still resolves to `cache/` itself (`cacheDir: "cache"`), or the
+ *   folder holds no cache data: nothing to do.
  *
  * `environment` is the tests' seam; production reads the running process.
  */
@@ -71,24 +83,29 @@ export function sharedCacheMigration(id: number, environment?: UserDirsEnvironme
       envVar: ENV_VAR.cacheDir,
       configKey: CONFIG_KEY.cacheDir,
     }),
-    // Cheap by contract: one stat, and a path comparison (the plan also
-    // resolves symlinks and case-insensitive spellings).
+    // Cheap by contract: a listing of `cache/`, a stat and path comparisons
+    // (the plan also resolves symlinks and case-insensitive spellings). An
+    // empty `cache/` applies only while it has this workspace's move to finish.
     applies: (ctx: MigrationContext): boolean => {
       const legacy = path.join(ctx.baseDir, LEGACY_CACHE_DIR)
-      return (
-        existsSync(legacy) && !pathsOverlap(cacheTarget(ctx, environment).dir, path.resolve(legacy))
-      )
+      const target = cacheTarget(ctx, environment).dir
+      if (!existsSync(legacy) || pathsOverlap(target, path.resolve(legacy))) return false
+      return hasCacheDataSync(legacy) || existsSync(path.join(target, CACHE_MOVE_MARKER))
     },
     plan: async (ctx: MigrationContext): Promise<MigrationOp[]> => {
       const legacy = path.join(ctx.baseDir, LEGACY_CACHE_DIR)
-      const target = cacheTarget(ctx, environment).dir
-      switch (await legacyCacheAction(legacy, target)) {
+      const target = cacheTarget(ctx, environment)
+      switch (await legacyCacheAction(legacy, target.dir)) {
         case 'none':
           return []
         case 'move':
-          return [{ type: 'cache-move', from: LEGACY_CACHE_DIR, to: target }]
+          return [
+            { type: 'cache-move', from: LEGACY_CACHE_DIR, to: target.dir, source: target.source },
+          ]
+        case 'finish':
+          return [{ type: 'cache-finish', path: LEGACY_CACHE_DIR, shared: target.dir }]
         case 'keep':
-          return [{ type: 'cache-keep', path: LEGACY_CACHE_DIR, shared: target }]
+          return [{ type: 'cache-keep', path: LEGACY_CACHE_DIR, shared: target.dir }]
       }
     },
   }
@@ -117,7 +134,7 @@ export const MIGRATIONS: readonly Migration[] = [
       managedVersionConfigKey: CONFIG_KEY.managedVersion,
     }),
   ),
-  sharedCacheMigration(3),
+  sharedCacheMigration(SHARED_CACHE_MIGRATION_ID),
 ]
 
 /** The highest migration id in a list, or 0 for none. */
