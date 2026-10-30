@@ -21,7 +21,7 @@
     "serve": "bun run index.ts serve --build",
     "format": "bun fmt",
     "check-format": "bun fmt --check",
-    "lint": "eslint . --concurrency auto",
+    "lint": "eslint . --concurrency 2",
     "lint:repo": "bash scripts/lint-repo.sh",
     "precommit": "bun run scripts/precommit.ts",
     "verify": "bun run scripts/precommit.ts --full",

@@ -30,14 +30,21 @@
  *
  * Speed flags: unit tests run with `--parallel` (worker-per-core), the type
  * check is `bun check` (Bun's native checker, a second or two for the whole
- * project), and lint uses `--concurrency auto` (multithreaded) plus `--cache`
- * in the local-loop modes.
+ * project), and lint uses `--concurrency 2` plus `--cache` in the local-loop
+ * modes. Lint is capped at two workers because each one loads its own copy of
+ * the type-aware TypeScript program: measured on this repo, `auto` (12 cores)
+ * peaked above 17 GB and took WSL down, 4 workers 14.9 GB, 2 workers 8.3 GB
+ * (72s cold), 1 worker 4.6 GB (98s cold). Keep `package.json`'s `lint` script
+ * in step.
  *
  * Stall guard: a check with `stallTimeoutMs` runs in its own process group; a
  * run that outlives the limit has the whole group killed and is retried once.
  */
 
 import type { Subprocess } from 'bun'
+
+/** ESLint worker count; see the header comment for why it's capped. */
+const LINT_CONCURRENCY = '2'
 
 type Mode = 'staged' | 'full' | 'test'
 
@@ -272,7 +279,7 @@ async function planChecks(mode: Mode): Promise<Plan> {
               'eslint',
               '--cache',
               '--concurrency',
-              'auto',
+              LINT_CONCURRENCY,
               '--no-warn-ignored',
               '--no-error-on-unmatched-pattern',
               ...codeFiles,
