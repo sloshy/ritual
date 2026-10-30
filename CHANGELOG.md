@@ -40,8 +40,8 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
   its `cache/` is left untouched and `migrate` tells you that Ritual no longer reads it and
   you can delete it. The move is all or nothing: the whole folder is renamed (or, across
   disks, copied beside the target and renamed into place) only into a shared folder that
-  does not exist or holds nothing but OS litter, and Ritual never merges into or deletes
-  anything already there; if a step fails, `cache/` is left as it was. For a "Publish for
+  does not exist or is empty, and Ritual never merges into or deletes anything already
+  there; if a step fails, `cache/` is left as it was. For a "Publish for
   me" site, `migrate` also refreshes the deploy workflow, which now sets `RITUAL_CACHE_DIR: cache` so
   CI keeps caching the checkout's `cache/` folder; commit the updated workflow. A
   hand-written CI job that caches `cache/` needs the same variable. A workspace without a
