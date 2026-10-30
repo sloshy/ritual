@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  addedCardNamesFrom,
-  refusedToConflicts,
-  usedIdsAfterRestore,
-} from '../../src/editor/session-changes'
+import { addedCardNamesFrom, usedIdsAfterRestore } from '../../src/editor/session-changes'
 import {
   createAddChange,
   createMoveFromChange,
@@ -39,20 +35,5 @@ describe('addedCardNamesFrom', () => {
 describe('usedIdsAfterRestore', () => {
   test('unions the original ids with every id the restored changes reference, skipping id-less changes', () => {
     expect(usedIdsAfterRestore([1, 9], changes)).toEqual([1, 9, 2, 3, 4, 5])
-  })
-})
-
-describe('refusedToConflicts', () => {
-  test('reports a refusal under the import-side name of its reason', () => {
-    const change = createAddChange('Fog', { cardId: 5 })
-    expect(
-      refusedToConflicts([
-        { change, reason: 'no-target' },
-        { change, reason: 'needs-printing' },
-      ]),
-    ).toEqual([
-      { change, reason: 'target-not-found' },
-      { change, reason: 'needs-printing' },
-    ])
   })
 })

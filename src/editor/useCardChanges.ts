@@ -326,8 +326,11 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     }
     changesRef = next
 
-    setUndoStack([...undoStackRef])
-    setChanges([...changesRef])
+    // One update cycle, for the reason `recordChange` gives.
+    batch(() => {
+      setUndoStack([...undoStackRef])
+      setChanges([...changesRef])
+    })
 
     return { entry, remainingChanges: changesRef }
   }

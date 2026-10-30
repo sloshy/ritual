@@ -18,7 +18,8 @@ import {
  * id a line of the list still holds after the undo (`liveIds`): a copy added
  * onto a line the list already had — an increment, or an add that merged —
  * carries that line's id, and handing it out again would give a second line
- * the same `&N`.
+ * the same `&N`. The same holds for a restored removal (an add that had
+ * cancelled it is undone): a decrement leaves its line, and its id, in place.
  */
 export function reconcileIdPoolForUndo(
   release: (id: number) => void,
@@ -51,7 +52,9 @@ export function reconcileIdPoolForUndo(
   }
   if (entry.cancelledChange) {
     const change = entry.cancelledChange
-    if (change.action === 'remove' && change.cardId !== undefined) {
+    // A restored removal frees its id — unless it was a decrement the line
+    // outlives (a deck line with copies left), whose id the line still holds.
+    if (change.action === 'remove' && change.cardId !== undefined && !liveIds.has(change.cardId)) {
       release(change.cardId)
     }
     if (change.action === 'add' && change.cardId !== undefined) {

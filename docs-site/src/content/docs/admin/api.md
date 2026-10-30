@@ -1176,6 +1176,13 @@ What the route takes from the file rather than the request:
 - No string may contain a line break (see [Line breaks](#line-breaks)).
 - A collection change that adds a line (`add`, `move-to`, `set-printing`) must carry a printing.
 
+**Card ids.** A change need not carry an `&N`: the route gives each new line its id as it replays the batch, in apply order, and writes it onto the event, so the changelog records the id the line got.
+
+- An `add` or `move-to` with no `cardId` takes the smallest id free at that point. A line removed earlier in the same batch (a `remove`, a `move-from`, a deck line's last copy) has already released its id.
+- A deck copy that merges onto a line the deck already has takes that line's id and draws none.
+- A `cardId` the list does not hold is kept, as an editor that allocated it expects, and an id-less add never takes an id a later change in the batch names. On a collection or wanted list, a `cardId` naming a line the list already holds would duplicate it, so the new entry gets a free id instead.
+- A `cardId`, `sourceCardId` or `replacesCardId` that is not a positive integer is a `400` like any other decode refusal (`changes[0] has an invalid "cardId".`), and an `add` / `move-to` id beyond the list's highest id plus one per change in the batch is a `400` keyed `admin.api.save.idPastCeiling`.
+
 **All or nothing.** A change that does not apply to the list as it stands (its card is not there, or it needs a printing pinned first) refuses the whole batch with a `400`. The body names each change that missed in an `unmatched` array (each described in English, followed by its reason in parentheses: `no-target`, `not-applicable` or `needs-printing`), and nothing is written. Its `message` (`1 change matched no card in deck "burn": "Add Sol Ring &3" — card names match exactly (case-sensitive). Nothing was saved.`) is keyed `domain.changes.unmatched.summary`, and its params nest: each reason, and each change description inside it, is a message of its own, so the editor shows the whole refusal in the reader's language. A save never reports success while dropping changes.
 
 **Cross-list moves** in `changes` write the other list too, each with its own changelog entry:
@@ -1236,7 +1243,7 @@ The [save route](#save-a-list) answers with an `effects` array describing what t
 
 `previousCardId` appears only on an `updated` effect whose line was **renumbered**: another entry in the same save claimed its `&N` (a cross-list move carrying its source id, a replayed change bundle), so the serializer gave the older line a fresh number.
 
-A card's `&N` id is allocated inside the save, so the response is the **only** place a client that added a card can learn the id its line got. Set codes inside `printing` are lowercase.
+A card's `&N` id is allocated inside the save (see [Save a List](#save-a-list)), so the response is the **only** place a client that added a card without one can learn the id its line got. Set codes inside `printing` are lowercase.
 
 A save also re-files the list's [custom-art](/custom-art/) sidecar from the **changes**, not from the file it produced: a card the changes remove loses its art even when they re-add the same card and the new line takes the same `&N` back. To put art on a card you are adding, wait for the save to answer, then aim a [Card Art](#card-art) write at the id the effects report (following `previousCardId` where a line was renumbered). The admin editors' [add-card dialog](/admin/editors/#card-options) does this.
 
@@ -2598,7 +2605,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 }
 ```
 
-**How changes apply.** Every list's changes and every move are merged into one timestamp-ordered stream and applied in batches (consecutive events aimed at the same list); each batch loads its list fresh immediately before saving it. Changes are re-targeted to the list's current card IDs: by ID when it still exists, otherwise by card name (a copy the same import just added first).
+**How changes apply.** Every list's changes and every move are merged into one timestamp-ordered stream and applied in batches (consecutive events aimed at the same list); each batch loads its list fresh immediately before saving it. Changes are re-targeted to the list's current card IDs: by ID when it still exists, otherwise by card name (a copy the same import just added first). Added cards (and arriving moves) take the smallest free ID at the point they apply: a card the same batch removed earlier has already released its ID, and a deck copy that merges onto a line the deck already has takes that line's ID rather than drawing one.
 
 **Conflicts.** Changes whose target card no longer exists, whose action cannot apply to that list (a commander change aimed at a collection), or which would set a foil/etched finish on a card that pins no printing are skipped and reported in that list's `conflicts` as `{ change, reason }`, where `reason` is `"target-not-found"`, `"not-applicable"`, or `"needs-printing"`.
 

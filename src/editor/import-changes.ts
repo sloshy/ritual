@@ -1,6 +1,8 @@
 import { CATEGORY_ACTIONS, type ChangeAction, type ChangeEvent } from '../changes/change-event'
 import type { MessageKey } from '../i18n/messages/en'
-import type { MissReason } from '../changes/apply-batch'
+import type { MissReason, UnmatchedChange } from '../changes/apply-batch'
+import type { CardLabel } from '../card/card-labels'
+import { replayAssigningIds, type IdReplayOps } from '../changes/replay-ids'
 
 /**
  * A change from an imported file that could not be applied to the current list:
@@ -25,6 +27,22 @@ export type ImportConflict = {
 /** The import-side name for an engine's refusal. */
 export function importConflictReason(reason: MissReason): ImportConflictReason {
   return reason === 'no-target' ? 'target-not-found' : reason
+}
+
+/**
+ * A refused change is reported like any other inapplicable one — under the
+ * reason the engine actually gave — so the import summary never counts an
+ * edit the list did not take, nor names the wrong fix for it. A placeholder id
+ * ({@link provisionalIdAllocator}) the refused change still carries names no
+ * line, so it is left out of the report.
+ */
+export function refusedToConflicts(
+  refused: readonly UnmatchedChange<ChangeEvent>[],
+): ImportConflict[] {
+  return refused.map((item) => ({
+    change: withoutProvisionalIds(item.change),
+    reason: importConflictReason(item.reason),
+  }))
 }
 
 /**
@@ -79,6 +97,24 @@ export function provisionalIdAllocator(): () => number {
 
 /** Whether `id` is a {@link provisionalIdAllocator} placeholder. */
 export const isProvisionalId = (id: number): boolean => id < 0
+
+/** `change` without the placeholder ids it carries (`cardId`, a pin's `replacesCardId`). */
+function withoutProvisionalIds(change: ChangeEvent): ChangeEvent {
+  let stripped = change
+  if ('cardId' in stripped && stripped.cardId !== undefined && isProvisionalId(stripped.cardId)) {
+    const { cardId: _placeholder, ...rest } = stripped
+    stripped = rest
+  }
+  if (
+    stripped.action === 'move-to' &&
+    stripped.replacesCardId !== undefined &&
+    isProvisionalId(stripped.replacesCardId)
+  ) {
+    const { replacesCardId: _placeholder, ...rest } = stripped
+    stripped = rest
+  }
+  return stripped
+}
 
 /**
  * Point the re-target state at the real ids the replay gave its placeholders
@@ -248,4 +284,64 @@ export function retargetImportedChanges(params: RetargetParams): RetargetResult 
   }
 
   return { retargeted, conflicts }
+}
+
+type ListImportParams<TData> = {
+  /** The list as loaded — the baseline the changes replay over. */
+  data: TData
+  changes: ChangeEvent[]
+  /** `&N` → card name on `data` (see {@link RetargetParams.currentNames}). */
+  currentNames: ReadonlyMap<number, string>
+  /** The list type's reducer and id rules — the save route's own. */
+  ops: IdReplayOps<TData>
+  /** Carried across batches of the same list; a fresh state when omitted. */
+  state?: RetargetState
+  /** The list's default labels, handed to every apply and merge probe. */
+  listLabels?: readonly CardLabel[]
+}
+
+/** What {@link importIntoList} produced. */
+export type ListImport<TData> = {
+  /** The list with every applicable change replayed. */
+  data: TData
+  /** The changes that applied, re-aimed, each new line stamped with its real id. */
+  applied: ChangeEvent[]
+  /** The re-target's conflicts, then the changes the reducer refused. */
+  conflicts: ImportConflict[]
+}
+
+/**
+ * Bring an imported change list onto a list: re-target it at the list's card
+ * IDs, giving each line it creates a placeholder id, then replay it with the
+ * list type's reducer (`replayAssigningIds`), which gives each new line the id
+ * the card-id rule says it gets at that point in the batch — a line removed
+ * earlier has released its id, and a deck copy that merges onto a line takes
+ * that line's id. The re-target state follows the real ids, so a later batch's
+ * reference to a copy this one added resolves.
+ *
+ * Retargeting only guarantees the target *card* resolves; a change can still
+ * miss at apply time (an `unset-commander` on a card outside the commander
+ * section, a commander action aimed at a flat list). Those are reported as
+ * conflicts and left out of `applied`, so a save names only real edits. The
+ * one protocol both the admin import route and an editor's import use.
+ */
+export function importIntoList<TData>(params: ListImportParams<TData>): ListImport<TData> {
+  const state = params.state ?? createRetargetState()
+  const { retargeted, conflicts } = retargetImportedChanges({
+    changes: params.changes,
+    currentNames: params.currentNames,
+    allocateId: provisionalIdAllocator(),
+    state,
+  })
+  const replayed = replayAssigningIds(params.data, retargeted, params.ops, {
+    listLabels: params.listLabels,
+    isProvisional: isProvisionalId,
+  })
+  settleRetargetState(state, replayed.resolved)
+  const missed = new Set(replayed.unmatched.map((item) => item.change))
+  return {
+    data: replayed.data,
+    applied: replayed.changes.filter((change) => !missed.has(change)),
+    conflicts: [...conflicts, ...refusedToConflicts(replayed.unmatched)],
+  }
 }

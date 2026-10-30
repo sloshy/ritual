@@ -1000,15 +1000,23 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
 
 ### Fixed
 
-- New cards now get the id the card-id rules promise, and the changelog records it.
-  A card added through the MCP server (or any client of the admin save API) was written
-  with an id but logged in the changelog without one. A card added after a removal in the
-  same `import-changes` bundle drew a new, higher id instead of reusing the one the removal
-  freed. And a deck copy that merged onto a line the deck already had, whether added from
-  the editors' Add Card search or imported, used up an id no line ever got. Existing
-  changelog entries are left as they are. Undoing an added copy whose line is still in the
-  deck (a `+` click, or an add that merged) no longer frees that line's id for the next
-  card added in the session, which could give two lines the same id.
+- New cards now get the id the card-id rules promise, and the changelog records the id
+  the line actually got.
+  - A card added through the MCP server (or any client of the admin save API) was written
+    with an id but logged in the changelog without one.
+  - A card added after a removal in the same `import-changes` bundle, or in the same
+    change file loaded into an editor, drew a new, higher id instead of reusing the one
+    the removal freed.
+  - A deck copy that merged onto a line the deck already had, whether added from the
+    editors' Add Card search or imported, used up an id no line ever got.
+  - A collection or wanted-list add sent to the admin save API with an id another line
+    already held was logged under that id, while the file gave the new line a different one.
+
+  Undoing an added copy whose line is still in the deck (a `+` click, or an add that
+  merged), or undoing an add that had cancelled a decrement, no longer frees that line's
+  id for the next card added in the session, which could give two lines the same id. Nor
+  does adding a copy that cancels a pending decrement discard custom art staged for that
+  line. Existing changelog entries are left as they are.
 
 - On the sites' card-image views, a card's count badge (`2x`, `4x`) sits below the selection
   checkbox instead of beside it, so it no longer covers the start of the card's name. Stack

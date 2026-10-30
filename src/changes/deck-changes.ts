@@ -102,11 +102,11 @@ function mergesOntoCard(
  * already has, or `undefined` when it would start a new one (or the line it
  * merges into carries no id yet).
  *
- * Deliberately ignores `change.cardId`: the caller is an editing session asking
- * *before* it applies the add, and the id it allocated is by definition one no
- * line carries. What the answer is for is aiming per-line metadata — custom art
- * — at the line the copies will actually share, rather than at an id that
- * evaporates when {@link applyChangeToDeck} folds the copy in.
+ * Deliberately ignores `change.cardId`: the caller asks *before* it applies the
+ * copy, and the id it would carry is one no line holds yet. What the answer is
+ * for is aiming the copy — its id and per-line metadata such as custom art — at
+ * the line it will actually share, rather than at an id that evaporates when
+ * {@link applyChangeToDeck} folds it in.
  */
 export function findDeckAddMergeTargetId(
   deck: DeckData,
@@ -127,14 +127,8 @@ export function findDeckAddMergeLine(
   change: ChangeInput,
   options: DeckLandingOptions,
 ): DeckLineAt | null {
-  if (change.action === 'add') {
-    return findDeckMergeLine(deck.sections, change.cardName, change, {
-      ...options,
-      section: change.section,
-    })
-  }
-  if (change.action !== 'move-to') return null
-  const copy = arrivingCopy(change, options.listLabels)
+  if (change.action !== 'add' && change.action !== 'move-to') return null
+  const copy = change.action === 'add' ? change : arrivingCopy(change, options.listLabels)
   return findDeckMergeLine(deck.sections, change.cardName, copy, {
     ...options,
     section: change.section,
@@ -179,6 +173,24 @@ function findLineById(sections: readonly DeckSection[], cardId: number): DeckLin
     if (idx !== -1) return { section, idx, card: section.cards[idx]! }
   }
   return null
+}
+
+/**
+ * The line a copy lands on: the one carrying `cardId` first, then the line the
+ * merge rule folds it onto in `scope` — the reducer's own order, shared by the
+ * add, the dropped-note probe and a pin's split.
+ */
+function findLandingLine(
+  sections: readonly DeckSection[],
+  cardId: number | undefined,
+  cardName: string,
+  copy: DeckAdd,
+  scope: DeckMergeScope,
+): DeckLineAt | null {
+  return (
+    (cardId !== undefined ? findLineById(sections, cardId) : null) ??
+    findDeckMergeLine(sections, cardName, copy, scope)
+  )
 }
 
 /**
@@ -230,8 +242,7 @@ export function applyChangeToDeck(
   // merge rule ({@link mergesOntoCard}) — name AND identical printing AND the
   // same label override and tags.
   const findCardForAdd = (add: DeckAdd, scope: DeckMergeScope): DeckLineAt | null =>
-    (changeCardId !== undefined ? findLineById(sections, changeCardId) : null) ??
-    findDeckMergeLine(sections, changeCardName, add, scope)
+    findLandingLine(sections, changeCardId, changeCardName, add, scope)
 
   // Land one copy: onto the line it merges with in `scope` (that line keeps its
   // own note — one line, one note slot), else on a fresh line carrying `note`.
@@ -582,12 +593,13 @@ export function droppedMoveNote(
   options: DeckLandingOptions,
 ): string | undefined {
   if (!change.note || change.replacesCardId !== undefined) return undefined
-  const line =
-    (change.cardId !== undefined ? findLineById(deck.sections, change.cardId) : null) ??
-    findDeckMergeLine(deck.sections, change.cardName, arrivingCopy(change, options.listLabels), {
-      ...options,
-      section: change.section,
-    })
+  const line = findLandingLine(
+    deck.sections,
+    change.cardId,
+    change.cardName,
+    arrivingCopy(change, options.listLabels),
+    { ...options, section: change.section },
+  )
   if (line === null || line.card.note === change.note) return undefined
   return change.note
 }
@@ -644,10 +656,10 @@ function pinDeckLine(
   // The copy lands as a normal arrival: its own landed labels and tags, merged
   // by the rule (and in the scope) the merge-target probe uses.
   const copy = arrivingCopy(change, listLabels)
-  const landing =
-    findLineById(sections, change.cardId)?.card ??
-    findDeckMergeLine(sections, change.cardName, copy, { listLabels, section: change.section })
-      ?.card
+  const landing = findLandingLine(sections, change.cardId, change.cardName, copy, {
+    listLabels,
+    section: change.section,
+  })?.card
   if (landing) {
     landing.quantity += 1
     return true

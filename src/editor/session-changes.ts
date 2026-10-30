@@ -1,12 +1,9 @@
 /**
  * Pure reads over a session's change list: which cards it added that the
- * on-disk list did not hold, which `&N` ids a restored session occupies, and
- * how a replay's refusals report as import conflicts.
+ * on-disk list did not hold, and which `&N` ids a restored session occupies.
  */
 
 import type { ChangeEvent } from '../changes/change-event'
-import type { UnmatchedChange } from '../changes/apply-batch'
-import { importConflictReason, type ImportConflict } from './import-changes'
 
 /**
  * Card names added by `changes` — an `add` change for a card that wasn't in
@@ -41,18 +38,4 @@ export function usedIdsAfterRestore(
     if ('cardId' in change && typeof change.cardId === 'number') used.add(change.cardId)
   }
   return [...used]
-}
-
-/**
- * A refused change is reported like any other inapplicable one — under the
- * reason the engine actually gave — so the import summary never counts an
- * edit the list did not take, nor names the wrong fix for it.
- */
-export function refusedToConflicts(
-  refused: readonly UnmatchedChange<ChangeEvent>[],
-): ImportConflict[] {
-  return refused.map((item) => ({
-    change: item.change,
-    reason: importConflictReason(item.reason),
-  }))
 }

@@ -7,9 +7,9 @@ import { displayLanguage, storedLanguage, type CardLanguage } from '../card/card
  * What a save did to individual card lines, computed by diffing the list as it
  * was on disk against the list as it was written.
  *
- * This exists because `&N` ids are allocated at serialization time, inside the
- * save routes: a client that adds a card cannot know the id its line got until
- * the response says so. Reporting the diff is what removes the round trip an
+ * This exists because `&N` ids are allocated inside the save routes — an add
+ * sent without one is given one as the save replays the batch: a client that
+ * adds a card cannot know the id its line got until the response says so. Reporting the diff is what removes the round trip an
  * agent (or the MCP `apply_changes` tool) would otherwise make to re-read the
  * list just to learn one number.
  *

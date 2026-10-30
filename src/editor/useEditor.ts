@@ -35,8 +35,8 @@ import { applyCardTagsEdit } from './card-tags-edit'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { DEFAULT_CURRENCY } from '../pricing/price-currency'
 import type { ChangeEvent, CardPrintingOptions } from '../changes/change-event'
-import { isProvisionalId, provisionalIdAllocator, retargetImportedChanges } from './import-changes'
-import { replayAssigningIds, type IdReplayOps } from '../changes/replay-ids'
+import { importIntoList } from './import-changes'
+import { ID_LANDING } from '../changes/replay-ids'
 import type { ContextMenuState, CardContextInfo } from '../list-view/card-context'
 import { statusMessage, statusText, useEditorStatus } from './useEditorStatus'
 import type { ListType } from '../list/list-type'
@@ -74,7 +74,7 @@ import {
   sectionNameError,
   typedSectionHeading,
 } from './section-edits'
-import { addedCardNamesFrom, refusedToConflicts, usedIdsAfterRestore } from './session-changes'
+import { addedCardNamesFrom, usedIdsAfterRestore } from './session-changes'
 
 /** A navigation deferred until the user confirms discarding unsaved changes. */
 type PendingNavigation = { run: () => void; cancel?: () => void }
@@ -350,31 +350,36 @@ export function useEditor<TData, TCardEntry = unknown>(
     const copies = clampQuantity(quantity, 1, MAX_ADD_COPIES)
     const labels = extras?.labels
     const art = extras?.art ?? null
-    // Resolved against the data as it stands *before* the first copy is applied:
-    // afterwards the new line exists and every further copy merges into it.
-    const currentData = data()
-    const mergeTargetId =
-      currentData !== null
-        ? config.findAddMergeTargetId?.(currentData, {
-            action: 'add',
-            cardName,
-            set: normalized.set,
-            collectorNumber: normalized.collectorNumber,
-            finish: normalized.finish,
-            condition: normalized.condition,
-            language: normalized.language,
-            labels,
-          })
-        : undefined
-    // One `add` event per copy — the change format has no quantity field. Decks
-    // fold the copies into one entry, so they all share a card ID — the line's
-    // own when the copies merge onto one the deck already has, so no id is
-    // drawn for a line that never exists; flat lists store one entry per copy
-    // and each needs its own. Batched so the view repaints once rather than per
-    // copy.
-    const sharedId =
-      config.copyModel === 'quantity' ? (mergeTargetId ?? pool.allocate()) : undefined
+    // Batched so the view repaints once rather than per copy.
     batch(() => {
+      // Resolved against the data as it stands *before* the first copy is
+      // applied: afterwards the new line exists and every further copy merges
+      // into it.
+      const currentData = data()
+      const mergeTargetId =
+        currentData !== null
+          ? config.mergeLine?.(
+              currentData,
+              {
+                action: 'add',
+                cardName,
+                set: normalized.set,
+                collectorNumber: normalized.collectorNumber,
+                finish: normalized.finish,
+                condition: normalized.condition,
+                language: normalized.language,
+                labels,
+              },
+              undefined,
+            )?.cardId
+          : undefined
+      // One `add` event per copy — the change format has no quantity field.
+      // Decks fold the copies into one entry, so they all share a card ID — the
+      // line's own when the copies merge onto one the deck already has, so no id
+      // is drawn for a line that never exists; flat lists store one entry per
+      // copy and each needs its own.
+      const sharedId =
+        config.copyModel === 'quantity' ? (mergeTargetId ?? pool.allocate()) : undefined
       for (let i = 0; i < copies; i++) {
         const cardId = sharedId ?? pool.allocate()
         const result = changes.addCard(cardName, { ...normalized, cardId, labels })
@@ -396,8 +401,12 @@ export function useEditor<TData, TCardEntry = unknown>(
         // Where this copy's art belongs — including the case the rule exists
         // for: an add that cancelled a pending removal *and named art* puts that
         // art on the line that survived, rather than dropping it with the add.
+        // A copy that merged onto a line the list already had drew no id, so
+        // even when it cancelled a pending decrement of that line there is no
+        // allocated id to give up — it is the merge case, whose art rule leaves
+        // the line's staged art alone unless the add names some.
         const actions = addedCopyArtActions(
-          result.kind === 'cancelled'
+          result.kind === 'cancelled' && mergeTargetId === undefined
             ? { kind: 'cancelled', cardId, survivorId: result.cancelled?.cardId, art }
             : { kind: 'recorded', cardId, mergeTargetId, art },
         )
@@ -704,18 +713,24 @@ export function useEditor<TData, TCardEntry = unknown>(
     if (!result || !original) return
     const origData = original
     const { entry, remainingChanges } = result
-    // A change the replay could not take is no longer a pending edit: keeping it
-    // would put an edit in the changelog that the saved file does not contain.
-    const replayed = replayAndDrop(origData, remainingChanges)
-    // Replayed first, so an undone copy whose line is still there (an increment,
-    // or an add that merged onto a line) keeps that line's id out of the pool.
-    const liveIds = new Set(config.getOriginalCardNames(replayed.data).keys())
-    reconcileIdPoolForUndo(pool.release, pool.claim, entry, remainingChanges, liveIds)
-    // Same rule, one source: an id the undo moved carries no staged art any
-    // more, and shows whatever the list holds for it on disk again.
-    for (const cardId of artIdsResetByUndo(entry, remainingChanges, liveIds)) {
-      config.onCardArtReset?.(cardId)
-    }
+    batch(() => {
+      // A change the replay could not take is no longer a pending edit: keeping
+      // it would put an edit in the changelog that the saved file does not
+      // contain.
+      const replayed = replayAndDrop(origData, remainingChanges)
+      // Replayed first, so an undone copy whose line is still there (an
+      // increment, or an add that merged onto a line) keeps that line's id out
+      // of the pool — and judged against the changes that survived the replay,
+      // so a refused add does not hold its id.
+      const liveIds = new Set(config.getOriginalCardNames(replayed.data).keys())
+      const pending = changes.changes()
+      reconcileIdPoolForUndo(pool.release, pool.claim, entry, pending, liveIds)
+      // Same rule, one source: an id the undo moved carries no staged art any
+      // more, and shows whatever the list holds for it on disk again.
+      for (const cardId of artIdsResetByUndo(entry, pending, liveIds)) {
+        config.onCardArtReset?.(cardId)
+      }
+    })
   }
 
   const handleSave = async () => {
@@ -803,26 +818,27 @@ export function useEditor<TData, TCardEntry = unknown>(
     // Re-target against the on-disk baseline, then give each new line its id
     // in apply order — a line the import removes first releases its id for a
     // later add, and a deck copy that merges onto a line takes that line's id.
-    const currentNames = config.getOriginalCardNames(orig)
-    const { retargeted: provisional, conflicts } = retargetImportedChanges({
+    // The reducer and merge probe are this editor's own, bound to the list's
+    // default labels, so the stamped ids are the ones a save would give.
+    const importResult = importIntoList({
+      data: orig,
       changes: imported,
-      currentNames,
-      allocateId: provisionalIdAllocator(),
-    })
-    const idOps: IdReplayOps<TData> = {
-      apply: config.applyChange,
-      cardIds: (list) => [...config.getOriginalCardNames(list).keys()],
-      mergeLine: (list, add) => {
-        const cardId = config.findAddMergeTargetId?.(list, add)
-        return cardId === undefined ? null : { cardId }
+      currentNames: config.getOriginalCardNames(orig),
+      ops: {
+        apply: config.applyChange,
+        cardIds: (list) => [...config.getOriginalCardNames(list).keys()],
+        mergeLine: config.mergeLine,
+        ...ID_LANDING[config.listType],
       },
-    }
-    const retargeted = replayAssigningIds(orig, provisional, idOps, {
-      isProvisional: isProvisionalId,
-    }).changes
-    pool.resetPool(usedIdsAfterRestore([...currentNames.keys()], retargeted))
-    changes.loadChanges(retargeted)
-    const replayed = replayAndDrop(orig, retargeted)
+    })
+    const retargeted = importResult.applied
+    batch(() => {
+      // Seeded from the lines the import leaves: an id an imported removal
+      // freed is free again, as it would be had the edits been made here.
+      pool.resetPool([...config.getOriginalCardNames(importResult.data).keys()])
+      changes.loadChanges(retargeted)
+      setData(() => importResult.data)
+    })
 
     // Load display data (image + price) for cards added by the import that the
     // list did not already contain. Reuses the same per-list hook as adding a card
@@ -831,10 +847,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     for (const cardName of addedCardNamesFrom(retargeted, (name) => config.findCardId(orig, name)))
       void config.onCardAdded?.(cardName)
 
-    return {
-      loaded: retargeted.length - replayed.refused.length,
-      conflicts: [...conflicts, ...refusedToConflicts(replayed.refused)],
-    }
+    return { loaded: retargeted.length, conflicts: importResult.conflicts }
   }
 
   /**

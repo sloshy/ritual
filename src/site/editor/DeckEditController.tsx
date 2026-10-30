@@ -37,7 +37,8 @@ import {
   type DeckCardData,
   type DeckCardDataActions,
 } from '../../editor/useDeckCardData'
-import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../changes/deck-changes'
+import { applyChangeToDeck } from '../../changes/deck-changes'
+import { deckMergeLine } from '../../changes/replay-ids'
 import {
   findDeckCard,
   findDeckCardId,
@@ -146,8 +147,7 @@ export function useDeckEditController(
       // Follows from the data shape, like the copy model: a deck folds a repeat
       // of the same printing into the existing entry, so per-line metadata an
       // add carries has to be aimed at that entry's `&N`.
-      findAddMergeTargetId: (data, add) =>
-        findDeckAddMergeTargetId(data, add, { listLabels: listLabels() }),
+      mergeLine: (data, change) => deckMergeLine(data, change, listLabels()),
     },
     initialSlug,
   )

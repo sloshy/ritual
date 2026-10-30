@@ -1,8 +1,9 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
+import { captureDeckSaves, mockDeckEditorLoad } from '../helpers/mock-admin'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
 test.describe('Deck Editor Page', () => {
@@ -121,32 +122,15 @@ test.describe('Deck Editor Page', () => {
     test.beforeEach(async ({ page }) => {
       await gotoAdminDashboard(page)
 
-      await fulfillJson(
-        page,
-        '**/api/decks',
-        { decks: [{ slug: 'test-modal-deck', name: 'Test Modal Deck' }] },
-        { method: 'GET' },
-      )
-
-      await fulfillJson(page, '**/api/deck/test-modal-deck', {
-        success: true,
+      await mockDeckEditorLoad(page, {
         slug: 'test-modal-deck',
-        deck: {
-          name: 'Test Modal Deck',
-          sections: [
-            {
-              name: 'Main',
-              cards: [{ quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' }],
-            },
-          ],
-        },
-        cards: { 'Lightning Bolt': MOCK_BOLT_CARD },
+        name: 'Test Modal Deck',
+        cards: [{ quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' }],
         printings: { 'Lightning Bolt': [MOCK_BOLT_CARD] },
-        lowestPriceCards: { 'Lightning Bolt': MOCK_BOLT_CARD },
-        lowestPriceCardsEur: { 'Lightning Bolt': MOCK_BOLT_CARD },
-        lowestPriceCardsTix: {},
-        symbolMap: {},
-        frontMatter: {},
+        extra: {
+          lowestPriceCards: { 'Lightning Bolt': MOCK_BOLT_CARD },
+          lowestPriceCardsEur: { 'Lightning Bolt': MOCK_BOLT_CARD },
+        },
       })
 
       await fulfillJson(page, '**/api/autocomplete*', {
@@ -238,12 +222,6 @@ test.describe('Deck Editor Page', () => {
 
     test.beforeEach(async ({ page }) => {
       await gotoAdminDashboard(page)
-      await fulfillJson(
-        page,
-        '**/api/decks',
-        { decks: [{ slug: 'lang-move-deck', name: 'Lang Move Deck' }] },
-        { method: 'GET' },
-      )
       await fulfillJson(page, '**/api/lists', {
         success: true,
         lists: [
@@ -252,21 +230,12 @@ test.describe('Deck Editor Page', () => {
         ],
       })
       // A name-only line: moving it into a collection must pick a printing.
-      await fulfillJson(page, '**/api/deck/lang-move-deck', {
-        success: true,
+      await mockDeckEditorLoad(page, {
         slug: 'lang-move-deck',
-        contentHash: 'hash-1',
-        deck: {
-          name: 'Lang Move Deck',
-          sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }] }],
-        },
-        cards: { 'Lightning Bolt': BOLT_JA },
+        name: 'Lang Move Deck',
+        cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
         printings: { 'Lightning Bolt': [BOLT_JA] },
-        lowestPriceCards: {},
-        lowestPriceCardsEur: {},
-        lowestPriceCardsTix: {},
-        symbolMap: {},
-        frontMatter: {},
+        extra: { contentHash: 'hash-1' },
       })
       await openListEditor(page, 'deck')
       await selectList(page, 'deck', 'lang-move-deck')
@@ -313,12 +282,6 @@ test.describe('Deck Editor Page', () => {
 
     test.beforeEach(async ({ page }) => {
       await gotoAdminDashboard(page)
-      await fulfillJson(
-        page,
-        '**/api/decks',
-        { decks: [{ slug: 'proxy-move-deck', name: 'Proxy Move Deck' }] },
-        { method: 'GET' },
-      )
       await fulfillJson(page, '**/api/lists', {
         success: true,
         lists: [
@@ -326,38 +289,23 @@ test.describe('Deck Editor Page', () => {
           { type: 'collection', slug: 'binder', name: 'Binder' },
         ],
       })
-      await fulfillJson(page, '**/api/deck/proxy-move-deck', {
-        success: true,
+      await mockDeckEditorLoad(page, {
         slug: 'proxy-move-deck',
-        contentHash: 'hash-1',
-        deck: {
-          name: 'Proxy Move Deck',
-          sections: [
-            {
-              name: 'Main',
-              cards: [
-                {
-                  quantity: 1,
-                  name: 'Sol Ring',
-                  set: 'c19',
-                  collectorNumber: '221',
-                  note: 'home print',
-                  cardId: 1,
-                },
-              ],
-            },
-          ],
-        },
-        cards: { 'Sol Ring': SOL_RING },
+        name: 'Proxy Move Deck',
+        cards: [
+          {
+            quantity: 1,
+            name: 'Sol Ring',
+            set: 'c19',
+            collectorNumber: '221',
+            note: 'home print',
+            cardId: 1,
+          },
+        ],
         printings: { 'Sol Ring': [SOL_RING] },
-        lowestPriceCards: {},
-        lowestPriceCardsEur: {},
-        lowestPriceCardsTix: {},
-        symbolMap: {},
-        frontMatter: {},
         // The line has no override: it is a proxy through the deck's default,
         // which the editor reads from the load's list-level `labels`.
-        labels: ['proxy'],
+        extra: { contentHash: 'hash-1', labels: ['proxy'] },
       })
       await openListEditor(page, 'deck')
       await selectList(page, 'deck', 'proxy-move-deck')
@@ -367,11 +315,7 @@ test.describe('Deck Editor Page', () => {
     test('the saved move-from carries the line’s note and its inherited labels', async ({
       page,
     }) => {
-      let saved: SavedMove[] | null = null
-      await fulfillJson(page, '**/api/deck/proxy-move-deck/save', (route) => {
-        saved = (JSON.parse(route.request().postData() ?? '{}') as { changes: SavedMove[] }).changes
-        return { success: true, message: 'Saved', contentHash: 'hash-2', effects: [] }
-      })
+      const saved = await captureDeckSaves<SavedMove>(page, 'proxy-move-deck')
 
       await page.locator('.card-item').first().locator('.edit-btn-context').click()
       await page.locator('.card-context-menu button', { hasText: 'Move to list…' }).click()
@@ -380,10 +324,10 @@ test.describe('Deck Editor Page', () => {
       await expect(page.locator('.changes-badge')).toHaveText('1')
 
       await page.locator('.btn-save').click()
-      await expect.poll(() => saved?.length).toBe(1)
+      await expect.poll(() => saved()?.length).toBe(1)
       // The event records the copy's effective labels — the deck default it
       // inherits — so the binder can keep it a proxy.
-      expect(saved![0]).toMatchObject({
+      expect(saved()![0]).toMatchObject({
         action: 'move-from',
         cardName: 'Sol Ring',
         labels: ['proxy'],
@@ -391,6 +335,7 @@ test.describe('Deck Editor Page', () => {
       })
     })
   })
+
   test.describe('add card — a copy that merges onto a line', () => {
     const BOLT = makeMockScryfallCard({
       id: 'bolt-lea',
@@ -406,33 +351,17 @@ test.describe('Deck Editor Page', () => {
 
     test.beforeEach(async ({ page }) => {
       await gotoAdminDashboard(page)
-      await fulfillJson(
-        page,
-        '**/api/decks',
-        { decks: [{ slug: 'merge-deck', name: 'Merge Deck' }] },
-        { method: 'GET' },
-      )
-      await fulfillJson(page, '**/api/deck/merge-deck', {
-        success: true,
+      await mockDeckEditorLoad(page, {
         slug: 'merge-deck',
-        contentHash: 'hash-1',
-        deck: {
-          name: 'Merge Deck',
-          sections: [
-            {
-              name: 'Main',
-              // &1 and &2 are free: a fresh id would be &1.
-              cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 3 }],
-            },
-          ],
-        },
-        cards: { 'Lightning Bolt': BOLT },
-        printings: { 'Lightning Bolt': [BOLT] },
-        lowestPriceCards: {},
-        lowestPriceCardsEur: {},
-        lowestPriceCardsTix: {},
-        symbolMap: {},
-        frontMatter: {},
+        name: 'Merge Deck',
+        // No free id below &3: a new line takes &3, and a fresh id drawn for
+        // a merged copy (or one an undo handed back) would show up as &1/&2.
+        cards: [
+          { quantity: 1, name: 'Lightning Bolt', cardId: 1 },
+          { quantity: 1, name: 'Counterspell', cardId: 2 },
+        ],
+        printings: { 'Lightning Bolt': [BOLT], Counterspell: [BOLT] },
+        extra: { contentHash: 'hash-1' },
       })
       await fulfillJson(page, '**/api/autocomplete*', { success: true, names: ['Lightning Bolt'] })
       await fulfillJson(page, '**/api/card-printings*', {
@@ -445,30 +374,52 @@ test.describe('Deck Editor Page', () => {
       await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
     })
 
-    test('the add carries the line’s own id rather than drawing a fresh one', async ({ page }) => {
-      let saved: SavedAdd[] | null = null
-      await fulfillJson(page, '**/api/deck/merge-deck/save', (route) => {
-        saved = (JSON.parse(route.request().postData() ?? '{}') as { changes: SavedAdd[] }).changes
-        return { success: true, message: 'Saved', contentHash: 'hash-2', effects: [] }
-      })
-
-      // Added with no specific printing — the same tuple as the deck's line,
-      // so the copy folds onto it.
+    /** Search for Lightning Bolt in Add Card and reach the printing step. */
+    async function searchBolt(page: Page): Promise<void> {
       await page.keyboard.press('Control+Enter')
       const searchInput = page.locator('.search-modal input[type="text"]')
       await expect(searchInput).toBeVisible({ timeout: 5_000 })
       await searchInput.fill('Lightning Bolt')
       await expect(page.locator('.search-result-item', { hasText: 'Lightning Bolt' })).toBeVisible()
       await page.keyboard.press('Enter')
+    }
+
+    test('the add carries the line’s own id rather than drawing a fresh one', async ({ page }) => {
+      const saved = await captureDeckSaves<SavedAdd>(page, 'merge-deck')
+
+      // Added with no specific printing — the same tuple as the deck's line,
+      // so the copy folds onto it.
+      await searchBolt(page)
       await page.getByRole('button', { name: 'No specific printing' }).click()
       await expect(page.locator('.changes-badge')).toHaveText('1')
       await expect(page.locator('.modal-heading-flex')).toHaveCount(0, { timeout: 5_000 })
-      // Folded onto the existing line: still one tile.
-      await expect(page.locator('.card-item')).toHaveCount(1)
+      // Folded onto the existing line: still two tiles.
+      await expect(page.locator('.card-item')).toHaveCount(2)
 
       await page.locator('.btn-save').click()
-      await expect.poll(() => saved?.length).toBe(1)
-      expect(saved![0]).toMatchObject({ action: 'add', cardName: 'Lightning Bolt', cardId: 3 })
+      await expect.poll(() => saved()?.length).toBe(1)
+      expect(saved()![0]).toMatchObject({ action: 'add', cardName: 'Lightning Bolt', cardId: 1 })
+    })
+
+    test('undoing a merged copy keeps the line’s id out of the pool', async ({ page }) => {
+      const saved = await captureDeckSaves<SavedAdd>(page, 'merge-deck')
+
+      await searchBolt(page)
+      await page.getByRole('button', { name: 'No specific printing' }).click()
+      await expect(page.locator('.changes-badge')).toHaveText('1')
+      await page.locator('.btn-undo').click()
+      await expect(page.locator('.changes-badge')).toHaveCount(0)
+
+      // A specific printing does not merge with the name-only line: a new line,
+      // which must take &3 — not the &1 the line still holds.
+      await searchBolt(page)
+      await page.locator('.printing-select-card', { hasText: 'LEA #161' }).click()
+      await expect(page.locator('.changes-badge')).toHaveText('1')
+      await expect(page.locator('.card-item')).toHaveCount(3)
+
+      await page.locator('.btn-save').click()
+      await expect.poll(() => saved()?.length).toBe(1)
+      expect(saved()![0]).toMatchObject({ action: 'add', cardName: 'Lightning Bolt', cardId: 3 })
     })
   })
 })

@@ -791,8 +791,8 @@ describe('applyChangeBundle with moves', () => {
 
   test('a tagged copy moved into a deck folds onto the same-tagged line, and the changelog names it', async () => {
     // The `add` twin of this test is pinned above; a `move-to` carries tags
-    // too, so the id re-target's merge probe must see them or it rewrites the
-    // changelog to the plain sibling the reducer never merged onto.
+    // too, so the replay's merge probe must see them or it stamps the
+    // changelog with the plain sibling the reducer never merged onto.
     await writeDeckFile(ws.dir, 'test-deck', {
       name: 'Test Deck',
       cards: [
@@ -1066,9 +1066,9 @@ describe('applyChangeBundle with moves', () => {
         { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
       ],
     })
-    // No destination id on either move: each is allocated a fresh id, and the
-    // deck reducer folds the second onto the first line — the changelog must
-    // name that line, not a phantom `&3`.
+    // No destination id on either move: the first starts a line and the
+    // second folds onto it, so the replay stamps it with that line's id — the
+    // changelog must name that line, not a phantom `&3`.
     const result = await applyChangeBundle(
       bundleOf(
         [],
@@ -1134,8 +1134,8 @@ describe('applyChangeBundle with moves', () => {
     expect(deck).toMatch(/2 Sol Ring \(C21:263\) \[proxy\] &7/)
     expect(deck).toMatch(/1 Sol Ring \(C21:263\) &9/)
     const deckLog = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.changes.md'), 'utf-8')
-    // The re-target allocated a phantom id (the pool's smallest free, &1); the
-    // merge probe — labels included — rewrote it to the [proxy] line's &7.
+    // The merge probe — labels included — stamps the add with the [proxy]
+    // line's &7 rather than drawing the pool's smallest free id (&1).
     expect(deckLog).toMatch(/Added "Sol Ring" \(C21:263\) &7/)
     expect(deckLog).not.toMatch(/&1\b/)
     expect(deckLog).not.toMatch(/&9/)
@@ -1183,7 +1183,7 @@ describe('applyChangeBundle with moves', () => {
     expect(deck).toMatch(/2 Sol Ring \(C21:263\) #ramp &7/)
     expect(deck).toMatch(/1 Sol Ring \(C21:263\) &9/)
     const deckLog = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.changes.md'), 'utf-8')
-    // The merge probe includes tags, so the phantom id was rewritten to &7.
+    // The merge probe includes tags, so the add is stamped with the line's &7.
     expect(deckLog).toMatch(/Added "Sol Ring" \(C21:263\) &7/)
     expect(deckLog).not.toMatch(/&1\b/)
     expect(deckLog).not.toMatch(/&9/)
@@ -1280,39 +1280,9 @@ describe('applyChangeBundle save replay', () => {
     expect(deck).toMatch(/1 Sol Ring \(LEA:1\) &\d+\n/)
   }, 60_000)
 
-  test('an add after a removal in the same bundle takes the id the removal released', async () => {
-    const wantedPath = await writeWantedFile(ws.dir, 'wishlist', {
-      title: 'Wishlist',
-      entries: [
-        { name: 'Opt', cardId: 1 },
-        { name: 'Ponder', cardId: 2 },
-        { name: 'Preordain', cardId: 3 },
-      ],
-    })
-
-    const result = await applyChangeBundle(
-      bundleOf(
-        [
-          {
-            kind: 'wanted',
-            slug: 'wishlist',
-            name: 'Wishlist',
-            changes: [
-              { id: 'r1', timestamp: 1, action: 'remove', cardName: 'Ponder', cardId: 2 },
-              { id: 'a1', timestamp: 2, action: 'add', cardName: 'Sol Ring', cardId: 15 },
-            ],
-          },
-        ],
-        [],
-      ),
-    )
-
-    expect(result.failedCount).toBe(0)
-    expect(await fs.readFile(wantedPath, 'utf-8')).toContain('- Sol Ring &2\n')
-    const changelog = await fs.readFile(wantedPath.replace(/\.md$/, '.changes.md'), 'utf-8')
-    expect(changelog).toContain('Added "Sol Ring" &2')
-  }, 60_000)
-
+  // Pins the bundle path end to end: the re-target's placeholder ids are
+  // stamped by the replay with the ids the save then writes and logs (the
+  // numbering rule itself is unit-tested in replay-ids.test.ts).
   test('a copy that merges onto a deck line draws no id, so a later new card takes the freed one', async () => {
     const deckPath = await writeDeckFile(ws.dir, 'test-deck', {
       name: 'Test Deck',

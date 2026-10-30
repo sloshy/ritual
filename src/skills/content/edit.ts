@@ -483,7 +483,10 @@ object.\`); its \`--output json\` envelope's \`messageKey\` is
 
 Changes are re-targeted to each list's current \`&N\` card IDs (by ID when it still
 exists, else by card name); changes whose target card no longer exists are skipped
-and reported. A move is applied to both of its lists — removed from the source, added
+and reported. Added cards take the smallest free ID at the point they apply — an ID a
+removal earlier in the same batch freed included — and a deck copy that merges onto a
+line the deck already has takes that line's ID; each list's changelog records the ID
+every added card got. A move is applied to both of its lists — removed from the source, added
 to the destination — and a changelog entry is written on each. Every touched list gets
 a changelog entry, and a failed list (e.g. one that no longer exists) is reported
 without stopping the rest. Exits non-zero when any list

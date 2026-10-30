@@ -55,6 +55,35 @@ describe('reconcileIdPoolForUndo', () => {
       new Set([4]),
     )
     expect(t.released).toEqual([])
+    expect(t.claimed).toEqual([])
+  })
+
+  test('restoring a decrement the line outlives (its cancelling add undone) releases nothing', () => {
+    // Deck `&5 ×3`, decrement, then Add Card of the same printing: the add takes
+    // the line's id and cancels the decrement. Undoing it brings the decrement
+    // back, but the line still holds two copies — and its id.
+    const t = track()
+    reconcileIdPoolForUndo(
+      t.release,
+      t.claim,
+      { addedChange: null, cancelledChange: createRemoveChange('Bolt', { cardId: 5 }) },
+      [createRemoveChange('Bolt', { cardId: 5 })],
+      new Set([5]),
+    )
+    expect(t.released).toEqual([])
+    expect(t.claimed).toEqual([])
+  })
+
+  test('restoring a removal whose line is gone releases its id', () => {
+    const t = track()
+    reconcileIdPoolForUndo(
+      t.release,
+      t.claim,
+      { addedChange: null, cancelledChange: createRemoveChange('Bolt', { cardId: 5 }) },
+      [createRemoveChange('Bolt', { cardId: 5 })],
+      new Set(),
+    )
+    expect(t.released).toEqual([5])
   })
 
   test('undoing an added remove reclaims, undoing an added add releases', () => {

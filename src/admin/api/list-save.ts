@@ -10,12 +10,7 @@ import type { ListType } from '../../list/list-type'
 import type { LineQuantities } from '../../changes/line-copies'
 import type { ParsedListContent } from '../../list/unreadable-content'
 import type { FlatListFrontMatter } from '../../list/flat-list-front-matter'
-import {
-  assignDeckCardIds,
-  assignEntryIds,
-  collectDeckCardIds,
-  type EntryWithCardId,
-} from '../../card/card-id'
+import { assignDeckCardIds, assignEntryIds, type EntryWithCardId } from '../../card/card-id'
 import { serializeDeckToMarkdown, validateDeckFrontMatter } from '../../list/deck-file'
 import { readFrontMatterMapping } from '../../list/front-matter-write'
 import { computeDeckSaveEffects, computeEntrySaveEffects } from '../../changes/save-effects'
@@ -27,20 +22,20 @@ import { parseWantedListFile } from '../../list/wanted-file'
 import { toWantedCardEntries } from '../../list/wanted-entries'
 import { collectionToMarkdown, wantedToMarkdown } from '../../list/list-export'
 import { parseTitleFromContent } from '../../list/section-format'
-import { applyChangeToDeck, droppedMoveNote } from '../../changes/deck-changes'
+import { droppedMoveNote } from '../../changes/deck-changes'
 import {
-  applyChangeToCollection,
   findCollectionPrintingError,
   toCollectionCardEntries,
 } from '../../changes/collection-changes'
-import { applyChangeToWantedList } from '../../changes/wanted-changes'
 import { replaySectionOrder } from '../../changes/change-event'
-import { deckMergeLine, replayAssigningIds, type IdReplayOps } from '../../changes/replay-ids'
 import {
-  describeUnmatchedChanges,
-  listUnmatchedChanges,
-  type ApplyChange,
-} from '../../changes/apply-batch'
+  COLLECTION_ID_OPS,
+  DECK_ID_OPS,
+  replayAssigningIds,
+  WANTED_ID_OPS,
+  type IdReplayOps,
+} from '../../changes/replay-ids'
+import { describeUnmatchedChanges, listUnmatchedChanges } from '../../changes/apply-batch'
 import { deckLineQuantities, entryLineQuantities } from '../../changes/line-copies'
 import { decodeWireChanges } from '../../changes/wire-changes'
 import { normalizeNote } from '../../card/note-helpers'
@@ -88,9 +83,9 @@ export type ListSaveResponse = ApiMessage & {
   /**
    * What the save did to individual entries, with the `&N` ids it allocated.
    *
-   * The response is the only place these can appear: ids are assigned at
-   * serialization time, so a client that added a card learns its id here rather
-   * than by re-reading the list.
+   * The response is the only place these can appear: an add sent without an
+   * id is given one as the save replays the batch, so a client that added a
+   * card learns its id here rather than by re-reading the list.
    */
   effects: SaveEffect[]
   /**
@@ -164,16 +159,15 @@ type BaselineSource = {
   changes: readonly ChangeEvent[]
 }
 
-/** What differs between the three list types; everything else is the shared route. */
-interface ListSaveAdapter<TData> {
+/**
+ * What differs between the three list types; everything else is the shared
+ * route. The reducer and the id rules are the list type's {@link IdReplayOps}.
+ */
+interface ListSaveAdapter<TData> extends IdReplayOps<TData> {
   type: ListType
   resolveFile: ResolveListFile
   readBaseline: (source: BaselineSource) => BaselineResult<TData>
-  apply: ApplyChange<TData, ChangeEvent>
   lineQuantities: (data: TData) => LineQuantities
-  cardIds: (data: TData) => number[]
-  /** See {@link IdReplayOps.mergeLine}: a deck folds a copy onto a matching line. */
-  mergeLine?: IdReplayOps<TData>['mergeLine']
   cardNames: (data: TData) => string[]
   /** Assign ids to every line, reporting what each line ended up with. */
   finalize: (before: TData, after: TData) => FinalizedList<TData>
@@ -229,8 +223,7 @@ const deckAdapter: ListSaveAdapter<DeckData> = {
     }
   },
   // The replay hands every apply the file's own default (`baseline.listLabels`).
-  apply: (deck, change, options) =>
-    applyChangeToDeck(deck, change, { ...options, listLabels: options?.listLabels }),
+  ...DECK_ID_OPS,
   droppedNote: (deck, change, listLabels) => {
     if (change.action !== 'move-to') return undefined
     const note = droppedMoveNote(deck, change, { listLabels })
@@ -239,8 +232,6 @@ const deckAdapter: ListSaveAdapter<DeckData> = {
       : { cardName: change.cardName, cardId: change.sourceCardId, note }
   },
   lineQuantities: deckLineQuantities,
-  cardIds: collectDeckCardIds,
-  mergeLine: deckMergeLine,
   cardNames: deckCardNames,
   finalize: (before, after) => {
     const { deck, assignments } = assignDeckCardIds(after)
@@ -275,16 +266,12 @@ type FlatListSpec<TParsedEntry, TEntry extends FlatEntry> = {
     sectionOrder: string[],
     frontMatter?: FlatListFrontMatter,
   ) => string
-  apply: ApplyChange<TEntry[], ChangeEvent>
+  ids: IdReplayOps<TEntry[]>
   refuseChanges?: (changes: readonly ChangeEvent[]) => SyncMessage | null
 }
 
 function entryCardNames(entries: readonly FlatEntry[]): string[] {
   return entries.map((entry) => entry.name)
-}
-
-function entryCardIds(entries: readonly FlatEntry[]): number[] {
-  return entries.flatMap((entry) => (entry.cardId === undefined ? [] : [entry.cardId]))
 }
 
 /** The adapter both flat lists share: one entry per copy, sectioned, titled. */
@@ -312,9 +299,8 @@ function flatListAdapter<TParsedEntry, TEntry extends FlatEntry>(
         },
       }
     },
-    apply: spec.apply,
+    ...spec.ids,
     lineQuantities: entryLineQuantities,
-    cardIds: entryCardIds,
     cardNames: entryCardNames,
     finalize: (before, after) => {
       const { entries, assignments } = assignEntryIds(after)
@@ -333,7 +319,7 @@ const collectionAdapter: ListSaveAdapter<CollectionCardEntry[]> = flatListAdapte
   parse: parseCollectionFile,
   toEntries: toCollectionCardEntries,
   toMarkdown: collectionToMarkdown,
-  apply: applyChangeToCollection,
+  ids: COLLECTION_ID_OPS,
   refuseChanges: findCollectionPrintingError,
 })
 
@@ -342,7 +328,7 @@ const wantedAdapter: ListSaveAdapter<WantedListCardEntry[]> = flatListAdapter({
   parse: parseWantedListFile,
   toEntries: toWantedCardEntries,
   toMarkdown: wantedToMarkdown,
-  apply: applyChangeToWantedList,
+  ids: WANTED_ID_OPS,
 })
 
 /** The fields of a save request that are not the events themselves, checked. */

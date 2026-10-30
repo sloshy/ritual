@@ -31,6 +31,7 @@ import type { UseCardIdPoolResult } from './useCardIdPool'
 import type { AddCardOptions, UseCardChangesResult } from './useCardChanges'
 import type { CommitSink } from './commit'
 import type { ApplyChange } from '../changes/apply-batch'
+import type { IdReplayOps } from '../changes/replay-ids'
 import type { SwapSourceProvider } from './swap-printings'
 
 export type ListItem = { slug: string; name: string }
@@ -193,18 +194,19 @@ export type EditorConfig<TData> = {
    */
   onCardArtReset?: (cardId: number) => void
   /**
-   * The `&N` an add of this card would land on because it *merges* into a line
-   * the list already has, or `undefined` when it starts a new line. Decks fold a
-   * repeat of the same printing (and label override) into one entry, so a fresh
-   * id would never reach a card line — it would be logged as a phantom `&N`,
-   * burn a pool id, and art staged against it would be written for a line that
-   * does not exist. Art is per line, so the copies share the target line's.
+   * The line an add (or arriving move) of this card *merges* into, or `null`
+   * when it starts a new line — the reducer's own probe, bound to the list's
+   * default labels (so the third argument is not read). Decks fold a repeat of
+   * the same printing (and label override) into one entry, so a fresh id would
+   * never reach a card line — it would be logged as a phantom `&N`, burn a pool
+   * id, and art staged against it would be written for a line that does not
+   * exist. Art is per line, so the copies share the target line's.
    *
-   * The add carries that id instead of drawing a fresh one from the pool, and
-   * art staged for it lands on that line; an import's replay folds copies the
-   * same way. Omitted by list types whose adds never merge.
+   * An Add Card carries that line's id instead of drawing a fresh one, art
+   * staged for it lands on that line, and an import's replay folds copies by
+   * the same probe. Omitted by list types whose adds never merge.
    */
-  findAddMergeTargetId?: (data: TData, add: ChangeInput) => number | undefined
+  mergeLine?: IdReplayOps<TData>['mergeLine']
   /**
    * Run after a save has succeeded, with what the save reported it did. The
    * admin editors use it to flush the art they staged for cards that had no line
@@ -460,7 +462,4 @@ export type UseEditorResult<TData, TCardEntry> = {
  * default labels — so a `move-to` lands in the editor exactly as the save route
  * replays it, and a page cannot wire a reducer that forgets them.
  */
-export type ListPageConfig<TData> = Omit<
-  ListEditorConfig<TData>,
-  'applyChange' | 'findAddMergeTargetId'
->
+export type ListPageConfig<TData> = Omit<ListEditorConfig<TData>, 'applyChange' | 'mergeLine'>

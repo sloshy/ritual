@@ -1,12 +1,21 @@
 import { describe, it, expect } from 'bun:test'
-import type { ChangeEvent } from '../../src/changes/change-event'
+import { createAddChange, type ChangeEvent } from '../../src/changes/change-event'
 import {
   createRetargetState,
+  importIntoList,
+  refusedToConflicts,
   retargetImportedChanges,
   settleRetargetState,
 } from '../../src/editor/import-changes'
+import { WANTED_ID_OPS } from '../../src/changes/replay-ids'
+import { cardNamesById } from '../../src/card/card-id'
+import type { WantedListCardEntry } from '../../src/list/site-data'
 
-/** A counting allocator starting after the current IDs, mirroring the editor's pool. */
+/**
+ * A counting allocator. The importers hand the re-target placeholder ids and
+ * let the replay number the lines; these tests read only which line each
+ * change was aimed at, so plain counting ids keep them legible.
+ */
 function allocator(start: number): () => number {
   let next = start
   return () => next++
@@ -417,5 +426,77 @@ describe('settleRetargetState', () => {
       [9, 4],
     ])
     expect([...state.addedByName]).toEqual([['Sol Ring', 2]])
+  })
+})
+
+describe('refusedToConflicts', () => {
+  it('reports a refusal under the import-side name of its reason', () => {
+    const change = createAddChange('Fog', { cardId: 5 })
+    expect(
+      refusedToConflicts([
+        { change, reason: 'no-target' },
+        { change, reason: 'needs-printing' },
+      ]),
+    ).toEqual([
+      { change, reason: 'target-not-found' },
+      { change, reason: 'needs-printing' },
+    ])
+  })
+
+  it('leaves out the placeholder ids a refused change still carries', () => {
+    const pin: ChangeEvent = {
+      id: 'p',
+      timestamp: 1,
+      action: 'move-to',
+      cardName: 'Sol Ring',
+      cardId: -2,
+      replacesCardId: -1,
+      from: { type: 'collection', name: 'Binder' },
+    }
+    const [conflict] = refusedToConflicts([{ change: pin, reason: 'no-target' }])
+    expect(conflict?.change).not.toHaveProperty('cardId')
+    expect(conflict?.change).not.toHaveProperty('replacesCardId')
+  })
+})
+
+describe('importIntoList', () => {
+  const wanted = (...names: string[]): WantedListCardEntry[] =>
+    names.map((name, index) => ({
+      name,
+      cardId: index + 1,
+      price: 0,
+      fileOrder: index,
+      section: 'Main',
+      state: 'name-only',
+    }))
+
+  it('numbers new lines in apply order and lets a later batch find them by their exported id', () => {
+    const data = wanted('Opt', 'Ponder', 'Preordain')
+    const state = createRetargetState()
+    const first = importIntoList({
+      data,
+      changes: [
+        { id: 'r', timestamp: 1, action: 'remove', cardName: 'Ponder', cardId: 2 },
+        { id: 'a', timestamp: 2, action: 'add', cardName: 'Sol Ring', cardId: 15 },
+      ],
+      currentNames: cardNamesById(data),
+      ops: WANTED_ID_OPS,
+      state,
+    })
+    expect(first.conflicts).toEqual([])
+    expect(first.applied.map((change) => ('cardId' in change ? change.cardId : undefined))).toEqual(
+      [2, 2],
+    )
+
+    const second = importIntoList({
+      data: first.data,
+      changes: [
+        { id: 'n', timestamp: 3, action: 'set-note', cardName: 'Sol Ring', cardId: 15, note: 'x' },
+      ],
+      currentNames: cardNamesById(first.data),
+      ops: WANTED_ID_OPS,
+      state,
+    })
+    expect(second.applied).toMatchObject([{ action: 'set-note', cardId: 2 }])
   })
 })

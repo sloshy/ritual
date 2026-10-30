@@ -57,6 +57,7 @@ import type { ListInfo } from '../../../src/list/list-info'
 import type { RitualConfig } from '../../../src/config/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/config/search-debounce'
 import { fulfillJson } from './fulfill'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import { MOCK_COLLECTION_DETAIL, MOCK_WANTED_LIST_DETAIL, makeMockScryfallCard } from './mock-cards'
 import { localeTag } from '../../../src/i18n/locale-tag-message'
 import { EXAMPLE_SOURCE_OFFER } from '../../helpers/source-offer'
@@ -147,6 +148,58 @@ export const MOCK_CONFIG = {
  */
 export async function mockDecksApi(page: Page): Promise<void> {
   await fulfillJson(page, '**/api/decks', { decks: MOCK_DECKS }, { method: 'GET' })
+}
+
+/** One deck the deck editor loads, as {@link mockDeckEditorLoad} serves it. */
+export type MockEditorDeck = {
+  slug: string
+  name: string
+  /** The `Main` section's lines, as the load route sends them. */
+  cards: Record<string, unknown>[]
+  /** Each card name's printings; the first is the card's Scryfall object. */
+  printings: Record<string, ScryfallCard[]>
+  /** Further load-response fields (`contentHash`, `labels`, lowest-price maps). */
+  extra?: Record<string, unknown>
+}
+
+/**
+ * Serve `deck` as the only deck in the admin's deck list, and its load
+ * response. Registered before the editor opens, so the list picker offers it.
+ */
+export async function mockDeckEditorLoad(page: Page, deck: MockEditorDeck): Promise<void> {
+  const { slug, name } = deck
+  await fulfillJson(page, '**/api/decks', { decks: [{ slug, name }] }, { method: 'GET' })
+  await fulfillJson(page, `**/api/deck/${slug}`, {
+    success: true,
+    slug,
+    deck: { name, sections: [{ name: 'Main', cards: deck.cards }] },
+    cards: Object.fromEntries(
+      Object.entries(deck.printings).map(([cardName, printings]) => [cardName, printings[0]]),
+    ),
+    printings: deck.printings,
+    lowestPriceCards: {},
+    lowestPriceCardsEur: {},
+    lowestPriceCardsTix: {},
+    symbolMap: {},
+    frontMatter: {},
+    ...deck.extra,
+  })
+}
+
+/**
+ * Answer every save of deck `slug` with success, keeping the events of the
+ * latest one: read them through the returned getter (`null` before any save).
+ */
+export async function captureDeckSaves<TChange>(
+  page: Page,
+  slug: string,
+): Promise<() => TChange[] | null> {
+  let saved: TChange[] | null = null
+  await fulfillJson(page, `**/api/deck/${slug}/save`, (route) => {
+    saved = (JSON.parse(route.request().postData() ?? '{}') as { changes: TChange[] }).changes
+    return { success: true, message: 'Saved', contentHash: 'hash-2', effects: [] }
+  })
+  return () => saved
 }
 
 /**

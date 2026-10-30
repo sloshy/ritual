@@ -12,6 +12,7 @@ import {
   type ListRef,
 } from '../../src/changes/change-event'
 import { toWireChange } from '../../src/changes/wire-changes'
+import { parseChangelog } from '../../src/changes/changelog-parser'
 import {
   handleListSave,
   type ListSaveRefusal,
@@ -194,7 +195,11 @@ describe('POST /api/:type/:slug/save', () => {
     expect(await fs.readFile(filePath, 'utf-8')).toContain('- Lightning Bolt &2\n')
     const changelog = await fs.readFile(changelogOf(filePath), 'utf-8')
     expect(changelog).toContain('Added "Lightning Bolt" &2')
-    expect(changelog).toContain('{"action":"add","cardName":"Lightning Bolt","cardId":2}')
+    const logged = parseChangelog(changelog).pages.flatMap((page) => page.changes)
+    expect(logged.find((change) => change.action === 'add')).toMatchObject({
+      cardName: 'Lightning Bolt',
+      cardId: 2,
+    })
   })
 
   test('the save route accepts a signed set-label on the wire and logs it signed', async () => {
