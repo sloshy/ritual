@@ -71,10 +71,23 @@ The same file caches the [update notice](/commands/self-update/#update-notice)'s
 
 Each migration is a numbered, one-time change. `migrate` records the highest one applied as `managed.migration` in `ritual.config.json` (see [the `managed` block](/configuration/#ritual-bookkeeping-managed-key)). Every migration checks the workspace itself rather than trusting that counter, so one whose change is already in place does nothing.
 
-| Migration | What it does                                                                                        |
-| --------- | --------------------------------------------------------------------------------------------------- |
-| 1         | Removes `site.version`. The `managed` block replaced it as the record of what set up the workspace. |
-| 2         | Removes `site.prerelease`. The deploy workflow now downloads the [pinned release](#the-ci-pin).     |
+| Migration | What it does                                                                                                     |
+| --------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1         | Removes `site.version`. The `managed` block replaced it as the record of what set up the workspace.              |
+| 2         | Removes `site.prerelease`. The deploy workflow now downloads the [pinned release](#the-ci-pin).                  |
+| 3         | Moves the workspace's `cache/` folder into the [shared per-user card cache](#migration-3-the-shared-card-cache). |
+
+#### Migration 3: the shared card cache
+
+Each workspace used to keep its own card cache in `cache/`. The cache is now [one per-user folder every workspace shares](/commands/cache/#where-the-cache-lives), unless `RITUAL_CACHE_DIR` or the [`cacheDir`](/configuration/#cache-directory-cachedir) key names another. Migration 3 deals with the old folder:
+
+- **The shared cache is empty:** the contents of `cache/` are moved into it (a rename on the same disk; otherwise a copy, then the old folder is deleted once the copy is complete), and `cache/` is removed. The first workspace you migrate keeps its download.
+- **The shared cache already has data** (another workspace was migrated first, or a command already downloaded into it): nothing on disk changes. `migrate` says that `cache/` is no longer read and that you can delete it to free the space.
+- **The workspace still resolves its cache to `cache/`** (`cacheDir: "cache"`, or `RITUAL_CACHE_DIR=cache`), or `cache/` holds nothing: there is nothing to do.
+
+A workspace with no `ritual.config.json` has nothing to migrate, so its `cache/` is never moved; Ritual stops reading it and offers a fresh download the first time it needs card data. Move the folder's contents into the shared cache yourself to skip that download, or delete it.
+
+The move holds the cache-write lock in the shared folder and checks it again first, so two workspaces migrating at once never both move into it; the second one keeps its folder. A move that stops part-way (a full disk, a killed process) leaves a marker in the shared folder, and the next `migrate` finishes it rather than mistaking the half-filled folder for another workspace's cache. The cache is not copied into `.backups/`: it is downloaded data that the move does not lose.
 
 The counter is written after each migration that changed something, so a run that fails part-way resumes at the failed migration next time.
 

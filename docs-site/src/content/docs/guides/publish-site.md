@@ -61,7 +61,7 @@ Without prompts, `init-site` stops with exit code `2` if a `README.md` already e
 | `README.md`                         | Short setup notes for the repository. You are asked before an existing one is replaced.                                                    |
 | `.gitignore`                        | Ignores `cache/`, `dist/`, `.admin-dist/`, `exports/`, `.logins/`, `.trash/`, `.backups/`, `all-cards.md` and the CI binary, among others. |
 
-The `.gitignore` keeps the card cache, built output and your saved [logins](/commands/login/) out of the repository. Existing lines in your `.gitignore` are kept; Ritual only appends.
+The `.gitignore` keeps the card cache, built output and your saved [logins](/commands/login/) out of the repository. On your own computer the card cache is not in the workspace at all (it is [shared by every workspace](/commands/cache/#where-the-cache-lives)); the workflow keeps it in `cache/`, which is what the entry is for. Existing lines in your `.gitignore` are kept; Ritual only appends.
 
 ### The CI pin
 

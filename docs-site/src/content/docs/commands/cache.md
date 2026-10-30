@@ -4,6 +4,38 @@ title: 'cache'
 
 Manage the card cache: inspect it, preload it, and run the always-on cache server and the experimental peer-to-peer cache feed.
 
+## Where the cache lives
+
+The card cache is one folder per user, shared by every workspace on the computer, so the Scryfall download (about 75 MB, several hundred MB on disk) happens once rather than once per workspace:
+
+| Platform               | Default folder                                                    |
+| ---------------------- | ----------------------------------------------------------------- |
+| Linux and other Unixes | `$XDG_CACHE_HOME/ritual`, or `~/.cache/ritual` when that is unset |
+| macOS                  | `~/Library/Caches/ritual`                                         |
+| Windows                | `%LOCALAPPDATA%\ritual\cache`                                     |
+
+Two settings move it, highest precedence first:
+
+1. The `RITUAL_CACHE_DIR` environment variable.
+2. The workspace's [`cacheDir`](/configuration/#cache-directory-cachedir) config key.
+
+A relative path in either is resolved against the workspace, so `cacheDir: "cache"` (or `RITUAL_CACHE_DIR=cache`) keeps a workspace's cache in its own `cache/` folder, as every workspace did before. [`cache status`](#status) shows the folder in use and which setting chose it. The first command that offers to download the card database also says where it will go.
+
+Everything below that names a cache file (`cache.json`, `card-bulk.json`, `tags.json`, `cardkingdom.json`, `images/`, `feed-client/`, `feed/`, `.ritual-cache-lock`) means that file inside this folder.
+
+An older workspace's `cache/` folder is moved here by [`ritual migrate`](/commands/migrate/#numbered-migrations) (migration 3) when the shared cache is still empty. If the shared cache already has data, the old folder is left untouched and the migration tells you that you can delete it.
+
+### Sharing the cache between workspaces
+
+Processes in different workspaces can use the cache at the same time, as two processes in one workspace always could:
+
+- **Refreshes wait for each other.** A bulk download or ingest, a tag refresh, and the cache server's scheduled preloads take the exclusive cache-write lock (`.ritual-cache-lock` in the cache folder), so two workspaces never interleave a refresh. See [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
+- **Files are never seen half-written.** Every cache file is written to a temporary file and renamed into place.
+- **A running process notices another's write.** Before using what it has loaded, a process checks whether `cache.json` changed on disk and reloads it if so, so a long-running admin server or edit session does not write its older copy back over a newer refresh.
+- **Single-card saves are last-writer-wins.** A card looked up on demand is saved by rewriting `cache.json` without the lock. If two processes do that at the same instant, one card can be lost; the next lookup fetches it again.
+
+The cache's contents never depend on the workspace (with one exception: [`defaultLanguage`](/configuration/#default-language) decides which Scryfall bulk the cache holds). If workspaces with different `defaultLanguage` values share a cache, each refresh replaces the other's bulk; give one of them its own `cacheDir`.
+
 ## Usage
 
 ```bash
@@ -37,6 +69,8 @@ Text output is aligned `label: value` lines worded for the reader in your [UI la
 | `priceStale`      | `true` when prices are older than 24 hours, or when their age is unknown (`lastCardRefresh` is `null`).                                  |
 | `tagsPresent`     | Whether cached cards carry oracle/art tags (see [Tags](#tags)).                                                                          |
 | `source`          | `local` for the on-disk cache, `cache-server` when a [cache server](#server) is configured.                                              |
+| `cacheDir`        | The absolute path of the local cache folder (see [Where the cache lives](#where-the-cache-lives)).                                       |
+| `cacheDirSource`  | Which setting chose `cacheDir`: `env` (`RITUAL_CACHE_DIR`), `config` (the `cacheDir` key), or `default` (the shared per-user folder).    |
 | `defaultLanguage` | The configured [`defaultLanguage`](/configuration/#default-language), which decides which Scryfall bulk backs the cache.                 |
 | `cardBulkType`    | Which bulk built the card cache: `default_cards` (English-only), `all_cards` (every language), or `null`.                                |
 | `bulkTypeStale`   | `true` when a non-empty cache's bulk disagrees with what `defaultLanguage` demands (see [Bulk selection](#bulk-selection-and-language)). |
@@ -46,7 +80,8 @@ Notes on the fields:
 - Only a bulk load (`preload-all` or a feed sync) stamps `lastCardRefresh`. A cache populated purely by per-set or per-card lookups reports `null`.
 - Prices are part of the bulk card data, so price age equals bulk-cache age.
 - `tagsPresent` comes from a small sample of cached cards, not a full scan. If only rarely-tagged cards land in the sample, it can report `false` after a completed tag refresh.
-- `source` is `cache-server` when `--cache-server` or `RITUAL_CACHE_SERVER` is set.
+- `source` is `cache-server` when `--cache-server` or `RITUAL_CACHE_SERVER` is set. `cacheDir` is reported either way: card data then comes from the server, but images and the Card Kingdom buylist still live in the local folder.
+- The text report's **Location** row shows `cacheDir` followed by what chose it: `(from RITUAL_CACHE_DIR)`, `(from cacheDir in ritual.config.json)`, or `(per-user default, shared by every workspace)`.
 - `cardBulkType` is `null` when no bulk ingest has recorded which bulk it used: an empty cache, or one filled before this was recorded (necessarily `default_cards`).
 - A `bulkTypeStale` cache needs a full redownload, which the freshness checks on other commands offer.
 
@@ -122,7 +157,7 @@ Which Scryfall bulk a card refresh downloads follows the [`defaultLanguage`](/co
 
 The rule applies everywhere the card cache is fetched or synced: `preload-all`, the stale-cache prompts on other commands, the [cache server](#server)'s scheduled refreshes, and the [cache feed](#feed-fetch).
 
-Every bulk ingest records **which bulk built the cache** in `cache/card-bulk.json`. When that disagrees with what `defaultLanguage` currently demands (you switched the key in either direction), the cache is the wrong dataset, and commands that check cache freshness say so instead of running a staleness prompt. Under `--refresh ask` they offer a full redownload, under `--refresh auto` they run it, and `cache status` reports `bulkTypeStale: true`. A cache filled before this was recorded reads as `default_cards`.
+Every bulk ingest records **which bulk built the cache** in `card-bulk.json` in the cache folder. When that disagrees with what `defaultLanguage` currently demands (you switched the key in either direction), the cache is the wrong dataset, and commands that check cache freshness say so instead of running a staleness prompt. Under `--refresh ask` they offer a full redownload, under `--refresh auto` they run it, and `cache status` reports `bulkTypeStale: true`. A cache filled before this was recorded reads as `default_cards`.
 
 ### refresh-tags
 
@@ -209,7 +244,7 @@ Behavior:
 
 - Downloaded files are verified against the feed's per-file SHA-256 before anything is ingested. A corrupted download is deleted and the sync fails.
 - Only the kinds the client needs are downloaded, ingested, and seeded: the tag bulks plus **one** card bulk (`default-cards` under an English [`defaultLanguage`](/configuration/#default-language), `all-cards` otherwise). A feed that does not publish the needed card kind fails the sync with a message naming it; point the host at `--cards both` to serve mixed clients.
-- The last ingested torrent infohash is tracked **per kind** in `cache/feed-client/state.json`. Switching `defaultLanguage` changes the needed card kind and so forces a re-ingest even when the feed has not changed. An unchanged feed for an unchanged kind is a cheap no-op.
+- The last ingested torrent infohash is tracked **per kind** in `feed-client/state.json` in the cache folder. Switching `defaultLanguage` changes the needed card kind and so forces a re-ingest even when the feed has not changed. An unchanged feed for an unchanged kind is a cheap no-op.
 - Ingestion runs the same local pipeline as a direct Scryfall preload (filtering, card mapping, tag attachment), so a feed-synced cache is indistinguishable from a Scryfall-synced one.
 - While seeding, the feed is re-checked on the `--refresh` cadence and new files are ingested and seeded automatically.
 
@@ -231,15 +266,15 @@ Scryfall publishes community [Tagger](https://tagger.scryfall.com/) data as bulk
 - **`oracleTags`**: functional tags (e.g. `ramp`, `removal`, `tutor`). Matched by oracle identity, so every printing of a card shares the same oracle tags.
 - **`artTags`**: artwork tags (e.g. `dragon`, `mountains`). Matched per illustration, so different printings of the same card can have different art tags.
 
-The tag lookup is stored in `cache/tags.json`. The [`sell`](/commands/sell/) command keeps its Card Kingdom buylist in its own file, `cache/cardkingdom.json`, with its own daily freshness. The only cache command that touches it is [`preload-all`](#the-buylist-rides-along-under-sell-mode), and only when sell mode is enabled; `cache status`, the [cache server](#the-cache-server), and the [cache feed](#feed-fetch) all ignore it.
+The tag lookup is stored in `tags.json` in the cache folder. The [`sell`](/commands/sell/) command keeps its Card Kingdom buylist in its own file there, `cardkingdom.json`, with its own daily freshness. The only cache command that touches it is [`preload-all`](#the-buylist-rides-along-under-sell-mode), and only when sell mode is enabled; `cache status`, the [cache server](#the-cache-server), and the [cache feed](#feed-fetch) all ignore it.
 
 ## The cache server
 
 ### Behavior
 
-- Uses local `cache/cache.json` as the cache storage backend.
+- Uses the local `cache.json` in the [cache folder](#where-the-cache-lives) as its storage backend.
 - If the card cache is empty or stale for the selected cards cadence (weekly if unset) on startup, it performs a full preload before serving requests.
-- Startup and scheduled full preloads take the exclusive cache-write lock (`cache/.ritual-cache-lock`), so they never interleave with another process's refresh. See [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
+- Startup and scheduled full preloads take the exclusive cache-write lock (`.ritual-cache-lock` in the cache folder), so they never interleave with another process's refresh. See [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
 - With a `feed` cache source (experimental), card refreshes sync from a peer-to-peer [cache feed](#feed-host) instead of Scryfall. Unchanged feeds are a cheap infohash check, and feed failures fall back to a direct Scryfall preload. Unless `--no-seed` is given, the server **keeps seeding** the feed's files between refreshes. In feed-seeding mode the startup refresh always runs (it is what starts the seeding), even when the local cache is fresh.
 - `--deny-http` also disables feed syncing and seeding.
 - On cache misses, it fetches from Scryfall and stores the results back into the local cache.
@@ -467,6 +502,6 @@ ritual cache feed fetch --url https://feed.example.com/feed.json --no-seed
 ## Notes
 
 - Set codes are the official Scryfall/Gatherer set codes.
-- The cache is stored in the `cache/` directory.
+- The cache is stored in the per-user cache folder, shared by every workspace (see [Where the cache lives](#where-the-cache-lives)).
 - Bulk data is downloaded in Scryfall's gzipped JSONL format and processed as a stream, so the full (multi-hundred-MB) file never needs to fit in memory.
-- Cache refreshes take an exclusive lock (`cache/.ritual-cache-lock`) so concurrent processes never interleave writes. A waiting process breaks the lock when its holder has died, and otherwise gives up after the configurable [`cacheLockTimeoutSeconds`](/configuration/#cache-lock-timeout) (default 5 minutes).
+- Cache refreshes take an exclusive lock (`.ritual-cache-lock` in the cache folder) so concurrent processes never interleave writes. A waiting process breaks the lock when its holder has died, and otherwise gives up after the configurable [`cacheLockTimeoutSeconds`](/configuration/#cache-lock-timeout) (default 5 minutes).

@@ -16,6 +16,33 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Added
 
+- **One card cache for all your workspaces.** The Scryfall card cache (about 75 MB to
+  download, a few hundred MB on disk) used to live in each workspace's own `cache/` folder;
+  it now lives once per user account, so a second workspace reuses the first one's
+  download: `$XDG_CACHE_HOME/ritual` (or `~/.cache/ritual`) on Linux,
+  `~/Library/Caches/ritual` on macOS, and `%LOCALAPPDATA%\ritual\cache` on Windows. The
+  `RITUAL_CACHE_DIR` environment variable, then a new `cacheDir` config key (`ritual config
+set cacheDir …`, the admin Settings page, or MCP `update_config`), put it elsewhere; a
+  relative path in either resolves against the workspace, so `cacheDir: "cache"` keeps the
+  old per-workspace folder. `ritual cache status` (and `GET /api/cache/status`, MCP
+  `get_cache_status`) reports the folder in use as `cacheDir` and which setting chose it as
+  `cacheDirSource`, and the first download offer says where the data will go. Refreshes
+  from different workspaces wait for one another on the cache's lock, and a running server
+  reloads the cache file when another process rewrites it instead of saving an older copy
+  over it. The Docker image sets `RITUAL_CACHE_DIR=/app/cache`, so its `/app/cache` volume
+  is still where the cache lives.
+
+  **Run `ritual migrate` in each existing workspace** (Ritual reminds you). Migration 3
+  moves the workspace's `cache/` into the shared cache when that is still empty, so the
+  first workspace you migrate keeps its download; for every later one, the shared cache
+  already has data, so its `cache/` is left untouched and `migrate` tells you that Ritual no
+  longer reads it and you can delete it. For a "Publish for me" site, `migrate` also
+  refreshes the deploy workflow, which now sets `RITUAL_CACHE_DIR: cache` so CI keeps
+  caching the checkout's `cache/` folder; commit the updated workflow. A hand-written CI job
+  that caches `cache/` needs the same variable. A workspace without a `ritual.config.json` has nothing
+  to migrate: its `cache/` is no longer read, so move its contents into the shared cache or
+  delete it.
+
 - The site's opening theme is now a setting, so a site built by the "Publish for me"
   workflow (which passes no theme flags) can open on a theme other than `default`.
   `site.theme` names a built-in theme (`-inverted` variants included), and

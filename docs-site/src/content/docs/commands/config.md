@@ -36,6 +36,7 @@ Each key is described in full on the [Configuration](/configuration/) page. This
 | `cacheLockTimeoutSeconds` | `number`   | `300`                |
 | `cacheSource`             | `string`   | `scryfall`           |
 | `cacheFeedUrl`            | `string`   | —                    |
+| `cacheDir`                | `string`   | —                    |
 | `searchDebounceMs`        | `number`   | `500`                |
 | `updateCheck`             | `boolean`  | `true`               |
 
@@ -46,6 +47,7 @@ Each key is described in full on the [Configuration](/configuration/) page. This
 - `defaultLanguage`: a Scryfall language code (`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph`), not ISO. Aliases (`jp`, `Japanese`, …) are accepted and the canonical code is stored. An unknown value is rejected with the list of all 17 codes. **A non-English value switches card-cache downloads, including the cache feed, to Scryfall's much larger `all_cards` bulk file.** See [Default language](/configuration/#default-language).
 - `uiLocale`: the language of **Ritual's own interface text**, as a BCP-47 tag (`en`, `de`, `de-AT`, `pt-BR`), stored canonicalized (`de-at` → `de-AT`). A tag with no known language is rejected. **This is not `defaultLanguage`**, which picks the card printing and has a download cost. See [Interface language](/configuration/#interface-language), [Localization](/localization/), and [`ritual locale`](/commands/locale/).
 - `cacheLockTimeoutSeconds`: how long a cache refresh waits for another process's refresh before failing. See [Cache lock timeout](/configuration/#cache-lock-timeout).
+- `cacheDir`: where the workspace's card cache lives, absolute or relative to the workspace (`cache` keeps a per-workspace `cache/` folder). Unset means the per-user cache every workspace shares; `RITUAL_CACHE_DIR` outranks it. A blank value is rejected — `config unset cacheDir` returns to the shared cache. See [Cache directory](/configuration/#cache-directory-cachedir).
 - `cacheSource`: where card-cache refreshes download from, `scryfall` or `feed` (experimental). `cacheFeedUrl` is the feed URL and must be an http(s) URL. See [Cache source](/configuration/#cache-source).
 - `searchDebounceMs`: how long the web editors' add-card search waits after a keystroke before querying autocomplete. A non-negative integer; `0` disables the debounce. See [Search debounce](/configuration/#search-debounce).
 - `updateCheck`: `true` or `false`. Whether a release build checks for a newer Ritual and prints the one-line [update notice](/commands/self-update/#update-notice). See [Update check](/configuration/#update-check).
@@ -157,7 +159,7 @@ $ ritual config get admin.ipAllowList --output json
 ["192.168.1.0/24"]
 ```
 
-Optional keys that have never been set exit with `not_found` (code `3`): `cacheFeedUrl`, `defaultPriceSource` (its effective value, the first `priceSources` entry, is applied when prices are read, not reported by `get`), `exportPresets`, `site.bannedPrintings`, `site.apiBaseUrl`, `site.sellMode`, `site.theme`, `site.themeFiles`, and the `site.*` selection lists before a `site` object exists. An unknown property is a usage error (code `2`) that lists the available keys.
+Optional keys that have never been set exit with `not_found` (code `3`): `cacheFeedUrl`, `cacheDir`, `defaultPriceSource` (its effective value, the first `priceSources` entry, is applied when prices are read, not reported by `get`), `exportPresets`, `site.bannedPrintings`, `site.apiBaseUrl`, `site.sellMode`, `site.theme`, `site.themeFiles`, and the `site.*` selection lists before a `site` object exists. An unknown property is a usage error (code `2`) that lists the available keys.
 
 ## config list
 
@@ -172,6 +174,8 @@ decksDir = ./my-decks
 collectionsDir = ./collections (default)
 ...
 cacheFeedUrl = (unset)
+cacheDir = (unset)
+...
 admin.gitEnabled = false (default)
 ```
 

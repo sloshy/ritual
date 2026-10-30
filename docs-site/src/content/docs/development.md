@@ -101,6 +101,8 @@ bun run build:assets
 
 This project uses `bun test`.
 
+Tests never touch your real [card cache](/commands/cache/#where-the-cache-lives). The test preload (`test/preload.ts`) and `playwright.config.ts` set `RITUAL_CACHE_DIR=cache`, which resolves against each workspace, so every temporary workspace a test creates keeps its own `cache/` folder, and spawned CLIs inherit the setting — but only when the spawn passes `env` (`runCli` does): `Bun.spawn` without `env` hands a child the environment Bun started with, missing what the preload set. A test of the location itself passes its own environment.
+
 ### Local check suite
 
 `bun run test` runs the whole-repo checks to run before pushing (**type check, lint, and unit tests**) concurrently, with an assets-only build:
@@ -155,7 +157,6 @@ ritual/
 ├── docs-site/            # This documentation (Starlight)
 ├── .github/workflows/    # CI (ci.yml, build-binaries.yml), release.yml, docs deploy
 ├── decks/                # Deck files (Markdown)
-├── cache/                # Card cache
 └── dist/                 # Generated static site
 ```
 
@@ -212,7 +213,7 @@ bun run index.ts --base-dir demo build-site --refresh auto
 bun run index.ts --base-dir demo serve
 ```
 
-The first build downloads the Scryfall card cache into `demo/cache/` (about 75 MB). `demo/.gitignore` keeps the cache and the built `demo/dist/` out of git.
+The demo keeps its card cache in its own folder rather than your shared per-user cache: its `ritual.config.json` sets [`cacheDir`](/configuration/#cache-directory-cachedir) to `cache`. So the first build downloads the Scryfall card cache into `demo/cache/` (about 75 MB), which is the path the docs workflow caches and the screenshot and recording scripts reuse. `demo/.gitignore` keeps the cache and the built `demo/dist/` out of git.
 
 `.github/workflows/deploy-docs.yml` builds Ritual from the pushed commit, builds the demo into `docs-site/dist/demo/` after the Starlight build, and publishes both together. It also runs every Monday, so the demo's prices stay current between pushes. The card cache is kept between runs with `actions/cache`, keyed by day: the first build each day downloads fresh card data, and later builds that day reuse it.
 
@@ -238,7 +239,7 @@ bun run scripts/docs-recordings.ts                 # all of them; needs the demo
 bun run scripts/docs-recordings.ts --only price    # just one
 ```
 
-Each recording types its commands into a shell in a 100-column pseudo-terminal, in a temporary copy of `demo/` (or an empty folder, for `first-deck`) with the card cache linked, so nothing is written to the committed files. The shell has a fixed home directory, no rc files and no update check, and the script fails if a cast mentions a local path, user or host name. The steps for each recording are listed at the top of the script. The casts and `recordings.json` (title, length and poster frame) go to `docs-site/src/assets/recordings/`, and `<Recording name="…" />` (`docs-site/src/components/Recording.astro`) embeds one in an `.mdx` page. The `scry` recording searches Scryfall, so it needs a network connection and its results follow Scryfall's.
+Each recording types its commands into a shell in a 100-column pseudo-terminal, in a temporary copy of `demo/` with the card cache linked into its `cache/` folder (or an empty folder, for `first-deck`, with the cache linked as the fixed home directory's shared per-user cache), so nothing is written to the committed files. The shell has a fixed home directory, no rc files and no update check, and the script fails if a cast mentions a local path, user or host name. The steps for each recording are listed at the top of the script. The casts and `recordings.json` (title, length and poster frame) go to `docs-site/src/assets/recordings/`, and `<Recording name="…" />` (`docs-site/src/components/Recording.astro`) embeds one in an `.mdx` page. The `scry` recording searches Scryfall, so it needs a network connection and its results follow Scryfall's.
 
 `--gif` also renders `<name>.gif` beside each cast with [agg](https://github.com/asciinema/agg), for places that cannot run the player, such as the README. Install it with `cargo install --locked --git https://github.com/asciinema/agg` or from its releases page; the `agg` crate on crates.io is a different tool.
 

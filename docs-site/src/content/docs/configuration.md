@@ -201,13 +201,27 @@ Where the value takes effect:
 
 **Translations are separate from this setting.** No translated catalogs ship yet, so every value renders English text today. Dates, numbers, and currency do follow the tag. See [Localization](/localization/), including how to contribute a translation.
 
+## Cache directory (`cacheDir`)
+
+| Field      | Default | Description                                                                                                                                   |
+| ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cacheDir` | —       | Where this workspace's card cache lives. Absolute, or relative to the base directory. Absent means the per-user cache every workspace shares. |
+
+By default the card cache is one per-user folder, shared by every workspace: `$XDG_CACHE_HOME/ritual` (or `~/.cache/ritual`) on Linux, `~/Library/Caches/ritual` on macOS, and `%LOCALAPPDATA%\ritual\cache` on Windows. Set `cacheDir` to give a workspace a cache of its own; `"cache"` keeps it in the workspace's `cache/` folder. The `RITUAL_CACHE_DIR` environment variable outranks the key, and a relative value there is also resolved against the base directory:
+
+```
+RITUAL_CACHE_DIR  →  cacheDir  →  per-user default
+```
+
+[`cache status`](/commands/cache/#status) prints the folder in use and which of the three chose it. Changing the setting does not move an existing cache; the next command that needs card data offers to download it into the new folder (or move the files yourself). See [Where the cache lives](/commands/cache/#where-the-cache-lives), including what is safe when workspaces share a cache. Also editable on the admin [Settings page](/admin/dashboard/#settings).
+
 ## Cache lock timeout
 
 | Field                     | Default | Description                                                                                              |
 | ------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
 | `cacheLockTimeoutSeconds` | `300`   | How long a cache refresh waits for another process's refresh to finish before failing. Positive integer. |
 
-Refreshes take an exclusive lock (`cache/.ritual-cache-lock`) so concurrent processes (CLI commands, the [cache server](/commands/cache/#server), the [admin server](/commands/admin/)) never interleave writes. A waiting process breaks the lock immediately when its holder is provably no longer running, so a stale lock from a crash never blocks the cache for longer than one attempt.
+Refreshes take an exclusive lock (`.ritual-cache-lock` in the [cache directory](#cache-directory-cachedir)) so concurrent processes, in this workspace or any other sharing the cache (CLI commands, the [cache server](/commands/cache/#server), the [admin server](/commands/admin/)), never interleave writes. A waiting process breaks the lock immediately when its holder is provably no longer running, so a stale lock from a crash never blocks the cache for longer than one attempt.
 
 ## Search debounce
 

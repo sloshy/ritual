@@ -72,14 +72,19 @@ Non-fatal parser warnings (a malformed card line, prose, or a comment inside an 
 
 ## Why this exists
 
-The generated GitHub Actions workflow uses this file as the cache key for the Scryfall data cache:
+The generated GitHub Actions workflow uses this file as the cache key for the Scryfall data cache. The job sets `RITUAL_CACHE_DIR: cache`, so the [card cache](/commands/cache/#where-the-cache-lives) lives in the checkout's `cache/` folder, the path `actions/cache` saves and restores, rather than in the runner's per-user cache:
 
 ```yaml
+env:
+  RITUAL_CACHE_DIR: cache
+
+# ...
+
 - name: Generate card manifest
   run: ./ritual list-all-cards --out all-cards.md
 
 - name: Restore Scryfall cache
-  uses: actions/cache@v5
+  uses: actions/cache@v6
   with:
     path: cache/
     key: ritual-cache-${{ hashFiles('all-cards.md') }}

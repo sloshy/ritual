@@ -722,6 +722,8 @@ Report the card cache's size, freshness, tag coverage, and source — the same p
   "priceStale": false,
   "tagsPresent": true,
   "source": "local",
+  "cacheDir": "/home/you/.cache/ritual",
+  "cacheDirSource": "default",
   "defaultLanguage": "en",
   "cardBulkType": "default_cards",
   "bulkTypeStale": false
@@ -737,6 +739,8 @@ Report the card cache's size, freshness, tag coverage, and source — the same p
 | `priceStale`      | `true` when prices are older than 24 hours, or their age is unknown                                                                                          |
 | `tagsPresent`     | Whether any sampled card carries oracle/art tags                                                                                                             |
 | `source`          | `local`, or `cache-server` when a [cache server](/commands/cache/) is configured                                                                             |
+| `cacheDir`        | Absolute path of the local [cache folder](/commands/cache/#where-the-cache-lives)                                                                            |
+| `cacheDirSource`  | Which setting chose it: `env` (`RITUAL_CACHE_DIR`), `config` (the `cacheDir` key) or `default` (the per-user folder every workspace shares)                  |
 | `defaultLanguage` | The configured [`defaultLanguage`](/configuration/#default-language)                                                                                         |
 | `cardBulkType`    | Which bulk built the cache (`default_cards`/`all_cards`), or `null` when no ingest has recorded provenance                                                   |
 | `bulkTypeStale`   | `true` when the cache's bulk disagrees with `defaultLanguage`; a full refresh is needed (see [bulk selection](/commands/cache/#bulk-selection-and-language)) |
@@ -3081,8 +3085,8 @@ Every key in the request body is validated **before** the merge is persisted; a 
 - Unknown keys inside `admin` are rejected (`Unknown admin config key "x"`), matching `config set admin.<field>`.
 - When `admin` or `site` is present, its fields are validated field by field with the config loader's rules, and any malformed field rejects the whole update.
 - `collectionSync` replaces wholesale like `site` rather than merging like `admin`. Its fields are validated (`pullTarget` must be a non-empty list name) and any absent field takes its default, so a partial object round-trips to a complete one. A malformed value rejects the whole update.
-- `defaultPriceSource` (an empty string clears it), `priceSources` (store names only — lowercased and deduped, unknown stores rejected), `defaultLanguage` (canonical Scryfall codes only, no aliases), `uiLocale` (a BCP-47 tag naming the interface language, not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, `searchDebounceMs`, and `updateCheck` (a boolean) are validated as [`config set`](/commands/config/) validates them.
-- `cacheFeedUrl` has one extra rule: sending it as an **empty string** clears a previously-set override (falling back to the built-in default). Omitting the field leaves the current value untouched.
+- `defaultPriceSource` (an empty string clears it), `priceSources` (store names only — lowercased and deduped, unknown stores rejected), `defaultLanguage` (canonical Scryfall codes only, no aliases), `uiLocale` (a BCP-47 tag naming the interface language, not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, `cacheDir` (a non-blank path, trimmed), `searchDebounceMs`, and `updateCheck` (a boolean) are validated as [`config set`](/commands/config/) validates them.
+- `cacheFeedUrl` and `cacheDir` have one extra rule: sending either as an **empty string** clears a previously-set value (`cacheFeedUrl` falls back to the built-in default, `cacheDir` to the [per-user cache every workspace shares](/commands/cache/#where-the-cache-lives)). Omitting the field leaves the current value untouched; a whitespace-only `cacheDir` is refused (`domain.config.mustBePath`).
 - `site.theme` is stored lowercase and must name a built-in theme, or (only while `site.themeFiles` is non-empty) a custom theme name (`domain.config.siteThemeUnknown`). `site.themeFiles` must be an array of non-blank paths (`domain.config.mustBeStringArray`, `domain.config.blankEntry`). Because `site` replaces wholesale, send `themeFiles` with a custom `theme` in the same object.
 - `managed` is accepted so a client can send back the whole config it read, but it is **ignored**: the stored [`managed` block](/configuration/#ritual-bookkeeping-managed-key) belongs to `init-site` and `migrate` and is never taken from a request.
 
