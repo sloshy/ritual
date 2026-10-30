@@ -39,7 +39,7 @@ import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
 import { PageHeading } from '../components/PageHeading'
 import { DEFAULT_THEME_NAME, isThemeName, themeNames } from '../../../theme/themes'
-import { COMMAND, CONFIG_KEY, EXAMPLE, FLAG, commandLine } from '../../../util/cli-tokens'
+import { COMMAND, CONFIG_KEY, ENV_VAR, EXAMPLE, FLAG, commandLine } from '../../../util/cli-tokens'
 
 function listToString(list: string[]): string {
   return list.join('\n')
@@ -456,6 +456,20 @@ export function Settings(): JSX.Element {
               value={config()!.cacheFeedUrl ?? ''}
               onInput={(e) => updateField('cacheFeedUrl', e.currentTarget.value)}
             />
+          </div>
+          <div>
+            <label class="form-label">{t('admin.settings.cacheDir')}</label>
+            <input
+              type="text"
+              class="form-input"
+              name="cacheDir"
+              placeholder={t('admin.settings.cacheDirPlaceholder')}
+              value={config()!.cacheDir ?? ''}
+              onInput={(e) => updateField('cacheDir', e.currentTarget.value)}
+            />
+            <p class="form-hint">
+              {t('admin.settings.cacheDirHint', { envVar: ENV_VAR.cacheDir })}
+            </p>
           </div>
           <div>
             <label class="form-label">{t('admin.settings.cacheLockTimeout')}</label>

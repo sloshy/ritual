@@ -45,6 +45,7 @@ import type { McpToolName } from './tools/names'
 import { VALID_FINISHES } from '../card/finish-condition'
 import { CARD_LANGUAGES } from '../card/card-language'
 import { CARD_BULK_TYPES } from '../scryfall/bulk-manifest'
+import { CACHE_DIR_SOURCES } from '../cache/location'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
 import { DIFF_BY_MODES } from '../changes/list-diff'
 import { BUYERS, CK_CSV_MAX_CARDS, CK_CSV_MAX_TITLES, SELL_MATCH_VIAS } from '../buylist'
@@ -701,6 +702,12 @@ export const GET_CACHE_STATUS_OUTPUT: JsonSchemaType = obj(
     priceStale: bool('True when prices are older than 24h, or their age is unknown.'),
     tagsPresent: bool('Whether sampled cards carry Scryfall Tagger tags.'),
     source: enumOf(['local', 'cache-server']),
+    cacheDir: str('Absolute path of the local cache directory.'),
+    cacheDirSource: enumOf(
+      CACHE_DIR_SOURCES,
+      'Which setting chose cacheDir: env (RITUAL_CACHE_DIR), config (the cacheDir key), or ' +
+        'default (the per-user cache every workspace shares).',
+    ),
     defaultLanguage: enumOf(
       CARD_LANGUAGES,
       'The configured defaultLanguage — what decides which Scryfall bulk backs the cache.',
@@ -723,6 +730,8 @@ export const GET_CACHE_STATUS_OUTPUT: JsonSchemaType = obj(
     'priceStale',
     'tagsPresent',
     'source',
+    'cacheDir',
+    'cacheDirSource',
     'defaultLanguage',
     'cardBulkType',
     'bulkTypeStale',

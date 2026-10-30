@@ -57,6 +57,9 @@ export const domainConfigMeta = {
   'domain.config.mustBeHash': {
     description: `${REFUSAL} ${FIELD} The value must be text starting with the literal prefix "sha256:" (a content hash Ritual writes itself). Keep "sha256:" as is.`,
   },
+  'domain.config.mustBePath': {
+    description: `${REFUSAL} ${FIELD} The value must name a folder on disk — an absolute path, or one relative to the workspace folder — and must not be empty or only spaces.`,
+  },
   'domain.config.mustBeListName': {
     description: `${REFUSAL} ${FIELD} The value must name a list (a collection of cards the user keeps) and cannot be blank.`,
   },

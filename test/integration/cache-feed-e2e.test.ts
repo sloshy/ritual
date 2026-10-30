@@ -7,6 +7,14 @@ import { parseCacheFeed, type CacheFeedDocument, type CacheFeedEntry } from '../
 import { gzipJsonLines } from '../test-utils'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
+/**
+ * The test process's environment as it stands now. `Bun.spawn` without `env`
+ * passes the environment Bun started with, missing what `test/preload.ts` set —
+ * notably `RITUAL_CACHE_DIR=cache`, without which these binaries would read and
+ * write the developer's real per-user card cache.
+ */
+const TEST_ENV = { ...process.env }
+
 // Fixed ports for the spawned host; chosen away from the other suites' ports.
 const FEED_PORT = 4915
 const TORRENT_PORT = 4916
@@ -128,7 +136,7 @@ describe('cache feed host (e2e over the built binary)', () => {
         '--dir',
         feedDir,
       ],
-      { cwd: workDir, stdout: 'pipe', stderr: 'pipe' },
+      { cwd: workDir, stdout: 'pipe', stderr: 'pipe', env: TEST_ENV },
     )
 
     feed = await waitForFeed(`http://127.0.0.1:${FEED_PORT}/feed.json`, 60_000)
@@ -201,7 +209,7 @@ describe('cache feed host (e2e over the built binary)', () => {
           '--torrent-port',
           String(CACHE_SERVER_TORRENT_PORT),
         ],
-        { cwd: serverDir, stdout: 'pipe', stderr: 'pipe' },
+        { cwd: serverDir, stdout: 'pipe', stderr: 'pipe', env: TEST_ENV },
       )
 
       // Wait for the server to come up (startup feed sync happens first).
@@ -259,7 +267,7 @@ describe('cache feed host (e2e over the built binary)', () => {
           `http://127.0.0.1:${FEED_PORT}/feed.json`,
           '--no-seed',
         ],
-        { cwd: serverDir, stdout: 'pipe', stderr: 'pipe' },
+        { cwd: serverDir, stdout: 'pipe', stderr: 'pipe', env: TEST_ENV },
       )
       const start = Date.now()
       while (true) {

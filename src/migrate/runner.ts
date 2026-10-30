@@ -39,6 +39,7 @@ import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
 import { isRecord } from '../util/json'
 import { backUpFiles } from '../util/safekeeping'
 import { renameWithRetry } from '../util/atomic-write'
+import { moveLegacyCache } from '../cache/relocate'
 import { SKILLS } from '../skills/catalog'
 import type { RitualSkill } from '../skills/types'
 import {
@@ -52,7 +53,9 @@ import {
 import { downloadsPinnedRelease, writeWorkspaceFile } from './managed-files'
 import { MIGRATIONS, latestMigrationId } from './migrations'
 import {
+  isCacheOp,
   isFileOp,
+  type CacheOp,
   type FileOp,
   type Migration,
   type MigrationContext,
@@ -474,10 +477,34 @@ async function applyFileOp(op: FileOp): Promise<void> {
   }
 }
 
+/** What a cache op did: the legacy folder `path` moved into, or was kept beside, `shared`. */
+export type CacheOpResult = {
+  outcome: 'moved' | 'kept'
+  /** The legacy folder, relative to the base dir. */
+  path: string
+  /** The cache directory it moved to, or that already had data. */
+  shared: string
+}
+
+async function applyCacheOp(op: CacheOp): Promise<CacheOpResult> {
+  switch (op.type) {
+    case 'cache-move': {
+      const outcome = await moveLegacyCache(path.join(getBaseDir(), op.from), op.to)
+      return { outcome, path: op.from, shared: op.to }
+    }
+    case 'cache-keep':
+      return { outcome: 'kept', path: op.path, shared: op.shared }
+    default:
+      return op satisfies never
+  }
+}
+
 /** What an apply did. */
 export type MigrationResult = {
   /** The migrations that changed something, in order. */
   applied: Migration[]
+  /** What each cache op did — a planned move turns into `kept` when the target filled meanwhile. */
+  cache: CacheOpResult[]
   refresh: ManagedRefreshResult | null
   /** The folder holding copies of what the migrations changed, or null when none ran. */
   backupDir: string | null
@@ -512,10 +539,12 @@ export async function applyMigration(
   const backupDir = await backUpPlannedChanges(plan)
   let config = plan.raw
   const applied: Migration[] = []
+  const cache: CacheOpResult[] = []
   for (const { migration, ops } of plan.migrations) {
     if (ops.length === 0) continue
     for (const op of ops) {
       if (isFileOp(op)) await applyFileOp(op)
+      else if (isCacheOp(op)) cache.push(await applyCacheOp(op))
     }
     config = withManaged(applyConfigOps(config, ops), { ...plan.recorded, migration: migration.id })
     await writeRawRitualConfig(config)
@@ -526,5 +555,5 @@ export async function applyMigration(
 
   await writeRawRitualConfig(withManaged(config, plan.managed))
   await refreshRitualConfig()
-  return { applied, refresh, backupDir }
+  return { applied, cache, refresh, backupDir }
 }

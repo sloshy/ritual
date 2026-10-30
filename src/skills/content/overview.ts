@@ -35,7 +35,14 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
 - \`ritual.config.json\` — configuration (optional: reading config never creates
   it, so a workspace only has one once \`config set\`/\`unset\`, \`init-site\`, the
   admin Settings page, or the MCP \`update_config\` tool writes it)
-- \`cache/\` — downloaded data, never hand-edited (rebuild it with
+- The **card cache** is not in the workspace: it is one per-user folder every workspace
+  shares (\`~/.cache/ritual\` on Linux, \`~/Library/Caches/ritual\` on macOS,
+  \`%LOCALAPPDATA%\\ritual\\cache\` on Windows), unless \`RITUAL_CACHE_DIR\` or the
+  \`cacheDir\` config key names another (relative paths resolve against the workspace, so
+  \`cacheDir: cache\` keeps a per-workspace \`cache/\`). \`ritual cache status\` prints the
+  folder in use (\`cacheDir\`, \`cacheDirSource\` in JSON). An older workspace's own
+  \`cache/\` folder is moved there by \`ritual migrate\` (or left for the user to delete
+  when the shared cache already has data). It is downloaded data, never hand-edited (rebuild it with
   \`ritual cache preload-all\`): \`cache.json\` is the Scryfall card cache (\`cards\` keyed by
   card name, each holding that name's printings as Scryfall card objects: set and collector
   number, EDHREC rank, TCGplayer (USD) and Cardmarket (EUR) market prices per finish,
@@ -545,7 +552,7 @@ ritual metadata set <list> <prop> <value...>  # list front matter, same shape as
                                   #   any list's description; deck tags/format/sourceId/
                                   #   sourceUrl/labels; collection labels
 ritual metadata get|list|unset <list> [prop]  # read or clear it (get exits 3 when unset)
-ritual cache status               # report cache size/freshness/source without refreshing
+ritual cache status               # report cache size/freshness/source/location without refreshing
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download); also
                                   #   refreshes the Card Kingdom buylist when site.sellMode is on
                                   #   or priceSources includes cardkingdom
@@ -574,9 +581,11 @@ for a value the validator refuses, \`domain.export.problem.*\` for an \`exportPr
 one); \`PUT /api/config\` refuses a value in English plus that key, and \`update_config\`
 with the same English.
 
-Cache refreshes take an exclusive lock (\`cache/.ritual-cache-lock\`); a refresh
-started while another process is refreshing waits up to the configurable
-\`cacheLockTimeoutSeconds\` (default 300) instead of interleaving writes.
+Cache refreshes take an exclusive lock (\`.ritual-cache-lock\` in the cache folder); a refresh
+started while another process — in this workspace or any other sharing the cache — is
+refreshing waits up to the configurable \`cacheLockTimeoutSeconds\` (default 300) instead of
+interleaving writes. Workspaces with different \`defaultLanguage\` values should not share a
+cache (each refresh replaces the other's bulk); give one its own \`cacheDir\`.
 
 ## Alternative: the MCP server
 

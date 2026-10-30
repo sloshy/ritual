@@ -59,6 +59,8 @@ jobs:
       # The Scryfall card cache is keyed by UTC day. `--refresh auto` re-runs the
       # ~75 MB bulk download once the last one is a day old, so the first build
       # each day downloads fresh card data and later builds that day reuse it.
+      # The demo keeps its cache in demo/cache (`cacheDir: "cache"` in its
+      # ritual.config.json), not the runner's per-user cache, so this path holds it.
       - name: Cache day
         id: cache-day
         run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"

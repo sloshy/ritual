@@ -684,6 +684,29 @@ describe('applyConfigSet — cacheSource', () => {
   })
 })
 
+describe('applyConfigSet — cacheDir', () => {
+  test('stores a path as written, trimmed', () => {
+    const result = applyConfigSet(base, 'cacheDir', [' ../shared-cache '], 'replace')
+    if ('error' in result) throw new Error(result.error.message)
+    expect(result.newValue).toBe('../shared-cache')
+    expect(result.updatedConfig.cacheDir).toBe('../shared-cache')
+  })
+
+  test('unset removes it, returning the workspace to the shared cache', () => {
+    const outcome = applyConfigUnset({ ...base, cacheDir: 'cache' }, 'cacheDir')
+    if ('error' in outcome) throw new Error(outcome.error.message)
+    expect(outcome.defaultValue).toBeUndefined()
+    expect('cacheDir' in outcome.updatedConfig).toBeFalse()
+  })
+
+  test('rejects a blank path, which would silently mean "unset"', () => {
+    const result = applyConfigSet(base, 'cacheDir', ['  '], 'replace')
+    expect('error' in result && result.error.message).toBe(
+      '"cacheDir" must be a non-empty directory path',
+    )
+  })
+})
+
 describe('applyConfigSet — cacheFeedUrl', () => {
   test('sets a valid http(s) URL', () => {
     const result = applyConfigSet(

@@ -10,7 +10,7 @@
  * permanently-dead branch.
  */
 export type ErrnoCode =
-  'ENOENT' | 'ENOTDIR' | 'EEXIST' | 'EPERM' | 'EPIPE' | 'EBUSY' | 'EACCES' | 'EXDEV'
+  'ENOENT' | 'ENOTDIR' | 'ENOTEMPTY' | 'EEXIST' | 'EPERM' | 'EPIPE' | 'EBUSY' | 'EACCES' | 'EXDEV'
 
 /** A Node errno error whose `code` is known to be `C`. */
 type ErrnoWithCode<C extends ErrnoCode> = NodeJS.ErrnoException & { code: C }

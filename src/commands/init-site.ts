@@ -98,9 +98,10 @@ function outDirArgs(distDir: string): string[] {
  * than gitignored — the two facts every command and layout line below depends on.
  */
 function gettingStarted(distDir: string, committed: boolean): string {
-  const ignoredDist = committed ? '' : `\`${distDir}/\`, `
   // i18n-exempt: owner decision: the generated init-site README is English workspace content
-  const generated = `\`cache/\`, ${ignoredDist}\`exports/\`, and \`all-cards.md\` — generated artifacts (gitignored)`
+  const ignored = committed ? '`exports/` and' : `\`${distDir}/\`, \`exports/\`, and`
+  // i18n-exempt: owner decision: the generated init-site README is English workspace content
+  const generated = `${ignored} \`all-cards.md\` — generated artifacts (gitignored)`
   // i18n-exempt: owner decision: the generated init-site README is English workspace content
   return `## Getting Started
 

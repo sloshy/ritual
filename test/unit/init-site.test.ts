@@ -34,6 +34,7 @@ type WorkflowStep = {
 type WorkflowJob = {
   'runs-on': string
   environment: { name: string; url: string }
+  env?: Record<string, string>
   steps: WorkflowStep[]
 }
 
@@ -77,6 +78,13 @@ describe('generatePublishForMeWorkflow', () => {
       'Upload artifact',
       'Deploy to GitHub Pages',
     ])
+  })
+
+  test('keeps the card cache in the checkout folder the cache step saves', () => {
+    // Without the variable, Ritual would use the runner's per-user cache and the
+    // restored cache/ folder would never be read or refilled.
+    expect(job.env).toEqual({ RITUAL_CACHE_DIR: 'cache' })
+    expect(findStep(job.steps, 'Restore Scryfall cache')?.with?.path).toBe('cache/')
   })
 
   test('writes the card manifest to an explicit --out file', () => {

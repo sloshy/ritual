@@ -31,6 +31,10 @@ export const cliInfraMessages = {
   'cli.cache.rowPricesStale': 'Prices stale',
   'cli.cache.rowTagsPresent': 'Tags present',
   'cli.cache.rowSource': 'Source',
+  'cli.cache.rowLocation': 'Location',
+  'cli.cache.locationEnv': '{path} (from {envVar})',
+  'cli.cache.locationConfig': '{path} (from {configKey} in {file})',
+  'cli.cache.locationDefault': '{path} (per-user default, shared by every workspace)',
   'cli.cache.rowDefaultLanguage': 'Default language',
   'cli.cache.rowCardBulk': 'Card bulk',
   'cli.cache.rowBulkStale': 'Bulk stale',
@@ -182,6 +186,9 @@ export const cliInfraMessages = {
   'cli.cacheGate.emptyForAutocomplete':
     'Card cache is empty. A preloaded cache is required for card autocomplete.',
   'cli.cacheGate.downloadDatabaseConfirm': 'Would you like to download the card database now?',
+  'cli.cacheGate.locationShared':
+    'Card data is cached in {path}, shared by every workspace on this computer.',
+  'cli.cacheGate.location': 'Card data is cached in {path}.',
   'cli.cacheGate.pricesStaleRefreshing':
     'Cached prices are more than a day old. Refreshing the card cache from Scryfall...',
   'cli.cacheGate.uploadConfirm': '{reason} Update it before uploading?',
@@ -688,11 +695,16 @@ export const cliInfraMessages = {
     'Remove {configKey} from {file} (the managed block replaces it)',
   'cli.migrate.migration.dropSitePrerelease':
     'Remove {sitePrereleaseConfigKey} from {file} (the deploy workflow now downloads the release pinned in {managedVersionConfigKey})',
+  'cli.migrate.migration.sharedCache':
+    "Move the card cache from the workspace's {dir} folder to the per-user cache every workspace shares (or the one {envVar} or {configKey} names)",
   'cli.migrate.opConfigSet': '  set {path} = {value} in {file}',
   'cli.migrate.opConfigDelete': '  remove {path} from {file}',
   'cli.migrate.opWrite': '  write {path}',
   'cli.migrate.opDelete': '  delete {path}',
   'cli.migrate.opRename': '  move {from} → {to}',
+  'cli.migrate.opCacheMove': '  move the card cache {from} → {to}',
+  'cli.migrate.opCacheKeep':
+    '  leave {path} in place: {shared} already has a card cache (you can delete {path} afterwards)',
   'cli.migrate.refreshHeading': 'Refresh generated files:',
   'cli.migrate.refreshGitignore': '  add {entries} to {file}',
   'cli.migrate.refreshSkill': '  overwrite agent skill {name}',
@@ -706,6 +718,9 @@ export const cliInfraMessages = {
   'cli.migrate.cancelled': 'Cancelled; nothing was written.',
   'cli.migrate.applied': '✓ Applied migration {id}: {description}',
   'cli.migrate.backedUp': '✓ Saved a copy of the files it changed in {path}',
+  'cli.migrate.cacheMoved': '✓ Moved the card cache from {path} to {shared}',
+  'cli.migrate.cacheKept':
+    'Left {path} in place: {shared} already has a card cache, which every workspace now uses. Ritual no longer reads {path}; delete it to free the space.',
   'cli.migrate.wrote': '✓ Wrote {path}',
   'cli.migrate.skillUpdated': '✓ Updated agent skill {name}',
   'cli.migrate.skillRemoved': '✕ Removed agent skill {name}',

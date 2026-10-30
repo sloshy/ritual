@@ -249,6 +249,9 @@ export function registerDestructiveTools(
         'cardkingdom makes builds/servers download the Card Kingdom feed like sell mode does) — ' +
         'or defaultCategories — the global category vocabulary new lists suggest and order by — ' +
         'or updateCheck — a boolean turning the CLI\'s daily "newer Ritual available" notice on or off — ' +
+        'or cacheDir — where the card cache lives, absolute or workspace-relative ("" returns to ' +
+        'the per-user cache every workspace shares; RITUAL_CACHE_DIR outranks it; changing it does ' +
+        'not move the existing cache) — ' +
         'or site.theme — the theme the built public site opens on (a built-in such as "izzet" or ' +
         '"boros-inverted", or a custom theme name from the custom theme JSON files listed in ' +
         'site.themeFiles, workspace-relative paths); build_site reads both. ' +

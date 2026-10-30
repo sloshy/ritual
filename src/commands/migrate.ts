@@ -48,6 +48,10 @@ function formatOp(op: MigrationOp): string {
       return t('cli.migrate.opDelete', { path: op.path })
     case 'rename':
       return t('cli.migrate.opRename', { from: op.from, to: op.to })
+    case 'cache-move':
+      return t('cli.migrate.opCacheMove', { from: op.from, to: op.to })
+    case 'cache-keep':
+      return t('cli.migrate.opCacheKeep', { path: op.path, shared: op.shared })
     default:
       return op satisfies never
   }
@@ -116,6 +120,13 @@ function printResult(plan: MigrationPlan, result: MigrationResult): void {
         id: migration.id,
         description: renderSyncParam(migration.description),
       }),
+    )
+  }
+  for (const cache of result.cache) {
+    console.log(
+      cache.outcome === 'moved'
+        ? t('cli.migrate.cacheMoved', { path: cache.path, shared: cache.shared })
+        : t('cli.migrate.cacheKept', { path: cache.path, shared: cache.shared }),
     )
   }
   if (result.backupDir !== null) {

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { runCli } from './helpers/cli'
-import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { bindWorkspace, writeConfig, type BoundWorkspace } from '../helpers/workspace'
+import { defaultUserCacheDir } from '../../src/util/user-dirs'
 import { cardCache } from '../../src/cache'
 import { makeScryfallCard } from '../test-utils'
 import type { CacheStatusResult } from '../../src/cache/status'
@@ -21,8 +25,14 @@ const NO_CACHE_SERVER = { RITUAL_CACHE_SERVER: undefined }
 
 type StatusJsonRun = { exitCode: number; payload: CacheStatusPayload }
 
-async function statusJson(dir: string): Promise<StatusJsonRun> {
-  const result = await runCli(['cache', 'status', '--output', 'json'], dir, NO_CACHE_SERVER)
+async function statusJson(
+  dir: string,
+  env: Record<string, string | undefined> = {},
+): Promise<StatusJsonRun> {
+  const result = await runCli(['cache', 'status', '--output', 'json'], dir, {
+    ...NO_CACHE_SERVER,
+    ...env,
+  })
   return { exitCode: result.exitCode, payload: JSON.parse(result.stdout) as CacheStatusPayload }
 }
 
@@ -48,6 +58,9 @@ describe('cache status CLI (Integration)', () => {
       priceStale: true,
       tagsPresent: false,
       source: 'local',
+      // The test preload pins RITUAL_CACHE_DIR=cache: each workspace keeps its own.
+      cacheDir: path.join(workspace.dir, 'cache'),
+      cacheDirSource: 'env',
       defaultLanguage: 'en',
       cardBulkType: null,
       bulkTypeStale: false,
@@ -122,5 +135,65 @@ describe('cache status CLI (Integration)', () => {
     })
     const { payload } = await statusJson(workspace.dir)
     expect(payload.tagsPresent).toBe(true)
+  })
+
+  describe('cache location', () => {
+    let elsewhere: string
+
+    beforeEach(async () => {
+      elsewhere = await mkdtemp(path.join(tmpdir(), 'ritual-shared-cache-'))
+    })
+
+    afterEach(async () => {
+      await rm(elsewhere, { recursive: true, force: true })
+    })
+
+    test('RITUAL_CACHE_DIR outranks the cacheDir key, and the cache is read from it', async () => {
+      await writeConfig(workspace.dir, { cacheDir: 'workspace-cache' })
+      // Seed the shared directory the variable names, not the workspace's own cache.
+      await Bun.write(
+        path.join(elsewhere, 'cache.json'),
+        JSON.stringify({
+          prices: {},
+          cards: {
+            'Sol Ring': { timestamp: Date.now(), data: [makeScryfallCard({ name: 'Sol Ring' })] },
+          },
+        }),
+      )
+      const { payload } = await statusJson(workspace.dir, { RITUAL_CACHE_DIR: elsewhere })
+      expect(payload).toMatchObject({ cacheDir: elsewhere, cacheDirSource: 'env', cardCount: 1 })
+    })
+
+    test('without the variable, a relative cacheDir resolves against the workspace', async () => {
+      await writeConfig(workspace.dir, { cacheDir: 'workspace-cache' })
+      const { payload } = await statusJson(workspace.dir, { RITUAL_CACHE_DIR: undefined })
+      expect(payload).toMatchObject({
+        cacheDir: path.join(workspace.dir, 'workspace-cache'),
+        cacheDirSource: 'config',
+      })
+    })
+
+    test('with neither, the per-user default is used and the text report says it is shared', async () => {
+      // Every platform's base directory points into the throwaway folder, so no
+      // run reads a real per-user cache; the expected path is the platform's own rule.
+      const env = {
+        RITUAL_CACHE_DIR: undefined,
+        XDG_CACHE_HOME: undefined,
+        HOME: elsewhere,
+        USERPROFILE: elsewhere,
+        LOCALAPPDATA: elsewhere,
+      }
+      const expected = defaultUserCacheDir({
+        env: { LOCALAPPDATA: elsewhere },
+        platform: process.platform,
+        home: elsewhere,
+      })
+      const { payload } = await statusJson(workspace.dir, env)
+      expect(payload).toMatchObject({ cacheDir: expected, cacheDirSource: 'default' })
+      const text = await runCli(['cache', 'status'], workspace.dir, { ...NO_CACHE_SERVER, ...env })
+      expect(text.stdout.match(/^Location:\s+(.*)$/m)?.[1]).toBe(
+        `${expected} (per-user default, shared by every workspace)`,
+      )
+    })
   })
 })

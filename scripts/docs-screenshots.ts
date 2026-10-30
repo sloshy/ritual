@@ -407,6 +407,11 @@ const SHOTS: readonly Shot[] = [
 
 const DEMO_CACHE = path.join(DEMO_DIR, 'cache')
 
+// The demo keeps its card cache in its own `cache/` folder (`cacheDir: "cache"`
+// in demo/ritual.config.json). Say so to every spawned CLI too, so a
+// RITUAL_CACHE_DIR in the developer's shell cannot point a run elsewhere.
+process.env.RITUAL_CACHE_DIR = 'cache'
+
 /** The files git tracks under `demo/`, relative to it: never local state such as `.logins/`. */
 function trackedDemoFiles(): string[] {
   const result = Bun.spawnSync(['git', 'ls-files', '-z', '--', 'demo'], { cwd: ROOT })

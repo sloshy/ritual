@@ -90,7 +90,7 @@ the local bulk cache that the list commands (\`add-card\`, \`edit\`, \`price\`,
 \`ritual cache preload-all\` (bulk download: cards, prices, and tags) or
 \`ritual cache preload-set <code>\` for a single set — see the **ritual** skill's
 Setup section. Read cached card data (EDHREC rank, market prices) through \`export\`,
-\`price\` and \`sell\` output rather than by parsing \`cache/cache.json\` — the **ritual**
+\`price\` and \`sell\` output rather than by parsing the cache's \`cache.json\` — the **ritual**
 skill's Workspace layout lists which command carries which field.
 `,
 }

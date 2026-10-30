@@ -351,6 +351,15 @@ describe('ritual config', () => {
     },
   )
 
+  test('cacheDir loads as written, and a blank or non-string one is dropped', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ cacheDir: '../shared' }))
+    expect((await loadRitualConfig()).cacheDir).toBe('../shared')
+    for (const raw of ['" "', '5']) {
+      await fs.writeFile(configPath, `{ "cacheDir": ${raw} }`)
+      expect((await loadRitualConfig()).cacheDir).toBeUndefined()
+    }
+  })
+
   test('loadRitualConfig falls back to admin defaults when admin is absent', async () => {
     await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
     const config = await loadRitualConfig()

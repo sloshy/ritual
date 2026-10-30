@@ -870,6 +870,10 @@ export const adminMessages = {
   'admin.settings.cacheSourceFeed': 'Cache feed (peer-to-peer)',
   'admin.settings.cacheFeedUrl': 'Cache Feed URL',
   'admin.settings.cacheFeedUrlPlaceholder': '{url} (uses the built-in default when empty)',
+  'admin.settings.cacheDir': 'Card Cache Folder',
+  'admin.settings.cacheDirPlaceholder': 'Empty: the per-user cache every workspace shares',
+  'admin.settings.cacheDirHint':
+    'Absolute, or relative to the workspace ("cache" keeps a cache folder inside it). The {envVar} environment variable overrides this. Changing it does not move the existing cache; the next refresh downloads into the new folder.',
   'admin.settings.cacheLockTimeout': 'Cache Lock Timeout (seconds)',
   'admin.settings.cacheLockTimeoutPlaceholder': 'e.g. 300',
   'admin.settings.searchDebounce': 'Card Search Debounce (ms)',

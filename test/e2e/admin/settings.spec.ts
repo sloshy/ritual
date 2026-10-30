@@ -11,6 +11,7 @@ type ConfigPutBody = {
   defaultCategories?: string[]
   cacheSource?: string
   cacheFeedUrl?: string
+  cacheDir?: string
   searchDebounceMs?: number
   updateCheck?: boolean
   admin?: {
@@ -170,6 +171,47 @@ test.describe('Settings Page', () => {
     // "empty clears cacheFeedUrl" branch actually fires — omitting the key
     // entirely would silently keep the old value.
     expect(body.cacheFeedUrl).toBe('')
+  })
+
+  test('the card cache folder starts empty (the shared cache) and saves what is typed', async ({
+    page,
+  }) => {
+    const main = page.locator('main')
+    const input = main.locator('input[name="cacheDir"]')
+    await expect(input).toHaveValue('')
+    await input.fill('cache')
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const body = JSON.parse((await requestPromise).postData() ?? '{}') as ConfigPutBody
+    expect(body.cacheDir).toBe('cache')
+  })
+
+  test('clearing a stored cache folder sends an empty string, returning to the shared cache', async ({
+    page,
+  }) => {
+    await fulfillJson(page, '**/api/config', (route: Route) => ({
+      success: true,
+      config:
+        route.request().method() === 'GET' ? { ...MOCK_CONFIG, cacheDir: 'cache' } : MOCK_CONFIG,
+    }))
+    await page.reload()
+    await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
+    await expect(page.locator('.section-heading')).toContainText('Settings')
+
+    const input = page.locator('main input[name="cacheDir"]')
+    await expect(input).toHaveValue('cache')
+    await input.fill('')
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await page.locator('main button:has-text("Save")').click()
+    const body = JSON.parse((await requestPromise).postData() ?? '{}') as ConfigPutBody
+    // Explicitly '', so the API's empty-clears branch fires; omitting the key keeps the old value.
+    expect(body.cacheDir).toBe('')
   })
 
   test('toggling an admin setting persists under the nested admin key', async ({ page }) => {

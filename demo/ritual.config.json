@@ -63,7 +63,8 @@
     "ciSystem": "manual"
   },
   "managed": {
-    "migration": 2,
-    "output": "sha256:7e7fae31a81e4e09fc5c2370e93ae57ae10b59771b79b610982acf70193a5500"
-  }
+    "migration": 3,
+    "output": "sha256:1d826e59dace4d4d9317d58f6c8af9b26d98cbfe38a90be9604f54bc735f0b94"
+  },
+  "cacheDir": "cache"
 }

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import path from 'node:path'
 import { handleCacheStatus, type CacheStatusResponse } from '../../src/admin/api/cache'
 import { cardCache } from '../../src/cache'
 import { clearCacheServerAddressOverride } from '../../src/cache/config'
@@ -46,6 +47,9 @@ describe('handleCacheStatus', () => {
       priceStale: true,
       tagsPresent: false,
       source: 'local',
+      // The test preload pins RITUAL_CACHE_DIR=cache: each workspace keeps its own.
+      cacheDir: path.join(workspace.dir, 'cache'),
+      cacheDirSource: 'env',
       defaultLanguage: 'en',
       cardBulkType: null,
       bulkTypeStale: false,

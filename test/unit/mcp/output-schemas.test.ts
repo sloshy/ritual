@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { CACHE_DIR_SOURCES } from '../../../src/cache/location'
 import type { Client } from '@modelcontextprotocol/client'
 import { fromJsonSchema, type JsonSchemaType } from '@modelcontextprotocol/server'
 import {
@@ -505,6 +506,12 @@ describe('MCP output schemas, as authored', () => {
       ['default_cards', 'all_cards'],
       'null',
     ])
+    // ...and where the cache lives, and which setting chose it.
+    expect(cacheStatus.properties?.cacheDir?.type).toBe('string')
+    expect(cacheStatus.properties?.cacheDirSource?.enum).toEqual([...CACHE_DIR_SOURCES])
+    for (const field of ['cacheDir', 'cacheDirSource']) {
+      expect(cacheStatus.required).toContain(field)
+    }
   })
 
   test('every list-entry fragment carries its categories, as plain strings', () => {

@@ -1,8 +1,9 @@
 /**
- * Per-user directories outside any workspace. Only the state directory exists
- * so far: small files Ritual keeps for itself between runs (see
- * `src/util/user-state.ts`), which are neither configuration nor cache — losing
- * them costs at most a repeated prompt or check.
+ * Per-user directories outside any workspace: the state directory, small files
+ * Ritual keeps for itself between runs (see `src/util/user-state.ts`), which
+ * are neither configuration nor cache — losing them costs at most a repeated
+ * prompt or check — and the default home of the card cache, which every
+ * workspace shares unless it names its own (see `src/cache/location.ts`).
  */
 
 import os from 'node:os'
@@ -11,14 +12,14 @@ import path from 'node:path'
 /** The application directory name under each platform's base directory. */
 const APP_DIR = 'ritual'
 
-/** What {@link resolveUserStateDir} reads; defaults to the running process. */
+/** What the resolvers here read; defaults to the running process. */
 export type UserDirsEnvironment = {
   env: Record<string, string | undefined>
   platform: NodeJS.Platform
   home: string
 }
 
-const PROCESS_ENVIRONMENT: UserDirsEnvironment = {
+export const PROCESS_ENVIRONMENT: UserDirsEnvironment = {
   get env(): Record<string, string | undefined> {
     return process.env
   },
@@ -29,7 +30,7 @@ const PROCESS_ENVIRONMENT: UserDirsEnvironment = {
 }
 
 /** An environment variable's value, with blank read as unset. */
-function nonBlank(value: string | undefined): string | undefined {
+export function nonBlank(value: string | undefined): string | undefined {
   return value === undefined || value.trim() === '' ? undefined : value
 }
 
@@ -60,4 +61,31 @@ export function resolveUserStateDir(
   }
   const stateHome = nonBlank(env.XDG_STATE_HOME) ?? path.posix.join(home, '.local', 'state')
   return path.posix.join(stateHome, APP_DIR)
+}
+
+/**
+ * The platform's per-user cache directory for Ritual — where the card cache
+ * lives when neither `RITUAL_CACHE_DIR` nor the `cacheDir` config key names
+ * another (the precedence lives in `src/cache/location.ts`):
+ *
+ * - Linux and other Unixes: `$XDG_CACHE_HOME/ritual`, or `~/.cache/ritual`;
+ * - macOS: `~/Library/Caches/ritual`;
+ * - Windows: `%LOCALAPPDATA%\ritual\cache`, or `~\AppData\Local\ritual\cache`
+ *   (a `cache` folder inside the state directory, which uses no such name).
+ *
+ * Joined with the target platform's separator, like {@link resolveUserStateDir}.
+ */
+export function defaultUserCacheDir(
+  environment: UserDirsEnvironment = PROCESS_ENVIRONMENT,
+): string {
+  const { env, platform, home } = environment
+  if (platform === 'win32') {
+    const localAppData = nonBlank(env.LOCALAPPDATA) ?? path.win32.join(home, 'AppData', 'Local')
+    return path.win32.join(localAppData, APP_DIR, 'cache')
+  }
+  if (platform === 'darwin') {
+    return path.posix.join(home, 'Library', 'Caches', APP_DIR)
+  }
+  const cacheHome = nonBlank(env.XDG_CACHE_HOME) ?? path.posix.join(home, '.cache')
+  return path.posix.join(cacheHome, APP_DIR)
 }

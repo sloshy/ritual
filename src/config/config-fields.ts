@@ -7,6 +7,7 @@ import {
   isConfigParseError,
   type ConfigParseError,
   parseBannedPrinting,
+  parseCacheDir,
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
@@ -167,6 +168,7 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   cacheLockTimeoutSeconds: 'number',
   cacheSource: 'string',
   cacheFeedUrl: 'string',
+  cacheDir: 'string',
   searchDebounceMs: 'number',
   updateCheck: 'boolean',
 } satisfies SettableFieldsMap
@@ -594,6 +596,14 @@ function applySingleConfigSet(
     }
     newValue = parsed
   }
+  // cacheDir must name a directory; a blank value would silently mean "unset".
+  if (property === 'cacheDir') {
+    const parsed = parseCacheDir(rawValue)
+    if (isConfigParseError(parsed)) {
+      return parsed
+    }
+    newValue = parsed
+  }
   // collectionSync.pullTarget is a constrained string (a non-blank list name);
   // reject a blank one here rather than persisting a target a pull cannot use.
   if (property === 'collectionSync.pullTarget') {
@@ -625,7 +635,7 @@ function applySingleConfigSet(
 
 /**
  * The built-in default value for a config property, or undefined for genuinely
- * optional keys (cacheFeedUrl, site.bannedPrintings, exportPresets).
+ * optional keys (cacheFeedUrl, cacheDir, site.bannedPrintings, exportPresets).
  *
  * Defaults come from {@link getDefaultRitualConfig} by value — never from what
  * happens to be on disk, since `saveRitualConfig` materializes defaults
@@ -690,7 +700,7 @@ export type ConfigUnsetSuccess = {
   property: string
   /**
    * The built-in default that now applies again; absent for genuinely optional
-   * keys (cacheFeedUrl, site.bannedPrintings), which are simply removed.
+   * keys (cacheFeedUrl, cacheDir, site.bannedPrintings), which are simply removed.
    */
   defaultValue?: SettableValue
   /**

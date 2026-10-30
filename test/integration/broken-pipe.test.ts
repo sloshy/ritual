@@ -25,7 +25,9 @@ describe('broken pipe on stdout (Integration)', () => {
         '-c',
         `"${binaryPath}" dep-license --list --output ndjson | head -2`,
       ],
-      { cwd: repoRoot, stdout: 'pipe', stderr: 'pipe' },
+      // `env` explicitly: without it Bun passes its startup environment, missing
+      // the preload's RITUAL_STATE_DIR / RITUAL_CACHE_DIR isolation.
+      { cwd: repoRoot, stdout: 'pipe', stderr: 'pipe', env: { ...process.env } },
     )
     const [stdout, stderr, exitCode] = await Promise.all([
       new Response(pipeline.stdout).text(),

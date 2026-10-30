@@ -36,6 +36,7 @@ export const domainConfigMessages = {
   'domain.config.mustBeSemver': '"{field}" must be a semver string',
   'domain.config.mustBeHash': '"{field}" must be a "sha256:" hash string',
   'domain.config.mustBeListName': '"{field}" must be a non-empty list name',
+  'domain.config.mustBePath': '"{field}" must be a non-empty directory path',
   'domain.config.blankEntry': '"{field}" must not contain an empty entry',
   'domain.config.siteThemeUnknown':
     '"{field}" names no theme ("{value}"): use a built-in theme ({values}), or list custom theme files in "{filesField}" to use one of their names',

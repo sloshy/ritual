@@ -224,6 +224,7 @@ export const COMMAND = {
 /** Environment variables the messages name, by camelCase name. */
 export const ENV_VAR = {
   bundledLocales: 'RITUAL_BUNDLED_LOCALES',
+  cacheDir: 'RITUAL_CACHE_DIR',
   cacheFeedRefresh: 'RITUAL_CACHE_FEED_REFRESH',
   githubToken: 'GITHUB_TOKEN',
   i18nStrict: 'RITUAL_I18N_STRICT',
@@ -249,6 +250,7 @@ export type ConfigKeyToken =
 /** Config keys the messages name, by camelCase name. */
 export const CONFIG_KEY = {
   artDir: 'artDir',
+  cacheDir: 'cacheDir',
   cacheFeedUrl: 'cacheFeedUrl',
   cacheSource: 'cacheSource',
   collectionSyncPullTarget: 'collectionSync.pullTarget',

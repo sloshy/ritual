@@ -49,6 +49,11 @@ COPY --from=builder /app/ritual /usr/local/bin/ritual
 # self-update` sees this and tells the user to pull a newer image instead.
 ENV RITUAL_INSTALL=docker
 
+# The card cache lives in /app/cache (the volume the docs mount), rather than
+# the per-user cache under the container user's home, which a fresh container
+# would start without. Override it with `-e RITUAL_CACHE_DIR=...`.
+ENV RITUAL_CACHE_DIR=/app/cache
+
 # Create non-root user for security
 RUN adduser -D -h /app ritual
 

@@ -121,10 +121,13 @@ means stdout), and \`--output text|json|ndjson\` picks the format (\`text\` is a
 \`# All cards\` Markdown manifest; \`json\`/\`ndjson\` emit \`{name, set?,
 collectorNumber?}\` objects with lowercase set codes). An unreadable list file
 warns on stderr and sets exit code 1, but the (incomplete) manifest is still
-emitted. The generated workflow writes \`all-cards.md\`, restores the \`cache/\`
-directory keyed on that file's hash (with a prefix fallback to the newest
-previous cache), then runs \`./ritual build-site --refresh auto\` — so the bulk
-download reruns only when the cards the site needs actually changed.
+emitted. The generated workflow sets \`RITUAL_CACHE_DIR: cache\` for the job (so CI keeps
+the card cache in the checkout's \`cache/\` folder rather than the runner's per-user cache),
+writes \`all-cards.md\`, restores that \`cache/\` directory keyed on the file's hash (with a
+prefix fallback to the newest previous cache), then runs
+\`./ritual build-site --refresh auto\` — so the bulk download reruns only when the cards the
+site needs actually changed. A hand-written CI job that caches the card cache must likewise
+point \`RITUAL_CACHE_DIR\` at the path it caches.
 
 **\`ritual detect-changes <commit>\`** (e.g. \`HEAD~1\`) makes hand-edited
 lists show up in changelogs: it diffs the deck/collection/wanted files between

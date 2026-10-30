@@ -105,13 +105,14 @@ describe('migration 1: drop site.version', () => {
     expect(pending.migrations.map((m) => [m.migration.id, m.ops])).toEqual([
       [1, [{ type: 'config-delete', path: ['site', 'version'] }]],
       [2, []],
+      [3, []],
     ])
     expect(hasPendingWork(pending)).toBeTrue()
 
     const { backupDir } = await applyMigration(pending)
 
     // A config-only migration backs up just the config, in a folder named after
-    // the last migration that had ops (1), not the last one planned (2).
+    // the last migration that had ops (1), not the last one planned (3).
     if (backupDir === null) throw new Error('expected a backup folder')
     expect(backupDir).toMatch(/-migration-1$/)
     expect(await snapshotTree(backupDir)).toEqual({ 'ritual.config.json': original })
@@ -128,7 +129,7 @@ describe('migration 1: drop site.version', () => {
   test('an already-satisfied migration plans zero ops even with the counter at 0', async () => {
     await workspace({ site: { includeDecks: ['*'] } })
     const pending = await plan()
-    expect(pending.migrations.map((m) => m.ops)).toEqual([[], []])
+    expect(pending.migrations.map((m) => m.ops)).toEqual([[], [], []])
     // No deploy config means nothing is managed, so there is nothing to do.
     expect(pending.refresh).toBeNull()
     expect(hasPendingWork(pending)).toBeFalse()
@@ -150,13 +151,17 @@ describe('migration 2: drop site.prerelease', () => {
       const pending = await plan()
       expect(pending.migrations.map((m) => [m.migration.id, m.ops])).toEqual([
         [2, [{ type: 'config-delete', path: ['site', 'prerelease'] }]],
+        [3, []],
       ])
     },
   )
 
   test('plans nothing for a site block without the key', async () => {
     await workspace({ site: PUBLISH_SITE, managed: { migration: 1 } })
-    expect((await plan()).migrations.map((m) => [m.migration.id, m.ops])).toEqual([[2, []]])
+    expect((await plan()).migrations.map((m) => [m.migration.id, m.ops])).toEqual([
+      [2, []],
+      [3, []],
+    ])
   })
 })
 
@@ -216,7 +221,7 @@ describe('pin bump', () => {
 
     const result = await applyMigration(await plan({ build: release('1.1.0') }))
 
-    expect(result).toEqual({ applied: [], refresh: null, backupDir: null })
+    expect(result).toEqual({ applied: [], cache: [], refresh: null, backupDir: null })
     expect(await readConfig(dir)).toEqual({
       ...before,
       managed: { ...(before.managed as ManagedConfig), version: '1.1.0' },

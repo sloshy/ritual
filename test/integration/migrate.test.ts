@@ -136,6 +136,46 @@ describe('migrate CLI (Integration)', () => {
     })
   })
 
+  test('moves an old workspace cache into the empty shared cache, and keeps the next one', async () => {
+    await withTempDir(async (userCache) => {
+      // The spawned CLIs resolve the per-user default into the throwaway folder.
+      const env = { RITUAL_CACHE_DIR: undefined, XDG_CACHE_HOME: userCache }
+      const shared = path.join(userCache, 'ritual')
+      const seed = async (dir: string, body: string): Promise<void> => {
+        await fs.writeFile(path.join(dir, 'ritual.config.json'), '{}')
+        await fs.mkdir(path.join(dir, 'cache'))
+        await fs.writeFile(path.join(dir, 'cache', 'cache.json'), body)
+      }
+
+      await withTempDir(async (first) => {
+        await seed(first, '{"first":true}')
+        const dryRun = await runCli(['migrate', '--dry-run'], first, env)
+        expect(dryRun.stdout).toContain(`move the card cache cache → ${shared}`)
+
+        const applied = await runCli(['migrate', '--yes'], first, env)
+        expect(applied.exitCode).toBe(0)
+        expect(applied.stdout).toContain(`✓ Moved the card cache from cache to ${shared}`)
+        expect(await fs.readFile(path.join(shared, 'cache.json'), 'utf-8')).toBe('{"first":true}')
+        expect(await snapshotTree(first)).not.toHaveProperty('cache/')
+      })
+
+      await withTempDir(async (second) => {
+        await seed(second, '{"second":true}')
+        const applied = await runCli(['migrate', '--yes'], second, env)
+        expect(applied.exitCode).toBe(0)
+        expect(applied.stdout).toContain(`Left cache in place: ${shared} already has a card cache`)
+        expect(await fs.readFile(path.join(second, 'cache', 'cache.json'), 'utf-8')).toBe(
+          '{"second":true}',
+        )
+        expect(await fs.readFile(path.join(shared, 'cache.json'), 'utf-8')).toBe('{"first":true}')
+        const config = JSON.parse(
+          await fs.readFile(path.join(second, 'ritual.config.json'), 'utf-8'),
+        ) as MigratedConfig
+        expect(config.managed?.migration).toBe(latestMigrationId())
+      })
+    })
+  })
+
   test('a directory without ritual.config.json has nothing to migrate', async () => {
     await withTempDir(async (dir) => {
       const result = await runCli(['migrate'], dir)

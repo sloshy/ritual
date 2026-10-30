@@ -151,6 +151,10 @@ jobs:
     environment:
       name: github-pages
       url: \${{ steps.deployment.outputs.page_url }}
+    env:
+      # Keep the card cache in the repository's cache/ folder, which the
+      # "Restore Scryfall cache" step restores and saves between runs.
+      ${ENV_VAR.cacheDir}: cache
     steps:
       - uses: actions/checkout@v7${detectChanges ? FULL_HISTORY_CHECKOUT : ''}
 

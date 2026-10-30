@@ -1495,6 +1495,18 @@ export const adminMeta = {
     description:
       'Placeholder for the feed address; only the parenthetical is prose. {url} is the example URL `https://feed.example.com/feed.json`. It is typed or matched exactly by the user, so never translate it.',
   },
+  'admin.settings.cacheDir': {
+    description:
+      'Settings field label: the folder on disk where downloaded card data (the card cache) is stored.',
+  },
+  'admin.settings.cacheDirPlaceholder': {
+    description:
+      "Placeholder for the card cache folder field: leaving it empty uses one per-user folder that all of the user's workspaces (project folders) share.",
+  },
+  'admin.settings.cacheDirHint': {
+    description:
+      'Help under the card cache folder field. "cache" is a literal folder name the user may type; keep it as is. {envVar} is the RITUAL_CACHE_DIR environment variable name; never translate it.',
+  },
   'admin.settings.cacheLockTimeout': {
     description: 'Field label: how long a cache write may hold its lock, in seconds.',
   },

@@ -31,6 +31,11 @@ registerCliMessages()
 // `process.env`, which the bundles do not carry.
 process.env.RITUAL_I18N_STRICT = '1'
 
+// Every workspace the suite builds or serves keeps its card cache in its own
+// `cache/` folder (a relative RITUAL_CACHE_DIR resolves against the workspace),
+// never the developer's per-user cache. Inherited the same way as the line above.
+process.env.RITUAL_CACHE_DIR = 'cache'
+
 export default defineConfig({
   testDir: './test/e2e',
   fullyParallel: true,

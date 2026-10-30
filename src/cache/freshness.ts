@@ -1,6 +1,7 @@
 import { cardCache } from './index'
 import { refreshCardCache } from './refresh-source'
 import { readRecordedCardBulkType } from './bulk-provenance'
+import { getCacheDirLocation } from './file-cache'
 import { BULK_CACHE_MAX_AGE_MS, BULK_FETCH_THRESHOLD, PRICE_MAX_AGE_MS } from './constants'
 import { bulkAllowed, decideBulkRefresh, type RefreshPolicy } from './refresh'
 import { downloadTagIndex, refreshTags } from '../scryfall'
@@ -76,6 +77,17 @@ type RefreshRemedy = {
 const REFRESH_REMEDY: RefreshRemedy = {
   command: commandLine(COMMAND.cachePreloadAll),
   flag: flagValue(FLAG.refresh, 'auto'),
+}
+
+/**
+ * Where a first download will land, said before the empty-cache offer so the
+ * user knows what the download fills (and that other workspaces share it).
+ */
+function cacheLocationLine(): string {
+  const location = getCacheDirLocation()
+  return location.source === 'default'
+    ? t('cli.cacheGate.locationShared', { path: location.dir })
+    : t('cli.cacheGate.location', { path: location.dir })
 }
 
 /**
@@ -218,6 +230,7 @@ export async function ensureFreshCardCache(
 
   if (empty) {
     console.log(t('cli.cacheGate.emptyForAutocomplete'))
+    console.log(cacheLocationLine())
     const shouldPreload = await decideBulkRefresh(policy, {
       message: t('cli.cacheGate.downloadDatabaseConfirm'),
       initial: true,
@@ -416,6 +429,7 @@ export async function ensureCardCachePresent(
   // leave an empty cache simply unusable — never download, stay quiet.
   if (!bulkAllowed(policy.mode)) return false
   getLogger().info(t('cli.cacheGate.emptyWithRequirement', { requirement }))
+  getLogger().info(cacheLocationLine())
   const accepted = await decideBulkRefresh(policy, {
     message: t('cli.cacheGate.downloadNowConfirm'),
     initial: true,

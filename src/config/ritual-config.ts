@@ -255,6 +255,14 @@ export interface RitualConfig {
   /** Cache feed URL used when `cacheSource` is 'feed'; the built-in default when absent. */
   cacheFeedUrl?: string
   /**
+   * Where the card cache lives, as written: an absolute path, or one relative
+   * to the workspace (`"cache"` keeps a per-workspace `cache/`). Absent means
+   * the per-user cache every workspace shares. `RITUAL_CACHE_DIR` outranks it;
+   * read the effective directory through `getCacheDir()` (`src/cache/file-cache.ts`),
+   * never this field.
+   */
+  cacheDir?: string
+  /**
    * How long (ms) the web editors' add-card search waits after a keystroke
    * before firing an autocomplete request. Applies to the admin editors at
    * runtime and is baked into the public site at build time. `0` disables the
@@ -326,7 +334,10 @@ const DEFAULT_CONFIG = {
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
   updateCheck: true,
-} satisfies Omit<RitualConfig, 'admin' | 'collectionSync' | 'site' | 'managed' | 'cacheFeedUrl'>
+} satisfies Omit<
+  RitualConfig,
+  'admin' | 'collectionSync' | 'site' | 'managed' | 'cacheFeedUrl' | 'cacheDir'
+>
 
 /**
  * Everything the last config read produced. The declared-key flag rides on the
@@ -1055,6 +1066,17 @@ export function parseCacheFeedUrl(value: unknown): string | ConfigParseError {
 }
 
 /**
+ * Parse a `cacheDir` value: a path that is not blank, kept as written (trimmed)
+ * so a relative one stays relative to the workspace. Absence means "the shared
+ * per-user cache" and is the caller's concern — an `undefined` input is
+ * malformed here.
+ */
+export function parseCacheDir(value: unknown): string | ConfigParseError {
+  if (typeof value === 'string' && value.trim() !== '') return value.trim()
+  return configError('domain.config.mustBePath', { field: 'cacheDir' })
+}
+
+/**
  * Parse a `site.apiBaseUrl` value. `''` is valid and means "same origin" (the
  * site is reverse-proxied together with its API); otherwise the value must be
  * an http(s) URL, normalized to carry no trailing slash. Absence means "fully
@@ -1260,6 +1282,15 @@ function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
   }
   if (cacheFeedUrl !== undefined) {
     merged.cacheFeedUrl = cacheFeedUrl
+  }
+  // Absent means the shared per-user cache; a malformed value falls back to absent.
+  if (parsed.cacheDir !== undefined) {
+    const cacheDir = field<string | undefined>(
+      parseCacheDir(parsed.cacheDir),
+      'cacheDir',
+      undefined,
+    )
+    if (cacheDir !== undefined) merged.cacheDir = cacheDir
   }
   if (parsed.site !== undefined) {
     const site = field<SiteConfig | undefined>(parseSiteConfig(parsed.site), 'site', undefined)

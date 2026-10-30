@@ -262,7 +262,8 @@ export class ScryfallClient implements PricingBackend {
     const data = json.data
 
     await this.fileSystem.mkdir(getCacheDir(), { recursive: true })
-    await this.fileSystem.writeFile(cachePath, JSON.stringify(data, null, 2))
+    // Atomic: the cache directory may be shared with other workspaces' processes.
+    await writeFileAtomic(cachePath, JSON.stringify(data, null, 2), { fs: this.fileSystem })
     return data
   }
 
@@ -293,7 +294,7 @@ export class ScryfallClient implements PricingBackend {
 
     const buffer = await response.arrayBuffer()
     await this.fileSystem.mkdir(getImageCacheDir(), { recursive: true })
-    await this.fileSystem.writeFile(cachePath, Buffer.from(buffer))
+    await writeFileAtomic(cachePath, Buffer.from(buffer), { fs: this.fileSystem })
     await this.fileSystem.copyFile(cachePath, destPath)
 
     return filename
@@ -845,7 +846,7 @@ export class ScryfallClient implements PricingBackend {
       const blob = await response.blob()
       const bytes = new Uint8Array(await blob.arrayBuffer())
 
-      await this.fileSystem.writeFile(cachedPath, bytes)
+      await writeFileAtomic(cachedPath, bytes, { fs: this.fileSystem })
 
       await this.fileSystem.mkdir(path.dirname(destPath), { recursive: true })
       await this.fileSystem.writeFile(destPath, bytes)

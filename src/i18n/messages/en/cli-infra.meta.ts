@@ -70,6 +70,21 @@ export const cliInfraMeta = {
   'cli.cache.rowSource': {
     description: '`cache status` row label: where refreshes download from.',
   },
+  'cli.cache.rowLocation': {
+    description: '`cache status` row label: the folder on disk where the card cache is stored.',
+  },
+  'cli.cache.locationEnv': {
+    description:
+      '`cache status` Location value when an environment variable chose the folder. {path} is the absolute folder path; {envVar} is the variable name (RITUAL_CACHE_DIR). Never translate either.',
+  },
+  'cli.cache.locationConfig': {
+    description:
+      '`cache status` Location value when the workspace settings file chose the folder. {path} is the absolute folder path; {configKey} is the setting name (cacheDir) and {file} the settings file name (ritual.config.json). Never translate them.',
+  },
+  'cli.cache.locationDefault': {
+    description:
+      '`cache status` Location value when nothing overrides the folder: the per-user cache folder that every workspace (project folder) on this computer uses. {path} is the absolute folder path; never translate it.',
+  },
   'cli.cache.rowDefaultLanguage': {
     description:
       '`cache status` row label: the configured card language (NOT the interface locale).',
@@ -394,6 +409,14 @@ export const cliInfraMeta = {
   'cli.cacheGate.emptyForAutocomplete': {
     description:
       'Before an interactive card entry session: the card cache holds nothing, and typing card names needs it.',
+  },
+  'cli.cacheGate.locationShared': {
+    description:
+      'Printed before the offer to download the card database into an empty cache: where the download will be stored. {path} is the absolute folder path; never translate it. This is the per-user default folder, which every workspace (project folder) on the computer uses, so one download serves them all.',
+  },
+  'cli.cacheGate.location': {
+    description:
+      'Printed before the offer to download the card database into an empty cache: where the download will be stored. {path} is the absolute folder path, chosen by a setting (an environment variable or the workspace settings file); never translate it.',
   },
   'cli.cacheGate.downloadDatabaseConfirm': {
     description: 'Yes/no prompt following the previous message: download the card cache now?',
@@ -1277,6 +1300,10 @@ export const cliInfraMeta = {
     description:
       'What migration 1 does. "managed" is a literal config block name and must not be translated. {configKey} is the `site.version` config key; {file} is the `ritual.config.json` file name. Each is typed or matched exactly by the user, so never translate them.',
   },
+  'cli.migrate.migration.sharedCache': {
+    description:
+      'What migration 3 does: the downloaded card data used to live in a folder inside each workspace (project folder); it now lives in one per-user folder all workspaces share. {dir} is the old folder name ("cache/"); {envVar} is the RITUAL_CACHE_DIR environment variable and {configKey} the cacheDir setting, either of which can name another folder. Never translate them.',
+  },
   'cli.migrate.migration.dropSitePrerelease': {
     description:
       'What migration 2 does. {sitePrereleaseConfigKey} is the `site.prerelease` config key; {file} is the `ritual.config.json` file name; {managedVersionConfigKey} is the `managed.version` config key. Each is typed or matched exactly by the user, so never translate them.',
@@ -1297,6 +1324,14 @@ export const cliInfraMeta = {
   },
   'cli.migrate.opRename': {
     description: 'Plan line (indented): a workspace file will be moved from {from} to {to}.',
+  },
+  'cli.migrate.opCacheMove': {
+    description:
+      'Plan line (indented): the workspace\'s card cache folder {from} (e.g. "cache") will be moved to the absolute folder {to}, the shared per-user cache.',
+  },
+  'cli.migrate.opCacheKeep': {
+    description:
+      'Plan line (indented): the workspace\'s old card cache folder {path} (e.g. "cache") will not be moved, because the shared cache folder {shared} (absolute path) already holds card data. Nothing is deleted; the user may delete the old folder.',
   },
   'cli.migrate.refreshHeading': {
     description:
@@ -1337,6 +1372,14 @@ export const cliInfraMeta = {
   'cli.migrate.backedUp': {
     description:
       'Printed after migrations ran. {path} is the workspace-relative backup folder (e.g. ".backups/2026-10-05T14-03-22Z-migration-4") holding copies of ritual.config.json and every file the migrations rewrote, removed or moved, taken before they ran.',
+  },
+  'cli.migrate.cacheMoved': {
+    description:
+      'Printed after migrating: the workspace\'s card cache folder {path} (e.g. "cache") was moved to the shared per-user cache folder {shared} (absolute path).',
+  },
+  'cli.migrate.cacheKept': {
+    description:
+      'Printed after migrating: the workspace\'s old card cache folder {path} (e.g. "cache") was left untouched because the shared cache folder {shared} (absolute path) already holds card data. Ritual ignores the old folder from now on, so the user can delete it to free disk space.',
   },
   'cli.migrate.wrote': { description: 'A generated file was rewritten. {path} is relative.' },
   'cli.migrate.skillUpdated': { description: 'An installed agent skill {name} was rewritten.' },

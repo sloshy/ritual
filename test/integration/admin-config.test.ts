@@ -23,6 +23,7 @@ type ConfigView = {
   cacheLockTimeoutSeconds?: number
   cacheSource?: string
   cacheFeedUrl?: string
+  cacheDir?: string
   searchDebounceMs?: number
   updateCheck?: boolean
   exportPresets?: Record<string, { format?: string }>
@@ -115,6 +116,12 @@ describe('PUT /api/config', () => {
         expected: 'https://feed.example/feed.json',
       },
       {
+        label: 'cacheDir (trimmed)',
+        update: { cacheDir: ' cache ' },
+        read: (config) => config.cacheDir,
+        expected: 'cache',
+      },
+      {
         // The Settings page PUTs the whole config back, so this key has to be on
         // the allowlist or every save would 400.
         label: 'collectionSync.pullTarget (trimmed)',
@@ -184,6 +191,8 @@ describe('PUT /api/config', () => {
         label: 'non-http(s) cacheFeedUrl',
         update: { cacheFeedUrl: 'ftp://feed.example/feed.json' },
       },
+      { label: 'blank cacheDir', update: { cacheDir: '   ' } },
+      { label: 'non-string cacheDir', update: { cacheDir: 42 } },
       {
         label: 'blank collectionSync.pullTarget',
         update: { collectionSync: { pullTarget: '   ' } },
@@ -244,6 +253,13 @@ describe('PUT /api/config', () => {
     expect((await putConfig({ cacheFeedUrl: '' })).ok).toBe(true)
 
     expect((await readConfig()).cacheFeedUrl).toBeUndefined()
+  })
+
+  test('clears an existing cacheDir with an empty string', async () => {
+    expect((await putConfig({ cacheDir: '/srv/ritual-cache' })).ok).toBe(true)
+    expect((await putConfig({ cacheDir: '' })).ok).toBe(true)
+
+    expect((await readConfig()).cacheDir).toBeUndefined()
   })
 
   test('clears an existing defaultPriceSource with an empty string', async () => {

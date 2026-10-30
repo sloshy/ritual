@@ -5,6 +5,7 @@ import {
   isConfigParseError,
   loadRitualConfig,
   parseAdminConfig,
+  parseCacheDir,
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
@@ -68,6 +69,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     cacheLockTimeoutSeconds: true,
     cacheSource: true,
     cacheFeedUrl: true,
+    cacheDir: true,
     searchDebounceMs: true,
     updateCheck: true,
     admin: true,
@@ -218,6 +220,21 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       }
     }
 
+    // Same empty-clears rule: `''` returns the workspace to the shared per-user cache.
+    let clearCacheDir = false
+    if (raw.cacheDir !== undefined) {
+      if (raw.cacheDir === '') {
+        clearCacheDir = true
+        delete updates.cacheDir
+      } else {
+        const parsed = parseCacheDir(raw.cacheDir)
+        if (isConfigParseError(parsed)) {
+          return nestedRefusal(parsed.error)
+        }
+        updates.cacheDir = parsed
+      }
+    }
+
     // `admin` merges deep (see below), so parseAdminConfig is used purely as a
     // validator of the present fields — the raw partial is what gets merged,
     // never the parsed result, whose defaulted absent fields would clobber the
@@ -288,6 +305,9 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     }
     if (clearCacheFeedUrl) {
       delete merged.cacheFeedUrl
+    }
+    if (clearCacheDir) {
+      delete merged.cacheDir
     }
     if (clearDefaultPriceSource) {
       delete merged.defaultPriceSource

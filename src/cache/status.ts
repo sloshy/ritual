@@ -6,6 +6,8 @@ import { cardCache } from './instances'
 import { PRICE_MAX_AGE_MS } from './constants'
 import { getConfiguredCacheServerAddress } from './config'
 import { readRecordedCardBulkType } from './bulk-provenance'
+import { getCacheDirLocation } from './file-cache'
+import type { CacheDirSource } from './location'
 import { configuredCardBulkType, type CardBulkType } from '../scryfall/bulk-manifest'
 import { getDefaultLanguage } from '../config/ritual-config'
 import type { CardLanguage } from '../card/card-language'
@@ -39,6 +41,17 @@ export type CacheStatusResult = {
   /** Whether any sampled cached card carries oracle/art tags (bounded sample, not a scan). */
   tagsPresent: boolean
   source: CacheSource
+  /**
+   * The local cache directory (absolute). With a cache server configured the
+   * card data is read from the server instead, but files outside the card
+   * cache (images, the Card Kingdom buylist) still live here.
+   */
+  cacheDir: string
+  /**
+   * Which setting chose {@link cacheDir}: `env` (`RITUAL_CACHE_DIR`), `config`
+   * (the `cacheDir` key), or `default` (the per-user cache all workspaces share).
+   */
+  cacheDirSource: CacheDirSource
   /** The configured `defaultLanguage` — what decides which Scryfall bulk backs the cache. */
   defaultLanguage: CardLanguage
   /**
@@ -89,6 +102,7 @@ export async function collectCacheStatus(): Promise<CacheStatusResult> {
   // backwards) would otherwise report a negative age.
   const priceAgeMs = lastRefreshedAt === null ? null : Math.max(0, Date.now() - lastRefreshedAt)
   const cardBulkType = await readRecordedCardBulkType()
+  const location = getCacheDirLocation()
 
   return {
     empty,
@@ -98,6 +112,8 @@ export async function collectCacheStatus(): Promise<CacheStatusResult> {
     priceStale: priceAgeMs === null || priceAgeMs > PRICE_MAX_AGE_MS,
     tagsPresent: await sampleTagsPresent(keys),
     source: getConfiguredCacheServerAddress() ? 'cache-server' : 'local',
+    cacheDir: location.dir,
+    cacheDirSource: location.source,
     defaultLanguage: getDefaultLanguage(),
     cardBulkType,
     bulkTypeStale: !empty && (cardBulkType ?? 'default_cards') !== configuredCardBulkType(),

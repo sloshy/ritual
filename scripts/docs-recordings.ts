@@ -423,7 +423,10 @@ function prepareCache(runRoot: string): string {
   return cacheDir
 }
 
-/** Copy `demo/` into `workspace`, linking the run's card cache. */
+/**
+ * Copy `demo/` into `workspace`, linking the run's card cache where the demo's
+ * config keeps it (`cacheDir: "cache"`, the workspace's own folder).
+ */
 function copyDemo(workspace: string, cacheDir: string): void {
   cpSync(DEMO_DIR, workspace, {
     recursive: true,
@@ -435,10 +438,16 @@ function copyDemo(workspace: string, cacheDir: string): void {
   symlinkSync(cacheDir, path.join(workspace, 'cache'), 'dir')
 }
 
-/** An empty workspace that already has the card cache, so nothing offers a download. */
-function emptyWorkspace(workspace: string, cacheDir: string): void {
+/**
+ * An empty workspace whose user already has the card cache, so nothing offers a
+ * download: the run's cache is linked in as the per-user cache every workspace
+ * shares (`$XDG_CACHE_HOME/ritual`), exactly where a real user's lives.
+ */
+function emptyWorkspace(workspace: string, cacheDir: string, env: ShellEnvironment): void {
   mkdirSync(workspace, { recursive: true })
-  symlinkSync(cacheDir, path.join(workspace, 'cache'), 'dir')
+  const cacheHome = env.XDG_CACHE_HOME ?? path.join(env.HOME, '.cache')
+  mkdirSync(cacheHome, { recursive: true })
+  symlinkSync(cacheDir, path.join(cacheHome, 'ritual'), 'dir')
 }
 
 /** A clean, fixed environment: no user rc files, colour on, no update check. */
@@ -512,7 +521,7 @@ async function record(recording: Recording, root: string, cacheDir: string): Pro
   const env = shellEnvironment(root)
   const workspace = path.join(env.HOME, recording.folder)
   if (recording.start === 'demo') copyDemo(workspace, cacheDir)
-  else emptyWorkspace(workspace, cacheDir)
+  else emptyWorkspace(workspace, cacheDir, env)
   await using session = new Session(workspace, env, recording.rows ?? DEFAULT_ROWS)
   await session.run(recording.steps)
   const events = coalesce(session.events).map((event) => ({

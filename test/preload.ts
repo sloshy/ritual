@@ -59,6 +59,18 @@ process.env.RITUAL_DEV_VERSION_REF = 'test'
 process.env.RITUAL_STATE_DIR = mkdtempSync(path.join(tmpdir(), 'ritual-test-state-'))
 
 /**
+ * Keep every test workspace's card cache inside the workspace (`<base dir>/cache`,
+ * since a relative `RITUAL_CACHE_DIR` resolves against the workspace), so no
+ * suite reads or writes the real per-user cache — and suites cannot see one
+ * another's cards through it. Forced, even over a value inherited from the
+ * shell. Spawned CLIs inherit it only when the spawn passes `env` (`runCli`
+ * does): `Bun.spawn` without `env` passes the environment Bun started with, not
+ * this one. Suites that test the location itself pass their own environment
+ * (or remove the variable for the spawned process).
+ */
+process.env.RITUAL_CACHE_DIR = 'cache'
+
+/**
  * Register the English catalog, exactly as `main()` in `index.ts` does.
  *
  * Namespaces are import boundaries, so `t()` renders the key string

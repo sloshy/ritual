@@ -19,7 +19,7 @@ import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '..
 import { t, type ParameterlessKey } from '../i18n/t'
 import { formatDateTime, formatNumber } from '../ui/format'
 import { displayWidth, padEndDisplay } from '../i18n/width'
-import { CONFIG_KEY, FLAG, LINK, flagValue } from '../util/cli-tokens'
+import { CONFIG_KEY, ENV_VAR, FILE, FLAG, LINK, flagValue } from '../util/cli-tokens'
 
 /** Flags for `cache preload-all`. */
 type CachePreloadAllOptions = {
@@ -37,6 +37,25 @@ type StatusRow = { label: string; value: string }
 /** A yes/no field of the text report, in the reader's language. */
 function yesNo(value: boolean): string {
   return value ? t('cli.cache.valueYes') : t('cli.cache.valueNo')
+}
+
+/** The Location row's value: the directory and the setting that chose it. */
+function formatLocation(status: CacheStatusResult): string {
+  const path = status.cacheDir
+  switch (status.cacheDirSource) {
+    case 'env':
+      return t('cli.cache.locationEnv', { path, envVar: ENV_VAR.cacheDir })
+    case 'config':
+      return t('cli.cache.locationConfig', {
+        path,
+        configKey: CONFIG_KEY.cacheDir,
+        file: FILE.config,
+      })
+    case 'default':
+      return t('cli.cache.locationDefault', { path })
+    default:
+      return status.cacheDirSource satisfies never
+  }
 }
 
 /** Where the report's cache lives, named for its reader. */
@@ -72,6 +91,7 @@ function formatCacheStatusText(status: CacheStatusResult): string {
     { label: t('cli.cache.rowPricesStale'), value: yesNo(status.priceStale) },
     { label: t('cli.cache.rowTagsPresent'), value: yesNo(status.tagsPresent) },
     { label: t('cli.cache.rowSource'), value: t(SOURCE_LABELS[status.source]) },
+    { label: t('cli.cache.rowLocation'), value: formatLocation(status) },
     { label: t('cli.cache.rowDefaultLanguage'), value: status.defaultLanguage },
     {
       label: t('cli.cache.rowCardBulk'),
