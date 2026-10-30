@@ -1,8 +1,9 @@
 /**
  * Screenshots of the demo workspace for the docs site and the README.
  *
- * Copies the committed `demo/` workspace into a temporary directory (its card
- * cache linked, not copied), builds the public site there, serves it on
+ * Copies the committed `demo/` workspace (the files git tracks, so no local
+ * state such as `.logins/`) into a temporary directory, builds the public site
+ * there, serves it on
  * loopback, and captures pages in the site's dark (`default`) and light
  * (`default-inverted`) themes. Building from a copy matters: `build-site` runs
  * the card-ID backfill, which may write into the workspace it builds.
@@ -22,15 +23,29 @@
  *
  *   bun run scripts/docs-screenshots.ts [--refresh <mode>] [--only <name,…>]
  *
- * `--refresh` is passed to `build-site` (default `never`: the demo's card cache
- * in `demo/cache/` must already exist; `auto` downloads it into `demo/cache/`).
+ * `--refresh` is passed to `build-site` and `admin` (default `never`: the
+ * demo's card cache in `demo/cache/` must already exist). Under `never` each
+ * copy gets its own copy of the cache (a reflink where the filesystem has
+ * them), because a run can still write to it: the card cache saves cards it
+ * looks up, and Ritual's atomic writes follow symlinks to the real file. So
+ * nothing under `demo/` is touched. Any other mode links `demo/cache/` itself,
+ * so what it downloads (`auto` fetches the cache and the Card Kingdom feed)
+ * lands in `demo/cache/` for the next run.
  * `--only` retakes just the named shots (comma-separated, prefix match on the
  * name, so `--only admin` retakes every admin shot). The images land in
  * `docs-site/src/assets/screenshots/` as `<name>-<theme>.webp`.
  */
-import { chromium, type Browser, type Locator, type Page } from '@playwright/test'
 import {
+  chromium,
+  type Browser,
+  type Locator,
+  type Page,
+  type ViewportSize,
+} from '@playwright/test'
+import {
+  constants,
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -41,6 +56,7 @@ import {
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
+import { REFRESH_MODES, type RefreshMode } from '../src/cache/refresh'
 import { serveStaticSite } from '../src/serve/static'
 import type { ThemeName } from '../src/theme/themes'
 
@@ -58,12 +74,11 @@ const CROP_MARGIN = 24
 
 type Theme = 'dark' | 'light'
 type Target = 'site' | 'stores' | 'admin'
-type Viewport = { width: number; height: number }
 type Shot = {
   name: string
   target: Target
-  hash: string
-  viewport: Viewport
+  hash: '' | `#/${string}`
+  viewport: ViewportSize
   themes: readonly [Theme, ...Theme[]]
   /** Emulate a touch phone (coarse pointer, no hover). */
   touch?: boolean
@@ -75,8 +90,8 @@ type Shot = {
   crop?: string
 }
 
-const DESKTOP: Viewport = { width: 1280, height: 800 }
-const PHONE: Viewport = { width: 390, height: 844 }
+const DESKTOP: ViewportSize = { width: 1280, height: 800 }
+const PHONE: ViewportSize = { width: 390, height: 844 }
 const BOTH = ['dark', 'light'] as const
 const SITE_THEME = {
   dark: 'default',
@@ -91,7 +106,9 @@ async function addToTrade(page: Page, side: 'left' | 'right', query: string): Pr
   await column.locator('.search-input').fill(query)
   const suggestion = column.locator('.search-suggest-row').first()
   await suggestion.waitFor()
-  await suggestion.click({ force: true })
+  const rows = column.locator('.trade-row')
+  const before = await rows.count()
+  await suggestion.click()
   if (side === 'right') {
     // Every right-column pick asks for the printing on offer.
     const picker = page.locator('.trade-picker-modal')
@@ -99,6 +116,7 @@ async function addToTrade(page: Page, side: 'left' | 'right', query: string): Pr
     await picker.locator('button', { hasText: 'Add to Trade' }).click()
     await picker.waitFor({ state: 'hidden' })
   }
+  await rows.nth(before).waitFor()
 }
 
 /** Hover a card tile so its edit controls show, and return it. */
@@ -162,6 +180,10 @@ const SHOTS: readonly Shot[] = [
     prepare: async (page) => {
       await page.getByRole('button', { name: 'View Changes' }).click()
       await page.getByRole('button', { name: /Older/ }).click()
+      await page
+        .locator(OPEN_MODAL)
+        .getByText(/^2 \/ \d+$/)
+        .waitFor()
     },
     crop: OPEN_MODAL,
   },
@@ -287,7 +309,7 @@ const SHOTS: readonly Shot[] = [
       // Two cards side by side, so both ticks are in the capture.
       await page.locator('.card-item').nth(0).click()
       await page.locator('.card-item').nth(1).click()
-      await page.evaluate(() => scrollTo(0, 0))
+      await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }))
     },
   },
 
@@ -322,6 +344,7 @@ const SHOTS: readonly Shot[] = [
     prepare: async (page) => {
       await page.locator('#history-list-select').selectOption('deck:Meren Graveyard Value')
       await page.locator('.history-set-main').first().click()
+      await page.locator('.history-set-lines').first().waitFor()
     },
   },
   {
@@ -382,17 +405,38 @@ const SHOTS: readonly Shot[] = [
   },
 ]
 
-/** Copy `demo/` into `workspace`, linking the card cache rather than copying it. */
-function copyDemo(workspace: string): void {
-  cpSync(DEMO_DIR, workspace, {
-    recursive: true,
-    filter: (source) => {
-      const relative = path.relative(DEMO_DIR, source)
-      return relative !== 'cache' && relative !== 'dist'
-    },
-  })
-  mkdirSync(path.join(DEMO_DIR, 'cache'), { recursive: true })
-  symlinkSync(path.join(DEMO_DIR, 'cache'), path.join(workspace, 'cache'), 'dir')
+const DEMO_CACHE = path.join(DEMO_DIR, 'cache')
+
+/** The files git tracks under `demo/`, relative to it: never local state such as `.logins/`. */
+function trackedDemoFiles(): string[] {
+  const result = Bun.spawnSync(['git', 'ls-files', '-z', '--', 'demo'], { cwd: ROOT })
+  if (result.exitCode !== 0) throw new Error(`git ls-files demo exited with ${result.exitCode}`)
+  const files = result.stdout
+    .toString()
+    .split('\0')
+    .filter((file) => file !== '')
+    .map((file) => path.relative('demo', file))
+  if (files.length === 0) throw new Error('git tracks no files under demo/')
+  return files
+}
+
+/**
+ * Copy the tracked `demo/` files into `workspace`, with the card cache: copied
+ * under `never` (so a write cannot reach `demo/cache/`), linked otherwise (so a
+ * download lands there). See the header comment.
+ */
+function copyDemo(workspace: string, refresh: RefreshMode): void {
+  for (const file of trackedDemoFiles()) {
+    mkdirSync(path.dirname(path.join(workspace, file)), { recursive: true })
+    cpSync(path.join(DEMO_DIR, file), path.join(workspace, file))
+  }
+  const cache = path.join(workspace, 'cache')
+  if (refresh === 'never') {
+    cpSync(DEMO_CACHE, cache, { recursive: true, mode: constants.COPYFILE_FICLONE })
+  } else {
+    mkdirSync(DEMO_CACHE, { recursive: true })
+    symlinkSync(DEMO_CACHE, cache, 'dir')
+  }
 }
 
 /** Run the CLI from source against `workspace`, failing on a non-zero exit. */
@@ -413,7 +457,7 @@ function ritual(workspace: string, args: readonly string[], stdin?: string): voi
 function buildSite(
   workspace: string,
   outDir: string,
-  refresh: string,
+  refresh: RefreshMode,
   extra: readonly string[] = [],
 ): void {
   ritual(workspace, ['build-site', '--refresh', refresh, '--out-dir', outDir, ...extra])
@@ -422,12 +466,18 @@ function buildSite(
 /** Enable every price store whose prices come with the demo's cache. */
 function enableStores(workspace: string): void {
   const file = path.join(workspace, 'ritual.config.json')
-  const config = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
-  config.priceSources = ['tcgplayer', 'cardmarket', 'cardkingdom']
+  const config: unknown = JSON.parse(readFileSync(file, 'utf8'))
+  if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+    throw new Error(`${file} does not hold a JSON object`)
+  }
+  ;(config as Record<string, unknown>).priceSources = ['tcgplayer', 'cardmarket', 'cardkingdom']
   writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`)
 }
 
-/** A loopback port nothing is listening on (`ritual admin` refuses port 0). */
+/**
+ * A loopback port nothing is listening on (`ritual admin` refuses port 0). Another
+ * process could take it before `admin` binds; the start then fails and is rerun.
+ */
 async function freePort(): Promise<number> {
   const probe = Bun.serve({ port: 0, hostname: '127.0.0.1', fetch: () => new Response() })
   const { port } = probe
@@ -447,7 +497,7 @@ function serveSite(siteDir: string): Running {
 }
 
 /** Start `ritual admin` on loopback against `workspace`, with an account set up. */
-async function startAdmin(workspace: string): Promise<Running> {
+async function startAdmin(workspace: string, refresh: RefreshMode): Promise<Running> {
   ritual(
     workspace,
     ['admin', 'setup', '--username', ADMIN_USER, '--password-stdin'],
@@ -468,7 +518,10 @@ async function startAdmin(workspace: string): Promise<Running> {
       '--port',
       String(port),
       '--refresh',
-      'never',
+      refresh,
+      // The light captures switch this with `data-theme`; name the base explicitly.
+      '--theme',
+      'default',
     ],
     { cwd: ROOT, stdout: 'inherit', stderr: 'inherit' },
   )
@@ -477,10 +530,14 @@ async function startAdmin(workspace: string): Promise<Running> {
     [Symbol.asyncDispose]: async () => {
       child.kill()
       // Force it down if a graceful shutdown takes too long.
+      let timer: Timer | undefined
       const stopped = await Promise.race([
         child.exited.then(() => true),
-        Bun.sleep(5_000).then(() => false),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => resolve(false), 5_000)
+        }),
       ])
+      clearTimeout(timer)
       if (!stopped) {
         child.kill('SIGKILL')
         await child.exited
@@ -491,9 +548,13 @@ async function startAdmin(workspace: string): Promise<Running> {
     // Ready once it answers; give up if the process dies or a minute passes.
     const deadline = Date.now() + 60_000
     for (;;) {
-      if (child.exitCode !== null) throw new Error(`ritual admin exited with ${child.exitCode}`)
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw new Error(
+          `ritual admin exited with ${child.exitCode ?? 'no code'} (signal ${child.signalCode ?? 'none'})`,
+        )
+      }
       if (Date.now() > deadline) throw new Error('ritual admin did not start within a minute')
-      const answered = await fetch(running.url).then(
+      const answered = await fetch(running.url, { signal: AbortSignal.timeout(2_000) }).then(
         (response) => response.ok,
         () => false,
       )
@@ -525,27 +586,65 @@ async function settle(page: Page): Promise<void> {
     // Capped, so an animation that keeps restarting cannot stall the run.
     await Promise.race([
       Promise.all(finite.map((animation) => animation.finished.catch(() => undefined))),
-      new Promise((resolve) => setTimeout(resolve, 5_000)),
+      new Promise<void>((resolve) => setTimeout(resolve, 5_000)),
     ])
   })
   // One more frame pair so the decoded images are painted.
   await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
   )
 }
 
-/** Fail when an image in the viewport did not load, rather than capture its broken icon. */
-async function assertImagesLoaded(page: Page, name: string): Promise<void> {
-  const broken = await page.evaluate(() =>
-    [...document.images]
-      .filter((image) => {
-        const box = image.getBoundingClientRect()
-        const visible = box.bottom > 0 && box.top < innerHeight && box.width > 0
-        return visible && image.complete && image.naturalWidth === 0
-      })
+/** Wait for the images in the capture to finish, at most this long. */
+const IMAGE_WAIT_MS = 15_000
+
+type ImageState = { loading: string[]; broken: string[] }
+
+/**
+ * The capture's visible images still loading, and those loaded broken. With
+ * a `crop` selector, only that element's images. Runs in the page.
+ */
+function imageState(crop: string | null): ImageState {
+  const scope = crop === null ? document : document.querySelector(crop)
+  const visible = [...(scope?.querySelectorAll('img') ?? [])].filter((image) => {
+    const box = image.getBoundingClientRect()
+    return (
+      box.bottom > 0 &&
+      box.top < innerHeight &&
+      box.width > 0 &&
+      // Not a hidden hover preview.
+      image.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+    )
+  })
+  return {
+    loading: visible.filter((image) => !image.complete).map((image) => image.src),
+    broken: visible
+      .filter((image) => image.complete && image.naturalWidth === 0)
       .map((image) => image.src),
-  )
-  if (broken.length > 0) throw new Error(`${name}: images did not load: ${broken.join(', ')}`)
+  }
+}
+
+/**
+ * Fail when an image in the capture did not load, rather than capture its
+ * broken icon. One still loading gets `IMAGE_WAIT_MS` to finish (lazy images
+ * added by `prepare` may not have started when `settle` ran). With `crop`,
+ * only the cropped element's images count: the page behind a modal may hold
+ * lazy images the browser never loads.
+ */
+async function assertImagesLoaded(page: Page, shot: Shot): Promise<void> {
+  const crop = shot.crop ?? null
+  const deadline = Date.now() + IMAGE_WAIT_MS
+  let state = await page.evaluate(imageState, crop)
+  while (state.loading.length > 0 && Date.now() < deadline) {
+    await page.waitForTimeout(250)
+    state = await page.evaluate(imageState, crop)
+  }
+  const failed = [...state.loading, ...state.broken]
+  if (failed.length > 0) throw new Error(`${shot.name}: images did not load: ${failed.join(', ')}`)
+  await settle(page)
 }
 
 /** Re-encode a PNG screenshot as WebP in the browser, returning the bytes. */
@@ -619,29 +718,40 @@ async function takeShot(
   // Scryfall's image CDN sometimes refuses a card image's cache-busting URL
   // (`…jpg?1783926791`) while serving the same file without the query.
   await context.route('https://cards.scryfall.io/**', async (route) => {
-    const response = await route.fetch()
-    if (response.ok()) return route.fulfill({ response })
-    const url = new URL(route.request().url())
-    url.search = ''
-    await route.fulfill({ response: await route.fetch({ url: url.href }) })
+    try {
+      const response = await route.fetch()
+      if (response.ok()) return await route.fulfill({ response })
+      const url = new URL(route.request().url())
+      url.search = ''
+      await route.fulfill({ response: await route.fetch({ url: url.href }) })
+    } catch {
+      // The request failed (or the page closed): let the image fail, which
+      // `assertImagesLoaded` reports if it was on screen.
+      await route.abort().catch(() => undefined)
+    }
   })
-  const page = await context.newPage()
-  await page.goto(`${baseUrl}${shot.hash}`)
-  // The app renders after fetching its data; Scryfall card art marks that.
-  await page
-    .locator(shot.ready ?? CARD_IMAGE)
-    .first()
-    .waitFor()
-  await settle(page)
-  if (shot.prepare) {
-    await shot.prepare(page)
+  try {
+    const page = await context.newPage()
+    await page.goto(`${baseUrl}${shot.hash}`)
+    // The app renders after fetching its data; Scryfall card art marks that.
+    await page
+      .locator(shot.ready ?? CARD_IMAGE)
+      .first()
+      .waitFor()
     await settle(page)
+    if (shot.prepare) {
+      await shot.prepare(page)
+      await settle(page)
+    }
+    await assertImagesLoaded(page, shot)
+    const webp = await toWebp(page, await capture(page, shot))
+    const file = path.join(OUT_DIR, `${shot.name}-${theme}.webp`)
+    await Bun.write(file, webp)
+    console.log(`${path.relative(ROOT, file)} (${Math.round(webp.length / 1024)} KB)`)
+  } finally {
+    // Before the context closes, so no handler outlives it.
+    await context.unrouteAll({ behavior: 'ignoreErrors' })
   }
-  await assertImagesLoaded(page, shot.name)
-  const webp = await toWebp(page, await capture(page, shot))
-  const file = path.join(OUT_DIR, `${shot.name}-${theme}.webp`)
-  await Bun.write(file, webp)
-  console.log(`${path.relative(ROOT, file)} (${Math.round(webp.length / 1024)} KB)`)
 }
 
 const { values } = parseArgs({
@@ -652,36 +762,60 @@ const { values } = parseArgs({
   strict: true,
 })
 
-const only = values.only?.split(',').map((name) => name.trim())
+function isRefreshMode(value: string): value is RefreshMode {
+  return (REFRESH_MODES as readonly string[]).includes(value)
+}
+const refresh = values.refresh
+if (!isRefreshMode(refresh)) {
+  throw new Error(`--refresh must be one of ${REFRESH_MODES.join(', ')}, not ${refresh}`)
+}
+if (refresh === 'never' && !existsSync(DEMO_CACHE)) {
+  throw new Error('demo/cache/ is missing; rerun with --refresh auto to download it')
+}
+
+const only = values.only
+  ?.split(',')
+  .map((name) => name.trim())
+  .filter((name) => name !== '')
+if (only !== undefined) {
+  if (only.length === 0) throw new Error('--only needs at least one shot name')
+  const unknown = only.filter((name) => !SHOTS.some((shot) => shot.name.startsWith(name)))
+  if (unknown.length > 0) throw new Error(`no shot matches --only ${unknown.join(', ')}`)
+}
 const selected = only
   ? SHOTS.filter((shot) => only.some((name) => shot.name.startsWith(name)))
   : SHOTS
-if (selected.length === 0) throw new Error(`no shot matches --only ${values.only}`)
 const targets = new Set(selected.map((shot) => shot.target))
 
 const tempRoot = mkdtempSync(path.join(tmpdir(), 'ritual-screenshots-'))
+// Ctrl-C skips the `finally` below; remove the temporary copies anyway.
+process.once('SIGINT', () => {
+  rmSync(tempRoot, { recursive: true, force: true })
+  process.exit(130)
+})
 try {
   mkdirSync(OUT_DIR, { recursive: true })
   // Children of the temp root, so build-site's sibling scratch directories
   // land inside it too and are removed with it.
   const workspace = path.join(tempRoot, 'demo')
-  copyDemo(workspace)
+  copyDemo(workspace, refresh)
   const baseUrls = new Map<Target, string>()
   await using stack = new AsyncDisposableStack()
   if (targets.has('site')) {
     const siteDir = path.join(tempRoot, 'site')
-    buildSite(workspace, siteDir, values.refresh)
+    buildSite(workspace, siteDir, refresh)
     baseUrls.set('site', stack.use(serveSite(siteDir)).url)
   }
   if (targets.has('stores')) {
     const storesWorkspace = path.join(tempRoot, 'demo-stores')
-    copyDemo(storesWorkspace)
+    copyDemo(storesWorkspace, refresh)
     enableStores(storesWorkspace)
     const siteDir = path.join(tempRoot, 'site-stores')
-    buildSite(storesWorkspace, siteDir, values.refresh, ['--sell-mode'])
+    buildSite(storesWorkspace, siteDir, refresh, ['--sell-mode'])
     baseUrls.set('stores', stack.use(serveSite(siteDir)).url)
   }
-  if (targets.has('admin')) baseUrls.set('admin', stack.use(await startAdmin(workspace)).url)
+  if (targets.has('admin'))
+    baseUrls.set('admin', stack.use(await startAdmin(workspace, refresh)).url)
 
   await using browser = await chromium.launch()
   for (const shot of selected) {

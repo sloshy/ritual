@@ -15,7 +15,9 @@ interface Props {
   phone?: boolean
 }
 
-const images = import.meta.glob<{ default: ImageMetadata }>('../assets/screenshots/*.webp', {
+type ImageModule = { default: ImageMetadata }
+
+const images = import.meta.glob<ImageModule>('../assets/screenshots/*.webp', {
   eager: true,
 })
 const { name, alt, caption, phone = false } = Astro.props
