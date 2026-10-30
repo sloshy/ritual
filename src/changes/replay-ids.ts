@@ -25,8 +25,9 @@ export type LineCreatingChange = Extract<ChangeInput, { action: 'add' | 'move-to
  * How a list type's reducer lands a pinning `move-to` (`replacesCardId`):
  * - `split` (decks): in place when `cardId === replacesCardId` (the line keeps
  *   its `&N`); otherwise one copy comes off the pinned line and lands as an
- *   arrival on the line `cardId` names — which a split must carry: the deck
- *   reducer refuses an id-less one.
+ *   arrival — on the line `cardId` names, else the line the merge rule folds
+ *   it onto. A split that would start a line must carry the id for it: the
+ *   deck reducer refuses an id-less one.
  * - `in-place` (collections): the pinned entry takes the printing and keeps
  *   its `&N`, whatever `cardId` the event carries.
  * - `append` (wanted lists): the pin is not read; the copy lands like any
@@ -129,16 +130,21 @@ type IdState = { live: Set<number>; pool: CardIdPool }
 /**
  * Whether `change` lands a copy as a line of its own or onto one by the merge
  * rule, under the list's {@link PinLanding}. A pin that converts its line in
- * place lands on a line the list already has, and an id-less deck split is
- * one the reducer refuses — neither is given an id.
+ * place lands on a line the list already has, so it is given no id.
  */
 export function createsLine(change: ChangeEvent, pins: PinLanding): boolean {
   if (change.action === 'add') return true
   if (change.action !== 'move-to') return false
   if (change.replacesCardId === undefined || pins === 'append') return true
   if (pins === 'in-place') return false
-  return change.cardId !== undefined && change.cardId !== change.replacesCardId
+  return change.cardId !== change.replacesCardId
 }
+
+/** Whether `change` is a deck pin splitting a copy off its line (see {@link PinLanding}). */
+const isSplitPin = (change: ChangeEvent): boolean =>
+  change.action === 'move-to' &&
+  change.replacesCardId !== undefined &&
+  change.cardId !== change.replacesCardId
 
 /** `change` with `cardId` set to `cardId`, or without one when it is `undefined`. */
 function stampCardId<T extends ChangeEvent>(change: T, cardId: number | undefined): T {
@@ -232,6 +238,8 @@ export function replayAssigningIds<TData>(
     /** The id this change adds to the live set, when that is all it does to the ids. */
     let landed: number | undefined
     let idsSettled = false
+    /** Whether this change is the one that resolved its placeholder. */
+    let resolvedHere = false
     if ((change.action === 'add' || change.action === 'move-to') && createsLine(change, ops.pins)) {
       if (state === null) {
         const ids = new Set(ops.cardIds(current))
@@ -253,12 +261,17 @@ export function replayAssigningIds<TData>(
           cardId = id
           claimId(pool, id)
           landed = id
+        } else if (id === undefined && ops.pins === 'split' && isSplitPin(change)) {
+          // A client's id-less split that would start a line: left as sent,
+          // for the reducer to refuse (an id is what the line would need).
+          cardId = undefined
         } else {
           cardId = allocateId(pool)
           landed = cardId
         }
         if (placeholder !== undefined && !resolved.has(placeholder)) {
           resolved.set(placeholder, cardId)
+          resolvedHere = true
         }
         change = stampCardId(change, cardId)
       }
@@ -271,6 +284,7 @@ export function replayAssigningIds<TData>(
       // The pinned entry keeps its `&N`: that is the line this event names.
       if (placeholder !== undefined && !resolved.has(placeholder)) {
         resolved.set(placeholder, change.replacesCardId)
+        resolvedHere = true
       }
       change = stampCardId(change, change.replacesCardId)
     } else if (placeholder !== undefined && !resolved.has(placeholder)) {
@@ -290,11 +304,9 @@ export function replayAssigningIds<TData>(
       },
     })
     applied.push(change)
-    // A creating change that missed made no line, so its placeholder names
-    // nothing: later references fall back to the card's name.
-    if (missed && placeholder !== undefined && resolved.get(placeholder) === landed) {
-      resolved.delete(placeholder)
-    }
+    // A change that missed landed nowhere, so the placeholder it resolved
+    // names nothing: later references fall back to the card's name.
+    if (missed && resolvedHere && placeholder !== undefined) resolved.delete(placeholder)
     // A pin may take a line's last copy (a split leaves it at zero), so it is
     // never "only an addition" to the ids.
     const pins = change.action === 'move-to' && change.replacesCardId !== undefined

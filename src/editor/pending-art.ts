@@ -1,9 +1,7 @@
 import type { CardArtRef } from '../list/card-art'
-import type { ChangeEvent } from '../changes/change-event'
 import type { CardArtRefs } from './card-art-view'
-import { reconcileIdPoolForUndo } from './reconcile-undo'
 import type { SaveEffect } from '../changes/save-effects'
-import type { UndoEntry } from './useCardChanges'
+import type { EntryWithCardId } from '../card/card-id'
 
 /**
  * Custom art an editor holds until the list it belongs to has been saved.
@@ -195,31 +193,6 @@ export function savedCardIdsAfterSave(
   return ids
 }
 
-/**
- * The ids an undo handed back to the pool — a session add taken back, or a
- * removal reclaiming the `&N` it had released.
- *
- * Whatever was staged against such an id belongs to a card that is no longer
- * there, and the list's own art applies again: undoing the removal of a card
- * with custom art must show (and keep) that art, even when the id had since
- * been handed to a card added afterwards.
- *
- * Delegates to {@link reconcileIdPoolForUndo} rather than restating its rules,
- * so the art and the id pool can never disagree about which ids moved.
- */
-export function artIdsResetByUndo(
-  entry: UndoEntry,
-  remainingChanges: ChangeEvent[] = [],
-  liveIds: ReadonlySet<number> = new Set(),
-): number[] {
-  const ids: number[] = []
-  const collect = (id: number): void => {
-    if (!ids.includes(id)) ids.push(id)
-  }
-  reconcileIdPoolForUndo(collect, collect, entry, remainingChanges, liveIds)
-  return ids
-}
-
 /** One thing an add does to the staged-art table. */
 export type ArtStagingAction =
   /** Take back whatever is staged for this id — it belongs to no card the save will write. */
@@ -227,74 +200,130 @@ export type ArtStagingAction =
   /** Stage this reference (or, with `null`, a clear) against the id. */
   | { kind: 'set'; cardId: number; art: CardArtRef | null }
 
-/**
- * One added copy, as the two outcomes an add can have — mirroring
- * {@link import('./useCardChanges').AddCardResult} rather than restating it as a
- * flag, so "cancelled with a merge target" cannot be expressed.
- */
-export type AddedCopyArt =
+/** What one added copy came to — the two outcomes `useCardChanges.addCard` reports. */
+export type AddedCopyOutcome =
   | {
       kind: 'recorded'
-      /** The id the session allocated for this copy. */
-      cardId: number
-      /**
-       * The id of the line the copy merged into, when the list already had one
-       * it belongs on (a deck quantity bump). That line carries its own art.
-       */
-      mergeTargetId?: number
-      /** The art the add carried, `null` when it named none. */
-      art: CardArtRef | null
+      /** The id the copy's event carries (`undefined` on a merge onto an id-less line). */
+      cardId: number | undefined
     }
   | {
       kind: 'cancelled'
-      cardId: number
+      cardId: number | undefined
       /**
        * The `&N` of the line that survives, from the cancelled removal — and
        * `undefined` when that removal named no id, which is a removal whose line
        * this session cannot identify.
        */
       survivorId: number | undefined
-      art: CardArtRef | null
     }
 
+/** One Add Card, as far as its custom art is concerned. */
+export type AddCardArt = {
+  /**
+   * The line the copies join because the list already has one they merge
+   * onto (a deck quantity bump), or `null` when they start a line. A line may
+   * have no id yet, which is why this is not just a number.
+   */
+  mergeTarget: EntryWithCardId | null
+  /** The art the add carried, `null` when it named none. */
+  art: CardArtRef | null
+  /** Each copy's outcome, in the order the copies were added. */
+  copies: readonly AddedCopyOutcome[]
+}
+
 /**
- * Where one added copy's custom art belongs, as the ordered edits to make.
+ * Where an Add Card's custom art belongs, as the ordered edits to make —
+ * planned across all its copies at once, because a copy changes what the next
+ * one lands on.
  *
- * Three cases, and the middle one is the reason this is a function rather than
- * an `if` at the call site:
- *
- * - **The add cancelled a pending removal.** The session now touches nothing, so
- *   the id it allocated must be given up — but an add that *named art* is one of
- *   the two ways art legitimately returns to a card after a removal (the other
- *   being undo), so that art is staged against the surviving line instead of
- *   dropped. A plain re-add still leaves the line as the file has it. With no
- *   `survivorId` there is no line to aim at: staging against the allocated id
- *   would write to a number no saved line holds, which the save's liveness
- *   filter drops silently — so that art is refused here, visibly, instead.
- * - **The copies joined an existing line.** That line has its own art, so only an
- *   explicit reference has anything to say; adding without art must never clear
- *   what the target already wears.
+ * - **The copies join an existing line** (`mergeTarget`, or the line a copy
+ *   before them restored by cancelling its removal). That line has its own
+ *   art, so only an explicit reference has anything to say; adding without art
+ *   must never clear what the line wears — staging a clear there would delete
+ *   its art from the sidecar on save.
+ * - **A copy cancelled a pending removal.** The session now touches nothing, so
+ *   the id it carried gives up its staging — but an add that *named art* is
+ *   one of the two ways art legitimately returns to a card after a removal (the
+ *   other being undo), so that art is staged against the surviving line
+ *   instead. With no `survivorId` there is no line to aim at: staging against
+ *   the carried id would write to a number no saved line holds, which the
+ *   save's liveness filter drops silently — so that art is refused here,
+ *   visibly, instead.
  * - **A new line.** Reported art or not, the staging is written: the pool hands
  *   out the ids removals freed, so a fresh line can land on an `&N` an earlier
  *   card's art is still filed under, and a staged `null` is what clears it.
+ *
+ * Each distinct edit appears once, under the copy that first makes it — the
+ * plan is one list per copy, so undoing a copy reverts exactly its own edits.
  */
-export function addedCopyArtActions(copy: AddedCopyArt): readonly ArtStagingAction[] {
-  if (copy.kind === 'cancelled') {
-    if (copy.art === null || copy.survivorId === undefined) {
-      return [{ kind: 'reset', cardId: copy.cardId }]
+export function addCardArtPlan(add: AddCardArt): ArtStagingAction[][] {
+  const plan: ArtStagingAction[][] = []
+  let mine: ArtStagingAction[] = []
+  const push = (action: ArtStagingAction): void => {
+    const seen = plan
+      .flat()
+      .some(
+        (p) =>
+          p.kind === action.kind &&
+          p.cardId === action.cardId &&
+          (p.kind === 'reset' || (action.kind === 'set' && p.art === action.art)),
+      )
+    if (!seen) mine.push(action)
+  }
+  let joins = add.mergeTarget
+  for (const copy of add.copies) {
+    mine = []
+    plan.push(mine)
+    if (joins !== null) {
+      if (add.art !== null && joins.cardId !== undefined) {
+        push({ kind: 'set', cardId: joins.cardId, art: add.art })
+      }
+      continue
     }
-    // The pool hands the re-add the number the removal released — which is why
-    // the two cancelled each other at all (`areOppositeChanges` compares ids) —
-    // so the reset is normally moot and would undo the write beside it.
-    return copy.survivorId === copy.cardId
-      ? [{ kind: 'set', cardId: copy.survivorId, art: copy.art }]
-      : [
-          { kind: 'reset', cardId: copy.cardId },
-          { kind: 'set', cardId: copy.survivorId, art: copy.art },
-        ]
+    if (copy.kind === 'cancelled') {
+      const { cardId, survivorId } = copy
+      // The pool hands the re-add the number the removal released — which is
+      // why the two cancelled each other at all (`areOppositeChanges` compares
+      // ids) — so the reset is normally moot and would undo the write beside it.
+      if (cardId !== undefined && (add.art === null || survivorId !== cardId)) {
+        push({ kind: 'reset', cardId })
+      }
+      if (survivorId !== undefined) {
+        if (add.art !== null) push({ kind: 'set', cardId: survivorId, art: add.art })
+        // The line is back: the copies after this one join it.
+        joins = { cardId: survivorId }
+      }
+      continue
+    }
+    if (copy.cardId !== undefined) push({ kind: 'set', cardId: copy.cardId, art: add.art })
   }
-  if (copy.mergeTargetId !== undefined) {
-    return copy.art === null ? [] : [{ kind: 'set', cardId: copy.mergeTargetId, art: copy.art }]
+  return plan
+}
+
+/**
+ * What one staged-art id held before an action changed it — `undefined` when
+ * nothing was staged — so an undo can put back exactly that.
+ */
+export type ArtRestore = { cardId: number; before: CardArtRef | null | undefined }
+
+/**
+ * The staged-art state `actions` are about to change, read through `staged`
+ * before they run: one entry per id, in the order the ids are first touched.
+ *
+ * An undo restores these and nothing else. It never infers art from which ids
+ * the pool moved — that would wipe art a still-pending add staged on a line
+ * when an unrelated decrement of it is undone, and would leave the art a
+ * merged add staged when the add itself is undone.
+ */
+export function artBeforeActions(
+  actions: readonly ArtStagingAction[],
+  staged: (cardId: number) => CardArtRef | null | undefined,
+): ArtRestore[] {
+  const restores: ArtRestore[] = []
+  for (const action of actions) {
+    if (restores.some((r) => r.cardId === action.cardId)) continue
+    restores.push({ cardId: action.cardId, before: staged(action.cardId) })
   }
-  return [{ kind: 'set', cardId: copy.cardId, art: copy.art }]
+  return restores
 }

@@ -51,6 +51,7 @@ import type { BuildSiteResponse } from '../../../src/admin/api/build-site'
 import type {
   CollectionFullLoadResult,
   DeckFullLoadResult,
+  DeckLoadSection,
   WantedFullLoadResult,
 } from '../../../src/admin/api/load-results'
 import type { ListInfo } from '../../../src/list/list-info'
@@ -58,6 +59,7 @@ import type { RitualConfig } from '../../../src/config/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/config/search-debounce'
 import { fulfillJson } from './fulfill'
 import type { ScryfallCard } from '../../../src/scryfall/types'
+import type { ListSaveResponse } from '../../../src/admin/api/list-save'
 import { MOCK_COLLECTION_DETAIL, MOCK_WANTED_LIST_DETAIL, makeMockScryfallCard } from './mock-cards'
 import { localeTag } from '../../../src/i18n/locale-tag-message'
 import { EXAMPLE_SOURCE_OFFER } from '../../helpers/source-offer'
@@ -150,31 +152,53 @@ export async function mockDecksApi(page: Page): Promise<void> {
   await fulfillJson(page, '**/api/decks', { decks: MOCK_DECKS }, { method: 'GET' })
 }
 
+/** A deck line as {@link mockDeckEditorLoad} takes it: `effectiveLabels` defaults to the deck's. */
+export type MockDeckLine = Omit<DeckLoadSection['cards'][number], 'effectiveLabels'> &
+  Partial<Pick<DeckLoadSection['cards'][number], 'effectiveLabels'>>
+
 /** One deck the deck editor loads, as {@link mockDeckEditorLoad} serves it. */
 export type MockEditorDeck = {
   slug: string
   name: string
-  /** The `Main` section's lines, as the load route sends them. */
-  cards: Record<string, unknown>[]
+  /** The `Main` section's lines. */
+  cards: MockDeckLine[]
   /** Each card name's printings; the first is the card's Scryfall object. */
   printings: Record<string, ScryfallCard[]>
   /** Further load-response fields (`contentHash`, `labels`, lowest-price maps). */
-  extra?: Record<string, unknown>
+  extra?: Partial<DeckFullLoadResult>
 }
 
 /**
- * Serve `deck` as the only deck in the admin's deck list, and its load
+ * Serve `deck` as the only deck in the admin's deck list, and its full load
  * response. Registered before the editor opens, so the list picker offers it.
  */
 export async function mockDeckEditorLoad(page: Page, deck: MockEditorDeck): Promise<void> {
   const { slug, name } = deck
+  const defaults = deck.extra?.labels ?? []
   await fulfillJson(page, '**/api/decks', { decks: [{ slug, name }] }, { method: 'GET' })
-  await fulfillJson(page, `**/api/deck/${slug}`, {
+  const body: DeckFullLoadResult = {
     success: true,
+    view: 'full',
     slug,
-    deck: { name, sections: [{ name: 'Main', cards: deck.cards }] },
+    totalCount: deck.cards.length,
+    warnings: [],
+    deck: {
+      name,
+      sections: [
+        {
+          name: 'Main',
+          cards: deck.cards.map((card) => ({
+            ...card,
+            effectiveLabels: card.effectiveLabels ?? [...defaults],
+          })),
+        },
+      ],
+    },
     cards: Object.fromEntries(
-      Object.entries(deck.printings).map(([cardName, printings]) => [cardName, printings[0]]),
+      Object.entries(deck.printings).map(([cardName, printings]) => [
+        cardName,
+        printings[0] ?? null,
+      ]),
     ),
     printings: deck.printings,
     lowestPriceCards: {},
@@ -183,7 +207,8 @@ export async function mockDeckEditorLoad(page: Page, deck: MockEditorDeck): Prom
     symbolMap: {},
     frontMatter: {},
     ...deck.extra,
-  })
+  }
+  await fulfillJson(page, `**/api/deck/${slug}`, body)
 }
 
 /**
@@ -195,9 +220,17 @@ export async function captureDeckSaves<TChange>(
   slug: string,
 ): Promise<() => TChange[] | null> {
   let saved: TChange[] | null = null
-  await fulfillJson(page, `**/api/deck/${slug}/save`, (route) => {
-    saved = (JSON.parse(route.request().postData() ?? '{}') as { changes: TChange[] }).changes
-    return { success: true, message: 'Saved', contentHash: 'hash-2', effects: [] }
+  await fulfillJson(page, `**/api/deck/${slug}/save`, (route): ListSaveResponse => {
+    const changes = (JSON.parse(route.request().postData() ?? '{}') as { changes: TChange[] })
+      .changes
+    saved = changes
+    return {
+      success: true,
+      ...apiMessage('admin.api.save.saved', { count: changes.length, name: slug }),
+      contentHash: 'hash-2',
+      droppedNotes: [],
+      effects: [],
+    }
   })
   return () => saved
 }

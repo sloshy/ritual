@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { addedCardNamesFrom, usedIdsAfterRestore } from '../../src/editor/session-changes'
+import { addedCardNamesFrom } from '../../src/editor/session-changes'
 import {
   createAddChange,
   createMoveFromChange,
@@ -29,11 +29,5 @@ describe('addedCardNamesFrom', () => {
 
   test('with no original every add counts', () => {
     expect(addedCardNamesFrom(changes, () => undefined)).toEqual(['Sol Ring', 'Counterspell'])
-  })
-})
-
-describe('usedIdsAfterRestore', () => {
-  test('unions the original ids with every id the restored changes reference, skipping id-less changes', () => {
-    expect(usedIdsAfterRestore([1, 9], changes)).toEqual([1, 9, 2, 3, 4, 5])
   })
 })

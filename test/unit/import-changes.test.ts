@@ -499,4 +499,64 @@ describe('importIntoList', () => {
     })
     expect(second.applied).toMatchObject([{ action: 'set-note', cardId: 2 }])
   })
+
+  it('re-targets a pin on a wanted list as the arrival it is there, not as the pinned entry', () => {
+    // A wanted list does not convert a pinned entry: the copy is appended. A
+    // later edit naming the copy must find the new entry, not the old one.
+    const data = wanted('Opt', 'Ponder', 'Preordain')
+    const state = createRetargetState()
+    const first = importIntoList({
+      data,
+      changes: [
+        {
+          id: 'p',
+          timestamp: 1,
+          action: 'move-to',
+          cardName: 'Opt',
+          // Exported as an in-place pin of `&1` — which a wanted list never is.
+          cardId: 1,
+          replacesCardId: 1,
+          from: { type: 'collection', name: 'Binder' },
+          set: 'm21',
+          collectorNumber: '59',
+        },
+      ],
+      currentNames: cardNamesById(data),
+      ops: WANTED_ID_OPS,
+      state,
+    })
+    expect(first.conflicts).toEqual([])
+    expect(first.applied).toMatchObject([{ action: 'move-to', cardId: 4 }])
+
+    const second = importIntoList({
+      data: first.data,
+      changes: [
+        { id: 'n', timestamp: 2, action: 'set-note', cardName: 'Opt', cardId: 1, note: 'x' },
+      ],
+      currentNames: cardNamesById(first.data),
+      ops: WANTED_ID_OPS,
+      state,
+    })
+    expect(second.applied).toMatchObject([{ action: 'set-note', cardId: 4 }])
+  })
+
+  it('drops a change the list refuses from what applies and reports it with real ids', () => {
+    const data = wanted('Opt')
+    const result = importIntoList({
+      data,
+      changes: [
+        { id: 'a', timestamp: 1, action: 'add', cardName: 'Sol Ring', cardId: 15 },
+        { id: 'c', timestamp: 2, action: 'set-commander', cardName: 'Sol Ring', cardId: 15 },
+      ],
+      currentNames: cardNamesById(data),
+      ops: WANTED_ID_OPS,
+    })
+    expect(result.applied.map((change) => change.action)).toEqual(['add'])
+    expect(result.conflicts).toEqual([
+      {
+        change: expect.objectContaining({ action: 'set-commander', cardId: 2 }),
+        reason: 'not-applicable',
+      },
+    ])
+  })
 })

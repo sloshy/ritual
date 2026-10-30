@@ -49,8 +49,13 @@ export type UseCardArtResult = {
   open: (target: CardContextInfo) => void
   /** Stage art for a card the session just added (`null` clears a reused id's). */
   stage: (cardId: number, art: CardArtRef | null) => void
-  /** Drop what was staged for an id an undo handed back, revealing the list's own art. */
+  /** Drop what was staged for an id, revealing the list's own art. */
   reset: (cardId: number) => void
+  /**
+   * What is staged for an id: a reference, `null` for a staged clear, or
+   * `undefined` when nothing is — what an undo puts back.
+   */
+  staged: (cardId: number) => CardArtRef | null | undefined
   /**
    * Write the staged art, now that the save's effects have told us the ids —
    * which is the *only* input needed: the ids the list holds afterwards follow
@@ -144,6 +149,10 @@ export function useCardArt(type: ListType): UseCardArtResult {
       })
     },
     stage: stagePending,
+    staged: (cardId) => {
+      const current = pending()
+      return current.has(cardId) ? (current.get(cardId) ?? null) : undefined
+    },
     reset: (cardId) => {
       const current = pending()
       if (!current.has(cardId)) return

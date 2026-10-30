@@ -71,8 +71,12 @@ export type MoveCardOptions = CardPrintingOptions & MovedCopySource
  * two ways art comes back after a removal), so the counterpart is surfaced
  * rather than folded into a bare `null`.
  */
-export type AddCardResult =
+export type AddCardResult = (
   { kind: 'added'; change: ChangeEvent } | { kind: 'cancelled'; cancelled: RemoveChange | null }
+) & {
+  /** The undo entry the add pushed — what a caller files the add's side effects under. */
+  entry: UndoEntry
+}
 
 /**
  * Stores enough context to fully reverse a single user action.
@@ -346,12 +350,13 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
   }
 
   function addCard(cardName: string, options?: AddCardOptions): AddCardResult {
-    const { addedChange, cancelledChange } = recordChange({ action: 'add', cardName, ...options })
-    if (addedChange !== null) return { kind: 'added', change: addedChange }
+    const entry = recordChange({ action: 'add', cardName, ...options })
+    const { addedChange, cancelledChange } = entry
+    if (addedChange !== null) return { kind: 'added', change: addedChange, entry }
     // Only a `remove` is ever the opposite of an `add` (see areOppositeChanges),
     // so the narrowing here can never actually discard a cancellation.
     const removed = cancelledChange?.action === 'remove' ? cancelledChange : null
-    return { kind: 'cancelled', cancelled: removed }
+    return { kind: 'cancelled', cancelled: removed, entry }
   }
 
   function removeCard(cardName: string, options?: AddCardOptions, removedCardData?: T) {
@@ -389,8 +394,11 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     if (addedChange === null && cancelledChange === null) return
     changesRef = newChanges
     undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
-    setChanges([...changesRef])
-    setUndoStack([...undoStackRef])
+    // One update cycle, for the reason `recordChange` gives.
+    batch(() => {
+      setChanges([...changesRef])
+      setUndoStack([...undoStackRef])
+    })
   }
 
   function setFinish(cardName: string, finish: Finish, originalFinish: Finish, cardId?: number) {
@@ -493,8 +501,10 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     ]
     changesRef = newChanges
     undoStackRef = [...undoStackRef, ...entries]
-    setChanges([...changesRef])
-    setUndoStack([...undoStackRef])
+    batch(() => {
+      setChanges([...changesRef])
+      setUndoStack([...undoStackRef])
+    })
     return { addedChanges, cancelledChanges }
   }
 

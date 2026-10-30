@@ -2,7 +2,7 @@ import { CATEGORY_ACTIONS, type ChangeAction, type ChangeEvent } from '../change
 import type { MessageKey } from '../i18n/messages/en'
 import type { MissReason, UnmatchedChange } from '../changes/apply-batch'
 import type { CardLabel } from '../card/card-labels'
-import { replayAssigningIds, type IdReplayOps } from '../changes/replay-ids'
+import { replayAssigningIds, type IdReplayOps, type PinLanding } from '../changes/replay-ids'
 
 /**
  * A change from an imported file that could not be applied to the current list:
@@ -156,6 +156,12 @@ type RetargetParams = {
   allocateId: () => number
   /** Carried across batches of the same list; a fresh state when omitted. */
   state?: RetargetState
+  /**
+   * How the list type lands a pinning `move-to` (`replacesCardId`). On an
+   * `append` list (a wanted list) a pin is an arrival like any other, so it is
+   * re-targeted as one; otherwise (the default) it pins a line of the list.
+   */
+  pins?: PinLanding
 }
 
 /**
@@ -234,7 +240,11 @@ export function retargetImportedChanges(params: RetargetParams): RetargetResult 
   }
 
   for (const change of changes) {
-    if (change.action === 'move-to' && change.replacesCardId !== undefined) {
+    if (
+      change.action === 'move-to' &&
+      change.replacesCardId !== undefined &&
+      params.pins !== 'append'
+    ) {
       // A copy pinning a name-only line targets an existing line, so the
       // pinned id resolves like an edit's; the landing id is the pinned line
       // itself when the copy converts it in place, else a fresh one as for an add.
@@ -332,6 +342,7 @@ export function importIntoList<TData>(params: ListImportParams<TData>): ListImpo
     currentNames: params.currentNames,
     allocateId: provisionalIdAllocator(),
     state,
+    pins: params.ops.pins,
   })
   const replayed = replayAssigningIds(params.data, retargeted, params.ops, {
     listLabels: params.listLabels,

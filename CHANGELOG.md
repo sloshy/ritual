@@ -1014,9 +1014,15 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
 
   Undoing an added copy whose line is still in the deck (a `+` click, or an add that
   merged), or undoing an add that had cancelled a decrement, no longer frees that line's
-  id for the next card added in the session, which could give two lines the same id. Nor
-  does adding a copy that cancels a pending decrement discard custom art staged for that
-  line. Existing changelog entries are left as they are.
+  id for the next card added in the session, which could give two lines the same id.
+  Existing changelog entries are left as they are.
+
+- Custom art picked in the admin editors' Add Card dialog is undone exactly. Undo puts
+  back the art the undone add changed and nothing else: undoing a removal no longer
+  drops art another pending add had picked for that card, and undoing an add that merged
+  into an existing deck line now takes back the art it set there. Adding several copies of
+  a deck card you had just removed no longer clears the card's existing custom art, and
+  adding a copy that cancels a pending decrement keeps art already picked for that line.
 
 - On the sites' card-image views, a card's count badge (`2x`, `4x`) sits below the selection
   checkbox instead of beside it, so it no longer covers the start of the card's name. Stack

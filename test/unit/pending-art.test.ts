@@ -1,20 +1,19 @@
 import { describe, expect, test } from 'bun:test'
-import { createAddChange, createRemoveChange } from '../../src/changes/change-event'
 import type { CardArtRef } from '../../src/list/card-art'
 import type { CardArtRefs } from '../../src/editor/card-art-view'
 import {
-  addedCopyArtActions,
+  addCardArtPlan,
+  type AddedCopyOutcome,
   applyArtWrites,
   artAfterSave,
   artDisplayRefs,
   artIdRemap,
   artIdsClearedBySave,
-  artIdsResetByUndo,
+  artBeforeActions,
   resolvePendingArt,
   savedCardIdsAfterSave,
 } from '../../src/editor/pending-art'
 import type { SaveEffect } from '../../src/changes/save-effects'
-import type { UndoEntry } from '../../src/editor/useCardChanges'
 
 /**
  * The staged-art bookkeeping an editor does around a save: which write lands on
@@ -205,69 +204,80 @@ describe('savedCardIdsAfterSave', () => {
   })
 })
 
-describe('artIdsResetByUndo', () => {
-  test('an undone add gives its id back, so nothing stays staged for it', () => {
-    const entry: UndoEntry = {
-      addedChange: createAddChange('Sol Ring', { cardId: 4 }),
-      cancelledChange: null,
-    }
-    expect(artIdsResetByUndo(entry)).toEqual([4])
+describe('addCardArtPlan', () => {
+  const recorded = (cardId: number | undefined): AddedCopyOutcome => ({ kind: 'recorded', cardId })
+  const cancelled = (cardId: number, survivorId: number | undefined): AddedCopyOutcome => ({
+    kind: 'cancelled',
+    cardId,
+    survivorId,
   })
 
-  test('an undone removal reclaims its id, so the removed card’s art returns', () => {
-    const entry: UndoEntry = {
-      addedChange: createRemoveChange('Sol Ring', { cardId: 4 }),
-      cancelledChange: null,
-    }
-    expect(artIdsResetByUndo(entry)).toEqual([4])
-  })
-
-  test('an id other pending copies still use is left alone', () => {
-    const entry: UndoEntry = {
-      addedChange: createAddChange('Sol Ring', { cardId: 4 }),
-      cancelledChange: null,
-    }
-    expect(artIdsResetByUndo(entry, [createAddChange('Sol Ring', { cardId: 4 })])).toEqual([])
-  })
-
-  test('undoing a change that cancelled a removal releases that id once', () => {
-    const entry: UndoEntry = {
-      addedChange: null,
-      cancelledChange: createRemoveChange('Sol Ring', { cardId: 4 }),
-    }
-    expect(artIdsResetByUndo(entry)).toEqual([4])
-  })
-})
-
-describe('addedCopyArtActions', () => {
   test('a new line stages whatever the add carried, art or a clear', () => {
-    expect(addedCopyArtActions({ kind: 'recorded', cardId: 4, art: RING })).toEqual([
-      { kind: 'set', cardId: 4, art: RING },
+    expect(addCardArtPlan({ mergeTarget: null, art: RING, copies: [recorded(4)] })).toEqual([
+      [{ kind: 'set', cardId: 4, art: RING }],
     ])
     // The clear matters as much as the write: the pool hands out the ids
     // removals freed, so a fresh line can land on an `&N` the sidecar still
     // files art under.
-    expect(addedCopyArtActions({ kind: 'recorded', cardId: 4, art: null })).toEqual([
-      { kind: 'set', cardId: 4, art: null },
+    expect(addCardArtPlan({ mergeTarget: null, art: null, copies: [recorded(4)] })).toEqual([
+      [{ kind: 'set', cardId: 4, art: null }],
     ])
   })
 
+  test('copies sharing one new line stage it once, under the first copy', () => {
+    expect(
+      addCardArtPlan({ mergeTarget: null, art: RING, copies: [recorded(4), recorded(4)] }),
+    ).toEqual([[{ kind: 'set', cardId: 4, art: RING }], []])
+  })
+
+  test('per-entry copies each stage their own line', () => {
+    expect(
+      addCardArtPlan({ mergeTarget: null, art: RING, copies: [recorded(4), recorded(5)] }),
+    ).toEqual([[{ kind: 'set', cardId: 4, art: RING }], [{ kind: 'set', cardId: 5, art: RING }]])
+  })
+
   test('copies joining an existing line only speak up when art was named', () => {
-    expect(
-      addedCopyArtActions({ kind: 'recorded', cardId: 7, mergeTargetId: 2, art: RING }),
-    ).toEqual([{ kind: 'set', cardId: 2, art: RING }])
+    const mergeTarget = { cardId: 5 }
+    expect(addCardArtPlan({ mergeTarget, art: RING, copies: [recorded(5)] })).toEqual([
+      [{ kind: 'set', cardId: 5, art: RING }],
+    ])
     // Adding a copy without art must never clear what the target line wears.
+    expect(addCardArtPlan({ mergeTarget, art: null, copies: [recorded(5)] })).toEqual([[]])
+  })
+
+  test('a merging copy that cancels a pending decrement leaves the line’s art alone', () => {
+    const mergeTarget = { cardId: 5 }
+    expect(addCardArtPlan({ mergeTarget, art: null, copies: [cancelled(5, 5)] })).toEqual([[]])
+    expect(addCardArtPlan({ mergeTarget, art: BOLT, copies: [cancelled(5, 5)] })).toEqual([
+      [{ kind: 'set', cardId: 5, art: BOLT }],
+    ])
+  })
+
+  test('a merge onto a line with no id stages nothing', () => {
     expect(
-      addedCopyArtActions({ kind: 'recorded', cardId: 7, mergeTargetId: 2, art: null }),
-    ).toEqual([])
+      addCardArtPlan({
+        mergeTarget: { cardId: undefined },
+        art: RING,
+        copies: [recorded(undefined)],
+      }),
+    ).toEqual([[]])
   })
 
   test('a plain re-add that cancels a removal takes its staging back', () => {
     // The session now touches nothing, so the surviving line is left exactly as
-    // the file has it — art included, and the allocated id gives up its staging.
-    expect(addedCopyArtActions({ kind: 'cancelled', cardId: 7, survivorId: 2, art: null })).toEqual(
-      [{ kind: 'reset', cardId: 7 }],
-    )
+    // the file has it — art included, and the carried id gives up its staging.
+    expect(addCardArtPlan({ mergeTarget: null, art: null, copies: [cancelled(5, 5)] })).toEqual([
+      [{ kind: 'reset', cardId: 5 }],
+    ])
+  })
+
+  test('copies after one that restored its line join that line, never clearing its art', () => {
+    // Deck `&5 ×1`, removed, then Add Card ×2 of the same printing: the first
+    // copy cancels the removal (the line is back), the second merges onto it —
+    // and must not stage a clear that would delete the line's art on save.
+    expect(
+      addCardArtPlan({ mergeTarget: null, art: null, copies: [cancelled(5, 5), recorded(5)] }),
+    ).toEqual([[{ kind: 'reset', cardId: 5 }], []])
   })
 
   test('a re-add carrying art puts it on the line that survived', () => {
@@ -275,27 +285,51 @@ describe('addedCopyArtActions', () => {
     // re-add that names art. The pool hands the re-add the number the removal
     // released — which is why the two cancel — so one staging is all it takes,
     // and a reset would undo the write beside it.
-    expect(addedCopyArtActions({ kind: 'cancelled', cardId: 2, survivorId: 2, art: BOLT })).toEqual(
+    expect(addCardArtPlan({ mergeTarget: null, art: BOLT, copies: [cancelled(2, 2)] })).toEqual([
       [{ kind: 'set', cardId: 2, art: BOLT }],
-    )
+    ])
   })
 
-  test('a cancellation naming a different line retires the allocated id first', () => {
-    expect(addedCopyArtActions({ kind: 'cancelled', cardId: 7, survivorId: 2, art: BOLT })).toEqual(
+  test('a cancellation naming a different line retires the carried id first', () => {
+    expect(addCardArtPlan({ mergeTarget: null, art: BOLT, copies: [cancelled(7, 2)] })).toEqual([
       [
         { kind: 'reset', cardId: 7 },
         { kind: 'set', cardId: 2, art: BOLT },
       ],
-    )
+    ])
   })
 
   test('art is refused, not misfiled, when the cancelled removal names no line', () => {
     // A removal with no `&N` still cancels an add that has one, and then there
-    // is no line to aim at: staging against the allocated id would write to a
+    // is no line to aim at: staging against the carried id would write to a
     // number no saved line holds, which the save's liveness filter drops without
     // a word. Taking the staging back keeps the sidecar honest instead.
     expect(
-      addedCopyArtActions({ kind: 'cancelled', cardId: 7, survivorId: undefined, art: RING }),
-    ).toEqual([{ kind: 'reset', cardId: 7 }])
+      addCardArtPlan({ mergeTarget: null, art: RING, copies: [cancelled(7, undefined)] }),
+    ).toEqual([[{ kind: 'reset', cardId: 7 }]])
+  })
+})
+
+describe('artBeforeActions', () => {
+  test('records what each touched id held, once per id, nothing staged as undefined', () => {
+    const staged = new Map<number, CardArtRef | null>([
+      [2, RING],
+      [3, null],
+    ])
+    expect(
+      artBeforeActions(
+        [
+          { kind: 'reset', cardId: 7 },
+          { kind: 'set', cardId: 2, art: BOLT },
+          { kind: 'set', cardId: 3, art: BOLT },
+          { kind: 'set', cardId: 2, art: null },
+        ],
+        (cardId) => (staged.has(cardId) ? (staged.get(cardId) ?? null) : undefined),
+      ),
+    ).toEqual([
+      { cardId: 7, before: undefined },
+      { cardId: 2, before: RING },
+      { cardId: 3, before: null },
+    ])
   })
 })

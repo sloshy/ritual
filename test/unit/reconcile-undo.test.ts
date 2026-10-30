@@ -67,7 +67,26 @@ describe('reconcileIdPoolForUndo', () => {
       t.release,
       t.claim,
       { addedChange: null, cancelledChange: createRemoveChange('Bolt', { cardId: 5 }) },
-      [createRemoveChange('Bolt', { cardId: 5 })],
+      [],
+      new Set([5]),
+    )
+    expect(t.released).toEqual([])
+    expect(t.claimed).toEqual([])
+  })
+
+  test('undoing a move-to that merged onto a line still in the list releases nothing', () => {
+    const t = track()
+    reconcileIdPoolForUndo(
+      t.release,
+      t.claim,
+      {
+        addedChange: createMoveToChange('Bolt', {
+          cardId: 5,
+          from: { type: 'collection', name: 'Binder' },
+        }),
+        cancelledChange: null,
+      },
+      [],
       new Set([5]),
     )
     expect(t.released).toEqual([])
@@ -80,7 +99,7 @@ describe('reconcileIdPoolForUndo', () => {
       t.release,
       t.claim,
       { addedChange: null, cancelledChange: createRemoveChange('Bolt', { cardId: 5 }) },
-      [createRemoveChange('Bolt', { cardId: 5 })],
+      [],
       new Set(),
     )
     expect(t.released).toEqual([5])

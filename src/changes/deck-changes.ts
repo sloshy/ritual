@@ -647,19 +647,20 @@ function pinDeckLine(
     writePrinting(line, change)
     return true
   }
-  // A split needs the id the copy lands on: an id-less line would be one the
-  // art/effects plan never allocated.
-  if (change.cardId === undefined) return false
-
-  line.quantity -= 1
-  if (line.quantity <= 0) found.section.cards.splice(found.idx, 1)
   // The copy lands as a normal arrival: its own landed labels and tags, merged
-  // by the rule (and in the scope) the merge-target probe uses.
+  // by the rule (and in the scope) the merge-target probe uses — judged before
+  // the copy leaves its line, which never merges with it (it is name-only).
   const copy = arrivingCopy(change, listLabels)
   const landing = findLandingLine(sections, change.cardId, change.cardName, copy, {
     listLabels,
     section: change.section,
   })?.card
+  // A split that starts a line needs the id for it: an id-less line would be
+  // one the art/effects plan never allocated. Landing on a line needs none.
+  if (!landing && change.cardId === undefined) return false
+
+  line.quantity -= 1
+  if (line.quantity <= 0) found.section.cards.splice(found.idx, 1)
   if (landing) {
     landing.quantity += 1
     return true

@@ -1,6 +1,6 @@
 /**
  * Pure reads over a session's change list: which cards it added that the
- * on-disk list did not hold, and which `&N` ids a restored session occupies.
+ * on-disk list did not hold.
  */
 
 import type { ChangeEvent } from '../changes/change-event'
@@ -22,20 +22,4 @@ export function addedCardNamesFrom(
     }
   }
   return [...names]
-}
-
-/**
- * Every `&N` a resumed session holds: the original's ids plus each id the
- * restored changes reference, so later adds in the session don't reallocate
- * one of them.
- */
-export function usedIdsAfterRestore(
-  originalIds: readonly number[],
-  restored: readonly ChangeEvent[],
-): number[] {
-  const used = new Set<number>(originalIds)
-  for (const change of restored) {
-    if ('cardId' in change && typeof change.cardId === 'number') used.add(change.cardId)
-  }
-  return [...used]
 }

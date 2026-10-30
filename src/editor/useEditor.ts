@@ -43,10 +43,15 @@ import type { ListType } from '../list/list-type'
 import { useT } from '../ui/i18n'
 import { useDialogState } from './useDialogState'
 import { useCardIdPool } from './useCardIdPool'
-import { useCardChanges } from './useCardChanges'
+import { useCardChanges, type UndoEntry } from './useCardChanges'
 import { reconcileIdPoolForUndo, replayChanges, type ReplayResult } from './reconcile-undo'
 import type { UnmatchedChange } from '../changes/apply-batch'
-import { addedCopyArtActions, artIdsResetByUndo } from './pending-art'
+import {
+  addCardArtPlan,
+  artBeforeActions,
+  type AddedCopyOutcome,
+  type ArtRestore,
+} from './pending-art'
 import { useNavigationGuard } from './navigation-guard'
 import { clampQuantity } from '../ui/quantity'
 import type {
@@ -74,7 +79,7 @@ import {
   sectionNameError,
   typedSectionHeading,
 } from './section-edits'
-import { addedCardNamesFrom, usedIdsAfterRestore } from './session-changes'
+import { addedCardNamesFrom } from './session-changes'
 
 /** A navigation deferred until the user confirms discarding unsaved changes. */
 type PendingNavigation = { run: () => void; cancel?: () => void }
@@ -109,6 +114,9 @@ export function useEditor<TData, TCardEntry = unknown>(
   const listType = (): ListType => config.listType
   const dialogs = useDialogState()
   const pool = useCardIdPool()
+  // The staged art each Add Card copy replaced, filed under the copy's undo
+  // entry — weakly, so entries a load or import drops take theirs with them.
+  const artUndo = new WeakMap<UndoEntry, ArtRestore[]>()
   const changes = useCardChanges<TCardEntry>()
   const navigationGuard = useNavigationGuard()
 
@@ -356,9 +364,9 @@ export function useEditor<TData, TCardEntry = unknown>(
       // applied: afterwards the new line exists and every further copy merges
       // into it.
       const currentData = data()
-      const mergeTargetId =
+      const mergeTarget =
         currentData !== null
-          ? config.mergeLine?.(
+          ? (config.mergeLine?.(
               currentData,
               {
                 action: 'add',
@@ -371,17 +379,20 @@ export function useEditor<TData, TCardEntry = unknown>(
                 labels,
               },
               undefined,
-            )?.cardId
-          : undefined
+            ) ?? null)
+          : null
       // One `add` event per copy — the change format has no quantity field.
       // Decks fold the copies into one entry, so they all share a card ID — the
       // line's own when the copies merge onto one the deck already has, so no id
       // is drawn for a line that never exists; flat lists store one entry per
       // copy and each needs its own.
-      const sharedId =
-        config.copyModel === 'quantity' ? (mergeTargetId ?? pool.allocate()) : undefined
+      const shares = config.copyModel === 'quantity'
+      // A merge onto a line with no id yet draws none either.
+      const sharedId = !shares ? undefined : mergeTarget ? mergeTarget.cardId : pool.allocate()
+      const outcomes: AddedCopyOutcome[] = []
+      const entries: UndoEntry[] = []
       for (let i = 0; i < copies; i++) {
-        const cardId = sharedId ?? pool.allocate()
+        const cardId = shares ? sharedId : pool.allocate()
         const result = changes.addCard(cardName, { ...normalized, cardId, labels })
         setData((prev) =>
           prev !== null
@@ -398,18 +409,24 @@ export function useEditor<TData, TCardEntry = unknown>(
               })
             : prev,
         )
-        // Where this copy's art belongs — including the case the rule exists
-        // for: an add that cancelled a pending removal *and named art* puts that
-        // art on the line that survived, rather than dropping it with the add.
-        // A copy that merged onto a line the list already had drew no id, so
-        // even when it cancelled a pending decrement of that line there is no
-        // allocated id to give up — it is the merge case, whose art rule leaves
-        // the line's staged art alone unless the add names some.
-        const actions = addedCopyArtActions(
-          result.kind === 'cancelled' && mergeTargetId === undefined
-            ? { kind: 'cancelled', cardId, survivorId: result.cancelled?.cardId, art }
-            : { kind: 'recorded', cardId, mergeTargetId, art },
+        entries.push(result.entry)
+        outcomes.push(
+          result.kind === 'cancelled'
+            ? { kind: 'cancelled', cardId, survivorId: result.cancelled?.cardId }
+            : { kind: 'recorded', cardId },
         )
+      }
+      // Where the art belongs, planned over every copy at once: a copy that
+      // cancelled a removal brings its line back, and the copies after it join
+      // that line rather than staging a clear over its art.
+      // Each copy's undo entry keeps what its edits replaced, so undoing the
+      // copy puts back exactly that.
+      const plan = addCardArtPlan({ mergeTarget, art, copies: outcomes })
+      for (const [index, actions] of plan.entries()) {
+        const entry = entries[index]
+        if (entry && actions.length > 0 && config.stagedArt) {
+          artUndo.set(entry, artBeforeActions(actions, config.stagedArt))
+        }
         for (const action of actions) {
           if (action.kind === 'reset') config.onCardArtReset?.(action.cardId)
           else config.onCardArt?.(action.cardId, action.art)
@@ -709,11 +726,14 @@ export function useEditor<TData, TCardEntry = unknown>(
   }
 
   const handleUndo = () => {
-    const result = changes.undo()
-    if (!result || !original) return
+    // Nothing to replay over: leave the stack alone rather than pop an entry
+    // the list never reverts.
     const origData = original
-    const { entry, remainingChanges } = result
+    if (!origData) return
     batch(() => {
+      const result = changes.undo()
+      if (!result) return
+      const { entry, remainingChanges } = result
       // A change the replay could not take is no longer a pending edit: keeping
       // it would put an edit in the changelog that the saved file does not
       // contain.
@@ -725,10 +745,12 @@ export function useEditor<TData, TCardEntry = unknown>(
       const liveIds = new Set(config.getOriginalCardNames(replayed.data).keys())
       const pending = changes.changes()
       reconcileIdPoolForUndo(pool.release, pool.claim, entry, pending, liveIds)
-      // Same rule, one source: an id the undo moved carries no staged art any
-      // more, and shows whatever the list holds for it on disk again.
-      for (const cardId of artIdsResetByUndo(entry, pending, liveIds)) {
-        config.onCardArtReset?.(cardId)
+      // The art the undone action staged goes back to what it replaced — and
+      // only that: art is restored from the entry, never inferred from which
+      // ids the pool moved.
+      for (const { cardId, before } of (artUndo.get(entry) ?? []).toReversed()) {
+        if (before === undefined) config.onCardArtReset?.(cardId)
+        else config.onCardArt?.(cardId, before)
       }
     })
   }
@@ -860,11 +882,13 @@ export function useEditor<TData, TCardEntry = unknown>(
   const restoreChanges = (restored: ChangeEvent[]): void => {
     const orig = original
     if (!orig || restored.length === 0) return
-    changes.loadChanges(restored)
-    replayAndDrop(orig, restored)
-    // Mark every ID the restored changes reference as in use, so later adds in this
-    // resumed session don't reallocate one of them.
-    pool.resetPool(usedIdsAfterRestore([...config.getOriginalCardNames(orig).keys()], restored))
+    batch(() => {
+      changes.loadChanges(restored)
+      const replayed = replayAndDrop(orig, restored)
+      // Seeded from the lines the resumed session holds, as an import is: an id
+      // a restored removal freed is free again, as it was in the session.
+      pool.resetPool([...config.getOriginalCardNames(replayed.data).keys()])
+    })
   }
 
   /**

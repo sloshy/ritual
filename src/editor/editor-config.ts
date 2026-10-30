@@ -186,13 +186,17 @@ export type EditorConfig<TData> = {
    */
   onCardArt?: (cardId: number, art: CardArtRef | null) => void
   /**
-   * An undo handed a card id back to the pool: whatever art was staged against
-   * it belongs to a card that is no longer there, and the list's own art applies
-   * again. Covers both directions — a session add taken back, and a removal
-   * reclaiming the `&N` it had released, which is how undoing the removal of a
-   * card with custom art gets that art back.
+   * Drop whatever art is staged against an id, so the list's own art applies
+   * again: an add that cancelled a removal gives up its staging, and an undo
+   * puts back an id that had nothing staged before the undone add.
    */
   onCardArtReset?: (cardId: number) => void
+  /**
+   * What is staged against an id right now — a reference, `null` for a staged
+   * clear, `undefined` for nothing. Read before an add stages, so undoing the
+   * add restores exactly what it changed. Supplied with {@link onCardArt}.
+   */
+  stagedArt?: (cardId: number) => CardArtRef | null | undefined
   /**
    * The line an add (or arriving move) of this card *merges* into, or `null`
    * when it starts a new line — the reducer's own probe, bound to the list's

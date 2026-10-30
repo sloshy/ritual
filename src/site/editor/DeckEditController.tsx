@@ -160,10 +160,13 @@ export function useDeckEditController(
     // claimed none would no longer be the opposite of the matching decrement.
     const labels = findDeckCardLabels(d, cardName, cardId)
     const tags = findDeckCardTags(d, cardName, cardId)
-    editor.changes.addCard(cardName, { cardId, labels, tags })
-    editor.setData((prev) =>
-      prev ? applyDeck(prev, { action: 'add', cardName, labels, tags, cardId }) : prev,
-    )
+    // One update: the change list and the deck repaint together.
+    batch(() => {
+      editor.changes.addCard(cardName, { cardId, labels, tags })
+      editor.setData((prev) =>
+        prev ? applyDeck(prev, { action: 'add', cardName, labels, tags, cardId }) : prev,
+      )
+    })
   }
 
   /** Does the deck still hold any line of `cardName`? (The shared fold rule.) */
@@ -189,16 +192,18 @@ export function useDeckEditController(
       }
     }
 
-    editor.changes.decrementCard(
-      cardName,
-      cardId,
-      removedCardData,
-      findDeckCardLabels(d, cardName, cardId),
-      findDeckCardTags(d, cardName, cardId),
-    )
-    editor.setData((prev) =>
-      prev ? applyDeck(prev, { action: 'remove', cardName, cardId }) : prev,
-    )
+    batch(() => {
+      editor.changes.decrementCard(
+        cardName,
+        cardId,
+        removedCardData,
+        findDeckCardLabels(d, cardName, cardId),
+        findDeckCardTags(d, cardName, cardId),
+      )
+      editor.setData((prev) =>
+        prev ? applyDeck(prev, { action: 'remove', cardName, cardId }) : prev,
+      )
+    })
     // The removal took the deck's last line of this name, so its pending
     // `set-categories` events no longer have a card — fold them onto the undo
     // entry the removal just pushed (the web half of `FoldOptions.goneCardName`).

@@ -6,9 +6,9 @@ import { collectDeckCardIds, collectExistingIds } from '../../src/card/card-id'
 import {
   COLLECTION_ID_OPS,
   DECK_ID_OPS,
-  ID_LANDING,
   WANTED_ID_OPS,
   replayAssigningIds,
+  type IdReplayOps,
 } from '../../src/changes/replay-ids'
 import { parseDeckText } from '../../src/importers/text-file'
 
@@ -59,19 +59,6 @@ const deck = (body: string): DeckData => parseDeckText(`# Test\n\n## Main\n${bod
 const deckIds = (data: DeckData): number[] => collectDeckCardIds(data).toSorted((a, b) => a - b)
 
 const isPlaceholder = (id: number): boolean => id < 0
-
-describe('per-list-type id ops', () => {
-  test('each list type carries the landing rules of its reducer', () => {
-    expect(DECK_ID_OPS).toMatchObject(ID_LANDING.deck)
-    expect(DECK_ID_OPS.mergeLine).toBeDefined()
-    expect(COLLECTION_ID_OPS).toMatchObject({
-      ...ID_LANDING.collection,
-      cardIds: collectExistingIds,
-    })
-    expect(WANTED_ID_OPS).toMatchObject({ ...ID_LANDING.wanted, cardIds: collectExistingIds })
-    expect(COLLECTION_ID_OPS.mergeLine).toBeUndefined()
-  })
-})
 
 describe('replayAssigningIds', () => {
   test('an add after a removal in the same batch takes the id the removal released', () => {
@@ -137,14 +124,21 @@ describe('replayAssigningIds', () => {
   })
 
   test('on a deck, a client id naming a live line is kept and draws nothing', () => {
+    // A printing the name-only line does not match, so the merge probe would
+    // not fold it: only the id lands it on `&3` (the reducer's id-first rule).
     const result = replayAssigningIds(
       deck('1 Opt &3\n'),
-      [add('Opt', { cardId: 3, section: 'Main' }), add('Ponder', { section: 'Main' })],
+      [
+        add('Opt', { cardId: 3, set: 'm21', collectorNumber: '59', section: 'Main' }),
+        add('Ponder', { section: 'Main' }),
+      ],
       DECK_ID_OPS,
       { listLabels: [] },
     )
     expect(result.unmatched).toEqual([])
     expect(idsOf(result.changes)).toEqual([3, 1])
+    expect(deckIds(result.data)).toEqual([1, 3])
+    expect(result.data.sections[0]?.cards.find((card) => card.cardId === 3)?.quantity).toBe(2)
   })
 
   test('a client’s free id on a copy that merges is replaced by the line’s id', () => {
@@ -272,17 +266,6 @@ describe('replayAssigningIds', () => {
     expect(deckIds(result.data)).toEqual([1, 2])
   })
 
-  test('a deck pin converting its line in place draws no id', () => {
-    const result = replayAssigningIds(
-      deck('1 Lightning Bolt &1\n1 Opt &3\n'),
-      [pin('Lightning Bolt', { cardId: 1, replacesCardId: 1 }), add('Ponder', { section: 'Main' })],
-      DECK_ID_OPS,
-      { listLabels: [] },
-    )
-    expect(result.unmatched).toEqual([])
-    expect(idsOf(result.changes)).toEqual([1, 2])
-  })
-
   test('an id-less deck split pin is left id-less, and the reducer refuses it', () => {
     const result = replayAssigningIds(
       deck('2 Lightning Bolt &1\n'),
@@ -326,5 +309,104 @@ describe('replayAssigningIds', () => {
     expect(result.unmatched).toEqual([])
     expect(idsOf(result.changes)).toEqual([1, 2])
     expect(result.data[0]).toMatchObject({ cardId: 1, set: 'lea', collectorNumber: '161' })
+  })
+
+  test('a move-from earlier in the batch releases its line’s id', () => {
+    const departure = event({
+      action: 'move-from',
+      cardName: 'Card 1',
+      cardId: 1,
+      to: { type: 'collection', name: 'Binder' },
+    })
+    const result = replayAssigningIds(wanted(1, 2), [departure, add('Sol Ring')], WANTED_ID_OPS)
+    expect(result.unmatched).toEqual([])
+    expect(idsOf(result.changes)).toEqual([1, 1])
+  })
+
+  test('an id two changes name stays held until the second has applied', () => {
+    // The first add claims &2 and its removal frees it again — but a later add
+    // names &2 too, so the id-less add between them must not take it.
+    const result = replayAssigningIds(
+      wanted(1),
+      [
+        add('Opt', { cardId: 2 }),
+        remove('Opt', 2),
+        add('Ponder'),
+        add('Brainstorm', { cardId: 2 }),
+      ],
+      WANTED_ID_OPS,
+    )
+    expect(idsOf(result.changes)).toEqual([2, 2, 3, 2])
+    expect(collectExistingIds(result.data).toSorted((a, b) => a - b)).toEqual([1, 2, 3])
+  })
+
+  test('a wanted list lands a pin as an arrival, on a free id', () => {
+    const result = replayAssigningIds(
+      wanted(1, 2),
+      [pin('Card 1', { replacesCardId: 1 })],
+      WANTED_ID_OPS,
+    )
+    expect(result.unmatched).toEqual([])
+    expect(idsOf(result.changes)).toEqual([3])
+    expect(collectExistingIds(result.data)).toEqual([1, 2, 3])
+  })
+
+  test('the list’s default labels reach the merge probe', () => {
+    // A plain copy's effective labels are the deck default: with `proxy` as the
+    // default it folds onto the `[proxy]` line; with none it starts its own.
+    const base = (): DeckData => deck('1 Opt [proxy] &1\n')
+    const proxied = replayAssigningIds(base(), [add('Opt', { section: 'Main' })], DECK_ID_OPS, {
+      listLabels: ['proxy'],
+    })
+    expect(idsOf(proxied.changes)).toEqual([1])
+    const plain = replayAssigningIds(base(), [add('Opt', { section: 'Main' })], DECK_ID_OPS, {
+      listLabels: [],
+    })
+    expect(idsOf(plain.changes)).toEqual([2])
+  })
+
+  test('a plain add that misses gives its drawn id back', () => {
+    // No reducer refuses a plain add today; this one stands in for any miss.
+    const refusing: IdReplayOps<WantedListCardEntry[]> = {
+      ...WANTED_ID_OPS,
+      apply: (data, change, options) => {
+        if ('cardName' in change && change.cardName === 'Refused') {
+          options?.onMiss?.('not-applicable')
+          return data
+        }
+        return WANTED_ID_OPS.apply(data, change, options)
+      },
+    }
+    const result = replayAssigningIds(wanted(1), [add('Refused'), add('Opt')], refusing)
+    expect(result.unmatched).toHaveLength(1)
+    expect(idsOf(result.changes)).toEqual([2, 2])
+  })
+
+  test('a split pin merging onto a line with no id lands there, id-less', () => {
+    const base = deck('2 Lightning Bolt &1\n1 Lightning Bolt (LEA:161)\n')
+    const result = replayAssigningIds(
+      base,
+      [pin('Lightning Bolt', { cardId: -1, replacesCardId: 1 })],
+      DECK_ID_OPS,
+      { listLabels: [], isProvisional: isPlaceholder },
+    )
+    expect(result.unmatched).toEqual([])
+    expect(result.changes[0]).not.toHaveProperty('cardId')
+    const printed = result.data.sections[0]?.cards.find((card) => card.set === 'lea')
+    expect(printed?.quantity).toBe(2)
+  })
+
+  test('a missed in-place collection pin forgets the placeholder it resolved', () => {
+    const result = replayAssigningIds(
+      [],
+      [
+        pin('Lightning Bolt', { cardId: -1, replacesCardId: 9 }),
+        event({ action: 'set-note', cardName: 'Lightning Bolt', cardId: -1, note: 'x' }),
+      ],
+      COLLECTION_ID_OPS,
+      { isProvisional: isPlaceholder },
+    )
+    expect(result.resolved.has(-1)).toBe(false)
+    expect(result.changes[1]).not.toHaveProperty('cardId')
   })
 })

@@ -3,19 +3,31 @@ import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
-import { captureDeckSaves, mockDeckEditorLoad } from '../helpers/mock-admin'
+import { captureDeckSaves, mockDeckEditorLoad, type MockEditorDeck } from '../helpers/mock-admin'
 import { disableSearchDebounce } from '../helpers/search-modal'
+
+/**
+ * Open the deck editor on a mocked deck. Any other routes a test mocks are
+ * registered before this, so the editor's first load already sees them.
+ */
+async function openMockedDeck(page: Page, deck: MockEditorDeck): Promise<void> {
+  await mockDeckEditorLoad(page, deck)
+  await gotoAdminDashboard(page)
+  await openListEditor(page, 'deck')
+  await selectList(page, 'deck', deck.slug)
+  await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+}
 
 test.describe('Deck Editor Page', () => {
   test.beforeEach(async ({ page }) => {
     // Register before any navigation so the override applies to the first load.
     await disableSearchDebounce(page)
-    await gotoAdminDashboard(page)
-    await openListEditor(page, 'deck')
   })
 
   test.describe('unset commander', () => {
     test.beforeEach(async ({ page }) => {
+      await gotoAdminDashboard(page)
+      await openListEditor(page, 'deck')
       // Load the fake test deck
       await selectList(page, 'deck', 'test-unset-commander')
       // Wait for deck card items to load
@@ -120,9 +132,16 @@ test.describe('Deck Editor Page', () => {
     })
 
     test.beforeEach(async ({ page }) => {
-      await gotoAdminDashboard(page)
-
-      await mockDeckEditorLoad(page, {
+      await fulfillJson(page, '**/api/autocomplete*', {
+        success: true,
+        names: ['Lightning Bolt', 'Lightning Helix'],
+      })
+      await fulfillJson(page, '**/api/card-printings*', {
+        success: true,
+        printings: [MOCK_BOLT_CARD],
+        complete: true,
+      })
+      await openMockedDeck(page, {
         slug: 'test-modal-deck',
         name: 'Test Modal Deck',
         cards: [{ quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' }],
@@ -132,22 +151,6 @@ test.describe('Deck Editor Page', () => {
           lowestPriceCardsEur: { 'Lightning Bolt': MOCK_BOLT_CARD },
         },
       })
-
-      await fulfillJson(page, '**/api/autocomplete*', {
-        success: true,
-        names: ['Lightning Bolt', 'Lightning Helix'],
-      })
-
-      await fulfillJson(page, '**/api/card-printings*', {
-        success: true,
-        printings: [MOCK_BOLT_CARD],
-        complete: true,
-      })
-
-      await openListEditor(page, 'deck')
-
-      await selectList(page, 'deck', 'test-modal-deck')
-      await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
     })
 
     test('resets to search step when reopened after navigating to printing step', async ({
@@ -221,7 +224,6 @@ test.describe('Deck Editor Page', () => {
     })
 
     test.beforeEach(async ({ page }) => {
-      await gotoAdminDashboard(page)
       await fulfillJson(page, '**/api/lists', {
         success: true,
         lists: [
@@ -230,16 +232,13 @@ test.describe('Deck Editor Page', () => {
         ],
       })
       // A name-only line: moving it into a collection must pick a printing.
-      await mockDeckEditorLoad(page, {
+      await openMockedDeck(page, {
         slug: 'lang-move-deck',
         name: 'Lang Move Deck',
         cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
         printings: { 'Lightning Bolt': [BOLT_JA] },
         extra: { contentHash: 'hash-1' },
       })
-      await openListEditor(page, 'deck')
-      await selectList(page, 'deck', 'lang-move-deck')
-      await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
     })
 
     test('a name-only card moved into a collection keeps the picked printing’s language', async ({
@@ -281,7 +280,6 @@ test.describe('Deck Editor Page', () => {
     type SavedMove = { action: string; cardName: string; labels?: string[]; note?: string }
 
     test.beforeEach(async ({ page }) => {
-      await gotoAdminDashboard(page)
       await fulfillJson(page, '**/api/lists', {
         success: true,
         lists: [
@@ -289,7 +287,7 @@ test.describe('Deck Editor Page', () => {
           { type: 'collection', slug: 'binder', name: 'Binder' },
         ],
       })
-      await mockDeckEditorLoad(page, {
+      await openMockedDeck(page, {
         slug: 'proxy-move-deck',
         name: 'Proxy Move Deck',
         cards: [
@@ -307,9 +305,6 @@ test.describe('Deck Editor Page', () => {
         // which the editor reads from the load's list-level `labels`.
         extra: { contentHash: 'hash-1', labels: ['proxy'] },
       })
-      await openListEditor(page, 'deck')
-      await selectList(page, 'deck', 'proxy-move-deck')
-      await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
     })
 
     test('the saved move-from carries the line’s note and its inherited labels', async ({
@@ -346,12 +341,26 @@ test.describe('Deck Editor Page', () => {
       set_name: 'Limited Edition Alpha',
       collector_number: '161',
     })
+    const COUNTERSPELL = makeMockScryfallCard({
+      id: 'counterspell-lea',
+      name: 'Counterspell',
+      cmc: 2,
+      type_line: 'Instant',
+      set: 'lea',
+      set_name: 'Limited Edition Alpha',
+      collector_number: '54',
+    })
     /** One save request's events, as far as this test reads them. */
     type SavedAdd = { action: string; cardName: string; cardId?: number }
 
     test.beforeEach(async ({ page }) => {
-      await gotoAdminDashboard(page)
-      await mockDeckEditorLoad(page, {
+      await fulfillJson(page, '**/api/autocomplete*', { success: true, names: ['Lightning Bolt'] })
+      await fulfillJson(page, '**/api/card-printings*', {
+        success: true,
+        printings: [BOLT],
+        complete: true,
+      })
+      await openMockedDeck(page, {
         slug: 'merge-deck',
         name: 'Merge Deck',
         // No free id below &3: a new line takes &3, and a fresh id drawn for
@@ -360,19 +369,14 @@ test.describe('Deck Editor Page', () => {
           { quantity: 1, name: 'Lightning Bolt', cardId: 1 },
           { quantity: 1, name: 'Counterspell', cardId: 2 },
         ],
-        printings: { 'Lightning Bolt': [BOLT], Counterspell: [BOLT] },
+        printings: { 'Lightning Bolt': [BOLT], Counterspell: [COUNTERSPELL] },
         extra: { contentHash: 'hash-1' },
       })
-      await fulfillJson(page, '**/api/autocomplete*', { success: true, names: ['Lightning Bolt'] })
-      await fulfillJson(page, '**/api/card-printings*', {
-        success: true,
-        printings: [BOLT],
-        complete: true,
-      })
-      await openListEditor(page, 'deck')
-      await selectList(page, 'deck', 'merge-deck')
-      await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
     })
+
+    /** The tile for the deck's name-only Lightning Bolt line. */
+    const boltTile = (page: Page) =>
+      page.locator('.card-item').filter({ hasText: 'Lightning Bolt' }).first()
 
     /** Search for Lightning Bolt in Add Card and reach the printing step. */
     async function searchBolt(page: Page): Promise<void> {
@@ -393,8 +397,9 @@ test.describe('Deck Editor Page', () => {
       await page.getByRole('button', { name: 'No specific printing' }).click()
       await expect(page.locator('.changes-badge')).toHaveText('1')
       await expect(page.locator('.modal-heading-flex')).toHaveCount(0, { timeout: 5_000 })
-      // Folded onto the existing line: still two tiles.
+      // Folded onto the existing line: still two tiles, the Bolt one ×2.
       await expect(page.locator('.card-item')).toHaveCount(2)
+      await expect(boltTile(page).locator('.qty-badge')).toHaveText('2x')
 
       await page.locator('.btn-save').click()
       await expect.poll(() => saved()?.length).toBe(1)
@@ -407,8 +412,12 @@ test.describe('Deck Editor Page', () => {
       await searchBolt(page)
       await page.getByRole('button', { name: 'No specific printing' }).click()
       await expect(page.locator('.changes-badge')).toHaveText('1')
+      await expect(boltTile(page).locator('.qty-badge')).toHaveText('2x')
       await page.locator('.btn-undo').click()
       await expect(page.locator('.changes-badge')).toHaveCount(0)
+      // Back to the one copy the deck holds.
+      await expect(page.locator('.card-item')).toHaveCount(2)
+      await expect(boltTile(page).locator('.qty-badge')).toHaveCount(0)
 
       // A specific printing does not merge with the name-only line: a new line,
       // which must take &3 — not the &1 the line still holds.
