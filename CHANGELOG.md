@@ -32,16 +32,24 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
   over it. The Docker image sets `RITUAL_CACHE_DIR=/app/cache`, so its `/app/cache` volume
   is still where the cache lives.
 
-  **Run `ritual migrate` in each existing workspace** (Ritual reminds you). Migration 3
-  moves the workspace's `cache/` into the shared cache when that is still empty, so the
-  first workspace you migrate keeps its download; for every later one, the shared cache
-  already has data, so its `cache/` is left untouched and `migrate` tells you that Ritual no
-  longer reads it and you can delete it. For a "Publish for me" site, `migrate` also
-  refreshes the deploy workflow, which now sets `RITUAL_CACHE_DIR: cache` so CI keeps
-  caching the checkout's `cache/` folder; commit the updated workflow. A hand-written CI job
-  that caches `cache/` needs the same variable. A workspace without a `ritual.config.json` has nothing
-  to migrate: its `cache/` is no longer read, so move its contents into the shared cache or
-  delete it.
+  **Run `ritual migrate` in each existing workspace** (Ritual reminds you). Until you do, a
+  workspace whose `cache/` holds a cache keeps reading it (`cache status` reports `legacy`),
+  so nothing downloads into the empty shared cache first. Migration 3 moves the workspace's
+  `cache/` into the shared cache when that is still empty, so the first workspace you
+  migrate keeps its download; for every later one, the shared cache already has data, so
+  its `cache/` is left untouched and `migrate` tells you that Ritual no longer reads it and
+  you can delete it. A move interrupted part-way (a killed process, a file another program
+  holds open on Windows) is resumed by the next `migrate` in that workspace, and nothing is
+  deleted from `cache/` until its copy has arrived whole. For a "Publish for me" site,
+  `migrate` also refreshes the deploy workflow, which now sets `RITUAL_CACHE_DIR: cache` so
+  CI keeps caching the checkout's `cache/` folder; commit the updated workflow. A
+  hand-written CI job that caches `cache/` needs the same variable. A workspace without a
+  `ritual.config.json` has nothing to migrate and keeps reading its own `cache/`.
+
+  `cacheDir` and `RITUAL_CACHE_DIR` refuse a value starting with `~` (write the full path),
+  a file system root, your home folder, the workspace itself and its list folders. If
+  `cache.json` exists but can't be read or parsed, Ritual refuses to write to it rather than
+  replace it with an almost empty cache; fix or delete the file.
 
 - The site's opening theme is now a setting, so a site built by the "Publish for me"
   workflow (which passes no theme flags) can open on a theme other than `default`.
