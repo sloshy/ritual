@@ -521,6 +521,10 @@ export const cliInfraMeta = {
     description:
       "Refusal of a write to the card cache: the cache file is there but unreadable or not valid JSON, and writing would replace everything in it (it may be shared by all the user's workspaces) with an empty cache plus one entry. {path} is the absolute file path; {reason} is the system's or parser's own error text, untranslated. {command} is `ritual cache preload-all`, which rebuilds the whole cache; never translate it.",
   },
+  'cli.cacheStore.unsafeDirIgnored': {
+    description:
+      'Warning from a server (the admin, MCP or cache server): the RITUAL_CACHE_DIR environment variable or the cacheDir setting names a folder the card cache must not use (such as the home folder or the workspace), so it is ignored and the next choice applies. {reason} is the refusal itself, already worded (one of the domain.config.cacheDir* messages).',
+  },
   'cli.cacheStore.writeContended': {
     description:
       'Error: a save to the card cache was abandoned because, every time Ritual tried, another Ritual process (possibly in another workspace sharing the cache) had rewritten the file first. {path} is the absolute file path.',
@@ -1351,7 +1355,7 @@ export const cliInfraMeta = {
   },
   'cli.migrate.opCacheKeep': {
     description:
-      'Plan line (indented): the workspace\'s old card cache folder {path} (e.g. "cache") will not be moved, because the shared cache folder {shared} (absolute path) already holds card data. Nothing is deleted; the user may delete the old folder.',
+      'Plan line (indented): the workspace\'s old card cache folder {path} (e.g. "cache") will not be moved, because the shared cache folder {shared} (absolute path) is not empty — it may hold another workspace\'s card data or any other files. Nothing is deleted on either side; the user may delete the old folder.',
   },
   'cli.migrate.refreshHeading': {
     description:
@@ -1411,7 +1415,11 @@ export const cliInfraMeta = {
   },
   'cli.migrate.cacheKept': {
     description:
-      'Printed after migrating: the workspace\'s old card cache folder {path} (e.g. "cache") was left untouched because the shared cache folder {shared} (absolute path) already holds card data. Ritual ignores the old folder from now on, so the user can delete it to free disk space.',
+      'Printed after migrating: the workspace\'s old card cache folder {path} (e.g. "cache") was left untouched because the shared cache folder {shared} (absolute path) is not empty (it may hold another workspace\'s card data, or other files). Ritual now uses {shared} and ignores the old folder, so the user can delete it to free disk space — or, to keep the old cache, clear {shared} and move the files over by hand.',
+  },
+  'cli.migrate.cacheBusy': {
+    description:
+      "Error: the migration did not move the workspace's old card cache folder {path} (absolute path) because another running Ritual program holds its lock (it is refreshing or reading the cache). Nothing changed. {command} is `ritual migrate`; never translate it.",
   },
   'cli.migrate.wrote': { description: 'A generated file was rewritten. {path} is relative.' },
   'cli.migrate.skillUpdated': { description: 'An installed agent skill {name} was rewritten.' },

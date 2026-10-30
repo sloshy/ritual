@@ -163,7 +163,7 @@ describe('migrate CLI (Integration)', () => {
         await seed(second, '{"second":true}')
         const applied = await runCli(['migrate', '--yes'], second, env)
         expect(applied.exitCode).toBe(0)
-        expect(applied.stdout).toContain(`Left cache in place: ${shared} already has a card cache`)
+        expect(applied.stdout).toContain(`Left cache in place: ${shared} is not empty`)
         expect(await fs.readFile(path.join(second, 'cache', 'cache.json'), 'utf-8')).toBe(
           '{"second":true}',
         )

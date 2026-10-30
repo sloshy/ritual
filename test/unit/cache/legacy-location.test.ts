@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { getCacheDirLocation } from '../../../src/cache/file-cache'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
+import { MemoryLogger, resetLogger, setLogger } from '../../test-utils'
 
 /**
  * Until migration 3 has run, a workspace with data in its own old `cache/`
@@ -80,6 +81,25 @@ describe('the workspace’s old cache while migration 3 is pending', () => {
   test('is not a cache when it holds only OS litter', async () => {
     await workspaceWithCache({}, '.DS_Store')
     expect(getCacheDirLocation().source).toBe('default')
+  })
+
+  test('an unsafe RITUAL_CACHE_DIR is skipped with a warning, and does not hide it', async () => {
+    const dir = await workspaceWithCache({})
+    process.env.RITUAL_CACHE_DIR = '/'
+    const logger = new MemoryLogger()
+    setLogger(logger)
+    try {
+      expect(getCacheDirLocation()).toEqual({ dir: path.join(dir, 'cache'), source: 'legacy' })
+      getCacheDirLocation()
+    } finally {
+      resetLogger()
+    }
+    const warnings = logger.entries
+      .filter((entry) => entry.level === 'warn')
+      .map((entry) => String(entry.args[0]))
+      .filter((line) => line.includes('Ignoring the card cache folder'))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('"RITUAL_CACHE_DIR" must not be a file system root')
   })
 
   test('gives way to a configured cacheDir', async () => {

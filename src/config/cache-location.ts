@@ -60,25 +60,49 @@ export type CacheDirInputs = {
   /**
    * Whether the workspace's old `cache/` folder is still the one to use: it
    * holds cache data and migration {@link SHARED_CACHE_MIGRATION_ID} has not
-   * run. The caller decides (it needs the file system and the config).
+   * run. The caller decides (it needs the file system and the config); a
+   * function is asked only when no override applies.
    */
-  legacyPending?: boolean
+  legacyPending?: boolean | (() => boolean)
   /** The process environment, platform and home directory; the running process by default. */
   environment?: UserDirsEnvironment
+  /**
+   * When given, an override naming a folder the cache must never take over
+   * (see {@link cacheDirProblem}) is skipped — the next tier applies — and
+   * reported through `onRejected`.
+   */
+  check?: CacheDirCheckContext
+  onRejected?: (rejected: RejectedCacheDir) => void
+}
+
+/** An override {@link resolveCacheDir} skipped, and why. */
+export type RejectedCacheDir = {
+  source: 'env' | 'config'
+  value: string
+  problem: CacheDirProblem
 }
 
 /** Resolve the card cache directory by the precedence in the module comment. */
 export function resolveCacheDir(inputs: CacheDirInputs): CacheDirLocation {
   const environment = inputs.environment ?? PROCESS_ENVIRONMENT
-  const fromEnv = nonBlank(environment.env[ENV_VAR.cacheDir])
+  const usable = (source: 'env' | 'config', value: string | undefined): string | undefined => {
+    if (value === undefined || inputs.check === undefined) return value
+    const problem = cacheDirProblem(value, inputs.check)
+    if (problem === null) return value
+    inputs.onRejected?.({ source, value: value.trim(), problem })
+    return undefined
+  }
+  const fromEnv = usable('env', nonBlank(environment.env[ENV_VAR.cacheDir]))
   if (fromEnv !== undefined) {
     return { dir: path.resolve(inputs.baseDir, fromEnv.trim()), source: 'env' }
   }
-  const fromConfig = nonBlank(inputs.configured)
+  const fromConfig = usable('config', nonBlank(inputs.configured))
   if (fromConfig !== undefined) {
     return { dir: path.resolve(inputs.baseDir, fromConfig.trim()), source: 'config' }
   }
-  if (inputs.legacyPending === true) {
+  const legacy =
+    typeof inputs.legacyPending === 'function' ? inputs.legacyPending() : inputs.legacyPending
+  if (legacy === true) {
     return { dir: path.resolve(inputs.baseDir, LEGACY_CACHE_DIR), source: 'legacy' }
   }
   return { dir: defaultUserCacheDir(environment), source: 'default' }

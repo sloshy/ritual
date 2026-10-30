@@ -246,6 +246,7 @@ export const cliInfraMessages = {
   'cli.cacheStore.saveFailed': 'Failed to save cache:',
   'cli.cacheStore.unwritable':
     'The card cache file {path} exists but could not be read ({reason}), so Ritual will not overwrite it. Run `{command}` to rebuild the cache from Scryfall, or delete the file.',
+  'cli.cacheStore.unsafeDirIgnored': 'Ignoring the card cache folder setting: {reason}.',
   'cli.cacheStore.writeContended':
     'Could not save to the card cache file {path}: other Ritual processes kept rewriting it. Try again.',
   'cli.cacheStore.blocklisted': "Card '{name}' added to blocklist (expires {expires}).",
@@ -713,7 +714,7 @@ export const cliInfraMessages = {
     '  move the card cache {from} → {to} (the folder {configKey} in {file} names)',
   'cli.migrate.opCacheMoveEnv': '  move the card cache {from} → {to} (the folder {envVar} names)',
   'cli.migrate.opCacheKeep':
-    '  leave {path} in place: {shared} already has a card cache (you can delete {path} afterwards)',
+    '  leave {path} in place: {shared} is not empty (you can delete {path} afterwards)',
   'cli.migrate.refreshHeading': 'Refresh generated files:',
   'cli.migrate.refreshGitignore': '  add {entries} to {file}',
   'cli.migrate.refreshSkill': '  overwrite agent skill {name}',
@@ -735,7 +736,9 @@ export const cliInfraMessages = {
   'cli.migrate.cacheMoveFailed':
     'Could not move {path} into the shared card cache: {reason}. Nothing was moved. Another Ritual (or another program) may be using it; close it and run `{command}` again.',
   'cli.migrate.cacheKept':
-    'Left {path} in place: {shared} already has a card cache, which every workspace now uses. Ritual no longer reads {path}; delete it to free the space.',
+    "Left {path} in place: {shared} is not empty (it may hold another workspace's cache), and Ritual never moves a cache into a folder with anything in it. Ritual now reads {shared} and no longer {path}; delete {path} to free the space. To keep this cache instead, empty or delete {shared} and move the contents of {path} there yourself.",
+  'cli.migrate.cacheBusy':
+    'Did not move {path}: a running Ritual is using this cache. Close it, then run `{command}` again.',
   'cli.migrate.wrote': '✓ Wrote {path}',
   'cli.migrate.skillUpdated': '✓ Updated agent skill {name}',
   'cli.migrate.skillRemoved': '✕ Removed agent skill {name}',

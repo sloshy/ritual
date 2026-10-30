@@ -93,11 +93,11 @@ function cacheTarget(
  * keeps reading that folder (`src/cache/file-cache.ts`), so nothing downloads
  * into the shared cache first.
  *
- * - The target does not exist, or holds only OS litter: the old cache moves
+ * - The target does not exist, or is an empty folder: the old cache moves
  *   there whole, all or nothing (see `src/cache/relocate.ts`).
- * - The target holds anything else (another workspace's cache, the user's own
- *   files): the old folder is left untouched and the user is told it can be
- *   deleted. Nothing in the target is ever merged into or deleted.
+ * - The target holds anything at all (another workspace's cache, the user's
+ *   files, a `.DS_Store`): the old folder is left untouched and the user is
+ *   told it can be deleted. Nothing in the target is ever merged into or deleted.
  * - The cache still resolves to `cache/` itself (`cacheDir: "cache"`), or the
  *   folder holds no cache data: nothing to do.
  *

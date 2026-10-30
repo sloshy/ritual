@@ -13,19 +13,25 @@ import { getLogger } from '../util/logger'
 import { t } from '../i18n/t'
 import { getErrorMessage } from '../util/errors'
 import { getBaseDir } from '../config/base-dir'
-import { getRitualConfig } from '../config/ritual-config'
+import {
+  cacheDirCheckContext,
+  getRitualConfig,
+  isConfigParseError,
+  parseCacheDir,
+} from '../config/ritual-config'
+import { renderSyncMessage } from '../sync/message'
 import { foldRepeatedFaceNames } from '../scryfall/card-utils'
 import {
   LEGACY_CACHE_DIR,
   resolveCacheDir,
   SHARED_CACHE_MIGRATION_ID,
   type CacheDirLocation,
+  type RejectedCacheDir,
 } from '../config/cache-location'
 import { hasCacheDataSync } from './cache-entries'
-import { COMMAND, ENV_VAR, FILE, commandLine } from '../util/cli-tokens'
+import { COMMAND, CONFIG_KEY, ENV_VAR, FILE, commandLine } from '../util/cli-tokens'
 import { isRecord } from '../util/json'
 import { namesIgnoreCase } from '../util/path-validation'
-import { nonBlank } from '../util/user-dirs'
 
 /** What the legacy-tier check last saw for a workspace, and its answer. */
 type LegacyProbe = {
@@ -91,13 +97,30 @@ function legacyCachePending(baseDir: string): boolean {
 export function getCacheDirLocation(): CacheDirLocation {
   const baseDir = getBaseDir()
   const config = getRitualConfig()
-  const overridden =
-    nonBlank(process.env[ENV_VAR.cacheDir]) !== undefined || nonBlank(config.cacheDir) !== undefined
   return resolveCacheDir({
     baseDir,
     configured: config.cacheDir,
-    legacyPending: !overridden && legacyCachePending(baseDir),
+    legacyPending: () => legacyCachePending(baseDir),
+    // The CLI refuses an unsafe RITUAL_CACHE_DIR before any command runs; a
+    // server or the MCP server reaching here skips it (and an unsafe cacheDir
+    // the loader let through) rather than writing into such a folder.
+    check: cacheDirCheckContext(config),
+    onRejected: warnRejectedOnce,
   })
+}
+
+/** The overrides already warned about, so each is reported once per process. */
+const warnedRejections = new Set<string>()
+
+/** Warn, once per value, that an unusable cache folder setting is being ignored. */
+function warnRejectedOnce(rejected: RejectedCacheDir): void {
+  const key = `${rejected.source}\0${rejected.value}`
+  if (warnedRejections.has(key)) return
+  warnedRejections.add(key)
+  const field = rejected.source === 'env' ? ENV_VAR.cacheDir : CONFIG_KEY.cacheDir
+  const parsed = parseCacheDir(rejected.value, cacheDirCheckContext(getRitualConfig()), field)
+  if (!isConfigParseError(parsed)) return
+  getLogger().warn(t('cli.cacheStore.unsafeDirIgnored', { reason: renderSyncMessage(parsed.error) }))
 }
 
 /** The card cache directory — every cache file's parent. See {@link getCacheDirLocation}. */

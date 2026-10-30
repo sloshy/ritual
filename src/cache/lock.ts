@@ -169,6 +169,10 @@ export async function acquireCacheLock(
 
   const deadline = Date.now() + timeoutMs
   let announcedWait = false
+  // A malformed lock may be one being written right now (the exclusive create
+  // and the write are two steps), so it is broken only when it reads the same
+  // on a second look, a poll later.
+  let malformedSeen: string | null = null
 
   while (true) {
     info.createdAt = Date.now()
@@ -179,9 +183,9 @@ export async function acquireCacheLock(
       }
     }
 
-    let parsed: CacheLockInfo | string
+    let raw: string
     try {
-      parsed = parseCacheLockInfo(await fs.readFile(lockPath, 'utf-8'))
+      raw = await fs.readFile(lockPath, 'utf-8')
     } catch (e) {
       // The holder released between our create attempt and read — retry now.
       // Only that narrow race is retried; any other read failure (permissions,
@@ -189,6 +193,13 @@ export async function acquireCacheLock(
       if (hasErrorCode(e, 'ENOENT')) continue
       throw e
     }
+    const parsed = parseCacheLockInfo(raw)
+    if (typeof parsed === 'string' && malformedSeen !== raw) {
+      malformedSeen = raw
+      await sleep(pollIntervalMs)
+      continue
+    }
+    malformedSeen = null
 
     if (typeof parsed === 'string' || isLockStale(parsed, isPidAlive, staleMaxAgeMs)) {
       const reason =
@@ -234,22 +245,35 @@ export async function withCacheLock<T>(
   }
 }
 
+/** How long an empty or unparseable lock file counts as one still being written. */
+const UNWRITTEN_LOCK_GRACE_MS = 5000
+
 /**
- * Whether `dir` holds a cache-write lock some process still holds: one whose
- * holder is alive (or cannot be checked, from another host) and that is not
- * past the stale age. A missing or malformed lock is not held.
+ * Whether `dir` holds a cache-write lock some process still holds:
+ *
+ * - from this host, exactly when its holder process is alive, whatever its age;
+ * - from another host (whose processes cannot be checked), until the stale age;
+ * - empty or unparseable, only while it is a few seconds old — a lock is
+ *   created and then written, so a reader can catch it empty in between.
+ *
+ * A missing lock is not held.
  */
 export async function isCacheLockHeld(
   dir: string,
   isPidAlive: (pid: number) => boolean = defaultIsPidAlive,
 ): Promise<boolean> {
+  const lockPath = path.join(dir, CACHE_LOCK_FILENAME)
   let raw: string
+  let modifiedMs: number
   try {
-    raw = await fs.readFile(path.join(dir, CACHE_LOCK_FILENAME), 'utf-8')
+    modifiedMs = (await fs.stat(lockPath)).mtimeMs
+    raw = await fs.readFile(lockPath, 'utf-8')
   } catch (e) {
     if (hasErrorCode(e, 'ENOENT') || hasErrorCode(e, 'ENOTDIR')) return false
     throw e
   }
   const info = parseCacheLockInfo(raw)
-  return typeof info !== 'string' && !isLockStale(info, isPidAlive, DEFAULT_STALE_MAX_AGE_MS)
+  if (typeof info === 'string') return Date.now() - modifiedMs < UNWRITTEN_LOCK_GRACE_MS
+  if (info.hostname === os.hostname()) return isPidAlive(info.pid)
+  return Date.now() - info.createdAt <= DEFAULT_STALE_MAX_AGE_MS
 }

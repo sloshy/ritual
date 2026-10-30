@@ -109,22 +109,24 @@ describe('migration 3: shared card cache', () => {
     expect(await fs.readdir(result.backupDir ?? '')).toEqual(['ritual.config.json'])
   })
 
-  test('moves into an existing shared folder holding only litter and an unheld lock', async () => {
+  test('moves into an existing, empty shared folder', async () => {
     await seedLegacyCache()
-    await seedShared('.DS_Store', '')
-    // A lock from a process that cannot exist (above Linux's largest pid).
-    await seedShared(
-      CACHE_LOCK_FILENAME,
-      JSON.stringify({ pid: 2 ** 22 + 1, hostname: os.hostname(), createdAt: 0, operation: 'x' }),
-    )
+    await fs.mkdir(sharedDir(), { recursive: true })
 
-    expect((await moveLegacyCache(legacyDir(), sharedDir())).outcome).toBe('moved')
+    expect(await moveLegacyCache(legacyDir(), sharedDir())).toEqual({ outcome: 'moved' })
     expect(await snapshotTree(sharedDir())).toEqual(LEGACY_TREE)
+    expect(existsSync(legacyDir())).toBe(false)
   })
 
   test.each([
     ['another workspace’s cache', 'cache.json', '{"from":"another workspace"}'],
     ['a file of the user’s own', 'notes.partial-final.docx', 'my notes'],
+    ['only a .DS_Store', '.DS_Store', ''],
+    [
+      'only a lock no process holds',
+      CACHE_LOCK_FILENAME,
+      JSON.stringify({ pid: 2 ** 22 + 1, hostname: os.hostname(), createdAt: 0, operation: 'x' }),
+    ],
   ])('leaves both folders byte for byte when the target holds %s', async (_label, name, body) => {
     await seedLegacyCache()
     await seedShared(name, body)
@@ -164,6 +166,25 @@ describe('migration 3: shared card cache', () => {
       }),
     )
     expect(await legacyCacheAction(legacyDir(), sharedDir())).toBe('keep')
+  })
+
+  test('a running Ritual holding the old cache’s lock stops the move, changing nothing', async () => {
+    await seedLegacyCache()
+    const lock = JSON.stringify({
+      pid: process.pid,
+      hostname: os.hostname(),
+      createdAt: 0,
+      operation: 'bulk card cache download',
+    })
+    await fs.writeFile(path.join(legacyDir(), CACHE_LOCK_FILENAME), lock)
+    const before = await snapshotTree(legacyDir())
+
+    const failure = await moveLegacyCache(legacyDir(), sharedDir()).catch((e: unknown) => e)
+
+    expect(failure).toMatchObject({ code: 'runtime_error' })
+    expect(String((failure as Error).message)).toContain('a running Ritual is using this cache')
+    expect(await snapshotTree(legacyDir())).toEqual(before)
+    expect(existsSync(sharedDir())).toBe(false)
   })
 
   test('has nothing to do when the cache still resolves to the workspace folder', async () => {
@@ -221,6 +242,7 @@ describe('legacyCacheAction', () => {
 describe('moveLegacyCache across file systems', () => {
   test('copies to a temporary folder beside the target, renames it in, then removes the old one', async () => {
     await seedLegacyCache()
+    // The copy holds the old cache's own lock; that lock file is not copied along.
 
     const result = await moveLegacyCache(legacyDir(), sharedDir(), { rename: exdev })
 
@@ -303,6 +325,8 @@ describe('moveLegacyCache', () => {
     const result = await moveLegacyCache(legacyDir(), sharedDir())
 
     expect(result).toEqual({ outcome: 'copied-link', linked: await fs.realpath(linked) })
+    // A real directory holding the files, not a copy of the link.
+    expect((await fs.lstat(sharedDir())).isDirectory()).toBe(true)
     expect(await snapshotTree(sharedDir())).toEqual(LEGACY_TREE)
     expect(existsSync(legacyDir())).toBe(false)
     expect(await snapshotTree(linked)).toEqual(LEGACY_TREE)

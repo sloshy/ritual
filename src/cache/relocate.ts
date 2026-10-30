@@ -8,12 +8,12 @@
  * The move is all or nothing, and nothing in the target is ever merged into,
  * swept or deleted:
  *
- * - The target must not exist, or hold nothing but operating-system litter
- *   (`.DS_Store`, `Thumbs.db`, `desktop.ini`) and a lock file no process
- *   holds. Anything else — another workspace's cache, the user's own files —
- *   and the old folder is kept where it is.
+ * - The target must not exist, or be an empty directory. Anything in it —
+ *   another workspace's cache, the user's files, even a `.DS_Store` — and the
+ *   old folder is kept where it is; the user is told which folder to clear.
  * - On one file system, the whole old folder is renamed to the target in one
- *   step.
+ *   step (an empty target directory is first removed with `rmdir`, which
+ *   refuses a non-empty one).
  * - Across file systems (and for a symlinked `cache/`), the tree is copied to
  *   a uniquely named temporary folder beside the target, which is renamed to
  *   the target in one step; only then is the old folder removed. A failure
@@ -31,9 +31,6 @@ import { pathsOverlap } from '../util/path-validation'
 import { COMMAND, commandLine } from '../util/cli-tokens'
 import { entriesOf, hasCacheData } from './cache-entries'
 import { CACHE_LOCK_FILENAME, isCacheLockHeld, withCacheLock } from './lock'
-
-/** Files operating systems drop into folders on their own. */
-const OS_LITTER: ReadonlySet<string> = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini'])
 
 /** The prefix of the temporary folder a cross-device move copies into, beside the target. */
 export const INCOMING_PREFIX = '.ritual-cache-incoming-'
@@ -72,14 +69,9 @@ async function dirsOverlap(a: string, b: string, platform: NodeJS.Platform): Pro
   return isSameFile(a, b)
 }
 
-/**
- * Whether a cache may move into `target`: it does not exist, or holds only OS
- * litter and a lock file no live process holds.
- */
+/** Whether a cache may move into `target`: it does not exist, or is an empty directory. */
 export async function targetAcceptsMove(target: string): Promise<boolean> {
-  const entries = await entriesOf(target)
-  if (entries.some((entry) => !OS_LITTER.has(entry) && entry !== CACHE_LOCK_FILENAME)) return false
-  return !(entries.includes(CACHE_LOCK_FILENAME) && (await isCacheLockHeld(target)))
+  return (await entriesOf(target)).length === 0
 }
 
 /** What to do with a legacy cache folder. */
@@ -88,7 +80,7 @@ export type LegacyCacheAction =
   | 'none'
   /** Move it. */
   | 'move'
-  /** Leave it: the target already holds something. */
+  /** Leave it: the target is not empty. */
   | 'keep'
 
 /** Seams for tests; production uses the running platform. */
@@ -108,7 +100,7 @@ export async function legacyCacheAction(
 /** How a move went. */
 export type LegacyCacheMoveResult =
   | { outcome: 'moved' }
-  /** The target held something by the time the move ran; nothing changed. */
+  /** The target was not empty by the time the move ran; nothing changed. */
   | { outcome: 'kept' }
   /**
    * `cache/` was a symlink: what it pointed at was copied into the target and
@@ -138,23 +130,9 @@ async function removeStaleIncoming(parent: string): Promise<void> {
   }
 }
 
-/**
- * Make room for the rename: the target is absent, or (re-checked here) holds
- * only litter and an unheld lock file, which are removed with the folder.
- * False when it no longer qualifies.
- */
-async function clearTarget(target: string): Promise<boolean> {
-  if (!(await targetAcceptsMove(target))) return false
-  for (const entry of await entriesOf(target)) await fs.rm(path.join(target, entry), { force: true })
-  await fs.rmdir(target).catch((e: unknown) => {
-    if (!hasErrorCode(e, 'ENOENT')) throw e
-  })
-  return true
-}
-
-/** Whether a failed rename onto the target means "something got there first". */
+/** Whether a failed `rmdir` or rename means "the target is (no longer) empty". */
 function targetTaken(e: unknown): boolean {
-  return hasErrorCode(e, 'ENOTEMPTY') || hasErrorCode(e, 'EEXIST')
+  return hasErrorCode(e, 'ENOTEMPTY') || hasErrorCode(e, 'EEXIST') || hasErrorCode(e, 'ENOTDIR')
 }
 
 /** The localized failure for a move step that could not complete; nothing was lost. */
@@ -167,41 +145,100 @@ function moveFailed(source: string, e: unknown): Error {
 }
 
 /**
- * Copy `source` (a directory, followed if a symlink) to a fresh temporary
- * folder beside `target`, then rename that into place. Returns false when the
- * target was taken meanwhile. On any failure only the temporary folder is
- * removed.
+ * Rename `from` onto `target` only if the target is absent or an empty
+ * directory, deleting nothing in it. The empty directory is removed with
+ * `rmdir`, which itself refuses a non-empty one — the emptiness check and the
+ * removal are one step — and the rename then refuses a target that appeared
+ * meanwhile with content. Returns false when the target held something.
+ */
+async function renameOntoEmpty(
+  from: string,
+  target: string,
+  rename: ((from: string, to: string) => Promise<void>) | undefined,
+): Promise<boolean> {
+  try {
+    await fs.rmdir(target)
+  } catch (e) {
+    if (targetTaken(e)) return false
+    // Windows reports a non-empty directory as EPERM; anything else is a real failure.
+    if (hasErrorCode(e, 'EPERM') && (await entriesOf(target)).length > 0) return false
+    if (!hasErrorCode(e, 'ENOENT')) throw e
+  }
+  try {
+    await renameWithRetry(from, target, rename === undefined ? {} : { rename })
+    return true
+  } catch (e) {
+    if (targetTaken(e)) return false
+    throw e
+  }
+}
+
+/**
+ * Copy the directory `source` (its real directory, when `source` is a
+ * symlink; links inside it are copied as links) to a fresh temporary folder
+ * beside `target`, leaving out its lock file, then rename that onto the
+ * target if the target is still absent or empty. Returns false when it was
+ * not. On any failure, or when the target was taken, only the temporary
+ * folder is removed.
  */
 async function copyIntoPlace(
   source: string,
   target: string,
   deps: MoveLegacyCacheDeps,
 ): Promise<boolean> {
+  const real = await fs.realpath(source)
   const incoming = path.join(
     path.dirname(target),
     `${INCOMING_PREFIX}${process.pid}-${randomUUID().slice(0, 8)}`,
   )
+  const lockFile = path.join(real, CACHE_LOCK_FILENAME)
   try {
-    await fs.cp(source, incoming, { recursive: true, errorOnExist: true, force: false })
+    await fs.cp(real, incoming, {
+      recursive: true,
+      errorOnExist: true,
+      force: false,
+      filter: (entry) => entry !== lockFile,
+    })
     await deps.afterCopy?.(incoming)
-    if (!(await clearTarget(target))) {
-      await fs.rm(incoming, { recursive: true, force: true })
-      return false
-    }
-    await renameWithRetry(incoming, target)
-    return true
+    if (await renameOntoEmpty(incoming, target, undefined)) return true
+    await fs.rm(incoming, { recursive: true, force: true })
+    return false
   } catch (e) {
     await fs.rm(incoming, { recursive: true, force: true })
-    if (targetTaken(e)) return false
     throw moveFailed(source, e)
   }
+}
+
+/** The refusal when a running Ritual still holds the old cache's lock; nothing moved. */
+function legacyBusy(legacy: string): Error {
+  return localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.migrate.cacheBusy', {
+    path: legacy,
+    command: commandLine(COMMAND.migrate),
+  })
+}
+
+/** Run `body` holding `dir`'s own cache-write lock, so refreshes there wait. */
+function underCacheLock<T>(dir: string, body: () => Promise<T>): Promise<T> {
+  return withCacheLock(
+    createDefaultFileSystemClient(),
+    // i18n-exempt: lock-file `operation`, read back by other ritual processes — English by contract
+    'workspace cache move',
+    body,
+    { lockDir: dir },
+  )
 }
 
 /**
  * Move `legacy` to `target`, all or nothing (see the module comment). Holds a
  * move lock in the target's parent, so two workspaces never move into one
  * target at once, and decides again under it: the target may have gained
- * content since the move was planned, and then nothing moves (`kept`).
+ * content since the move was planned, and then nothing moves (`kept`). A
+ * running Ritual holding the old cache's own lock stops the move with an
+ * error (so `ritual migrate` can try again once it is closed).
+ *
+ * While copying across file systems, the old cache's lock is held, so a
+ * refresh in this workspace waits; a single-card save that lands in the old
+ * folder during the copy can still be dropped with it (it is fetched again).
  */
 export async function moveLegacyCache(
   legacy: string,
@@ -217,24 +254,25 @@ export async function moveLegacyCache(
     async (): Promise<LegacyCacheMoveResult> => {
       await removeStaleIncoming(parent)
       if (!(await targetAcceptsMove(target))) return { outcome: 'kept' }
+      if (await isCacheLockHeld(legacy)) throw legacyBusy(legacy)
 
       const stats = await fs.lstat(legacy)
       if (stats.isSymbolicLink()) {
         const linked = await fs.realpath(legacy)
-        if (!(await copyIntoPlace(legacy, target, deps))) return { outcome: 'kept' }
+        const placed = await underCacheLock(linked, () => copyIntoPlace(legacy, target, deps))
+        if (!placed) return { outcome: 'kept' }
         await fs.unlink(legacy)
         return { outcome: 'copied-link', linked }
       }
 
-      if (!(await clearTarget(target))) return { outcome: 'kept' }
       try {
-        await renameWithRetry(legacy, target, deps.rename === undefined ? {} : { rename: deps.rename })
+        if (!(await renameOntoEmpty(legacy, target, deps.rename))) return { outcome: 'kept' }
         return { outcome: 'moved' }
       } catch (e) {
-        if (targetTaken(e)) return { outcome: 'kept' }
         if (!hasErrorCode(e, 'EXDEV')) throw moveFailed(legacy, e)
       }
-      if (!(await copyIntoPlace(legacy, target, deps))) return { outcome: 'kept' }
+      const placed = await underCacheLock(legacy, () => copyIntoPlace(legacy, target, deps))
+      if (!placed) return { outcome: 'kept' }
       // The copy is in place, whole; only now does the old folder go.
       try {
         await fs.rm(legacy, { recursive: true, force: true })
