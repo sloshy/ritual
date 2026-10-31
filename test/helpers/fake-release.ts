@@ -28,8 +28,11 @@ export function sha256Line(name: string, bytes: string | Uint8Array): string {
 export const FAKE_API = 'https://api.github.test/repos/sloshy/ritual'
 const DOWNLOADS = 'https://downloads.github.test'
 
-/** The asset this suite's fake platform (linux/x64) installs. */
+/** The binary this suite's fake platform (linux/x64) installs. */
 export const FAKE_ASSET = 'ritual-linux-x86_64'
+
+/** The archive {@link FAKE_ASSET} is published in, which `self-update` downloads. */
+export const FAKE_ARCHIVE = archiveFor(FAKE_ASSET).name
 
 /** The bytes of a fake binary that reports `version` from `--version`. */
 export function fakeBinary(version: string): string {
@@ -37,20 +40,21 @@ export function fakeBinary(version: string): string {
 }
 
 /**
- * How a fake release differs from a well-formed one. A release carries the bare
- * binary, and with `archived` its archive too; the download options
- * (`checksum`, `listedSize`, `downloadStatus`) apply to the file `self-update`
- * downloads — the archive when there is one, else the bare binary.
+ * How a fake release differs from a well-formed one, which publishes the
+ * binary's archive and its `.sha256`. The download options (`checksum`,
+ * `listedSize`, `downloadStatus`) apply to the archive.
  */
 export type FakeReleaseOptions = {
   prerelease?: boolean
   draft?: boolean
   /** The binary's bytes; defaults to {@link fakeBinary} of the tag's version. */
   binary?: string
-  /** Also publish the binary's archive (`.tar.gz`, or `.zip` for a `.exe` asset). */
-  archived?: boolean
-  /** The archive's bytes; defaults to one holding just the binary. Implies `archived`. */
-  archive?: Uint8Array
+  /**
+   * The archive's bytes; defaults to one holding just the binary (`.tar.gz`, or
+   * `.zip` for a `.exe` asset). `null` publishes the bare binary instead, as a
+   * release from before 0.1.0-rc4 did.
+   */
+  archive?: Uint8Array | null
   /** The download's `.sha256` text; defaults to a correct `sha256sum` line. `null` omits it. */
   checksum?: string | null
   /** The size the release lists for the download; defaults to its real size. */
@@ -77,7 +81,6 @@ export type FakeRelease = {
 export function fakeRelease(tag: string, options: FakeReleaseOptions = {}): FakeRelease {
   const binary = options.binary ?? fakeBinary(tag.replace(/^v/, ''))
   const binaryName = options.asset ?? FAKE_ASSET
-  const archived = options.archived === true || options.archive !== undefined
   const assets: Record<string, unknown>[] = []
   const routes: Record<string, StubRoute> = {}
 
@@ -103,13 +106,9 @@ export function fakeRelease(tag: string, options: FakeReleaseOptions = {}): Fake
     routes[`${url}.sha256`] = () => new Response(checksum)
   }
 
-  // Beside an archive, the bare binary reports another version, so a test can
-  // tell which one was installed.
-  publish(binaryName, archived ? fakeBinary('0.0.0-bare') : binary, !archived)
-  if (archived) {
-    const archive = options.archive ?? fakeArchive(binaryName, binary)
-    publish(archiveFor(binaryName).name, archive, true)
-  }
+  if (options.archive === null) publish(binaryName, binary, true)
+  else
+    publish(archiveFor(binaryName).name, options.archive ?? fakeArchive(binaryName, binary), true)
   return {
     json: {
       tag_name: tag,

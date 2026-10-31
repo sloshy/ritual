@@ -65,7 +65,7 @@ Every release binary, and the compressed archive each is also published in, has 
 
 ## Software Bill of Materials
 
-Each release publishes `ritual-sbom.cdx.json`, a [CycloneDX](https://cyclonedx.org/) JSON software bill of materials: every package in Ritual's lockfile, with its version, license and package URL. It includes the development dependencies, because the binary bundles many of them (the site's UI framework, the command-line parser), so it lists a little more than ships (the test and lint tools too). The release attests it against every binary and archive, so you can check it belongs to the file you downloaded:
+Each release publishes `ritual-sbom.cdx.json`, a [CycloneDX](https://cyclonedx.org/) JSON software bill of materials: every package in Ritual's lockfile, with its version, license and package URL. It includes the development dependencies, because the binary bundles many of them (the site's UI framework, the command-line parser), so it lists a little more than ships (the test and lint tools too). The release attests it against every archive, so you can check it belongs to the file you downloaded:
 
 ```sh
 gh attestation verify ritual-linux-x86_64.tar.gz --repo sloshy/ritual \

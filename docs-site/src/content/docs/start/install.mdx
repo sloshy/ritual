@@ -66,28 +66,26 @@ Both installers accept these options:
 
 ## Other Methods
 
-You can also download a binary for your platform from the [releases page](https://github.com/sloshy/ritual/releases) and run it directly. Each release publishes every binary two ways:
+You can also download Ritual for your platform from the [releases page](https://github.com/sloshy/ritual/releases) and run it directly. Each release publishes every binary compressed:
 
-| Platform             | Compressed (smaller download)                             | Bare binary                                             |
-| -------------------- | --------------------------------------------------------- | ------------------------------------------------------- |
-| Linux x86_64 / arm64 | `ritual-linux-x86_64.tar.gz`, `ritual-linux-arm64.tar.gz` | `ritual-linux-x86_64`, `ritual-linux-arm64`             |
-| macOS Intel / Apple  | `ritual-macos-x86_64.tar.gz`, `ritual-macos-arm64.tar.gz` | `ritual-macos-x86_64`, `ritual-macos-arm64`             |
-| Windows x86_64 / ARM | `ritual-windows-x86_64.zip`, `ritual-windows-arm64.zip`   | `ritual-windows-x86_64.exe`, `ritual-windows-arm64.exe` |
+| Platform             | Download                                                  |
+| -------------------- | --------------------------------------------------------- |
+| Linux x86_64 / arm64 | `ritual-linux-x86_64.tar.gz`, `ritual-linux-arm64.tar.gz` |
+| macOS Intel / Apple  | `ritual-macos-x86_64.tar.gz`, `ritual-macos-arm64.tar.gz` |
+| Windows x86_64 / ARM | `ritual-windows-x86_64.zip`, `ritual-windows-arm64.zip`   |
 
-The compressed file is about half the size. It holds just the binary, already named `ritual` (`ritual.exe` on Windows):
+Each holds just the binary, already named `ritual` (`ritual.exe` on Windows):
 
 ```bash
 tar -xzf ritual-linux-x86_64.tar.gz
 ./ritual --help
 ```
 
-The bare binaries are also published for now, so that copies of Ritual from before 0.1.0, which download them, can still update themselves; they may stop being published in a later 0.x release.
-
 The binaries are not code-signed. A binary downloaded through a browser is therefore blocked on first run: on macOS, Gatekeeper says it cannot be opened (clear the quarantine flag with `xattr -d com.apple.quarantine ./ritual`); on Windows, SmartScreen warns about an unrecognized app (choose **More info**, then **Run anyway**). The install scripts download with `curl` and `Invoke-WebRequest`, which do not mark the file, so neither prompt appears.
 
-Each file is published with a `.sha256` checksum of that file as published (the archive's checksum covers the archive, not the binary inside it), and every binary and archive has a build provenance attestation. To confirm a download came from Ritual's release workflow, run `gh attestation verify ritual-linux-x86_64.tar.gz --repo sloshy/ritual` (or on the unpacked `./ritual`) with the [GitHub CLI](https://cli.github.com/).
+Each archive is published with a `.sha256` checksum of the archive (not of the binary inside it) and a build provenance attestation. To confirm a download came from Ritual's release workflow, run `gh attestation verify ritual-linux-x86_64.tar.gz --repo sloshy/ritual` with the [GitHub CLI](https://cli.github.com/).
 
-Each release also publishes a software bill of materials, `ritual-sbom.cdx.json` ([CycloneDX](https://cyclonedx.org/) JSON), listing the open-source packages Ritual is built from, and attests it against every binary and archive. See [Software Bill of Materials](/reference/security/#software-bill-of-materials).
+Each release also publishes a software bill of materials, `ritual-sbom.cdx.json` ([CycloneDX](https://cyclonedx.org/) JSON), listing the open-source packages Ritual is built from, and attests it against every archive. See [Software Bill of Materials](/reference/security/#software-bill-of-materials).
 
 ## Building from Source
 

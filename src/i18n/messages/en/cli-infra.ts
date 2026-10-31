@@ -801,7 +801,7 @@ export const cliInfraMessages = {
   'cli.selfUpdate.error.noRelease': 'No Ritual release has been published yet.',
   'cli.selfUpdate.error.tagNotFound': 'No Ritual release is tagged {tag}.',
   'cli.selfUpdate.error.missingAsset':
-    'Release {tag} has no {asset} binary for this platform; nothing was installed.',
+    'Release {tag} has no {asset} archive for this platform; nothing was installed. Releases before 0.1.0-rc4 published only uncompressed binaries, which self-update does not install.',
   'cli.selfUpdate.error.missingChecksum':
     'Release {tag} has no checksum file for {asset}; refusing to install an unverified binary.',
   'cli.selfUpdate.error.badChecksumFile':

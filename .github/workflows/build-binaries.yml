@@ -6,9 +6,9 @@ name: Build binaries
 # attaches exactly what passed here. Each binary is cross-compiled on Linux, as
 # the release has always done, packed into its compressed archive
 # (scripts/archive-binary.sh), and uploaded as the artifact
-# `binary-<asset name>`: the bare binary and the archive, each with its
-# `.sha256`. The asset and archive names are what src/update/release-source.ts,
-# the install scripts and the generated deploy workflow download.
+# `binary-<asset name>`: the archive and its `.sha256`, which is all a release
+# publishes. The archive names are what src/update/release-source.ts, the
+# install scripts and the generated deploy workflow download.
 
 on:
   workflow_call:
@@ -86,11 +86,8 @@ jobs:
           BUILD_TARGET: ${{ matrix.target }}
           BUILD_OUTFILE: ${{ matrix.asset }}
 
-      - name: Checksum
-        run: sha256sum "$ASSET" > "$ASSET.sha256"
-
-      # The archive (.tar.gz, or .zip for Windows) beside the bare binary, with
-      # its own .sha256 of the archive file.
+      # The archive (.tar.gz, or .zip for Windows), with its own .sha256 of
+      # the archive file.
       - name: Archive
         run: bash scripts/archive-binary.sh "$ASSET"
 
@@ -98,8 +95,6 @@ jobs:
         with:
           name: binary-${{ matrix.asset }}
           path: |
-            ${{ matrix.asset }}
-            ${{ matrix.asset }}.sha256
             ${{ matrix.archive }}
             ${{ matrix.archive }}.sha256
           if-no-files-found: error
@@ -151,7 +146,6 @@ jobs:
               runner: windows-11-arm,
             }
     env:
-      ASSET: ${{ matrix.asset }}
       ARCHIVE: ${{ matrix.archive }}
       MEMBER: ${{ matrix.member }}
     defaults:
@@ -188,14 +182,13 @@ jobs:
             echo "::error::$MEMBER in $ARCHIVE is not executable" >&2
             exit 1
           fi
-          cmp "unpacked/$MEMBER" "$ASSET"
 
       - name: Smoke test
         env:
           VERSION: ${{ inputs.version }}
-        # A tagged build must report the tag's version, without its `v`. The
-        # archive's copy is byte for byte this one (checked above).
-        run: bash scripts/smoke-binary.sh "./$ASSET" "${VERSION#v}"
+        # The binary as a user installs it, unpacked from the archive. A tagged
+        # build must report the tag's version, without its `v`.
+        run: bash scripts/smoke-binary.sh "./unpacked/$MEMBER" "${VERSION#v}"
 
   # The CycloneDX SBOM a release publishes (scripts/sbom.sh), built here so
   # every pull request proves it still can be.

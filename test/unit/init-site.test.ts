@@ -94,32 +94,28 @@ describe('generatePublishForMeWorkflow', () => {
     expect(step?.run).toBe('./ritual list-all-cards --out all-cards.md')
   })
 
-  test('checks each download against the release .sha256 before installing it', () => {
-    // The .sha256 names the file, so each keeps its release name until the
-    // check passes; a mismatch fails the step before `ritual` exists. Whole
+  test('checks the archive against the release .sha256 before unpacking it', () => {
+    // The .sha256 names the file, so the archive keeps its release name until
+    // the check passes; a mismatch fails the step before `ritual` exists. Whole
     // lines, so a check made non-fatal (`|| true`) or a checksum fetched from
-    // another tag does not pass. The archive comes first; the bare binary is
-    // the fallback for a pinned release from before archives were published.
-    // test/integration/release-downloads.test.ts runs the step itself.
+    // another tag does not pass. test/integration/release-downloads.test.ts
+    // runs the step itself.
     const run = findStep(job.steps, 'Download Ritual')?.run ?? ''
     const lines = run.split('\n').map((line) => line.trim())
     const expected = [
       'RELEASE="https://github.com/sloshy/ritual/releases/download/${VERSION}"',
       'ARCHIVE="ritual-linux-x86_64.tar.gz"',
-      'if curl -fsSL -o "$ARCHIVE" "$RELEASE/$ARCHIVE"; then',
+      'curl -fsSL -o "$ARCHIVE" "$RELEASE/$ARCHIVE"',
       'curl -fsSL -o "$ARCHIVE.sha256" "$RELEASE/$ARCHIVE.sha256"',
       'sha256sum -c "$ARCHIVE.sha256"',
       'tar -xzf "$ARCHIVE" ritual',
-      'else',
-      'ASSET="ritual-linux-x86_64"',
-      'curl -fsSL -o "$ASSET" "$RELEASE/$ASSET"',
-      'curl -fsSL -o "$ASSET.sha256" "$RELEASE/$ASSET.sha256"',
-      'sha256sum -c "$ASSET.sha256"',
-      'mv "$ASSET" ritual',
-      'fi',
+      'rm "$ARCHIVE" "$ARCHIVE.sha256"',
       'chmod +x ritual',
     ]
     expect(lines.filter((line) => expected.includes(line))).toEqual(expected)
+    // The archive is the only download: no fallback fetches a bare binary.
+    const fetches = lines.filter((line) => line.startsWith('curl '))
+    expect(fetches).toEqual(expected.filter((line) => line.startsWith('curl ')))
   })
 })
 

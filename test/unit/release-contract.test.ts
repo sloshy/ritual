@@ -37,6 +37,14 @@ function uses(job: StepsJob, action: string): Step[] {
   return job.steps.filter((step) => step.uses?.startsWith(`${action}@`) === true)
 }
 
+/** A multi-line `with:` value, one trimmed entry per line. */
+function lines(value: string | boolean | undefined): string[] {
+  return String(value)
+    .trim()
+    .split('\n')
+    .map((line) => line.trim())
+}
+
 function matrixAssets(job: MatrixJob): string[] {
   return job.strategy.matrix.include.map((row) => row.asset).sort()
 }
@@ -67,16 +75,11 @@ describe('build-binaries.yml', () => {
     expect(build.map((row) => row.archive).sort()).toEqual([...RELEASE_ARCHIVE_NAMES].sort())
   })
 
-  test('uploads each binary and its archive, each with its .sha256', () => {
-    // Without the archive's .sha256, self-update refuses the release outright.
+  test('uploads each archive with its .sha256, and never the bare binary', () => {
+    // Without the archive's .sha256, self-update refuses the release outright;
+    // release.yml publishes exactly what is uploaded here.
     const [upload] = uses(workflow.jobs.build, 'actions/upload-artifact')
-    const paths = String(upload?.with?.path)
-      .trim()
-      .split('\n')
-      .map((line) => line.trim())
-    expect(paths).toEqual([
-      '${{ matrix.asset }}',
-      '${{ matrix.asset }}.sha256',
+    expect(lines(upload?.with?.path)).toEqual([
       '${{ matrix.archive }}',
       '${{ matrix.archive }}.sha256',
     ])
@@ -102,7 +105,16 @@ describe('the release SBOM', () => {
 describe('release.yml', () => {
   const workflow = yaml.load(read('.github/workflows/release.yml')) as ReleaseWorkflow
 
-  test('attests the SBOM against the binaries and archives it publishes', () => {
+  test('attests the provenance of the archives and the SBOM, not their checksums', () => {
+    const [attest] = uses(workflow.jobs.publish, 'actions/attest-build-provenance')
+    expect(lines(attest?.with?.['subject-path'])).toEqual([
+      'assets/*.tar.gz',
+      'assets/*.zip',
+      'assets/ritual-sbom.cdx.json',
+    ])
+  })
+
+  test('attests the SBOM against the archives it publishes', () => {
     const [attest] = uses(workflow.jobs.publish, 'actions/attest')
     expect(attest?.with?.['sbom-path']).toBe('assets/ritual-sbom.cdx.json')
     expect(attest?.with?.['subject-checksums']).toBe('subjects.sha256')

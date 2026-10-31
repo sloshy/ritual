@@ -13,10 +13,10 @@ const RELEASE_FIELD =
 
 /** Shared context for why a release's checksum file was refused. */
 const CHECKSUM_REASON =
-  'Each Ritual release binary comes with a .sha256 checksum file that proves the download is intact. This phrase says why that file could not be read; it starts lowercase with no closing period, and is shown as {error} inside cli.selfUpdate.error.badChecksumFile.'
+  'Each Ritual release archive comes with a .sha256 checksum file that proves the download is intact. This phrase says why that file could not be read; it starts lowercase with no closing period, and is shown as {error} inside cli.selfUpdate.error.badChecksumFile.'
 
 const ARCHIVE_REASON =
-  'Ritual releases also publish each binary compressed, in a .tar.gz or .zip archive that must hold just the one binary. This phrase says why that archive could not be unpacked; it starts lowercase with no closing period, and is shown as {error} inside cli.selfUpdate.error.badArchive. "it" is the archive.'
+  'Ritual releases publish each binary compressed, in a .tar.gz or .zip archive that must hold just the one binary. This phrase says why that archive could not be unpacked; it starts lowercase with no closing period, and is shown as {error} inside cli.selfUpdate.error.badArchive. "it" is the archive.'
 
 /** Shared context for why the new binary's version check failed. */
 const SMOKE_REASON =
@@ -1554,15 +1554,15 @@ export const cliInfraMeta = {
   },
   'cli.selfUpdate.error.missingAsset': {
     description:
-      'The release has no binary for this platform. {tag} is the release tag; {asset} the expected file name.',
+      'The release has no compressed archive (.tar.gz or .zip) for this platform, so nothing is installed. {tag} is the release tag; {asset} the expected archive file name. The second sentence explains that old prereleases (before version 0.1.0-rc4) only published uncompressed binaries, which the updater no longer accepts; keep the version literal.',
   },
   'cli.selfUpdate.error.missingChecksum': {
     description:
-      'The release has no .sha256 checksum file for the binary, so it cannot be verified and is not installed. {tag} is the release tag; {asset} the binary file name.',
+      'The release has no .sha256 checksum file for the archive, so it cannot be verified and is not installed. {tag} is the release tag; {asset} the archive file name.',
   },
   'cli.selfUpdate.error.badChecksumFile': {
     description:
-      "The .sha256 checksum file could not be read. {asset} is the binary file name; {error} says why — one of the cli.selfUpdate.checksum.* phrases, already in the reader's language.",
+      "The .sha256 checksum file could not be read. {asset} is the archive file name; {error} says why — one of the cli.selfUpdate.checksum.* phrases, already in the reader's language.",
   },
   'cli.selfUpdate.error.sizeMismatch': {
     description:
@@ -1630,7 +1630,7 @@ export const cliInfraMeta = {
     description: `${CHECKSUM_REASON} The file does not start with a SHA-256 digest (64 hexadecimal digits), optionally followed by the name of the file it is for. "SHA-256" is literal.`,
   },
   'cli.selfUpdate.checksum.otherFile': {
-    description: `${CHECKSUM_REASON} The digest names a different file than the binary being installed. {file} is the name the checksum file gives; {asset} the binary's file name. Never translate either.`,
+    description: `${CHECKSUM_REASON} The digest names a different file than the archive being installed. {file} is the name the checksum file gives; {asset} the archive's file name. Never translate either.`,
   },
   'cli.selfUpdate.archive.damaged': {
     description: `${ARCHIVE_REASON} Its contents are corrupt: a header, checksum or the compressed data does not read back correctly.`,

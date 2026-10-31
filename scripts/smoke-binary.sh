@@ -6,7 +6,7 @@
 # It must start, report its version (exactly <expected-version> when given),
 # create a deck in a fresh workspace, list it back, and pass `ritual doctor`.
 # CI runs this on every shipped platform, against the cross-compiled binary
-# the release would attach, so a target that cannot even start is caught
+# unpacked from the archive the release would attach, so a target that cannot even start is caught
 # before it ships. Nothing here touches the network: there is no card cache,
 # and CI disables the update check.
 set -euo pipefail

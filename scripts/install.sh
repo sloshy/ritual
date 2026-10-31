@@ -152,34 +152,28 @@ verify() {
   fi
 }
 
-# Each release publishes the binary compressed (<asset>.tar.gz, holding just
-# `ritual`) and bare (<asset>); the archive is the smaller download. A release
-# from before 0.1.0 has only the bare binary.
+# Each release publishes the binary compressed: <asset>.tar.gz, holding just
+# `ritual`, with a .sha256 of the archive.
 archive_name="${asset_name}.tar.gz"
 echo "Downloading ${archive_name}..."
-if fetch "$archive_name" 2>/dev/null; then
-  echo "Verifying checksum..."
-  verify "$archive_name"
-  mkdir "${tmp_dir}/unpacked"
-  # Only the one member is extracted, into a directory of our own.
-  tar -xzf "${tmp_dir}/${archive_name}" -C "${tmp_dir}/unpacked" ritual
-  tmp_bin="${tmp_dir}/unpacked/ritual"
-  if [ ! -f "$tmp_bin" ] || [ -L "$tmp_bin" ]; then
-    echo "${archive_name} does not hold the ritual binary." >&2
-    exit 1
+if ! fetch "$archive_name"; then
+  echo "Failed to download ${base_url}/${archive_name}" >&2
+  if [ "$version" = "latest" ]; then
+    echo "If ${REPO_OWNER}/${REPO_NAME} has only prereleases so far, re-run with --prerelease." >&2
+  else
+    echo "Releases before v0.1.0-rc4 publish no archive, and this script cannot install them." >&2
   fi
-else
-  echo "No ${archive_name} in this release; downloading ${asset_name}..."
-  if ! fetch "$asset_name"; then
-    echo "Failed to download ${base_url}/${asset_name}" >&2
-    if [ "$version" = "latest" ]; then
-      echo "If ${REPO_OWNER}/${REPO_NAME} has only prereleases so far, re-run with --prerelease." >&2
-    fi
-    exit 1
-  fi
-  echo "Verifying checksum..."
-  verify "$asset_name"
-  tmp_bin="${tmp_dir}/${asset_name}"
+  exit 1
+fi
+echo "Verifying checksum..."
+verify "$archive_name"
+mkdir "${tmp_dir}/unpacked"
+# Only the one member is extracted, into a directory of our own.
+tar -xzf "${tmp_dir}/${archive_name}" -C "${tmp_dir}/unpacked" ritual
+tmp_bin="${tmp_dir}/unpacked/ritual"
+if [ ! -f "$tmp_bin" ] || [ -L "$tmp_bin" ]; then
+  echo "${archive_name} does not hold the ritual binary." >&2
+  exit 1
 fi
 
 mkdir -p "$install_dir"

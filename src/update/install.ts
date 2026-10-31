@@ -1,16 +1,15 @@
 /**
  * Installing a release over the running binary for `ritual self-update`:
- * mapping the platform to its release asset, downloading it while verifying it
- * (listed size, `.sha256`), unpacking the binary when the release publishes it
- * compressed, writing it into a temporary file beside the binary, a
- * `--version` smoke test, and swapping it into place.
+ * mapping the platform to its release archive, downloading it while verifying
+ * it (listed size, `.sha256`), unpacking the binary from it, writing that into
+ * a temporary file beside the binary, a `--version` smoke test, and swapping it
+ * into place.
  *
- * A release publishes each binary twice: bare (`ritual-linux-x86_64`) and
- * compressed (`ritual-linux-x86_64.tar.gz`, `ritual-windows-x86_64.zip`), each
- * with its own `.sha256` of the file as published. The compressed one is
- * preferred; the bare one is the fallback for a release from before archives
- * were published (an older `--tag`). Either way, what is hashed is exactly what
- * was downloaded, checked before anything is unpacked.
+ * A release publishes each binary compressed (`ritual-linux-x86_64.tar.gz`,
+ * `ritual-windows-x86_64.zip`), with a `.sha256` of the archive as published:
+ * what is hashed is exactly what was downloaded, checked before anything is
+ * unpacked. A release without the archive (one from before 0.1.0-rc4, which
+ * published bare binaries) is refused.
  *
  * The rules throughout: nothing outside the temporary file is touched until
  * the new binary is fully written, flushed, verified, and has answered
@@ -103,38 +102,25 @@ function findAsset(release: Release, name: string): ReleaseAsset | undefined {
 }
 
 /**
- * The two assets an install needs: the file downloaded (the archive, or the
- * bare binary) and its `.sha256` file, which hashes that file as published.
+ * The assets an install needs: the archive downloaded, its `.sha256` file
+ * (which hashes the archive as published), and how to unpack it.
  */
-type InstallAssets = BareAssets | ArchivedAssets
-
-/** The download is the bare binary. */
-type BareAssets = {
-  kind: 'bare'
-  download: ReleaseAsset
-  checksum: ReleaseAsset
-}
-
-/** The download is the archive, unpacked as `archive` says. */
-type ArchivedAssets = {
-  kind: 'archive'
+type InstallAssets = {
   download: ReleaseAsset
   checksum: ReleaseAsset
   archive: ReleaseArchive
 }
 
-/** The archive when the release publishes one, else the bare binary; refused without its `.sha256`. */
+/** This platform's archive and its `.sha256`; a release missing either is refused. */
 function requireAssets(env: SelfUpdateEnv, release: Release): InstallAssets {
-  const binaryName = requireAssetName(env)
-  const archive = archiveFor(binaryName)
-  const archived = findAsset(release, archive.name)
-  const download = archived ?? findAsset(release, binaryName)
+  const archive = archiveFor(requireAssetName(env))
+  const download = findAsset(release, archive.name)
   if (download === undefined) {
     throw localizedCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
       'cli.selfUpdate.error.missingAsset',
-      { tag: release.tag, asset: binaryName },
+      { tag: release.tag, asset: archive.name },
     )
   }
   const checksum = findAsset(release, `${download.name}.sha256`)
@@ -146,9 +132,7 @@ function requireAssets(env: SelfUpdateEnv, release: Release): InstallAssets {
       { tag: release.tag, asset: download.name },
     )
   }
-  return archived === undefined
-    ? { kind: 'bare', download, checksum }
-    : { kind: 'archive', download, checksum, archive }
+  return { download, checksum, archive }
 }
 
 /** Download and parse the release's `.sha256` file for the binary. */
@@ -309,20 +293,19 @@ async function openDownload(
 }
 
 /**
- * Pass the download to `write` as it arrives, hashing and counting it: a body
- * larger than the listed size is cut off rather than buffered, and a body whose
- * size or SHA-256 is not the published one is refused once it has all arrived.
- * Returns the byte count.
+ * Read the download as it arrives, hashing and counting it: a body larger than
+ * the listed size is cut off rather than buffered, and a body whose size or
+ * SHA-256 is not the published one is refused once it has all arrived.
  */
 async function receiveVerified(
   assets: InstallAssets,
   reader: ReadableStreamDefaultReader<Uint8Array> | undefined,
   expectedDigest: string,
-  write: (chunk: Uint8Array) => Promise<void> | void,
-): Promise<number> {
+): Promise<Buffer> {
   const { download } = assets
   const { name } = download
   const hash = createHash('sha256')
+  const chunks: Uint8Array[] = []
   let received = 0
   while (reader !== undefined) {
     const chunk = await readBody(download.url, () => reader.read())
@@ -333,7 +316,7 @@ async function receiveVerified(
       throw sizeMismatch(name, received, download.size)
     }
     hash.update(chunk.value)
-    await write(chunk.value)
+    chunks.push(chunk.value)
   }
   if (received !== download.size) throw sizeMismatch(name, received, download.size)
   const actual = hash.digest('hex')
@@ -345,7 +328,7 @@ async function receiveVerified(
       { asset: name, expected: expectedDigest, actual },
     )
   }
-  return received
+  return Buffer.concat(chunks)
 }
 
 /**
@@ -353,18 +336,18 @@ async function receiveVerified(
  * Nothing is written to disk until both the archive's `.sha256` and the
  * unpacking succeed.
  */
-async function downloadArchived(
+async function downloadBinary(
   env: SelfUpdateEnv,
-  assets: ArchivedAssets,
+  assets: InstallAssets,
   expectedDigest: string,
 ): Promise<Uint8Array> {
   const { archive } = assets
   const reader = await openDownload(env, assets)
-  const chunks: Uint8Array[] = []
-  await receiveVerified(assets, reader, expectedDigest, (chunk) => {
-    chunks.push(chunk)
-  })
-  const binary = extractBinary(Buffer.concat(chunks), archive.format, archive.member)
+  const binary = extractBinary(
+    await receiveVerified(assets, reader, expectedDigest),
+    archive.format,
+    archive.member,
+  )
   if (isMessageParseError(binary)) {
     throw messageCommandError(
       'runtime_error',
@@ -379,16 +362,16 @@ async function downloadArchived(
 }
 
 /**
- * Create `temporary` exclusively and let `fill` write the new binary into it
- * (returning how many bytes it wrote); then flush it to disk, prove every byte
- * reached it, and give it `mode`. `file` names what is written in a refusal.
+ * Create `temporary` exclusively and write the new binary into it; then flush
+ * it to disk, prove every byte reached it, and give it `mode`. `file` names
+ * what is written in a refusal.
  */
 async function writeNewBinary(
   file: string,
+  binary: Uint8Array,
   temporary: string,
   mode: number,
   onCreated: () => void,
-  fill: (write: (chunk: Uint8Array) => Promise<void>) => Promise<number>,
 ): Promise<void> {
   let handle: fs.FileHandle
   try {
@@ -400,11 +383,11 @@ async function writeNewBinary(
   onCreated()
   let failure: unknown
   try {
-    const expected = await fill((chunk) => writeFully(handle, chunk))
+    await writeFully(handle, binary)
     // Without this, a crash after the rename could leave an empty binary.
     await handle.sync()
     const written = (await handle.stat()).size
-    if (written !== expected) throw sizeMismatch(file, written, expected)
+    if (written !== binary.byteLength) throw sizeMismatch(file, written, binary.byteLength)
   } catch (error) {
     failure = error instanceof CardCommandError ? error : installFailed(temporary, error)
   }
@@ -420,40 +403,6 @@ async function writeNewBinary(
     await fs.chmod(temporary, mode)
   } catch (error) {
     throw installFailed(temporary, error)
-  }
-}
-
-/**
- * Put the verified new binary at `temporary`: streamed straight there when the
- * release's download is the bare binary, unpacked from the verified archive
- * otherwise.
- */
-async function downloadInto(
-  env: SelfUpdateEnv,
-  assets: InstallAssets,
-  expectedDigest: string,
-  temporary: string,
-  mode: number,
-  onCreated: () => void,
-): Promise<void> {
-  if (assets.kind === 'archive') {
-    const binary = await downloadArchived(env, assets, expectedDigest)
-    await writeNewBinary(assets.archive.member, temporary, mode, onCreated, async (write) => {
-      await write(binary)
-      return binary.byteLength
-    })
-    return
-  }
-  const reader = await openDownload(env, assets)
-  try {
-    await writeNewBinary(assets.download.name, temporary, mode, onCreated, (write) =>
-      receiveVerified(assets, reader, expectedDigest, write),
-    )
-  } catch (error) {
-    // A write that failed before the body was read to its end leaves the
-    // connection open; release it rather than wait out the timeout.
-    await reader?.cancel().catch(() => undefined)
-    throw error
   }
 }
 
@@ -600,7 +549,8 @@ export async function installRelease(
   // Windows swap needs the user to keep.
   let removeTemporary = false
   try {
-    await downloadInto(env, assets, expectedDigest, temporary, mode, () => {
+    const binary = await downloadBinary(env, assets, expectedDigest)
+    await writeNewBinary(assets.archive.member, binary, temporary, mode, () => {
       removeTemporary = true
     })
     await smokeTest(env, temporary, release.version)

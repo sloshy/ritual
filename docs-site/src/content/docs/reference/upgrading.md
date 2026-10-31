@@ -28,9 +28,9 @@ If you run a prerelease (a version such as `0.2.0-rc1`), `self-update` keeps you
 
 In Docker, pull the newer image instead (see [Docker](/docker/#updating)). If you built Ritual from source, pull and rebuild.
 
-### Release downloads from 0.1.0 on
+### Release downloads
 
-From 0.1.0, each release publishes every binary compressed (`ritual-linux-x86_64.tar.gz`, `ritual-windows-x86_64.zip`, …), which `self-update`, the install scripts and the generated deploy workflow download. The bare binaries (`ritual-linux-x86_64`, `ritual-windows-x86_64.exe`, …) are still published beside them, because a Ritual from before 0.1.0 (a `0.1.0-rc` build) updates itself by downloading those: `self-update` from such a build keeps working. A later 0.x release may stop publishing the bare binaries, and its changelog will say so; update to 0.1.0 or newer before then. A "Publish for me" deploy workflow keeps working as it is. Run `ritual migrate` and commit the refreshed workflow, which downloads the archive (and still the bare binary for a pinned release from before 0.1.0), before the bare binaries stop being published.
+Each release publishes every binary compressed (`ritual-linux-x86_64.tar.gz`, `ritual-windows-x86_64.zip`, …), which `self-update`, the install scripts and the generated deploy workflow download; there are no uncompressed binaries. A Ritual older than 0.1.0-rc4 downloaded those to update itself, so it cannot `self-update` to a newer release: reinstall it with the [install script](/start/install/). Likewise, a newer Ritual cannot `self-update --tag` back to a release before 0.1.0-rc4. For a "Publish for me" site, run `ritual migrate` with a current release and commit the refreshed workflow and `ritual.config.json` (which pins that release).
 
 ## Migrations
 

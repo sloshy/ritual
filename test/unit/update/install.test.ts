@@ -21,7 +21,9 @@ import {
 import { ExitCode } from '../../../src/util/errors'
 import { tarGz } from '../../helpers/archives'
 import {
+  FAKE_ARCHIVE,
   FAKE_ASSET,
+  fakeArchive,
   fakeBinary,
   fakeEnv,
   fakeRelease,
@@ -59,12 +61,12 @@ describe('parseChecksumFile', () => {
   const digest = 'AB'.repeat(32)
 
   test.each([
-    ['sha256sum text mode', `${digest}  ${FAKE_ASSET}\n`],
-    ['sha256sum binary mode', `${digest} *${FAKE_ASSET}`],
-    ['a path before the name', `${digest}  ./dist/${FAKE_ASSET}`],
+    ['sha256sum text mode', `${digest}  ${FAKE_ARCHIVE}\n`],
+    ['sha256sum binary mode', `${digest} *${FAKE_ARCHIVE}`],
+    ['a path before the name', `${digest}  ./dist/${FAKE_ARCHIVE}`],
     ['a bare digest', `${digest}\n`],
   ])('reads %s, lowercased', (_label, text) => {
-    expect(parseChecksumFile(text, FAKE_ASSET)).toBe(digest.toLowerCase())
+    expect(parseChecksumFile(text, FAKE_ARCHIVE)).toBe(digest.toLowerCase())
   })
 
   const malformed: MessageParseError = {
@@ -80,9 +82,9 @@ describe('parseChecksumFile', () => {
       `${digest}  ./dist/ritual-macos-arm64`,
       {
         error: {
-          message: `the digest is for ./dist/ritual-macos-arm64, not ${FAKE_ASSET}`,
+          message: `the digest is for ./dist/ritual-macos-arm64, not ${FAKE_ARCHIVE}`,
           messageKey: 'cli.selfUpdate.checksum.otherFile',
-          messageParams: { file: './dist/ritual-macos-arm64', asset: FAKE_ASSET },
+          messageParams: { file: './dist/ritual-macos-arm64', asset: FAKE_ARCHIVE },
         },
       },
     ],
@@ -91,16 +93,16 @@ describe('parseChecksumFile', () => {
       `${digest}  ./dist/\u001b[31mevil\u001b[0m\tname`,
       {
         error: {
-          message: `the digest is for ./dist/evil name, not ${FAKE_ASSET}`,
+          message: `the digest is for ./dist/evil name, not ${FAKE_ARCHIVE}`,
           messageKey: 'cli.selfUpdate.checksum.otherFile',
-          messageParams: { file: './dist/evil name', asset: FAKE_ASSET },
+          messageParams: { file: './dist/evil name', asset: FAKE_ARCHIVE },
         },
       },
     ],
-    ['a short digest', `${'a'.repeat(63)}  ${FAKE_ASSET}`, malformed],
+    ['a short digest', `${'a'.repeat(63)}  ${FAKE_ARCHIVE}`, malformed],
     ['an empty file', '', malformed],
   ])('rejects %s', (_label, text, error) => {
-    expect(parseChecksumFile(text, FAKE_ASSET)).toEqual(error)
+    expect(parseChecksumFile(text, FAKE_ARCHIVE)).toEqual(error)
   })
 })
 
@@ -307,7 +309,7 @@ describe('installUpdate', () => {
   test.each<[string, FakeReleaseOptions, MessageKey]>([
     [
       'a checksum mismatch',
-      { checksum: `${sha256Hex('other')}  ${FAKE_ASSET}` },
+      { checksum: `${sha256Hex('other')}  ${FAKE_ARCHIVE}` },
       'cli.selfUpdate.error.checksumMismatch',
     ],
     ['a download longer than listed', { listedSize: 3 }, 'cli.selfUpdate.error.sizeMismatch'],
@@ -332,10 +334,10 @@ describe('installUpdate', () => {
     const error = await commandFailure(installUpdate(env, plan, binary))
 
     expect({ message: error.message, key: error.messageKey, params: error.messageParams }).toEqual({
-      message: `The checksum file for ${FAKE_ASSET} is malformed (expected a SHA-256 digest followed by a file name); nothing was installed.`,
+      message: `The checksum file for ${FAKE_ARCHIVE} is malformed (expected a SHA-256 digest followed by a file name); nothing was installed.`,
       key: 'cli.selfUpdate.error.badChecksumFile',
       params: {
-        asset: FAKE_ASSET,
+        asset: FAKE_ARCHIVE,
         error: 'expected a SHA-256 digest followed by a file name',
       },
     })
@@ -350,11 +352,11 @@ describe('installUpdate', () => {
 
     expect(error.message).toBe(
       pseudoString('cli.selfUpdate.error.badChecksumFile')
-        .replace('{asset}', FAKE_ASSET)
+        .replace('{asset}', FAKE_ARCHIVE)
         .replace('{error}', pseudoString('cli.selfUpdate.checksum.malformed')),
     )
     expect(error.messageParams).toEqual({
-      asset: FAKE_ASSET,
+      asset: FAKE_ARCHIVE,
       error: 'expected a SHA-256 digest followed by a file name',
     })
   })
@@ -372,7 +374,7 @@ describe('installUpdate', () => {
     expect((await commandFailure(installUpdate(env, plan, binary))).messageKey).toBe(key)
 
     expect(runs.smokeTests).toEqual([])
-    expect(server?.sent.some((sent) => sent.url.endsWith(FAKE_ASSET))).toBeFalse()
+    expect(server?.sent.some((sent) => sent.url.endsWith(FAKE_ARCHIVE))).toBeFalse()
     expect(await filesBeside(binary)).toEqual(['ritual'])
   })
 
@@ -449,7 +451,7 @@ describe('installUpdate', () => {
       start: (controller) => controller.error(new Error('connection reset')),
     })
     const layered = stubFetch(
-      { [assetUrl(plan, `${FAKE_ASSET}.sha256`)]: () => new Response(broken) },
+      { [assetUrl(plan, `${FAKE_ARCHIVE}.sha256`)]: () => new Response(broken) },
       { passthrough: true },
     )
     try {
@@ -463,15 +465,17 @@ describe('installUpdate', () => {
 
   test('a compressed download’s Content-Length is not held against the listed size', async () => {
     const { binary, plan, env } = await setUp('v1.1.0')
-    const bytes = fakeBinary('1.1.0')
-    // Routes match by prefix, so the binary's route would also answer for its
+    const bytes = fakeArchive(FAKE_ASSET, fakeBinary('1.1.0'))
+    // Routes match by prefix, so the archive's route would also answer for its
     // `.sha256`; serve that too.
     const layered = stubFetch(
       {
-        [assetUrl(plan, `${FAKE_ASSET}.sha256`)]: () =>
-          new Response(`${sha256Hex(bytes)}  ${FAKE_ASSET}`),
-        [assetUrl(plan, FAKE_ASSET)]: () =>
-          new Response(bytes, { headers: { 'content-length': '3', 'content-encoding': 'gzip' } }),
+        [assetUrl(plan, `${FAKE_ARCHIVE}.sha256`)]: () =>
+          new Response(`${sha256Hex(bytes)}  ${FAKE_ARCHIVE}`),
+        [assetUrl(plan, FAKE_ARCHIVE)]: () =>
+          new Response(Buffer.from(bytes), {
+            headers: { 'content-length': '3', 'content-encoding': 'gzip' },
+          }),
       },
       { passthrough: true },
     )
@@ -480,66 +484,63 @@ describe('installUpdate', () => {
     } finally {
       layered.restore()
     }
-    expect(await fs.readFile(binary, 'utf8')).toBe(bytes)
+    expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.1.0'))
   })
 
   describe('from an archive', () => {
-    const LINUX_ARCHIVE = `${FAKE_ASSET}.tar.gz`
-    /** Whether any request went to exactly `name`'s download URL (its `.sha256` aside). */
-    const fetched = (name: string): boolean =>
-      server?.sent.some((sent) => sent.url.endsWith(`/${name}`)) ?? false
-
     test.each<[string, Partial<SelfUpdateEnv>, FakeReleaseOptions]>([
-      ['a .tar.gz on Linux', {}, { archived: true }],
-      [
-        'a .zip on Windows',
-        { platform: 'win32' },
-        { archived: true, asset: 'ritual-windows-x86_64.exe' },
-      ],
-    ])(
-      'installs the binary unpacked from %s, never the bare one',
-      async (_label, overrides, options) => {
-        // The fake's bare binary reports another version, so installing it
-        // would fail the smoke test.
-        const { binary, plan, env } = await setUp('v1.1.0', options, overrides)
+      ['a .tar.gz on Linux', {}, {}],
+      ['a .zip on Windows', { platform: 'win32' }, { asset: 'ritual-windows-x86_64.exe' }],
+    ])('installs the binary unpacked from %s', async (_label, overrides, options) => {
+      const { binary, plan, env } = await setUp('v1.1.0', options, overrides)
 
-        await installUpdate(env, plan, binary)
+      await installUpdate(env, plan, binary)
 
-        expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.1.0'))
-        expect(fetched(options.asset ?? FAKE_ASSET)).toBeFalse()
-        expect((await filesBeside(binary)).filter((name) => !name.endsWith('.old'))).toEqual([
-          'ritual',
-        ])
-      },
-    )
+      expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.1.0'))
+      expect((await filesBeside(binary)).filter((name) => !name.endsWith('.old'))).toEqual([
+        'ritual',
+      ])
+    })
+
+    test('a release with only the bare binary (before 0.1.0-rc4) is refused', async () => {
+      const { binary, plan, env, runs } = await setUp('v1.1.0', { archive: null })
+
+      const error = await commandFailure(installUpdate(env, plan, binary))
+
+      expect({ key: error.messageKey, params: error.messageParams }).toEqual({
+        key: 'cli.selfUpdate.error.missingAsset',
+        params: { tag: 'v1.1.0', asset: FAKE_ARCHIVE },
+      })
+      expect(runs.smokeTests).toEqual([])
+      expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.0.0'))
+    })
 
     test('an archive that does not match its .sha256 is refused before it is unpacked', async () => {
       // Unpacking it would be refused too (badArchive); the checksum comes first.
       const { binary, plan, env, runs } = await setUp('v1.1.0', {
         archive: tarGz([{ name: '../ritual', data: fakeBinary('6.6.6') }]),
-        checksum: `${sha256Hex('other')}  ${LINUX_ARCHIVE}`,
+        checksum: `${sha256Hex('other')}  ${FAKE_ARCHIVE}`,
       })
 
       const error = await commandFailure(installUpdate(env, plan, binary))
 
       expect({ key: error.messageKey, asset: error.messageParams?.asset }).toEqual({
         key: 'cli.selfUpdate.error.checksumMismatch',
-        asset: LINUX_ARCHIVE,
+        asset: FAKE_ARCHIVE,
       })
       expect(runs.smokeTests).toEqual([])
       expect(await filesBeside(binary)).toEqual(['ritual'])
     })
 
-    test('an archive without its .sha256 is refused, not swapped for the bare binary', async () => {
-      const { binary, plan, env } = await setUp('v1.1.0', { archived: true, checksum: null })
+    test('an archive without its .sha256 is refused, naming the archive', async () => {
+      const { binary, plan, env } = await setUp('v1.1.0', { checksum: null })
 
       const error = await commandFailure(installUpdate(env, plan, binary))
 
       expect({ key: error.messageKey, asset: error.messageParams?.asset }).toEqual({
         key: 'cli.selfUpdate.error.missingChecksum',
-        asset: LINUX_ARCHIVE,
+        asset: FAKE_ARCHIVE,
       })
-      expect(fetched(FAKE_ASSET)).toBeFalse()
     })
 
     test('a verified archive whose entry climbs out of its directory is refused', async () => {
@@ -551,7 +552,7 @@ describe('installUpdate', () => {
       expect({ key: error.messageKey, params: error.messageParams }).toEqual({
         key: 'cli.selfUpdate.error.badArchive',
         params: {
-          asset: LINUX_ARCHIVE,
+          asset: FAKE_ARCHIVE,
           error: 'it holds ../ritual, which is not ritual',
         },
       })

@@ -8,12 +8,12 @@ name: Release
 #              stable release) has a CHANGELOG.md section, which becomes the
 #              release notes
 #   ci         the same gates a pull request gets (ci.yml)
-#   binaries   the six binaries, stamped with the tag's version and each
-#              smoke-tested on its own OS, their compressed archives, and the
-#              CycloneDX SBOM (build-binaries.yml)
-#   publish    a draft release gets every binary and archive, each with its
-#              .sha256, and the SBOM; the binaries and archives get a provenance
-#              attestation and an SBOM attestation; only then is it published,
+#   binaries   the six binaries, stamped with the tag's version, packed into
+#              their compressed archives and each smoke-tested on its own OS,
+#              and the CycloneDX SBOM (build-binaries.yml)
+#   publish    a draft release gets every archive, each with its .sha256, and
+#              the SBOM; the archives and the SBOM get a provenance attestation
+#              and the archives an SBOM attestation; only then is it published,
 #              so `install.sh`, `ritual self-update` and the deploy workflows
 #              never resolve a release whose binaries are not there yet
 #   docker     the image, built natively on an amd64 and an arm64 runner, each
@@ -108,15 +108,19 @@ jobs:
         working-directory: assets
         run: sha256sum -c ./*.sha256
 
+      # The archives and the SBOM; not the .sha256 files beside them.
       - uses: actions/attest-build-provenance@v4
         with:
-          subject-path: assets/*
+          subject-path: |
+            assets/*.tar.gz
+            assets/*.zip
+            assets/ritual-sbom.cdx.json
 
-      # Binds the SBOM to every binary and archive it describes, so
+      # Binds the SBOM to every archive it describes, so
       # `gh attestation verify --predicate-type https://cyclonedx.org/bom`
       # finds it from a download. Exactly the files with a .sha256 (just
       # verified), outside assets/ so it is not uploaded.
-      - name: List the binaries and archives
+      - name: List the archives
         run: cat assets/*.sha256 > subjects.sha256
 
       - uses: actions/attest@v4

@@ -4,9 +4,9 @@
  * release directory, through a stand-in `curl` that serves files from it. Also
  * `scripts/archive-binary.sh`, whose archives `self-update`'s reader must take.
  *
- * Every download is checked against its `.sha256`, the compressed archive is
- * preferred, and the bare binary is the fallback for a release from before
- * archives were published.
+ * Every download is the compressed archive, checked against its `.sha256`; a
+ * release without one (from before 0.1.0-rc4, which published bare binaries)
+ * is refused.
  */
 
 import { afterEach, describe, expect, test } from 'bun:test'
@@ -104,19 +104,10 @@ function run(argv: string[], cwd: string, env: Record<string, string>): Promise<
 /** The files of a release for `asset` (a Linux or macOS binary). */
 type ReleaseShape = (asset: string) => ReleaseFiles
 
-/** The archive and the bare binary, as from 0.1.0 on. */
-const CURRENT: ReleaseShape = (asset) => ({
-  [asset]: BINARY,
-  [archiveFor(asset).name]: fakeArchive(asset, BINARY),
-})
+/** The archive, as a release publishes it. */
+const CURRENT: ReleaseShape = (asset) => ({ [archiveFor(asset).name]: fakeArchive(asset, BINARY) })
 
-/** The archive alone, so only it can have produced what was installed. */
-const ARCHIVE_ONLY: ReleaseShape = (asset) => {
-  const { [asset]: _bare, ...rest } = CURRENT(asset)
-  return rest
-}
-
-/** A release from before 0.1.0: the bare binary only. */
+/** A release from before 0.1.0-rc4: the bare binary only. */
 const BARE_ONLY: ReleaseShape = (asset) => ({ [asset]: BINARY })
 
 /** An archive that does not match its `.sha256`. */
@@ -167,22 +158,23 @@ describe.skipIf(hostAsset === undefined || process.platform === 'win32')('instal
   }
 
   test('installs the binary from the archive', async () => {
-    const result = await install(ARCHIVE_ONLY)
+    const result = await install(CURRENT)
     expect(result.exitCode).toBe(0)
     expect(await fs.readFile(result.installed, 'utf8')).toBe(BINARY)
     expect((await fs.stat(result.installed)).mode & 0o111).not.toBe(0)
   })
 
   test('installs the latest release when no version is given', async () => {
-    const result = await install(ARCHIVE_ONLY, undefined)
+    const result = await install(CURRENT, undefined)
     expect(result.exitCode).toBe(0)
     expect(await fs.readFile(result.installed, 'utf8')).toBe(BINARY)
   })
 
-  test('falls back to the bare binary for a release without an archive', async () => {
+  test('refuses a release without an archive, installing nothing', async () => {
     const result = await install(BARE_ONLY)
-    expect(result.exitCode).toBe(0)
-    expect(await fs.readFile(result.installed, 'utf8')).toBe(BINARY)
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('Releases before v0.1.0-rc4 publish no archive')
+    expect(await Bun.file(result.installed).exists()).toBeFalse()
   })
 
   test('refuses an archive that does not match its .sha256, installing nothing', async () => {
@@ -206,14 +198,17 @@ describe('the generated workflow’s Download Ritual step', () => {
     return { ...result, work: release.work }
   }
 
-  test.each<[string, ReleaseShape]>([
-    ['the archive', ARCHIVE_ONLY],
-    ['the bare binary, for a release without an archive', BARE_ONLY],
-  ])('installs ./ritual from %s, leaving nothing else', async (_label, shape) => {
-    const result = await download(shape)
+  test('installs ./ritual from the archive, leaving nothing else', async () => {
+    const result = await download(CURRENT)
     expect(result.exitCode).toBe(0)
     expect(await fs.readdir(result.work)).toEqual(['ritual'])
     expect(await fs.readFile(path.join(result.work, 'ritual'), 'utf8')).toBe(BINARY)
+  })
+
+  test('fails the step for a release without an archive', async () => {
+    const result = await download(BARE_ONLY)
+    expect(result.exitCode).not.toBe(0)
+    expect(await Bun.file(path.join(result.work, 'ritual')).exists()).toBeFalse()
   })
 
   test('fails the step on an archive that does not match its .sha256', async () => {

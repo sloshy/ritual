@@ -68,7 +68,7 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
   and the MCP server's instructions name the running version and link to that version's
   source. A fork sets `RITUAL_SOURCE_URL` when it builds to point them at its own
   repository.
-- Every release binary is published with a build provenance attestation. Check a download
+- Every release archive is published with a build provenance attestation. Check a download
   with `gh attestation verify <file> --repo sloshy/ritual`.
 - `deck-sync pull` and `deck-sync push` take `-v, --verbose` to list every card a run
   changes under its deck's `Changes:` count: additions, removals, quantity changes, board
@@ -104,21 +104,24 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
   the error envelope of such a failure now carries `details` (`kind`: `bug` or
   `environment`, and the `issuesUrl`), and `RITUAL_DEBUG` adds the trace as `details.stack`.
 
-- **Compressed release downloads.** Each release now also publishes every binary
-  compressed, about half the size: `ritual-<os>-<arch>.tar.gz` holding `ritual` for Linux
-  and macOS, `ritual-windows-<arch>.zip` holding `ritual.exe` for Windows, each with its own
-  `.sha256` of the archive. `ritual self-update`, both install scripts and the "Publish for
-  me" deploy workflow now download the archive, check its checksum before unpacking it,
-  and accept only an archive holding exactly that one file. The bare binaries are still
-  published, so a `0.1.0-rc` build can still `self-update`; a later 0.x release may stop
-  publishing them, and will say so here. Each tool falls back to the bare binary for a
-  release from before 0.1.0 (`self-update --tag`, an older pin). For a "Publish for me"
-  site, `ritual migrate` refreshes the deploy workflow; commit it.
+- **Compressed release downloads.** Each release now publishes every binary compressed,
+  about half the size: `ritual-<os>-<arch>.tar.gz` holding `ritual` for Linux and macOS,
+  `ritual-windows-<arch>.zip` holding `ritual.exe` for Windows, each with its own `.sha256`
+  of the archive. The uncompressed binaries are no longer published. `ritual self-update`,
+  both install scripts and the "Publish for me" deploy workflow download the archive,
+  check its checksum before unpacking it, and accept only an archive holding exactly that
+  one file; a release without one (anything before 0.1.0-rc4) is refused, so
+  `self-update --tag` cannot go back to one, and a Ritual older than 0.1.0-rc4 cannot
+  `self-update` to this release: reinstall it with the install script. For a "Publish for
+  me" site, run `ritual migrate` with this release and commit the refreshed deploy
+  workflow and `ritual.config.json`, whose pin moves to this release; a workflow pinned to
+  a release before 0.1.0-rc4 (including through the `RITUAL_VERSION` repository variable)
+  fails to download it.
   On Windows on ARM, `install.ps1` now installs the native `arm64` build (as `self-update`
   already did) instead of the x86_64 one.
 - **A software bill of materials with every release.** `ritual-sbom.cdx.json`, CycloneDX
   JSON listing every package in Ritual's lockfile with its version and license, is attached
-  to each release and attested against every binary and archive (check one with
+  to each release and attested against every archive (check one with
   `gh attestation verify <file> --repo sloshy/ritual --predicate-type
 https://cyclonedx.org/bom`). The Docker
   image carries its own SBOM and build provenance as registry attestations.

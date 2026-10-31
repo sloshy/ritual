@@ -68,9 +68,8 @@ $baseUrl = if ($Version) {
     "https://github.com/$repoOwner/$repoName/releases/latest/download"
 }
 
-# Each release publishes the binary compressed (<asset>.zip, holding just
-# ritual.exe) and bare (<asset>.exe); the zip is the smaller download. A release
-# from before 0.1.0 has only the bare binary.
+# Each release publishes the binary compressed: <asset>.zip, holding just
+# ritual.exe, with a .sha256 of the archive.
 $archiveName = [System.IO.Path]::ChangeExtension($assetName, ".zip")
 $installPath = Join-Path $installDir "ritual.exe"
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ritual-" + [Guid]::NewGuid().ToString())
@@ -100,45 +99,34 @@ try {
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
     $ProgressPreference = 'SilentlyContinue'
 
-    $binaryPath = $null
-    $archivePath = $null
     Write-Host "Downloading $archiveName..."
     try {
         $archivePath = Get-VerifiedAsset -Name $archiveName
     }
     catch {
-        # An HTTP error (the release has no archive) falls back to the bare
-        # binary; anything else, a checksum mismatch included, stops here.
+        # An HTTP error means the release has no archive; say why that may be.
+        # Anything else, a checksum mismatch included, is reported as it is.
         # (StrictMode forbids reading a property an exception does not have.)
         $response = $_.Exception.PSObject.Properties["Response"]
-        if (-not ($response -and $response.Value)) {
-            throw
-        }
-        $archivePath = $null
-    }
-
-    if ($archivePath) {
-        $unpacked = Join-Path $tempDir "unpacked"
-        Expand-Archive -LiteralPath $archivePath -DestinationPath $unpacked
-        # The archive must hold exactly ritual.exe, and nothing else.
-        $entries = @(Get-ChildItem -LiteralPath $unpacked -Force -Recurse)
-        if ($entries.Count -ne 1 -or $entries[0].Name -ne "ritual.exe" -or $entries[0].PSIsContainer) {
-            throw "$archiveName does not hold just ritual.exe."
-        }
-        $binaryPath = $entries[0].FullName
-    }
-    else {
-        Write-Host "No $archiveName in this release; downloading $assetName..."
-        try {
-            $binaryPath = Get-VerifiedAsset -Name $assetName
-        }
-        catch {
-            if (-not $Version) {
+        if ($response -and $response.Value) {
+            if ($Version) {
+                Write-Warning "Releases before v0.1.0-rc4 publish no archive, and this script cannot install them."
+            }
+            else {
                 Write-Warning "If $repoOwner/$repoName has only prereleases so far, re-run with -Prerelease."
             }
-            throw
         }
+        throw
     }
+
+    $unpacked = Join-Path $tempDir "unpacked"
+    Expand-Archive -LiteralPath $archivePath -DestinationPath $unpacked
+    # The archive must hold exactly ritual.exe, and nothing else.
+    $entries = @(Get-ChildItem -LiteralPath $unpacked -Force -Recurse)
+    if ($entries.Count -ne 1 -or $entries[0].Name -ne "ritual.exe" -or $entries[0].PSIsContainer) {
+        throw "$archiveName does not hold just ritual.exe."
+    }
+    $binaryPath = $entries[0].FullName
 
     New-Item -ItemType Directory -Path $installDir -Force | Out-Null
     Move-Item -Path $binaryPath -Destination $installPath -Force
