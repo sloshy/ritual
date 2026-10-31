@@ -16,6 +16,10 @@ Ritual is a free, open-source command-line program for Magic: The Gathering. It 
 
 See a built site in the [live demo](https://ritual.rpeters.dev/demo/), and read the documentation at <https://ritual.rpeters.dev/>.
 
+In the terminal, a deck is one command away, and the file Ritual writes is plain markdown:
+
+<img src="docs-site/src/assets/recordings/first-deck.gif" alt="A terminal session: ritual new deck creates a Commander deck, ritual add-card adds Sol Ring to it, and cat shows the deck file, with its front matter, an empty Commander section, and a Main section holding 1 Sol Ring." />
+
 ## Install
 
 On macOS or Linux:

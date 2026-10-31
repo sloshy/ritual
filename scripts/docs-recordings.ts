@@ -496,7 +496,12 @@ function checkForLeaks(name: string, text: string, forbidden: readonly string[])
 
 function renderGif(cast: string): void {
   const gif = cast.replace(/\.cast$/, '.gif')
-  const result = Bun.spawnSync(['agg', cast, gif], { stdout: 'inherit', stderr: 'inherit' })
+  // agg's default renderer can't draw color emoji (the deck and list icons in
+  // `price` and `edit`); resvg can.
+  const result = Bun.spawnSync(['agg', '--renderer', 'resvg', cast, gif], {
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
   if (result.exitCode !== 0) throw new Error(`agg exited with ${result.exitCode}`)
   console.log(path.relative(ROOT, gif))
 }
