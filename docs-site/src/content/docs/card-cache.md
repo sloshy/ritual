@@ -56,7 +56,7 @@ To refresh by hand, run [`ritual cache preload-all`](/commands/cache/#preload-al
 
 ## Offline use
 
-Once the cache is downloaded, most of Ritual works without a network connection: editing lists, looking cards up, pricing with the prices you have, and building the site. Pass `--refresh never` so nothing tries to download, for example `ritual price "My Deck" --refresh never`. A card that is not in the cache at all cannot be looked up until you are back online.
+Once the cache is downloaded, most of Ritual works without a network connection: editing lists, looking cards up, pricing with the prices you have, and building the site. Pass `--refresh never` so Ritual uses the cache as it is and skips refresh downloads, for example `ritual price "My Deck" --refresh never`. A card that is not in the cache at all is still looked up on Scryfall, which needs the network.
 
 Signing in to and syncing with Archidekt, importing from a website, and checking for updates need the network.
 

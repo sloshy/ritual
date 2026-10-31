@@ -119,7 +119,7 @@ The advice prints in the CLI's language. Under `--output json` its error envelop
 ritual sell --min 0.25 --output csv --out to-sell.csv
 ```
 
-With nothing to sell the file is empty. Upload the file on their CSV import page and the sell cart fills itself. Two caveats:
+With nothing to sell the CSV is empty. Upload the file on their CSV import page and the sell cart fills itself. Two caveats:
 
 - Their importer caps one upload at 500 unique titles or 5,000 cards. The command warns when the file exceeds either.
 - The format cannot express etched foils. Etched-quoted entries export as foil, with a warning to adjust the cart by hand.

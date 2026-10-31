@@ -39,7 +39,7 @@ ritual migrate --dry-run   # show what would change
 ritual migrate             # apply it
 ```
 
-Before a migration changes anything, Ritual copies each file it will change into `.backups/<time>-migration-<n>/` in the workspace. It never deletes those copies; remove them when you no longer need them. If a migration cannot finish, it changes nothing and says what to fix.
+Before a migration changes anything, Ritual copies each file it will change into one folder in the workspace, `.backups/<time>-migration-<n>/` (named after the last migration in the run). It never deletes those copies; remove them when you no longer need them. If the updated `ritual.config.json` would be invalid, nothing is changed and Ritual says what to fix. If a migration fails part-way, the ones before it stay applied, and the next `ritual migrate` picks up at the one that failed.
 
 `migrate` also refreshes the files Ritual generates for a published site (the deploy workflow, the `.gitignore` entries, the agent skills). See [`ritual migrate`](/commands/migrate/) for every detail. Commit the result.
 
@@ -57,4 +57,4 @@ To build with a different release for a while without changing the pin, set a `R
 
 ## Going back to an older release
 
-`ritual self-update --tag v0.1.0` installs exactly that release, older ones included. An older Ritual never changes a workspace a newer one already migrated: `ritual migrate` refuses and names the release it needs, and other commands print a warning. See [A workspace from a newer Ritual](/commands/migrate/#a-workspace-from-a-newer-ritual).
+`ritual self-update --tag v0.1.0` installs exactly that release, older ones included. An older Ritual never migrates a workspace a newer one already updated: `ritual migrate` refuses and names the release it needs, and other commands print a warning. See [A workspace from a newer Ritual](/commands/migrate/#a-workspace-from-a-newer-ritual).

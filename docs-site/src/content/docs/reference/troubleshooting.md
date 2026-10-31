@@ -19,7 +19,7 @@ Each line is `ok`, `warn` or `fail`. A line that found a problem ends with a one
 
 **macOS says Ritual "cannot be opened", or Windows warns about an "unrecognized app".** Ritual's binaries are not code-signed, so a binary downloaded in a web browser is blocked the first time it runs. On macOS, run `xattr -d com.apple.quarantine ./ritual`. On Windows, choose **More info**, then **Run anyway**. The [install scripts](/start/install/) download in a way that does not trigger either warning, so use them if you can.
 
-**`ritual: command not found` after installing.** The install script puts Ritual in `~/.local/bin` by default; make sure that folder is on your `PATH`, or open a new terminal. See [Install](/start/install/).
+**`ritual: command not found` after installing.** The install script puts Ritual in `~/.local/bin` on macOS and Linux, and in `%LOCALAPPDATA%\Programs\ritual\bin` on Windows; make sure that folder is on your `PATH`, or open a new terminal. See [Install](/start/install/).
 
 ## Running commands
 
@@ -45,7 +45,7 @@ Each line is `ok`, `warn` or `fail`. A line that found a problem ends with a one
 
 **The cache file is damaged.** If `cache.json` cannot be read, Ritual treats the cache as empty and refuses to overwrite it card by card. `ritual cache preload-all` replaces the whole cache and repairs it.
 
-**Working without a network.** Pass `--refresh never` so nothing tries to download. See [Offline use](/card-cache/#offline-use).
+**Working without a network.** Pass `--refresh never` so Ritual uses the cache as it is and skips refresh downloads. See [Offline use](/card-cache/#offline-use).
 
 ## Lists and history
 

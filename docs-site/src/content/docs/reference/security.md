@@ -5,24 +5,24 @@ sidebar:
   order: 3
 ---
 
-Ritual runs on your computer and works on files you own. It has **no telemetry and no analytics**: it never reports what you do, what your lists hold, or that you ran it. It talks to other services only to do something you asked for. Every request it makes names itself as `Ritual/<version>` and carries nothing about you.
+Ritual runs on your computer and works on files you own. It has **no telemetry and no analytics**: it never reports what you do, what your lists hold, or that you ran it. It talks to other services only to do something you asked for. Its requests name themselves as `Ritual/<version>` (Moxfield requests use the user agent you set in `MOXFIELD_USER_AGENT`) and carry only what the request needs.
 
 ## What Ritual sends where
 
 | Service                                     | When                                                                                                                                              | What it sends                                                                                          |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | [Scryfall](https://scryfall.com)            | Downloading or refreshing the [card cache](/card-cache/); looking up a card the cache lacks; `ritual scry`; fetching card and mana images         | The card names, set codes and search terms the lookup needs.                                           |
-| [Card Kingdom](https://www.cardkingdom.com) | Only when Card Kingdom prices or [sell mode](/public-site/sell/) are turned on                                                                    | A download of its public price list. Nothing about your cards: matching happens on your computer.      |
+| [Card Kingdom](https://www.cardkingdom.com) | When you run [`ritual sell`](/commands/sell/), or when Card Kingdom prices or [sell mode](/public-site/sell/) are turned on                       | A download of its public price list. Nothing about your cards: matching happens on your computer.      |
 | [Archidekt](https://archidekt.com)          | [Importing](/commands/import/) an Archidekt deck, [logging in](/commands/login/), and [syncing](/guides/archidekt-sync/) decks or your collection | When you log in, your username and password. When you sync, the cards you chose to sync.               |
-| Moxfield, MTGGoldfish                       | Only when you import a deck or primer from them                                                                                                   | The deck address you gave.                                                                             |
+| Moxfield, MTGGoldfish                       | When you import a deck or primer from them, or build a site that lists a deck by its URL                                                          | The deck address you gave.                                                                             |
 | [GitHub](https://github.com/sloshy/ritual)  | `ritual self-update`, and the daily [update check](#the-update-check)                                                                             | A request for the list of Ritual releases.                                                             |
 | A cache server or cache feed                | Only when you set one up ([`--cache-server`](/commands/cache/#client-configuration), [`cacheSource: feed`](/configuration/#cache-source))         | Card names and printings to look up (cache server); BitTorrent traffic for the card data (cache feed). |
 
-Nothing else is contacted. Apart from the update check, commands that work on your files alone, such as `edit`, `lists` or `history`, make no network requests once the card cache holds the cards they need. See [Offline use](/card-cache/#offline-use).
+Nothing else is contacted. Apart from the update check, commands that work on your files alone, such as `edit`, `lists` or `history`, make no network requests without asking you first once the card cache holds the cards they need. See [Offline use](/card-cache/#offline-use).
 
 ### The update check
 
-A release build looks up the newest Ritual release on GitHub at most once a day and prints one line when there is a newer one. The request is a plain `GET` to GitHub's public releases API (`https://api.github.com/repos/sloshy/ritual/releases/latest`, or the list of recent releases if you run a prerelease). It carries no information about you, your workspace, or your lists. If you set `GITHUB_TOKEN`, Ritual sends it with GitHub API requests only, to raise GitHub's rate limit.
+A release build looks up the newest Ritual release on GitHub about once a day (sooner if a check failed or did not finish) and prints one line when there is a newer one. The request is a plain `GET` to GitHub's public releases API (`https://api.github.com/repos/sloshy/ritual/releases/latest`, or the list of recent releases if you run a prerelease). It carries no information about you, your workspace, or your lists. If you set `GITHUB_TOKEN`, Ritual sends it with GitHub API requests only, to raise GitHub's rate limit.
 
 To turn the check off:
 
@@ -39,7 +39,7 @@ A site built with [`ritual build-site`](/commands/build-site/) is static files. 
 
 - **Your lists and settings**, in the [workspace](/workspace/): plain files you can read.
 - **The card cache**, in a per-user folder (see [Card Cache](/card-cache/#where-it-lives)). It holds only public card data and prices.
-- **A small state file** (`state.json`) that remembers when Ritual last checked for updates and last offered to migrate a workspace. See [When Ritual offers to migrate](/commands/migrate/#when-ritual-offers-to-migrate) for where it lives.
+- **A small state file** (`state.json`) that remembers when Ritual last checked for updates, and which workspaces (by folder path) it offered to migrate in the last day. See [When Ritual offers to migrate](/commands/migrate/#when-ritual-offers-to-migrate) for where it lives.
 - **Sign-ins**, in the workspace's `.logins/` folder:
   - `admin-auth.json`: the [admin site](/commands/admin/) account. The password is stored only as a bcrypt hash; the file also holds the TOTP secret if you turned TOTP on.
   - `admin-audit.log`: admin sign-in attempts, with the address and browser they came from.

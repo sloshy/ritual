@@ -126,11 +126,11 @@ Download and cache the full Scryfall bulk card data. This also downloads the **o
 ritual cache preload-all [options]
 ```
 
-| Option              | Description                                                                                                      | Default                                          |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `--source <source>` | Where to download from: `scryfall` or `feed` (experimental; overrides the `cacheSource` config key for this run) | `cacheSource` config key                         |
-| `--url <feedUrl>`   | Feed URL for a feed-sourced refresh; implies `--source feed`                                                     | `cacheFeedUrl` config, then the built-in default |
-| `--force`           | Re-download and re-ingest even when the feed is unchanged (feed source only)                                     | off                                              |
+| Option              | Description                                                                                                      | Default                                             |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `--source <source>` | Where to download from: `scryfall` or `feed` (experimental; overrides the `cacheSource` config key for this run) | `cacheSource` config key                            |
+| `--url <feedUrl>`   | Feed URL for a feed-sourced refresh; implies `--source feed`                                                     | `cacheFeedUrl` config (there is no public feed yet) |
+| `--force`           | Re-download and re-ingest even when the feed is unchanged (feed source only)                                     | off                                                 |
 
 `--url` combined with `--source scryfall` is a usage error. `--force` has no effect on a Scryfall refresh, which always downloads the full bulk.
 
@@ -192,7 +192,7 @@ ritual cache server [options]
 | `--cards-refresh <interval>`  | Run a full cards cache refresh on a cadence (`daily`, `weekly`, `monthly`) | env `RITUAL_CACHE_SERVER_CARDS_REFRESH`, else disabled  |
 | `--prices-refresh <interval>` | Run price cache refreshes on a cadence (`daily`, `weekly`, `monthly`)      | env `RITUAL_CACHE_SERVER_PRICES_REFRESH`, else disabled |
 | `--cache-source <source>`     | Where card refreshes download from: `scryfall` or `feed` (experimental)    | `cacheSource` config key                                |
-| `--url <feedUrl>`             | Cache feed URL for feed-sourced refreshes                                  | `cacheFeedUrl` config, then the built-in default        |
+| `--url <feedUrl>`             | Cache feed URL for feed-sourced refreshes                                  | `cacheFeedUrl` config (there is no public feed yet)     |
 | `--torrent-port <n>`          | Fixed TCP port for incoming torrent peers while seeding feed artifacts     | random                                                  |
 | `--no-seed`                   | With a feed source, sync without seeding the artifacts back to the swarm   | seeding on                                              |
 | `-v, --verbose`               | Log every incoming cache-server request                                    | disabled                                                |
@@ -237,14 +237,14 @@ Sync the card cache from a cache feed, then stay open **seeding** the files back
 ritual cache feed fetch --url https://feed.example.com/feed.json
 ```
 
-| Option                 | Description                                                                                     | Default                                          |
-| ---------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `--url <feedUrl>`      | Feed URL                                                                                        | `cacheFeedUrl` config, then the built-in default |
-| `--no-p2p`             | Download over plain HTTP (from the feed's file URLs) instead of BitTorrent                      | BitTorrent with web-seed fallback                |
-| `--no-seed`            | Exit after ingesting instead of staying open to seed                                            | seeding on                                       |
-| `--torrent-port <n>`   | Fixed TCP port for incoming torrent peers                                                       | random                                           |
-| `--force`              | Re-download and re-ingest even when the feed is unchanged                                       | off                                              |
-| `--refresh <interval>` | Re-check the feed while seeding (`daily`, `weekly`, `monthly`; env `RITUAL_CACHE_FEED_REFRESH`) | `daily`                                          |
+| Option                 | Description                                                                                     | Default                                             |
+| ---------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `--url <feedUrl>`      | Feed URL                                                                                        | `cacheFeedUrl` config (there is no public feed yet) |
+| `--no-p2p`             | Download over plain HTTP (from the feed's file URLs) instead of BitTorrent                      | BitTorrent with web-seed fallback                   |
+| `--no-seed`            | Exit after ingesting instead of staying open to seed                                            | seeding on                                          |
+| `--torrent-port <n>`   | Fixed TCP port for incoming torrent peers                                                       | random                                              |
+| `--force`              | Re-download and re-ingest even when the feed is unchanged                                       | off                                                 |
+| `--refresh <interval>` | Re-check the feed while seeding (`daily`, `weekly`, `monthly`; env `RITUAL_CACHE_FEED_REFRESH`) | `daily`                                             |
 
 Behavior:
 

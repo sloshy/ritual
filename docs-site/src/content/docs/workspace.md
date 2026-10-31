@@ -59,15 +59,15 @@ Commit everything that is yours:
 
 Keep the rest out of git. `ritual init-site` writes a `.gitignore` that does this for you; without it, add these yourself:
 
-| Path                            | What it is                                                                                                                                               |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.logins/`                      | Your admin account and Archidekt sign-in. **Never commit it.** See [Security and Privacy](/reference/security/#what-ritual-stores-on-your-computer).     |
-| `dist/`                         | The built site ([`ritual build-site`](/commands/build-site/)). Rebuilt from your lists. A [local-build deploy](/commands/init-site/) commits it instead. |
-| `cache/`                        | An older workspace's own [card cache](/card-cache/), until `ritual migrate` moves it.                                                                    |
-| `.trash/`                       | Lists you [deleted](/commands/delete/#restoring-a-deleted-list), kept so you can restore them.                                                           |
-| `.backups/`                     | Copies [`ritual migrate`](/commands/migrate/#numbered-migrations) takes before it changes files.                                                         |
-| `exports/`, `all-cards.md`      | Files [`ritual export`](/commands/export/) and [`list-all-cards`](/commands/list-all-cards/) write.                                                      |
-| `.admin-dist/`, `.dist-build-*` | Build leftovers.                                                                                                                                         |
+| Path                                                      | What it is                                                                                                                                               |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.logins/`                                                | Your admin account and Archidekt sign-in. **Never commit it.** See [Security and Privacy](/reference/security/#what-ritual-stores-on-your-computer).     |
+| `dist/`                                                   | The built site ([`ritual build-site`](/commands/build-site/)). Rebuilt from your lists. A [local-build deploy](/commands/init-site/) commits it instead. |
+| `cache/`                                                  | An older workspace's own [card cache](/card-cache/), until `ritual migrate` moves it.                                                                    |
+| `.trash/`                                                 | Lists you [deleted](/commands/delete/#restoring-a-deleted-list), kept so you can restore them.                                                           |
+| `.backups/`                                               | Copies [`ritual migrate`](/commands/migrate/#numbered-migrations) takes before it changes files.                                                         |
+| `exports/`, `all-cards.md`                                | Files [`ritual export`](/commands/export/) and [`list-all-cards`](/commands/list-all-cards/) write.                                                      |
+| `.admin-dist/`, `.dist-build-*`, `.dist-old-*`, `/ritual` | Build leftovers, and the Ritual binary the deploy workflow downloads.                                                                                    |
 
 The card cache itself does not live in the workspace. It is one folder per user, shared by all your workspaces; see [Card Cache](/card-cache/).
 
