@@ -50,6 +50,7 @@ import { buildFlameSvg } from '../theme/flame'
 import { localizedCommandError, ExitCode } from '../util/errors'
 import { runCommandAction } from '../cli/action'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
+import { setServerRefreshMode } from '../admin/api/build-site'
 import { requireFlag } from '../util/no-input'
 import { readPasswordFromStdin } from '../cli/prompts'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
@@ -198,6 +199,8 @@ export function registerAdminCommand(program: Command): void {
       console.log(t('cli.admin.preparing'))
 
       const refreshPolicy = cliRefreshPolicy(options.refresh)
+      // Site builds the admin (or its embedded MCP) spawns follow this mode.
+      setServerRefreshMode(options.refresh)
       await ensureFreshCardCache(refreshPolicy)
 
       // The admin's buylist routes read a cached feed and never download; a

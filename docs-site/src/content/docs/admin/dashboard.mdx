@@ -9,7 +9,7 @@ Besides the editors and the list tools, the admin dashboard has a handful of sin
 
 ## Build Site
 
-Run a full static site build from the browser. It is the same build as `ritual build-site` (so it opens on the configured `site.theme`), run as a background process so the admin server stays responsive, and the result is published all at once when it finishes. The background build has no terminal to ask in, so it runs with [`--refresh auto`](/commands/build-site/#card-cache-refresh): it downloads the card cache, fresh prices and tags when the build needs them, as the deploy workflow's build does.
+Run a full static site build from the browser. It is the same build as `ritual build-site` (so it opens on the configured `site.theme`), run as a background process so the admin server stays responsive, and the result is published all at once when it finishes. The background build runs with the admin server's own [`--refresh`](/commands/build-site/#card-cache-refresh) mode, except that `ask` (the default) becomes `auto`, since the build has no terminal to ask in: by default it downloads the card cache, fresh prices and tags when it needs them, as the deploy workflow's build does, while `ritual admin --refresh never` never downloads from a build.
 
 The page streams the build as it runs: a progress bar over four steps (starting, building, publishing, done) and a live log of the build's own output. If the event stream cannot be opened, the page falls back to a plain request. If the stream drops mid-build, the build keeps running on the server and the page says so instead of starting a second one. See [`POST /api/build-site`](/admin/api/#build-site) and [`GET /api/build-site/stream`](/admin/api/#build-site-stream).
 

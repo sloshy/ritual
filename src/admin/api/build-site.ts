@@ -82,6 +82,30 @@ export type BuildSiteRunOptions = {
   claim?: BuildClaim
 }
 
+/**
+ * The `--refresh` mode of the server this process runs (`ritual admin
+ * --refresh`), which the site builds it spawns inherit. `ask` until the admin
+ * command says otherwise — a standalone `ritual mcp` has no such flag.
+ */
+let serverRefreshMode: RefreshMode = 'ask'
+
+/** Record the server's `--refresh` mode for the builds it spawns. */
+export function setServerRefreshMode(mode: RefreshMode): void {
+  serverRefreshMode = mode
+}
+
+/**
+ * The `--refresh` a spawned build runs with: the server's own mode, except
+ * that `ask` becomes `auto`. The child has no terminal, so under `ask` every
+ * cache question — the bulk download a never-downloaded or week-old cache
+ * needs included — would be declined, and the build would publish from
+ * whatever the cache holds. Every other mode passes through unchanged, so an
+ * offline `never` server never downloads from a build.
+ */
+export function buildChildRefreshMode(mode: RefreshMode): RefreshMode {
+  return mode === 'ask' ? 'auto' : mode
+}
+
 // The base dir is passed explicitly: the child inherits this process's
 // environment, so without the flag an exported RITUAL_BASE_DIR would outrank
 // the spawn's `cwd` and silently build a different workspace than the server's.
@@ -92,11 +116,8 @@ export type BuildSiteRunOptions = {
 // and then publish a site with it off. Passing it when the config would have
 // enabled it anyway is harmless: the flag is enable-only.
 //
-// `--refresh auto` because the child has no terminal: under the default `ask`
-// every cache question — the bulk download a never-downloaded or week-old
-// cache needs included — would be declined, and the button would publish
-// from whatever the cache holds. A build asked for from the admin site or
-// MCP refreshes what it needs, as the generated CI workflow's build does.
+// `--refresh` is the server's own mode (see {@link buildChildRefreshMode}), so
+// `ritual admin --refresh never` never downloads from a site build either.
 export const defaultBuildArgv: BuildSiteArgv = (outDir) =>
   ritualArgv([
     FLAG.baseDir,
@@ -105,7 +126,7 @@ export const defaultBuildArgv: BuildSiteArgv = (outDir) =>
     FLAG.outDir,
     outDir,
     FLAG.refresh,
-    'auto' satisfies RefreshMode,
+    buildChildRefreshMode(serverRefreshMode),
     ...(getSiteSellMode() ? [FLAG.sellMode] : []),
   ])
 

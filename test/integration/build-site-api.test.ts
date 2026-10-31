@@ -13,6 +13,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   defaultBuildArgv,
+  setServerRefreshMode,
   handleBuildSite,
   handleBuildSiteStream,
   STALE_BUILD_DIR_MAX_AGE_MS,
@@ -276,10 +277,19 @@ describe('handleBuildSite (Integration)', () => {
       expect(argv).toContain(path.join(ws.dir, 'dist'))
     })
 
-    test('answers the cache questions with --refresh auto, since the child has no terminal', () => {
-      const argv = defaultBuildArgv(path.join(ws.dir, 'dist'))
-
-      expect(argv[argv.indexOf('--refresh') + 1]).toBe('auto')
+    test("forwards the server's --refresh mode, its default ask answered as auto", () => {
+      const refreshOf = (): string | undefined => {
+        const argv = defaultBuildArgv(path.join(ws.dir, 'dist'))
+        return argv[argv.indexOf('--refresh') + 1]
+      }
+      try {
+        expect(refreshOf()).toBe('auto')
+        // `ritual admin --refresh never` (offline) must not download from a build.
+        setServerRefreshMode('never')
+        expect(refreshOf()).toBe('never')
+      } finally {
+        setServerRefreshMode('ask')
+      }
     })
 
     test('omits --sell-mode when the server has sell mode off', () => {

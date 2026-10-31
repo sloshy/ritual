@@ -111,9 +111,10 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
   can answer it (`--no-input`, or no terminal), the download is skipped with a note and the
   build fetches the missing cards one by one. **A headless build that relied on the
   automatic download must pass `--refresh auto`**; the "Publish for me" workflow already
-  does, and the admin **Build Site** page and MCP `build_site` (whose background build
-  cannot be asked) now run theirs with `--refresh auto` too, so they also take the bulk
-  price refresh and tag download the build offers.
+  does. The admin **Build Site** page and MCP `build_site`, whose background build cannot
+  be asked, now run it with the admin server's own `--refresh` mode, the default `ask`
+  becoming `auto`: by default they also take the bulk price refresh and tag download the
+  build offers, and `ritual admin --refresh never` never downloads from a build.
 - Every offer of a first card-cache download now says roughly how big it is (about 80 MB,
   about 450 MB on disk; the every-language data a non-English `defaultLanguage` needs is
   about 400 MB to download), after the line saying where it will be stored. The `edit`

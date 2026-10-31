@@ -2406,7 +2406,7 @@ Failures are reported inside the stream rather than as an HTTP status, since `Ev
 POST /api/build-site
 ```
 
-Build and publish the public static site — the same build as [`ritual build-site`](/commands/build-site/), run as a child process with [`--refresh auto`](/commands/build-site/#card-cache-refresh) (the child cannot answer prompts) so the server stays responsive. The build writes into a scratch directory beside `dist/` and swaps it into place only once the child exits cleanly, so `dist/` always holds either the previous site or the new one. Exposed as the MCP `build_site` tool.
+Build and publish the public static site — the same build as [`ritual build-site`](/commands/build-site/), run as a child process so the server stays responsive. The child runs with the server's own [`--refresh`](/commands/build-site/#card-cache-refresh) mode, `ask` (the default) answered as `auto` since the child cannot prompt. The build writes into a scratch directory beside `dist/` and swaps it into place only once the child exits cleanly, so `dist/` always holds either the previous site or the new one. Exposed as the MCP `build_site` tool.
 
 **Request Body:** None.
 
