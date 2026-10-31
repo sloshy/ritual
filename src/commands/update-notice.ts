@@ -21,7 +21,7 @@
  */
 
 import { isCommandOrSubcommand, qualifiedCommandName } from '../cli/command-name'
-import type { UpdateNoticeHooks } from '../cli/program'
+import type { ActionNoticeHooks } from '../cli/program'
 import type { UpdateChannel } from '../config/semver'
 import { isConfigParseError, parseUpdateCheck, readRawRitualConfig } from '../config/ritual-config'
 import { t } from '../i18n/t'
@@ -159,7 +159,7 @@ type ServerRun = {
 type ActiveRun = CommandRun | ServerRun
 
 /** The hooks the root program calls, plus the one `main()` calls once parsing ends. */
-export type UpdateNotice = UpdateNoticeHooks & {
+export type UpdateNotice = ActionNoticeHooks & {
   abandon: () => void
 }
 

@@ -81,7 +81,7 @@ describe('creating a list in the edit command (Integration)', () => {
     await saveCardSession(open.strategy, open.ctx)
     const content = await fs.readFile(open.ref.file, 'utf-8')
     expect(content).toContain('format: commander')
-    expect(content).toContain('# Fresh Brew\n\n## Main')
+    expect(content).toContain('# Fresh Brew\n\n## Commander\n\n## Main')
   })
 
   test('a new flat list is written with its title as the heading', async () => {

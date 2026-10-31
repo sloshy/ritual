@@ -42,11 +42,15 @@ export const helpCardsMeta = {
   'help.addCard.cardName': { description: "Help for add-card's card-name argument." },
   'help.addCard.collectionFlag': {
     description:
-      "add-card's --collection flag: unlike elsewhere, a missing collection is created by the add.",
+      "add-card's --collection flag: unlike elsewhere, a missing collection is created by the add when the workspace has no collection yet.",
   },
   'help.addCard.wantedFlag': {
     description:
-      "add-card's --wanted flag: unlike elsewhere, a missing wanted list is created by the add.",
+      "add-card's --wanted flag: unlike elsewhere, a missing wanted list is created by the add when the workspace has no wanted list yet.",
+  },
+  'help.addCard.create': {
+    description:
+      "add-card's --create flag: create a missing collection or wanted list even when other lists of that type exist (without it, such a name is refused as a likely typo). {collectionFlag} and {wantedFlag} are the `--collection` and `--wanted` flags. Each is typed or matched exactly by the user, so never translate them.",
   },
   'help.addCard.quantity': {
     description:

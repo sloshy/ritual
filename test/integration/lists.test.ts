@@ -15,7 +15,7 @@ async function seedLists(dir: string): Promise<void> {
 }
 
 describe('lists CLI (Integration)', () => {
-  test('prints one aligned row per list: type, slug, display name', async () => {
+  test('prints a headed table: type, display name, and the file name where they differ', async () => {
     await withWorkspace(async (dir) => {
       await seedLists(dir)
       const result = await runCli(['lists'], dir)
@@ -23,10 +23,11 @@ describe('lists CLI (Integration)', () => {
 
       const lines = result.stdout.trimEnd().split('\n')
       expect(lines).toEqual([
-        'deck         burn   Burn',
-        'deck         stax   Winota Stax',
-        'collection   main   Main Binder',
-        'wanted list  needs  Needs',
+        'Type         Name         File',
+        'deck         Burn         burn',
+        'deck         Winota Stax  stax',
+        'collection   Main Binder  main',
+        'wanted list  Needs        needs',
       ])
     })
   })

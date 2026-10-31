@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  DECK_FORMAT_KEYS,
   findOrCreateSection,
+  formatHasCommandZone,
+  newDeckSections,
   resolveDefaultAddSection,
   resolveSectionName,
   resolveTypedSectionName,
@@ -9,6 +12,12 @@ import {
   sectionNameParam,
 } from '../../src/list/deck-format'
 import type { DeckSection } from '../../src/list/deck'
+import {
+  newDeckFrontMatter,
+  newDeckMarkdown,
+  serializeDeckToMarkdown,
+} from '../../src/list/deck-file'
+import { parseDeckText } from '../../src/importers/text-file'
 import { pseudoCatalog, pseudoString, withSyntheticLocale } from '../helpers/sync-text'
 
 function section(name: string, cardNames: string[] = []): DeckSection {
@@ -221,5 +230,29 @@ describe('sectionDisplayNames — rendered collisions', () => {
         'Seitenboard',
       ])
     })
+  })
+})
+
+describe('newDeckSections', () => {
+  test('a command-zone format starts with an empty Commander section before Main; any other with Main alone', () => {
+    for (const format of DECK_FORMAT_KEYS) {
+      expect(newDeckSections(format)).toEqual(
+        formatHasCommandZone(format)
+          ? [
+              { name: 'Commander', cards: [] },
+              { name: 'Main', cards: [] },
+            ]
+          : [{ name: 'Main', cards: [] }],
+      )
+    }
+  })
+})
+
+describe('a new deck round-trips through parse and serialize', () => {
+  test('its empty Commander and Main sections survive a whole-file rewrite', () => {
+    const written = newDeckMarkdown('Fresh', 'commander')
+    const parsed = parseDeckText(written, 'Fresh')
+    expect(parsed.deck.sections.map((s) => s.name)).toEqual(['Commander', 'Main'])
+    expect(serializeDeckToMarkdown(parsed.deck, newDeckFrontMatter('commander'))).toBe(written)
   })
 })

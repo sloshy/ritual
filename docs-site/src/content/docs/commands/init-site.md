@@ -2,7 +2,9 @@
 title: 'init-site'
 ---
 
-Set up the current directory for publishing a Ritual site: a README, a `.gitignore`, the site settings in `ritual.config.json`, and, for GitHub Actions, a deploy workflow.
+Set up the current directory for publishing a Ritual site to GitHub Pages or another host: a README, a `.gitignore`, the site settings in `ritual.config.json`, and, for GitHub Actions, a deploy workflow.
+
+`init-site` is not how a workspace starts. Any folder becomes a workspace as soon as you create a list in it with [`new`](/commands/new/) or [`import`](/commands/import/) (see [Your First Deck](/start/first-deck/)), and [`build-site`](/commands/build-site/) and [`serve`](/commands/serve/) work without it. Run `init-site` once you want the site published automatically.
 
 For a walkthrough, see [Publish your deck site](/guides/publish-site/).
 

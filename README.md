@@ -4,7 +4,7 @@
 
 Ritual is a free, open-source command-line program for Magic: The Gathering. It keeps your decks, collections and wanted lists as plain markdown files in a folder, usually a git repository. It prices them, imports them from the sites you already use, and builds them into a website you can host anywhere.
 
-- **Lists are files.** One markdown file per deck, collection or wanted list. Edit it with Ritual (`ritual edit` in the terminal, `ritual admin` in the browser) or by hand. Ritual logs the changes it makes in a history file beside the list.
+- **Lists are files.** One markdown file per deck, collection or wanted list. Edit it with Ritual (`ritual edit` in the terminal, `ritual admin` in the browser) or by hand. Ritual logs the changes it makes in a history file beside the list, and keeps a small `.sha256` file there too so it can tell its own edits from yours; commit both with the list.
 - **Prices.** TCGplayer, Cardmarket, Card Kingdom and Cardhoarder prices for every list. Card data and most prices come from a local cache of Scryfall's data; Card Kingdom's come from its own price list.
 - **Import and sync.** Decks from Archidekt, Moxfield and MTGGoldfish, lists from text and CSV files, and two-way sync with Archidekt for decks and your collection.
 - **Your own site.** `ritual build-site` writes a static website of your lists; `ritual init-site` sets up publishing to GitHub Pages. An MCP server and agent skills let AI assistants work with your lists too.

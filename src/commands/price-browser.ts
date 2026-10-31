@@ -144,16 +144,58 @@ export function createDefaultBrowserState(): CardBrowserState {
 export function formatTotalsSegment(totals: PriceTotals, currency: PriceCurrency): string {
   const parts: string[] = [
     t('cli.price.totalsTotal', {
-      price: formatTotalPrice(totals.total, currency, totals.estimatedCount > 0),
+      price: formatTotalPrice(totals.total, currency, isEstimatedTotal(totals)),
     }),
   ]
-  if (totals.lowestTotal !== totals.total) {
+  if (showsLowestTotal(totals)) {
     parts.push(t('cli.price.totalsLowest', { price: formatPrice(totals.lowestTotal, currency) }))
   }
   if (totals.unpricedCount > 0) {
     parts.push(t('cli.price.totalsUnpriced', { count: totals.unpricedCount }))
   }
   return parts.join(' · ')
+}
+
+/**
+ * The legend printed under a price listing: one line per marker the listing
+ * actually shows — the `*` after an unpinned printing, the per-line totals and
+ * their trailing "lowest", the `~` of an estimated total and the "Lowest
+ * possible" total — and nothing when it shows none of them.
+ */
+export function formatPriceLegend(
+  entries: readonly PricedEntry[],
+  totals: PriceTotals | undefined,
+): string[] {
+  const lines: string[] = []
+  if (entries.some((entry) => entry.quantity > 1 || hasLowerPrinting(entry))) {
+    lines.push(t('cli.price.legendLineTotals'))
+  }
+  if (entries.some(showsUnpinnedMarker)) lines.push(t('cli.price.legendUnpinned'))
+  if (totals !== undefined && isEstimatedTotal(totals)) lines.push(t('cli.price.legendEstimate'))
+  if (totals !== undefined && showsLowestTotal(totals)) {
+    lines.push(t('cli.price.legendLowestTotal'))
+  }
+  return lines
+}
+
+/** Whether a total reads `~` ({@link formatTotalsSegment}). */
+function isEstimatedTotal(totals: PriceTotals): boolean {
+  return totals.estimatedCount > 0
+}
+
+/** Whether a totals segment shows its "Lowest possible" figure ({@link formatTotalsSegment}). */
+function showsLowestTotal(totals: PriceTotals): boolean {
+  return totals.lowestTotal !== totals.total
+}
+
+/** Whether a row carries the trailing "lowest" note ({@link formatEntryChoiceTitle}). */
+function hasLowerPrinting(entry: PricedEntry): boolean {
+  return entry.lowest > 0 && entry.lowest !== entry.price
+}
+
+/** Whether a row's printing carries the `*` unpinned marker ({@link formatEntryChoiceTitle}). */
+function showsUnpinnedMarker(entry: PricedEntry): boolean {
+  return Boolean(entry.set && entry.collectorNumber) && !entry.pinned
 }
 
 /** The main screen's at-a-glance header: cache age, per-type totals, grand total. */
@@ -243,14 +285,13 @@ export function formatEntryChoiceTitle(
 ): string {
   const printing =
     entry.set && entry.collectorNumber
-      ? ` (${printingLabel(entry.set, entry.collectorNumber)})${entry.pinned ? '' : '*'}`
+      ? ` (${printingLabel(entry.set, entry.collectorNumber)})${showsUnpinnedMarker(entry) ? '*' : ''}`
       : ''
   const finish = entry.finish && entry.finish !== 'nonfoil' ? ` [${entry.finish}]` : ''
   const price = formatEntryPrice(entry, entry.price * entry.quantity, currency)
-  const lowest =
-    entry.lowest > 0 && entry.lowest !== entry.price
-      ? ` · ${t('cli.price.rowLowest', { price: formatPrice(entry.lowest * entry.quantity, currency) })}`
-      : ''
+  const lowest = hasLowerPrinting(entry)
+    ? ` · ${t('cli.price.rowLowest', { price: formatPrice(entry.lowest * entry.quantity, currency) })}`
+    : ''
   const source = showSource ? ` · ${LIST_TYPE_DISPLAY[entry.listType].icon} ${entry.listName}` : ''
   const item = `${entry.name}${printing}${finish} — ${price}${lowest}${source}`
   return quantityRow(entry.quantity, item)
@@ -362,7 +403,7 @@ export function formatEntryDetailLines(entry: PricedEntry, currency: PriceCurren
   if (entry.unpricedReason) {
     lines.push(t('cli.price.detailUnpriced', { reason: t(UNPRICED_REASON[entry.unpricedReason]) }))
   }
-  if (entry.lowest > 0 && entry.lowest !== entry.price) {
+  if (hasLowerPrinting(entry)) {
     const lowestPrinting =
       entry.lowestSet && entry.lowestCollectorNumber
         ? ` (${printingLabel(entry.lowestSet, entry.lowestCollectorNumber)})${entry.lowestFinish ? ` [${entry.lowestFinish}]` : ''}`
@@ -532,13 +573,13 @@ async function runCardBrowser(
   const state = createDefaultBrowserState()
   while (true) {
     const visible = visibleBrowserEntries(entries, state)
+    const totals = sumPricedEntries(visible)
     console.log('')
     console.log(
-      t('cli.price.browserHeading', {
-        heading,
-        totals: formatTotalsSegment(sumPricedEntries(visible), currency),
-      }),
+      t('cli.price.browserHeading', { heading, totals: formatTotalsSegment(totals, currency) }),
     )
+    // The same legend the printed listing closes with, here above the rows it explains.
+    for (const line of formatPriceLegend(visible, totals)) console.log(line)
     const selection = await ask<CardBrowserSelection>({
       type: 'autocomplete',
       message: t('cli.price.promptBrowser'),

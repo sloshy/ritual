@@ -10,15 +10,15 @@
     "title": "Create a deck, add a card, and read the file",
     "cols": 100,
     "rows": 18,
-    "duration": 16.99,
-    "poster": 15.761
+    "duration": 17.155,
+    "poster": 15.927
   },
   "price": {
     "title": "Browse the price of every list",
     "cols": 100,
     "rows": 28,
-    "duration": 15.202,
-    "poster": 9.739
+    "duration": 15.309,
+    "poster": 9.757
   },
   "scry": {
     "title": "Search Scryfall from the terminal",

@@ -1688,6 +1688,10 @@ export const cliInfraMeta = {
   },
 
   // ── update-available notice ───────────────────────────────────────────
+  'cli.sidecarNotice.introduction': {
+    description:
+      "Printed once per workspace, the first time a command creates a `.sha256` sidecar file next to a list: what the files are for (telling Ritual's own writes apart from hand edits, so a hand edit gets logged in the list's change history) and that they belong in version control. {file} is the `.sha256` file extension, never translated.",
+  },
   'cli.updateNotice.available': {
     description:
       "One stderr line printed after a command's own output, at most once a day per release, when a newer Ritual release exists. {latest} is that release's version, {current} the running one. {command} is the `ritual self-update` command line. It is typed or matched exactly by the user, so never translate it.",
@@ -1893,7 +1897,24 @@ export const cliInfraMeta = {
     description: 'The total value segment. {price} is already formatted.',
   },
   'cli.price.totalsLowest': {
-    description: 'The cheapest-printing total, shown only when it differs from the total.',
+    description:
+      'The cheapest-printing total, shown only when it differs from the total: what the cards would cost if every one were bought at its cheapest printing.',
+  },
+  'cli.price.legendLineTotals': {
+    description:
+      "Legend line under a printed price listing: each row's price covers all its copies, and the row's trailing 'lowest' (cli.price.rowLowest) is those copies at the cheapest printing. Quote 'lowest' the way cli.price.rowLowest renders it.",
+  },
+  'cli.price.legendUnpinned': {
+    description:
+      'Legend line under a printed price listing, explaining the * after a printing: the list line pins no printing, so the printing shown is a representative one. Keep the leading *, which is the marker itself.',
+  },
+  'cli.price.legendEstimate': {
+    description:
+      'Legend line under a price listing whose total is prefixed ~ (domain.price.estimated). Keep the leading ~, which is the marker itself.',
+  },
+  'cli.price.legendLowestTotal': {
+    description:
+      "Legend line under a price listing with a 'Lowest possible' total (cli.price.totalsLowest). Quote 'Lowest possible' the way cli.price.totalsLowest renders it.",
   },
   'cli.price.rowLowest': {
     description:

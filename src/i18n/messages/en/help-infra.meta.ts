@@ -169,7 +169,10 @@ export const helpInfraMeta = {
   },
 
   // ── init-site ─────────────────────────────────────────────────────────
-  'help.initSite.description': { description: 'Summary of the `init-site` command.' },
+  'help.initSite.description': {
+    description:
+      'Summary of the `init-site` command, which sets up publishing (a CI workflow and the site settings) and is not a first step: a newcomer starts with {newCommand} or {importCommand}, the `new` and `import` command names. Each is typed or matched exactly by the user, so never translate them.',
+  },
   'help.initSite.force': { description: '`init-site --force`.' },
   'help.initSite.ci': {
     description: "`init-site --ci`. 'github-actions'/'manual' are literal flag values.",

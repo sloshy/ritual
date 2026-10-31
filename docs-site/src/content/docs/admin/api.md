@@ -34,7 +34,7 @@ Every route refuses a request with the same body, whatever the status — and so
 }
 ```
 
-`messageKey` and `messageParams` follow [the message triple](#the-message-triple): present on a keyed refusal, absent when the prose has no catalog entry. A refusal naming a list that does not resolve ([Diff Lists](#diff-lists), [Export Cards](#export-cards)) carries the list resolver's `errors.resolveList.*` key, and its params may nest (the ambiguous matches are a list of messages).
+`messageKey` and `messageParams` follow [the message triple](#the-message-triple): present on a keyed refusal, absent when the prose has no catalog entry. A refusal naming a list that does not resolve ([Diff Lists](#diff-lists), [Export Cards](#export-cards)) carries the list resolver's `errors.resolveList.*` key, and its params may nest (the ambiguous matches are a list of messages). A not-found with existing names close to the one requested is `errors.resolveList.didYouMean`, nesting the not-found message as `message` beside the suggested `names`.
 
 A request whose shape is wrong is refused with a shared family of keys wherever a route's check is a generic one (a route with a field of its own, such as `columns` on [Export Cards](#export-cards), words its refusal for that field). The body itself: `admin.api.body.notJson` (not valid JSON), `admin.api.body.notObject` (JSON, but not an object) and `admin.api.body.tooLarge` (a `413`, see [Request size limits](#request-size-limits)). A field or query parameter: `admin.api.field.*`, whose `field` param names it exactly as the request spelled it, an indexed path included (`printings[3].set`). The family is `required`, `notBoolean`, `notString`, `blank` (missing, or empty once trimmed), `notObject`, `notArray`, `notStringArray`, `tooMany` (more entries than one request may carry, the maximum as `count`), `notPositiveInteger` and `notNonNegativeInteger` (the value sent, trimmed, as `value`: an invalid `limit`, `page` or `offset`), plus `credentialsRequired` for a sign-in form missing its `username` or `password`. The English quotes the field: `"printings[3].set" must be a non-empty string.`, `Invalid "limit" 'abc'. Use a positive integer.` A value outside a fixed set of choices is `errors.enum.invalid` (or `errors.enum.type` for one that is not a string), with `field`, `value` and the comma-joined `choices`.
 
@@ -268,7 +268,7 @@ Create a new deck file, named after the deck — see [List file names](/commands
 | `name`   | Deck name (used to generate the slug) | Yes      |
 | `format` | Deck format (default: `"commander"`)  | No       |
 
-`format` must be a canonical deck format key — see [Deck Format](/commands/new/#deck-format). An unrecognized value returns `400` and creates nothing.
+`format` must be a canonical deck format key — see [Deck Format](/commands/new/#deck-format). An unrecognized value returns `400` and creates nothing. The new deck starts with the sections its format expects: an empty `## Commander` and `## Main` for a format with a command zone, otherwise `## Main` alone (see [`new`](/commands/new/#output)).
 
 **Response:**
 

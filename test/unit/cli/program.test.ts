@@ -7,6 +7,8 @@ import {
   localizeHelpTitle,
   localizedArgumentDescription,
   localizedOptionDescription,
+  requestsFullHelp,
+  type CommandGroup,
 } from '../../../src/cli/program'
 import { COMMAND_GROUPS } from '../../../src/commands/registry'
 import { NO_UPDATE_NOTICE } from '../../helpers/cli'
@@ -83,34 +85,34 @@ describe('buildProgram', () => {
     // The tree is hand-maintained data now; a registrar dropped from
     // COMMAND_GROUPS would otherwise vanish from the CLI without a failing test.
     expect(program.commands.map((command) => command.name())).toEqual([
-      'lists',
       'new',
+      'import',
+      'add-card',
+      'edit',
+      'admin',
+      'lists',
+      'card',
+      'scry',
+      'price',
+      'build-site',
+      'serve',
       'rename',
       'delete',
-      'edit',
       'metadata',
       'categories',
       'set-list-image',
       'history',
       'diff',
       'get-primer',
-      'add-card',
       'remove-card',
       'set-card',
       'note',
       'move',
-      'import',
       'import-account',
       'import-changes',
       'export',
-      'card',
-      'scry',
-      'price',
       'sell',
-      'build-site',
-      'serve',
       'init-site',
-      'admin',
       'login',
       'deck-sync',
       'collection-sync',
@@ -118,13 +120,13 @@ describe('buildProgram', () => {
       'skills',
       'cache',
       'cleanup',
-      'migrate',
       'self-update',
-      'detect-changes',
-      'list-all-cards',
       'config',
       'locale',
       'license',
+      'migrate',
+      'detect-changes',
+      'list-all-cards',
       'dep-license',
     ])
   })
@@ -136,6 +138,9 @@ describe('buildProgram', () => {
       if (headings.at(-1) !== heading) headings.push(heading)
     }
     expect(headings).toEqual([
+      t('help.group.start'),
+      t('help.group.browse'),
+      t('help.group.publish'),
       t('help.group.lists'),
       t('help.group.cards'),
       t('help.group.importExport'),
@@ -144,7 +149,7 @@ describe('buildProgram', () => {
       t('help.group.integrations'),
       t('help.group.cache'),
       t('help.group.utilities'),
-      t('help.group.legal'),
+      t('help.group.advanced'),
     ])
   })
   /**
@@ -371,5 +376,100 @@ describe('localizeHelpTitle', () => {
         expect(help).not.toContain(heading)
       }
     })
+  })
+})
+
+/**
+ * `ritual --help` describes the core tier, only names the `more` tier, and
+ * leaves the advanced tier to `help --all`. Probed with a three-group tree so
+ * the assertions do not restate the real registry.
+ */
+describe('tiered root help', () => {
+  const register =
+    (name: string) =>
+    (root: Command): void => {
+      root
+        .command(name)
+        .description(`${name} summary`)
+        .action(() => undefined)
+    }
+  const groups: readonly CommandGroup[] = [
+    { titleKey: 'help.group.start', tier: 'core', commands: [register('alpha')] },
+    { titleKey: 'help.group.lists', tier: 'more', commands: [register('beta'), register('gamma')] },
+    { titleKey: 'help.group.advanced', tier: 'advanced', commands: [register('delta')] },
+  ]
+  const rootHelp = (fullHelp: boolean): string =>
+    buildProgram({
+      groups,
+      backfill: () => false,
+      workspaceCheck: () => Promise.resolve(),
+      updateNotice: NO_UPDATE_NOTICE,
+      fullHelp,
+    }).helpInformation()
+
+  test('the condensed view describes core commands and only names the rest', () => {
+    const help = rootHelp(false)
+    expect(help).toContain(t('help.group.start'))
+    expect(help).toContain('alpha summary')
+    expect(help).not.toContain('beta summary')
+    expect(help).toContain(t('help.tier.moreTitle'))
+    expect(help).toMatch(/^ {2}beta, gamma$/m)
+    expect(help).not.toContain('delta')
+    expect(help).not.toContain(t('help.group.advanced'))
+    expect(help).toContain('ritual help --all')
+  })
+
+  test('the full view describes every command under its group, advanced included', () => {
+    const help = rootHelp(true)
+    for (const name of ['alpha', 'beta', 'gamma', 'delta']) {
+      expect(help).toContain(`${name} summary`)
+    }
+    expect(help).toContain(t('help.group.advanced'))
+    expect(help).not.toContain(t('help.tier.moreTitle'))
+  })
+
+  test('a subcommand’s help is never condensed', () => {
+    const program = buildProgram({
+      groups: [
+        {
+          titleKey: 'help.group.start',
+          tier: 'core',
+          commands: [
+            (root) => {
+              const parent = root.command('parent')
+              parent.command('child').description('child summary')
+            },
+          ],
+        },
+      ],
+      backfill: () => false,
+      workspaceCheck: () => Promise.resolve(),
+      updateNotice: NO_UPDATE_NOTICE,
+    })
+    expect(program.commands[0]!.helpInformation()).not.toContain(t('help.tier.moreTitle'))
+  })
+
+  test('an unknown command is still offered a non-core command as its suggestion', () => {
+    let written = ''
+    const program = buildProgram({
+      groups,
+      backfill: () => false,
+      workspaceCheck: () => Promise.resolve(),
+      updateNotice: NO_UPDATE_NOTICE,
+    })
+    program.configureOutput({ writeErr: (text) => (written += text) })
+    expect(() => program.parse(['gamm'], { from: 'user' })).toThrow(CommanderError)
+    expect(written).toContain('gamma')
+  })
+})
+
+describe('requestsFullHelp', () => {
+  test.each([
+    [['--help', '--all'], true],
+    [['help', '--all'], true],
+    [['--help'], false],
+    [['add-card', 'x', '--', '--all'], false],
+  ] as const)('%p -> %p', (argv, expected) => {
+    expect(requestsFullHelp(argv)).toBe(expected)
   })
 })

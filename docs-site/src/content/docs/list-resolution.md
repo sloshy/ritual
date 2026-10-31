@@ -14,6 +14,14 @@ Ritual searches the existing list files and applies these rules in order:
 3. **Unique substring match.** If nothing matches exactly, a list whose name _contains_ the input (under the same folding) is accepted, but only if exactly one does.
 4. **Otherwise it is an error.** No match is a "not found" error. More than one match at the winning tier is an "ambiguous" error.
 
+A "not found" error suggests the existing names closest to what you typed, so a typo points at the list you meant:
+
+```text
+No collection named 'Trade Bindr' found. Did you mean 'Trade Binder'?
+```
+
+A name is suggested when it is within about one edit (an inserted, deleted, changed, or swapped character) per four characters of the longer of the two names (after folding), and at least one edit. At most three names are suggested, closest first.
+
 Matching is against the **file name** without its `.md` extension, not the `# Title` heading or the front matter.
 
 ### What folding ignores

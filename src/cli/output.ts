@@ -8,6 +8,7 @@ import path from 'node:path'
 import { InvalidArgumentError } from 'commander'
 import { getBaseDir } from '../config/base-dir'
 import {
+  CardCommandError,
   type ErrorCode,
   ExitCode,
   hasErrorCode,
@@ -18,10 +19,12 @@ import type { MessageKey } from '../i18n/messages/en'
 import { t, type RenderParams, type ParameterlessKey } from '../i18n/t'
 import {
   formatResolveListError,
+  resolveListErrorMessage,
   type ResolveHint,
   type ResolveListError,
 } from '../list/resolve-list'
 import { getAtPath } from '../util/object'
+import { envelopeRef } from '../sync/message'
 import { promptsUnavailable } from '../util/no-input'
 import { QUIET_STDERR_LOGGER, setLogger, STDERR_LOGGER } from '../util/logger'
 import { FLAG, flagValue } from '../util/cli-tokens'
@@ -342,6 +345,24 @@ export function emitResolveListError(
 }
 
 /**
+ * {@link emitResolveListError} as a thrown error, for an action that reports
+ * through `runCommandAction`: the same code, exit code, message and envelope key.
+ */
+export function resolveListCommandError(
+  error: ResolveListError,
+  hint: ResolveHint,
+): CardCommandError {
+  const ambiguous = error.kind === 'ambiguous'
+  return new CardCommandError(
+    ambiguous ? 'usage_error' : 'not_found',
+    formatResolveListError(error, hint),
+    ambiguous ? ExitCode.UsageError : ExitCode.NotFound,
+    undefined,
+    resolveListMessageRef(error),
+  )
+}
+
+/**
  * The catalog key `formatResolveListError` rendered from, **with its
  * parameters** — the discriminator a script gets in the structured envelope. It
  * distinguishes the type-scoped refusals from the cross-type ones, which
@@ -361,6 +382,12 @@ function resolveListMessageRef(error: ResolveListError): ErrorMessageRef {
         ? { key: 'errors.resolveList.noListsOfType', params: { type: error.type } }
         : { key: 'errors.resolveList.noLists' }
     case 'not-found':
+      // With suggestions the message is the `didYouMean` frame around the
+      // not-found sentence; its key and flattened params say so, the names included.
+      if (error.suggestions !== undefined && error.suggestions.length > 0) {
+        const ref = envelopeRef(resolveListErrorMessage(error, 'none'))
+        if (ref !== undefined) return ref
+      }
       return error.type
         ? {
             key: 'errors.resolveList.notFoundOfType',

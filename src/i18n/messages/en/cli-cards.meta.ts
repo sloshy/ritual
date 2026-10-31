@@ -177,7 +177,15 @@ export const cliCardsMeta = {
   },
   'cli.addCard.deckNotFound': {
     description:
-      'A deck is never auto-created by add-card. {command} is the `ritual new deck` command line. It is typed or matched exactly by the user, so never translate it.',
+      'A deck is never auto-created by add-card. {message} is the already-rendered not-found sentence (errors.resolveList.notFoundOfType or noListsOfType, possibly with errors.resolveList.didYouMean). {command} is the `ritual new deck` command line. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'cli.addCard.createAdvice': {
+    description:
+      'add-card refused to create a collection or wanted list whose name matches none of the existing lists of that type, since it is most likely a typo. {message} is the already-rendered not-found sentence, possibly with "Did you mean …?" (errors.resolveList.didYouMean). {flag} is the `--create` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
+  'cli.addCard.createNeedsType': {
+    description:
+      'Usage error: add-card --create was given without pinning the list type to collection or wanted list. {createFlag}, {collectionFlag} and {wantedFlag} are the `--create`, `--collection` and `--wanted` flags; {command} is the `ritual new deck` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.addCard.noExactMatch': {
     description:
@@ -190,11 +198,11 @@ export const cliCardsMeta = {
   },
   'cli.addCard.addedToDeck': {
     description:
-      "Success line for a deck add. {card} is the quantity plus the card's name and printing; {section} is the deck section it landed in.",
+      "Success line for a deck add. {card} is the quantity plus the card's name and printing; {list} is the deck's name; {section} is the deck section it landed in.",
   },
   'cli.addCard.addedLine': {
     description:
-      'Success line for a collection or wanted add. {line} is the markdown card line exactly as written to the file.',
+      "Success line for a collection or wanted add. {list} is the list's name; {line} is the markdown card line exactly as written to the file.",
   },
   'cli.addCard.noPrintingSelected': {
     description:
@@ -803,9 +811,6 @@ export const cliCardsMeta = {
     description: 'Prefixes a parser warning with the list file it came from.',
   },
   // ── List lifecycle: new / rename / delete ─────────────────────────────
-  'cli.new.invalidType': {
-    description: 'The <type> argument was not one of the three type slugs, which never translate.',
-  },
   'cli.new.formatDecksOnly': {
     description:
       'Refusal: only decks carry a format. {flag} is the `--format` flag. It is typed or matched exactly by the user, so never translate it.',
@@ -828,6 +833,17 @@ export const cliCardsMeta = {
   },
 
   // ── lists / list-all-cards ────────────────────────────────────────────
+  'cli.lists.columnType': {
+    description:
+      "Column heading of `ritual lists`' table: the list's type (deck, collection, wanted list).",
+  },
+  'cli.lists.columnName': {
+    description: "Column heading of `ritual lists`' table: the list's display name.",
+  },
+  'cli.lists.columnFile': {
+    description:
+      "Column heading of `ritual lists`' table: the list's file name without `.md`. Shown only when some list's file name differs from its display name.",
+  },
   'cli.lists.empty': {
     description:
       'Placeholder row when the listing is empty. The parentheses mark it as not a list name.',

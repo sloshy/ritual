@@ -30,7 +30,7 @@ CSV import is also available on the [admin site](/admin/import/#import-csv) (**I
 
 | Option                          | Applies to | Description                                                                                                                                                |
 | ------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-t, --type <type>`             | files      | List type for a file import: `deck`, `collection`, or `wanted`. Skips the prompt. URLs always import decks.                                                |
+| `-t, --type <type>`             | files      | List type for a file import: `deck`, `collection`, or `wanted` (plurals such as `decks` work too). Skips the prompt. URLs always import decks.             |
 | `--name <name>`                 | CSV        | Name of the list to create or append to                                                                                                                    |
 | `--deck-format <format>`        | CSV        | Deck format when creating a deck (e.g. `commander`, `modern`)                                                                                              |
 | `-c, --columns <mapping>`       | CSV        | Column mapping (see [Column Mapping](#column-mapping)). Skips the wizard.                                                                                  |

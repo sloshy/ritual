@@ -31,13 +31,22 @@ ritual lists
 ```
 
 ```text
-deck         burn   Burn
-deck         stax   Winota Stax
-collection   main   Main Binder
-wanted list  needs  Needs
+Type         Name         File
+deck         Burn         burn
+deck         Winota Stax  stax
+collection   Main Binder  main
+wanted list  Needs        needs
 ```
 
-Each text row has three aligned columns: the list type (worded in your [UI language](/localization/); `--output json` always spells it `deck`, `collection` or `wanted`), the slug (the file basename, which other commands resolve), and the display name (the list's `# Title` heading).
+The text output is a table under a heading row. **Type** is the list type, worded in your [UI language](/localization/) (`--output json` always spells it `deck`, `collection` or `wanted`). **Name** is the display name, the list's `# Title` heading. **File** is the slug, the file name without `.md`, which is what other commands match a list name against (see [List Names](/list-resolution/)). The **File** column appears only when some list's file name differs from its name; when every file is named after its list (the usual case, since Ritual names files that way), the table has just **Type** and **Name**:
+
+```text
+Type        Name
+deck        Burn
+collection  Main Binder
+```
+
+Scripts should read `--output json` rather than the text table.
 
 Only decks, as JSON:
 

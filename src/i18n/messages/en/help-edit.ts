@@ -31,7 +31,7 @@ export const helpEditMessages = {
 
   // ── history ───────────────────────────────────────────────────────────
   'help.history.description':
-    'Compact and rewrite the change history for a deck, collection, or wanted list',
+    "Show a deck, collection, or wanted list's change history ({flag}), or tidy it in an editor: merge, retime, or reword entries",
   'help.history.listName':
     'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
   'help.history.show': 'Print the change history and exit instead of opening the editor',

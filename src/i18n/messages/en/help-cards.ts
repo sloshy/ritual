@@ -35,8 +35,12 @@ export const helpCardsMessages = {
   // ── add-card ──────────────────────────────────────────────────────────
   'help.addCard.description': 'Add a card to a deck, collection, or wanted list by name',
   'help.addCard.cardName': 'Name of the card to search for',
-  'help.addCard.collectionFlag': 'Resolve the name as a collection (created if missing)',
-  'help.addCard.wantedFlag': 'Resolve the name as a wanted list (created if missing)',
+  'help.addCard.collectionFlag':
+    'Resolve the name as a collection (your first collection is created if missing)',
+  'help.addCard.wantedFlag':
+    'Resolve the name as a wanted list (your first wanted list is created if missing)',
+  'help.addCard.create':
+    'With {collectionFlag} or {wantedFlag}: create the list if no list of that name exists, even beside existing ones',
   'help.addCard.quantity': 'Number of copies to add (deck only)',
   'help.addCard.finish': 'Card finish: nonfoil, foil, etched',
   'help.addCard.condition':
@@ -151,7 +155,8 @@ export const helpCardsMessages = {
 
   // ── List lifecycle: new / rename / delete ─────────────────────────────
   'help.new.description': 'Create a new deck, collection, or wanted list',
-  'help.new.type': "List type: 'deck', 'collection', or 'wanted'",
+  'help.new.type':
+    "List type: 'deck', 'collection', or 'wanted' (plurals such as 'decks' work too)",
   'help.new.name': 'Name of the list',
   'help.new.format':
     'Deck format (decks only; default: commander). Pass an invalid value to list every accepted format, or see the new command docs.',

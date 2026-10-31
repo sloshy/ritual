@@ -468,6 +468,10 @@ Every list has an append-only `<name>.changes.md` file recording its card change
 - **It is a data format.** The prose is always English whatever the UI locale, and the file is git-diffable. Edit it with `history` or the admin [Change History](/admin/history/) page rather than by hand.
 - **Legacy entries** written before the block existed are never converted. They keep their prose, yield zero events, and are named by an advisory.
 
+## The `.sha256` files
+
+Beside each list, Ritual keeps `<name>.md.sha256`: a hash of the list file as Ritual last wrote it (a `<name>.categories.json` sidecar has one too). It is how Ritual tells its own edits from yours. A file that still matches its hash was written by Ritual, which already logged the change in `.changes.md`. A file that no longer matches was edited by hand, so [`detect-changes`](/commands/detect-changes/) compares it with the last commit and logs the edit. Commit the `.sha256` files along with your lists, or every list looks hand-edited on the next run. Ritual refreshes a hash only when it matched the file before the write, so a hand edit is never silently declared recorded. The first command that creates one in a workspace says so in a one-line note.
+
 ## What `cleanup` normalizes
 
 [`ritual cleanup`](/commands/cleanup/) is the migration for everything above. One pass rewrites every list in canonical form:

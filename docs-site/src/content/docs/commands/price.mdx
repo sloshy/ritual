@@ -40,7 +40,7 @@ The name is matched across all three list types; see [List Names](/list-resoluti
 | `--summary`            | Print the price summary instead of opening the browser                                                                                                                                                                             |
 | `--refresh <mode>`     | Card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`; see [Price Freshness](#price-freshness)                                                                                                                 |
 | `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                                                                                                                                        |
-| `--quiet`              | Suppress progress lines and the price disclaimer; never the payload or the parser warnings                                                                                                                                         |
+| `--quiet`              | Suppress progress lines, the marker legend, and the price disclaimer; never the payload or the parser warnings                                                                                                                     |
 
 ## The Interactive Browser
 
@@ -49,11 +49,12 @@ The name is matched across all three list types; see [List Names](/list-resoluti
 The main screen shows:
 
 - When prices were last updated, and the store (with its currency) prices come from
-- Every list with its total price, its lowest-price total (when it differs), its unpriced count, and its card count
+- Every list with its total price, its lowest possible total (every card at its cheapest printing, when that differs), its unpriced count, and its card count
 - Totals per list type (decks / collections / wanted lists) and across all lists
 
 Selecting a list opens a card browser over it. **🔎 Search all cards** opens the same browser over every list, with each card labelled by its source list. In a card browser:
 
+- Each row reads like the [printed listing's](#non-interactive-output), and a legend above the rows explains the markers they show (`*`, `~`, `lowest`, `Lowest possible`).
 - Typing filters rows live by name, set code, or collector number.
 - Menu items change the sort field and direction, and set persistent set-code, collector-number, and (in the global search) list-type filters.
 - Selecting a card shows its printing, unit and line price, cheapest printing, mana value, and EDHREC rank. It can also list every printing with per-finish prices.
@@ -125,6 +126,17 @@ ritual price "Red Binder" --no-input
 ritual price --set neo --sort price --descending
 ritual price --name "sol ring"
 ```
+
+In text, a card row reads `4x Lead the Stampede (IKO:163)* — $1.32 · lowest $1.12`: the quantity, the card and its printing, the price of the **whole line** (all four copies), and, when a cheaper printing exists, what the line would cost at that printing. A footer gives the list's totals, such as `75 cards · Total ~$135.79 · Lowest possible $69.85`, where **Lowest possible** prices every card at its cheapest printing. Under the listing, a legend explains whichever markers the view shows:
+
+```text
+Prices are for the whole line (quantity × one copy); 'lowest' is the line at its cheapest printing.
+* The list names no printing for this card, so it is priced at a representative one.
+~ The total is an estimate: it includes cards with no printing named or no price.
+'Lowest possible' prices every card at its cheapest printing.
+```
+
+`--quiet` leaves out the legend along with the disclaimer.
 
 Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). Every structured payload names its `source` (the store) and `currency` (that store's). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, grand totals, and a `warnings` array. The single-list and card-search payloads carry the same `warnings` field. Card listings include per-entry prices, lowest prices, and unpriced reasons.
 

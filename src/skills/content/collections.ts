@@ -27,9 +27,10 @@ skill for the file format.
 
 Use the one-shot commands (covered in full by the **ritual-edit** skill).
 \`add-card\` works on collections, and — when the type is pinned with
-\`--collection\` or a \`collection:\` prefix — creates the collection if it does
-not exist yet (including in a workspace with no collections at all; the file is
-created only once the add is certain to succeed):
+\`--collection\` or a \`collection:\` prefix — creates the collection if the
+workspace has none yet; beside existing ones a new name needs \`--create\`
+(otherwise it is refused as a likely typo, with the closest names suggested). The
+file is created only once the add is certain to succeed:
 
 \`\`\`bash
 ritual add-card "Main Binder" "Sol Ring" --collection --set c21 --collector-number 263

@@ -72,7 +72,8 @@ import { fail, failWithMessage } from '../cli/action'
 import { ExitCode, CardCommandError, isBrokenPipeError } from '../util/errors'
 import { getLogger } from '../util/logger'
 import { getDecksDir } from '../config/ritual-config'
-import { isListType, listTypeNoun, LIST_TYPES, type ListType } from '../list/list-type'
+import { listTypeNoun, LIST_TYPES, type ListType } from '../list/list-type'
+import { parseListTypeArg } from '../list/list-type-arg'
 import { ask, promptListType, resolveImportPrintings } from '../cli/prompts'
 import { cliConflictResolver } from '../cli/import-prompts'
 import { isNoInput, promptsUnavailable } from '../util/no-input'
@@ -80,6 +81,7 @@ import { t, type MessageParams } from '../i18n/t'
 import { currentLocale } from '../i18n/runtime'
 import {
   errorParam,
+  isMessageParseError,
   isSyncMessage,
   nestSync,
   renderSyncMessage,
@@ -823,15 +825,12 @@ export function registerImportCommand(program: Command): void {
 
     let typeFlag: ListType | undefined
     if (options.type !== undefined) {
-      const normalized = options.type.toLowerCase()
-      if (!isListType(normalized)) {
-        fail(scripting, 'usage_error', 'cli.import.invalidListType', {
-          value: options.type,
-          choices: LIST_TYPES.join(', '),
-        })
+      const parsed = parseListTypeArg(options.type)
+      if (isMessageParseError(parsed)) {
+        failWithMessage(scripting, 'usage_error', parsed.error)
         return
       }
-      typeFlag = normalized
+      typeFlag = parsed
     }
 
     // URL-shaped sources (explicit scheme, or a scheme-less supported deck

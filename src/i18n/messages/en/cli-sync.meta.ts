@@ -201,10 +201,6 @@ export const cliSyncMeta = {
     description:
       'Usage error: --sync-printings or --no-sync-printings was given for a local file, whose printings come from the file itself. Branch on the resolved source kind: "csv" or "text". {syncPrintingsFlag} is the `--sync-printings` flag; {noSyncPrintingsFlag} is the `--no-sync-printings` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
-  'cli.import.invalidListType': {
-    description:
-      "Usage error for --type. {choices} is the comma-separated list of persisted slugs ('deck, collection, wanted') and is never translated.",
-  },
   'cli.import.urlDeckOnly': {
     description:
       'Usage error: --type asked for a collection or wanted list, but the source is a deck URL. {label} is the list type as a lowercase noun, already translated (domain.listType.noun).',

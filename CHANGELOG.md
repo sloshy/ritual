@@ -96,6 +96,51 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
 
 ### Changed
 
+- **A shorter `ritual --help`.** It now describes the dozen commands a newcomer needs,
+  grouped as Get started (`new`, `import`, `add-card`, `edit`, `admin`), Look up and price
+  (`lists`, `card`, `scry`, `price`) and Publish (`build-site`, `serve`), and names the
+  rest in one line. `ritual help --all` (or `ritual --help --all`) describes every command,
+  with the CI and maintenance commands (`migrate`, `detect-changes`, `list-all-cards`,
+  `dep-license`) under a new **Advanced** heading. Every command still runs as before.
+- **`add-card --collection`/`--wanted` no longer creates a list from a typo.** Beside
+  existing lists of that type, a name that matches none of them is refused (exit 3) with
+  the closest names: "No collection named 'Trade Bindr' found. Did you mean 'Trade
+  Binder'?". Pass the new `--create` flag to make the new list anyway. The first list of a
+  type is still created without it. **If a script relies on `add-card` creating a second
+  collection or wanted list, add `--create`.**
+- Every "list not found" error now suggests the closest existing list names ("Did you mean
+  …?"), in every command that takes a list name and in the admin API's and MCP's error
+  messages. Such a refusal's `messageKey` is then `errors.resolveList.didYouMean`, with the
+  not-found sentence as its `message` param and the names as `names`; one with no close
+  name keeps `errors.resolveList.notFound`/`notFoundOfType`.
+- `ritual new deck` (and the admin site, MCP `create_list` and the `edit` session's new
+  deck) starts a deck whose format has a command zone (Commander, Oathbreaker, Brawl and
+  the other Commander variants) with an empty `## Commander` section above `## Main`.
+- `ritual new` and `import --type` accept the plural and two-word list types: `decks`,
+  `collections`, `"wanted lists"`, `wanted-list`; `ritual new wanted list Grails` works
+  unquoted.
+- `add-card` names the list in its result instead of the file:
+  `Added '1 Llanowar Elves' to Pauper Elves (Main)`, and
+  `Added to Trade Binder: - Sol Ring (FDC:286) &12` for a collection or wanted list (which
+  used to print only `Added: …`).
+- `ritual lists` prints a table with a heading row (Type, Name), and adds a File column only
+  when some list's file name differs from its name, instead of two unlabeled columns that
+  usually repeated each other.
+- `ritual price` explains its markers: a legend under a printed listing (and above the
+  rows in the interactive browser) says that a row's price is for the whole line, what
+  "lowest" and the `*` after a printing mean, and what a `~` total is. The cheapest-printing
+  total now reads "Lowest possible" instead of "Lowest". `--quiet` drops the legend.
+- The first command that creates a `.sha256` file in a workspace prints one line on stderr
+  saying what the files are for (telling Ritual's own edits from yours, so hand edits are
+  logged) and that they should be committed. The [List Files](https://ritual.rpeters.dev/list-format/#the-sha256-files)
+  page now explains them too.
+- `history --help` describes what `history` does (show a list's change history, or tidy it
+  in an editor) instead of "Compact and rewrite …", and `init-site --help` says it sets up
+  publishing and is not needed to get started.
+- **Scripts that parse text output may need updating:** `lists` (now a headed table),
+  `add-card` (names the list) and `price` (legend lines, "Lowest possible"). Their
+  `--output json` is unchanged; prefer it in scripts.
+
 - **`ritual card` and `ritual scry` print readable text by default** instead of the raw
   Scryfall JSON. `card` shows the name and mana cost, type line, rules text (each face of a
   double-faced, split or adventure card), the printing and its price in your

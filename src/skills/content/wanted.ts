@@ -25,9 +25,10 @@ name-only — no printing required. See the **ritual** skill for the file format
 
 Use the one-shot commands (covered in full by the **ritual-edit** skill).
 \`add-card\` works on wanted lists, and — when the type is pinned with \`--wanted\`
-or a \`wanted:\` prefix — creates the list if it does not exist yet, including in a
-workspace with no wanted lists at all (the file is created only once the add is
-certain to succeed, so a failed add or a \`--dry-run\` leaves none behind). Every wanted
+or a \`wanted:\` prefix — creates the list if the workspace has no wanted list yet;
+beside existing ones a new name needs \`--create\` (otherwise it is refused as a
+likely typo, with the closest names suggested). The file is created only once the
+add is certain to succeed, so a failed add or a \`--dry-run\` leaves none behind. Every wanted
 add chooses a specificity: \`--name-only\` (any copy), a specific printing via
 \`--set\`/\`--collector-number\`, or \`--specific\` (open the interactive printing
 picker; needs a terminal). A terminal prompts when none is given; a

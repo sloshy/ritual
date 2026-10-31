@@ -63,7 +63,7 @@ describe('deck-create handler', () => {
 
     const { frontMatter, content } = await readCreatedDeck('My Test Deck')
     expect(frontMatter.format).toBe('commander')
-    expect(content).toContain('# My Test Deck\n\n## Main')
+    expect(content).toContain('# My Test Deck\n\n## Commander\n\n## Main')
   })
 
   test('generates slug from name with special characters', async () => {

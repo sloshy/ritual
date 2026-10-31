@@ -107,20 +107,27 @@ export const cliCardsMessages = {
   'cli.addCard.quantityDeckOnly':
     '{flag} applies only to deck targets (collection and wanted entries are one physical card per line).',
   'cli.addCard.changelogNotAList': "'{name}' is a changelog file and cannot be used as a list.",
-  'cli.addCard.deckNotFound': "No deck named '{name}' found. Create it first with '{command}'.",
+  'cli.addCard.deckNotFound': "{message} To start a new deck, run '{command}'.",
+  'cli.addCard.createAdvice': {
+    $select: 'type',
+    collection: '{message} To start a new collection with that name, add {flag}.',
+    wanted: '{message} To start a new wanted list with that name, add {flag}.',
+  },
+  'cli.addCard.createNeedsType':
+    "{createFlag} needs {collectionFlag} or {wantedFlag} (start a new deck with '{command}').",
   'cli.addCard.noExactMatch': "No exact match for '{name}'. {matches}",
   'cli.addCard.exactMatchFound': 'Exact match found: {name}',
   'cli.addCard.noCardsMatching': "No cards found matching '{name}'.",
   'cli.addCard.foundMatching': "Found {counted} matching '{name}'.",
   'cli.addCard.addedToDeck': {
     $select: 'mode',
-    done: "Added '{card}' to {file} ({section})",
-    preview: "Would add '{card}' to {file} ({section})",
+    done: "Added '{card}' to {list} ({section})",
+    preview: "Would add '{card}' to {list} ({section})",
   },
   'cli.addCard.addedLine': {
     $select: 'mode',
-    done: 'Added: {line}',
-    preview: 'Would add: {line}',
+    done: 'Added to {list}: {line}',
+    preview: 'Would add to {list}: {line}',
   },
   'cli.addCard.noPrintingSelected':
     "No printing selected for '{name}'. Pass {setFlag} and {collectorNumberFlag} to pin one.",
@@ -433,7 +440,6 @@ export const cliCardsMessages = {
     '{file}: could not be read or parsed; its cards are missing from the index.',
   'cli.move.listWarning': '{file}: {warning}',
   // ── List lifecycle: new / rename / delete ─────────────────────────────
-  'cli.new.invalidType': "Invalid list type '{value}'. Use 'deck', 'collection', or 'wanted'.",
   'cli.new.formatDecksOnly': '{flag} only applies to decks.',
   'cli.new.created': {
     $select: 'type',
@@ -463,6 +469,9 @@ export const cliCardsMessages = {
 
   // ── lists / list-all-cards ────────────────────────────────────────────
   'cli.lists.empty': '(no lists)',
+  'cli.lists.columnType': 'Type',
+  'cli.lists.columnName': 'Name',
+  'cli.lists.columnFile': 'File',
   'cli.listAllCards.warning': 'warning: {warning}',
   'cli.listAllCards.skipped': 'warning: skipped {file}: {reason}',
   'cli.listAllCards.wrote': 'Wrote {count} cards to {target}',

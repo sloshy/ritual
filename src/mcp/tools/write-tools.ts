@@ -409,7 +409,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Create list',
       description:
-        'Create a new, empty deck, collection, or wanted list. Refused when a list of that ' +
+        'Create a new, empty deck, collection, or wanted list. A deck starts with the sections ' +
+        'its format expects: `## Commander` then `## Main` for a format with a command zone ' +
+        '(commander, oathbreaker, brawl, the Commander variants), otherwise `## Main`. Refused when a list of that ' +
         'type already exists under a name that resolves the same way (list names match ' +
         'ignoring case, accents, hyphens/underscores, apostrophes, and filename-illegal ' +
         'punctuation like `:`), so two lists can never share one addressable name.',

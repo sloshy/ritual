@@ -1,6 +1,8 @@
 /**
  * The `ritual` command tree as data: every `register*Command` in the order it
- * appears in `--help`, under the section each belongs to.
+ * appears in `--help`, under the section each belongs to, and each section's
+ * help tier (`HelpTier` in `src/cli/program.ts`): `ritual --help` describes the `core` commands,
+ * names the `more` ones, and leaves the `advanced` ones to `ritual help --all`.
  *
  * Keys only — the headings are rendered by `buildProgram` after the UI locale
  * has been resolved, never at module scope.
@@ -52,14 +54,40 @@ import { registerSkillsCommand } from './skills'
 import { registerLocaleCommand } from './locale'
 
 export const COMMAND_GROUPS = [
+  // ── core: what `ritual --help` shows a newcomer ──────────────────────
   {
-    titleKey: 'help.group.lists',
+    titleKey: 'help.group.start',
+    tier: 'core',
+    commands: [
+      registerNewCommand,
+      registerImportCommand,
+      registerAddCardCommand,
+      registerEditCommand,
+      registerAdminCommand,
+    ],
+  },
+  {
+    titleKey: 'help.group.browse',
+    tier: 'core',
     commands: [
       registerListsCommand,
-      registerNewCommand,
+      registerCardCommand,
+      registerScryCommand,
+      registerPriceCommand,
+    ],
+  },
+  {
+    titleKey: 'help.group.publish',
+    tier: 'core',
+    commands: [registerBuildSiteCommand, registerServeCommand],
+  },
+  // ── more: named in `ritual --help`, described by `ritual help --all` ──
+  {
+    titleKey: 'help.group.lists',
+    tier: 'more',
+    commands: [
       registerRenameCommand,
       registerDeleteCommand,
-      registerEditCommand,
       registerMetadataCommand,
       registerCategoriesCommand,
       registerSetListImageCommand,
@@ -70,8 +98,8 @@ export const COMMAND_GROUPS = [
   },
   {
     titleKey: 'help.group.cards',
+    tier: 'more',
     commands: [
-      registerAddCardCommand,
       registerRemoveCardCommand,
       registerSetCardCommand,
       registerNoteCommand,
@@ -80,28 +108,22 @@ export const COMMAND_GROUPS = [
   },
   {
     titleKey: 'help.group.importExport',
-    commands: [
-      registerImportCommand,
-      registerImportAccountCommand,
-      registerImportChangesCommand,
-      registerExportCommand,
-    ],
+    tier: 'more',
+    commands: [registerImportAccountCommand, registerImportChangesCommand, registerExportCommand],
   },
   {
     titleKey: 'help.group.lookupPricing',
-    commands: [registerCardCommand, registerScryCommand, registerPriceCommand, registerSellCommand],
+    tier: 'more',
+    commands: [registerSellCommand],
   },
   {
     titleKey: 'help.group.site',
-    commands: [
-      registerBuildSiteCommand,
-      registerServeCommand,
-      registerInitSiteCommand,
-      registerAdminCommand,
-    ],
+    tier: 'more',
+    commands: [registerInitSiteCommand],
   },
   {
     titleKey: 'help.group.integrations',
+    tier: 'more',
     commands: [
       registerLoginCommand,
       registerDeckSyncCommand,
@@ -112,22 +134,29 @@ export const COMMAND_GROUPS = [
   },
   {
     titleKey: 'help.group.cache',
+    tier: 'more',
     commands: [registerCacheCommand],
   },
   {
     titleKey: 'help.group.utilities',
+    tier: 'more',
     commands: [
       registerCleanupCommand,
-      registerMigrateCommand,
       registerSelfUpdateCommand,
-      registerDetectChangesCommand,
-      registerListAllCardsCommand,
       registerConfigCommand,
       registerLocaleCommand,
+      registerLicenseCommand,
     ],
   },
+  // ── advanced: plumbing for CI and maintenance, only in `help --all` ──
   {
-    titleKey: 'help.group.legal',
-    commands: [registerLicenseCommand, registerDepLicenseCommand],
+    titleKey: 'help.group.advanced',
+    tier: 'advanced',
+    commands: [
+      registerMigrateCommand,
+      registerDetectChangesCommand,
+      registerListAllCardsCommand,
+      registerDepLicenseCommand,
+    ],
   },
 ] as const satisfies readonly CommandGroup[]

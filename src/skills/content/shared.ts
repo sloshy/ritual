@@ -233,7 +233,11 @@ export function priceIntro(options: PriceIntroOptions): string {
       `also picks its own printing for an entry that names none: under ` +
       `\`cardkingdom\` that is the newest printing CK actually sells, so an unpinned ` +
       `entry reads unpriced only when CK carries no printing of the card at all (a ` +
-      `pinned printing CK does not sell always does). An ` +
+      `pinned printing CK does not sell always does). In text output each card ` +
+      `row's price is for the whole line (quantity × one copy), a \`*\` after a ` +
+      `printing marks one the line does not pin, the cheapest-printing total reads ` +
+      `\`Lowest possible $X\`, and a legend under the listing explains whichever ` +
+      `of these it shows (\`--quiet\` drops it). An ` +
       `interactive browser opens on a TTY — ` +
       `for agents, always pass \`--summary\`, \`--output json\`, or the global ` +
       `\`--no-input\` flag:`,

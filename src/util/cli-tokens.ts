@@ -62,6 +62,7 @@ export const FLAG = {
   condition: '--condition',
   confirm: '--confirm',
   count: '--count',
+  create: '--create',
   csv: '--csv',
   csvFile: '--csv-file',
   deck: '--deck',

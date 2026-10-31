@@ -1,9 +1,10 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import matter from 'gray-matter'
-import { DEFAULT_SECTION, type DeckData } from './deck'
+import type { DeckData } from './deck'
 import {
   isDroppedEmptySection,
+  newDeckSections,
   parseDeckFormat,
   resolveDeckFormat,
   type DeckFormatKey,
@@ -166,7 +167,7 @@ export function newDeckFrontMatter(format: DeckFormatKey): DeckFrontMatter {
 
 /** The markdown a freshly created, empty deck file starts with. */
 export function newDeckMarkdown(name: string, format: DeckFormatKey): string {
-  const deck: DeckData = { name, format, sections: [{ name: DEFAULT_SECTION, cards: [] }] }
+  const deck: DeckData = { name, format, sections: newDeckSections(format) }
   return serializeDeckToMarkdown(deck, newDeckFrontMatter(format))
 }
 

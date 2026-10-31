@@ -382,7 +382,12 @@ async function writeReadme(
 export function registerInitSiteCommand(program: Command): void {
   program
     .command('init-site')
-    .description(t('help.initSite.description'))
+    .description(
+      t('help.initSite.description', {
+        newCommand: bareCommandLine(COMMAND.new),
+        importCommand: bareCommandLine(COMMAND.import),
+      }),
+    )
     .option('-f, --force', t('help.initSite.force'))
     .option('--ci <system>', t('help.initSite.ci'), parseCISystemFlag)
     .option('--deploy <mode>', t('help.initSite.deploy'), parseDeployModeFlag)

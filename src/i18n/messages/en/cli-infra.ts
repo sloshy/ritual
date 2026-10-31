@@ -860,6 +860,8 @@ export const cliInfraMessages = {
   'cli.selfUpdate.smoke.noOutput': 'it printed nothing',
 
   // ── update-available notice ───────────────────────────────────────────
+  'cli.sidecarNotice.introduction':
+    'Ritual keeps a {file} file beside each list so it can tell its own edits from yours and log hand edits in the changelog. Commit them along with your lists.',
   'cli.updateNotice.available':
     'Ritual {latest} is available (you have {current}). Run `{command}` to update.',
 
@@ -946,9 +948,16 @@ export const cliInfraMessages = {
 
   // ── price: the interactive browser ────────────────────────────────────
   'cli.price.totalsTotal': 'Total {price}',
-  'cli.price.totalsLowest': 'Lowest {price}',
+  'cli.price.totalsLowest': 'Lowest possible {price}',
   'cli.price.rowLowest': 'lowest {price}',
   'cli.price.totalsUnpriced': '{count} unpriced',
+  'cli.price.legendLineTotals':
+    "Prices are for the whole line (quantity × one copy); 'lowest' is the line at its cheapest printing.",
+  'cli.price.legendUnpinned':
+    '* The list names no printing for this card, so it is priced at a representative one.',
+  'cli.price.legendEstimate':
+    '~ The total is an estimate: it includes cards with no printing named or no price.',
+  'cli.price.legendLowestTotal': "'Lowest possible' prices every card at its cheapest printing.",
   'cli.price.headerUpdated': '💰 Prices last updated: {updated} · Store: {store} ({currency})',
   'cli.price.updatedUnknown': 'unknown',
   'cli.price.updatedAt': '{timestamp} ({age} ago)',

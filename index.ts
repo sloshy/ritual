@@ -8,7 +8,8 @@ import { COMMAND_GROUPS } from './src/commands/registry'
 import { shouldBackfillCardIds } from './src/commands/id-backfill'
 import { checkWorkspaceMigrations } from './src/commands/migrate-check'
 import { createUpdateNotice } from './src/commands/update-notice'
-import { buildProgram } from './src/cli/program'
+import { createSidecarNotice } from './src/commands/sidecar-notice'
+import { buildProgram, requestsFullHelp } from './src/cli/program'
 import { initI18n } from './src/cli/locale'
 import { registerCliMessages } from './src/i18n/register/cli'
 import { ExitCode, CardCommandError, getErrorMessage, isBrokenPipeError } from './src/util/errors'
@@ -65,6 +66,8 @@ async function main(): Promise<void> {
     backfill: shouldBackfillCardIds,
     workspaceCheck: checkWorkspaceMigrations,
     updateNotice,
+    sidecarNotice: createSidecarNotice(),
+    fullHelp: requestsFullHelp(process.argv.slice(2)),
   })
 
   // A Windows `self-update` cannot delete the binary it replaced while that

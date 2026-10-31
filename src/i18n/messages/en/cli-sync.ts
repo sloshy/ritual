@@ -99,7 +99,6 @@ export const cliSyncMessages = {
     csv: '{syncPrintingsFlag}/{noSyncPrintingsFlag} only apply to URL imports; a CSV import states its own printings through the column mapping.',
     text: '{syncPrintingsFlag}/{noSyncPrintingsFlag} only apply to URL imports; a text-file import states its own printings on its card lines.',
   },
-  'cli.import.invalidListType': "Invalid list type '{value}'. Use: {choices}",
   'cli.import.urlDeckOnly':
     'URL imports only support decks; importing a {label} from a URL is not supported.',
   'cli.import.fileNotFound': 'File not found: {path}',

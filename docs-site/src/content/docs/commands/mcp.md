@@ -283,20 +283,20 @@ That is a server started with [`--sell-mode`](#sell-tools-need-sell-mode). The f
 
 ### Write
 
-| Tool                    | Description                                                                                                                                                                                   |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create_list`           | Create a new, empty list. `format` (from the fixed set of deck formats) applies to decks only.                                                                                                |
-| `import_deck`           | Import a deck from a URL or pasted decklist text (Ritual's own format and MTG Arena/MTGO exports).                                                                                            |
-| `import_csv`            | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec.                                                                                             |
-| `import_change_bundle`  | Apply a change bundle exported from the site editor to the underlying lists.                                                                                                                  |
-| `set_list_metadata`     | Write a list's front matter. Only the fields you send are touched; `null` clears one. See [`set_list_metadata`](#set_list_metadata).                                                          |
-| `add_card`              | Add a card to any list; `quantity` adds that many copies in one save. The list must already exist (use `create_list`).                                                                        |
-| `set_card_art`          | Set or clear one card's [custom art](/custom-art/), addressed by `cardId`. See [Custom art](#custom-art).                                                                                     |
-| `remove_card`           | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry at a time.                                                                         |
-| `set_card_printing`     | Set a card's printing (and optionally `condition` / `language`) in place.                                                                                                                     |
-| `apply_changes`         | Apply an ordered batch of changes to one list atomically (one save, one changelog block). The only route to language, note, label, section, commander and [category](#card-categories) edits. |
-| `move_selected_cards`   | Move a batch of identity-addressed cards between lists atomically.                                                                                                                            |
-| `remove_selected_cards` | Remove a batch of identity-addressed cards across lists atomically.                                                                                                                           |
+| Tool                    | Description                                                                                                                                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_list`           | Create a new, empty list. `format` (from the fixed set of deck formats) applies to decks only; a deck starts with its format's sections (`## Commander` above `## Main` for a format with a command zone). |
+| `import_deck`           | Import a deck from a URL or pasted decklist text (Ritual's own format and MTG Arena/MTGO exports).                                                                                                         |
+| `import_csv`            | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec.                                                                                                          |
+| `import_change_bundle`  | Apply a change bundle exported from the site editor to the underlying lists.                                                                                                                               |
+| `set_list_metadata`     | Write a list's front matter. Only the fields you send are touched; `null` clears one. See [`set_list_metadata`](#set_list_metadata).                                                                       |
+| `add_card`              | Add a card to any list; `quantity` adds that many copies in one save. The list must already exist (use `create_list`).                                                                                     |
+| `set_card_art`          | Set or clear one card's [custom art](/custom-art/), addressed by `cardId`. See [Custom art](#custom-art).                                                                                                  |
+| `remove_card`           | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry at a time.                                                                                      |
+| `set_card_printing`     | Set a card's printing (and optionally `condition` / `language`) in place.                                                                                                                                  |
+| `apply_changes`         | Apply an ordered batch of changes to one list atomically (one save, one changelog block). The only route to language, note, label, section, commander and [category](#card-categories) edits.              |
+| `move_selected_cards`   | Move a batch of identity-addressed cards between lists atomically.                                                                                                                                         |
+| `remove_selected_cards` | Remove a batch of identity-addressed cards across lists atomically.                                                                                                                                        |
 
 Details the table leaves out:
 

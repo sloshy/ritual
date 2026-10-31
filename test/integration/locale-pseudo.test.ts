@@ -169,7 +169,7 @@ function feedHostArgs(bulkApiUrl: string, feedDir: string, ...extra: string[]): 
 describe('pseudo-locale (Integration)', () => {
   test('RITUAL_LOCALE=en-XA renders help in the pseudo-locale', async () => {
     await withTempDir(async (dir) => {
-      const result = await runCli(['--help'], dir, PSEUDO_ENV)
+      const result = await runCli(['help', '--all'], dir, PSEUDO_ENV)
 
       expect(result.exitCode).toBe(0)
       // The program description is registered before any option is parsed, so
@@ -199,7 +199,7 @@ describe('pseudo-locale (Integration)', () => {
       expect(result.stdout).toContain(await pseudoText('help.commander.commandsTitle'))
       expect(unwrap(result.stdout)).toContain(await pseudoText('help.commander.version'))
       expect(unwrap(result.stdout)).toContain(await pseudoText('help.commander.help'))
-      expect(result.stdout).toContain(await pseudoText('help.group.lists'))
+      expect(result.stdout).toContain(await pseudoText('help.group.start'))
     })
   })
 
@@ -299,7 +299,7 @@ describe('pseudo-locale (Integration)', () => {
 
   test('English help is unchanged — the pseudo-locale is opt-in', async () => {
     await withTempDir(async (dir) => {
-      const result = await runCli(['--help'], dir)
+      const result = await runCli(['help', '--all'], dir)
 
       expect(result.exitCode).toBe(0)
       expect(unwrap(result.stdout)).toContain(en['help.program.description'])

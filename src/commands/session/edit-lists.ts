@@ -1,7 +1,7 @@
 import { dedupeDroppedNotes, type DroppedNote } from '../../list/move-staging'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import type { DeckFormatKey } from '../../list/deck-format'
+import { newDeckSections, type DeckFormatKey } from '../../list/deck-format'
 import type { MessageKey } from '../../i18n/messages/en'
 import { t } from '../../i18n/t'
 import type { ListType } from '../../list/list-type'
@@ -301,7 +301,7 @@ function newListStrategy(
     const initialDeck: DeckData = {
       name: ref.name,
       format: deckFormat,
-      sections: [{ name: 'Main', cards: [] }],
+      sections: newDeckSections(deckFormat),
     }
     return createDeckStrategy({
       deckFile: ref.file,

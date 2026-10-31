@@ -31,7 +31,10 @@ export const helpEditMeta = {
   },
 
   // ── history ───────────────────────────────────────────────────────────
-  'help.history.description': { description: 'Summary of the `history` command.' },
+  'help.history.description': {
+    description:
+      "Summary of the `history` command: it prints a list's change log, or opens a menu-driven editor to merge, retime or reword its entries. {flag} is the `--show` flag. It is typed or matched exactly by the user, so never translate it.",
+  },
   'help.history.listName': { description: 'The `[listName]` argument of `history`.' },
   'help.history.show': { description: '`history --show`.' },
   'help.history.limit': {

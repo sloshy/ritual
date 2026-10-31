@@ -34,8 +34,9 @@ import type { CardLanguage } from '../card/card-language'
 import { applyConditionUpdate, type Condition, type Finish } from '../card/finish-condition'
 import { ensureCollectionFile, ensureWantedListFile } from '../list/ensure-list-file'
 import { formatWantedListLine } from '../list/wanted-file'
-import { isUsableFileName, listFileName } from '../list/list-file-name'
-import { unusableFileNameMessage } from '../list/list-lifecycle'
+import { isUsableFileName } from '../list/list-file-name'
+import { singleLineText } from '../util/single-line'
+import { listDisplayName, unusableFileNameMessage } from '../list/list-lifecycle'
 import { emptyCacheAdvice, ensureFreshCardCache } from '../cache/freshness'
 import {
   addRefreshOption,
@@ -74,17 +75,24 @@ import {
   splitNameTerms,
 } from '../card/term-match'
 import {
-  formatResolveListError,
   isListArgumentConflict,
   isResolveListError,
   resolveList,
+  listFilePath,
   resolveListArgument,
+  resolveListErrorMessage,
   type ListTypeFlags,
 } from '../list/resolve-list'
+import { nestSync, syncMessage } from '../sync/message'
 import { cancelledError, listArgumentConflictError, runCommandAction } from '../cli/action'
 import type { EntryRef } from '../list/entry-ref'
 import { inputRequiredError, promptsUnavailable } from '../util/no-input'
-import { emitCardResult, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import {
+  emitCardResult,
+  normalizeScriptingOptions,
+  resolveListCommandError,
+  type ScriptingOptions,
+} from '../cli/output'
 import {
   ExitCode,
   CardCommandError,
@@ -92,12 +100,7 @@ import {
   messageCommandError,
 } from '../util/errors'
 import { divertConsoleLogToStderr } from '../util/stdout-guard'
-import {
-  getCollectionsDir,
-  getDefaultPriceCurrency,
-  getDefaultLanguage,
-  getWantedDir,
-} from '../config/ritual-config'
+import { getDefaultPriceCurrency, getDefaultLanguage } from '../config/ritual-config'
 import { t } from '../i18n/t'
 import { sectionDisplayName } from '../list/deck-format'
 import { COMMAND, CONFIG_KEY, FLAG, commandLine } from '../util/cli-tokens'
@@ -139,6 +142,8 @@ type AddCardOptions = {
   specific?: boolean
   section?: string
   commander?: boolean
+  /** Create a missing collection or wanted list even beside existing ones. */
+  create?: boolean
   refresh: RefreshMode
 } & ListTypeFlags &
   DryRunOptions &
@@ -153,7 +158,10 @@ type AddCardOptions = {
 type AddCardTarget = {
   type: ListType
   filePath: string
+  /** The file name without `.md`: the `list` the JSON payload and the changelog carry. */
   name: string
+  /** The list's display name (its `# H1`), which the text result names. */
+  displayName: string
   /** The name to create the list under, when it does not exist yet. */
   requestedName?: string
 }
@@ -211,6 +219,10 @@ export function registerAddCardCommand(program: Command): void {
     .option('--deck', t('help.listFlags.deck'))
     .option('--collection', t('help.addCard.collectionFlag'))
     .option('--wanted', t('help.addCard.wantedFlag'))
+    .option(
+      '--create',
+      t('help.addCard.create', { collectionFlag: FLAG.collection, wantedFlag: FLAG.wanted }),
+    )
     .option('-q, --quantity <number>', t('help.addCard.quantity'), parseQuantityFlag, 1)
     .option('-f, --finish <finish>', t('help.addCard.finish'), parseFinishFlag)
     .option('-c, --condition <condition>', t('help.addCard.condition'), parseConditionFlag)
@@ -283,6 +295,18 @@ async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise
   if (isListArgumentConflict(listArg)) throw listArgumentConflictError(listArg)
   const type = listArg.type
 
+  // `--create` names a new collection or wanted list, so the type has to be
+  // pinned: a deck is made with `ritual new deck`, and an unpinned name would
+  // leave it to guess which kind to make.
+  if (options.create && type !== 'collection' && type !== 'wanted') {
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.addCard.createNeedsType', {
+      createFlag: FLAG.create,
+      collectionFlag: FLAG.collection,
+      wantedFlag: FLAG.wanted,
+      command: commandLine(COMMAND.new, 'deck'),
+    })
+  }
+
   // Every check that can refuse the run happens before anything is written —
   // the target list is only *resolved* here, never created (see
   // `ensureTargetFile`), so a doomed add leaves the workspace as it found it.
@@ -299,7 +323,7 @@ async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise
     )
   }
 
-  const target = await resolveAddCardTarget(listArg.name, type)
+  const target = await resolveAddCardTarget(listArg.name, type, options.create ?? false)
   if (type === undefined) validateTargetFlags(target.type, pin, options)
 
   const cardNames = await getAllCardNames()
@@ -405,13 +429,16 @@ function validateTargetFlags(
  * run that fails afterwards (or never writes, under `--dry-run`) leaves no
  * half-made list behind.
  *
- * A workspace holding no lists of that type at all (`no-lists`) is the same
- * case as a single missing list — auto-creation matters most on the first run.
- * Decks are never auto-created; a missing deck is an error on both paths.
+ * A workspace holding no lists of that type at all (`no-lists`) creates the
+ * first one — auto-creation matters most on the first run. Beside existing
+ * lists of the type, a missing name is refused (with the closest names) unless
+ * `--create` asks for it. Decks are never auto-created; a missing deck is an
+ * error on both paths.
  */
 async function resolveAddCardTarget(
   name: string,
   type: ListType | undefined,
+  create: boolean,
 ): Promise<AddCardTarget> {
   if (name.endsWith('.changes') || name.endsWith('.changes.md')) {
     throw localizedCommandError(
@@ -424,33 +451,57 @@ async function resolveAddCardTarget(
 
   const resolved = await resolveList(name, type)
   if (!isResolveListError(resolved)) {
-    return { type: resolved.type, filePath: resolved.filePath, name: resolved.name }
+    return {
+      type: resolved.type,
+      filePath: resolved.filePath,
+      name: resolved.name,
+      displayName: await listDisplayName(resolved.type, resolved.filePath).catch(
+        () => resolved.name,
+      ),
+    }
   }
 
-  // Auto-create only when the type is known and no such list exists yet —
-  // whether that is one missing list or an empty workspace.
+  // Auto-create only when the type is known and no such list exists yet: on
+  // the first list of its type, or when `--create` asks for a new one beside
+  // existing lists — a name that matches none of them is far more often a typo
+  // than a request for a second binder, so it is refused with suggestions.
   if ((resolved.kind === 'not-found' || resolved.kind === 'no-lists') && type) {
     if (type === 'deck') {
-      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.addCard.deckNotFound', {
-        name,
-        command: commandLine(COMMAND.new, 'deck'),
-      })
+      throw messageCommandError(
+        'not_found',
+        ExitCode.NotFound,
+        syncMessage('cli.addCard.deckNotFound', {
+          message: nestSync(resolveListErrorMessage(resolved, 'type-flags')),
+          command: commandLine(COMMAND.new, 'deck'),
+        }),
+      )
+    }
+    if (resolved.kind === 'not-found' && !create) {
+      throw messageCommandError(
+        'not_found',
+        ExitCode.NotFound,
+        syncMessage('cli.addCard.createAdvice', {
+          type,
+          message: nestSync(resolveListErrorMessage(resolved, 'type-flags')),
+          flag: FLAG.create,
+        }),
+      )
     }
     // The list is about to be created, so its name has to be usable as a file name.
-    const fileName = listFileName(name)
-    if (!isUsableFileName(name) || fileName === null) {
+    const filePath = isUsableFileName(name) ? listFilePath(type, name) : null
+    if (filePath === null) {
       throw messageCommandError('usage_error', ExitCode.UsageError, unusableFileNameMessage(name))
     }
-    const dir = type === 'collection' ? getCollectionsDir() : getWantedDir()
-    const filePath = path.join(dir, fileName)
-    return { type, filePath, name: path.basename(filePath, '.md'), requestedName: name }
+    return {
+      type,
+      filePath,
+      name: path.basename(filePath, '.md'),
+      displayName: singleLineText(name).trim(),
+      requestedName: name,
+    }
   }
 
-  throw new CardCommandError(
-    resolved.kind === 'ambiguous' ? 'usage_error' : 'not_found',
-    formatResolveListError(resolved, 'type-flags'),
-    resolved.kind === 'ambiguous' ? ExitCode.UsageError : ExitCode.NotFound,
-  )
+  throw resolveListCommandError(resolved, 'type-flags')
 }
 
 /**
@@ -657,7 +708,7 @@ async function addToDeck(
     t('cli.addCard.addedToDeck', {
       mode: addMode(dryRun),
       card: `${options.quantity} ${selectedName}${printingLabel}`,
-      file: path.basename(target.filePath),
+      list: target.displayName,
       section: sectionDisplayName(outcome.section),
     }),
     scripting,
@@ -740,7 +791,11 @@ async function addToCollection(
       tags: options.tag,
       cardId,
     },
-    t('cli.addCard.addedLine', { mode: addMode(options.dryRun ?? false), line: line.trim() }),
+    t('cli.addCard.addedLine', {
+      mode: addMode(options.dryRun ?? false),
+      list: target.displayName,
+      line: line.trim(),
+    }),
     scripting,
     options.dryRun ?? false,
   )
@@ -855,7 +910,11 @@ async function addToWanted(
         tags: options.tag,
         cardId,
       },
-      t('cli.addCard.addedLine', { mode: addMode(options.dryRun ?? false), line: line.trim() }),
+      t('cli.addCard.addedLine', {
+        mode: addMode(options.dryRun ?? false),
+        list: target.displayName,
+        line: line.trim(),
+      }),
       scripting,
       options.dryRun ?? false,
     )
@@ -912,7 +971,11 @@ async function addToWanted(
       tags: options.tag,
       cardId,
     },
-    t('cli.addCard.addedLine', { mode: addMode(options.dryRun ?? false), line: line.trim() }),
+    t('cli.addCard.addedLine', {
+      mode: addMode(options.dryRun ?? false),
+      list: target.displayName,
+      line: line.trim(),
+    }),
     scripting,
     options.dryRun ?? false,
   )

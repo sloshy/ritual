@@ -5,9 +5,11 @@ import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import { readDeckName } from '../../src/importers/text-file'
 import { runCli } from './helpers/cli'
 import { withWorkspace } from '../helpers/workspace'
+import { t } from '../../src/i18n/t'
+import { FILE } from '../../src/util/cli-tokens'
 
 describe('new CLI (Integration)', () => {
-  test('names the file as the deck is named, with the default commander format', async () => {
+  test('names the file as the deck is named, with the default commander format and its sections', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['new', 'deck', 'My Cool Deck'], dir)
       expect(result.exitCode).toBe(0)
@@ -17,7 +19,34 @@ describe('new CLI (Integration)', () => {
       const filePath = path.join(dir, 'decks', 'My Cool Deck.md')
       const frontMatter = await parseDeckFrontMatter(filePath)
       expect(frontMatter.format).toBe('commander')
-      expect(await fs.readFile(filePath, 'utf-8')).toContain('# My Cool Deck\n\n## Main')
+      // A command-zone format starts with its Commander section.
+      expect(await fs.readFile(filePath, 'utf-8')).toContain(
+        '# My Cool Deck\n\n## Commander\n\n## Main',
+      )
+    })
+  })
+
+  test('accepts a plural type, and an unquoted two-word one', async () => {
+    await withWorkspace(async (dir) => {
+      expect((await runCli(['new', 'decks', 'Stompy'], dir)).exitCode).toBe(0)
+      expect((await runCli(['new', 'wanted', 'list', 'Grails'], dir)).exitCode).toBe(0)
+
+      expect(await fs.readdir(path.join(dir, 'decks'))).toContain('Stompy.md')
+      expect(await fs.readdir(path.join(dir, 'wanted'))).toContain('Grails.md')
+    })
+  })
+
+  test('introduces the .sha256 sidecars on the workspace’s first list, and only then', async () => {
+    await withWorkspace(async (dir) => {
+      const first = await runCli(['new', 'deck', 'First'], dir)
+      expect(first.exitCode).toBe(0)
+      expect(first.stderr).toContain(
+        t('cli.sidecarNotice.introduction', { file: FILE.hashSidecar }),
+      )
+
+      const second = await runCli(['new', 'deck', 'Second'], dir)
+      expect(second.exitCode).toBe(0)
+      expect(second.stderr).not.toContain(FILE.hashSidecar)
     })
   })
 

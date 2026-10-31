@@ -521,9 +521,6 @@ export function parseDeckText(
   //
   // - **The leading bucket**, when nothing adopted it (every canonically-written
   //   Ritual deck opens with a header): an artifact of parsing, not a section.
-  // - **A deck with no cards at all**, which is exactly what `ritual` writes for a
-  //   freshly created list (`## Main` and nothing else); its sections stay empty
-  //   in memory and nothing is lost.
   // - **An empty extras section** (`## Maybeboard`, `## Tokens`) — see
   //   {@link isDroppedEmptySection}. The serializer drops the same sections, so
   //   it is reported as an advisory, which the whole-file gates let through.
@@ -531,10 +528,11 @@ export function parseDeckText(
   // Parser and serializer therefore agree on every empty section, and a removal
   // or move that empties one leaves a file the next parse reads cleanly.
   const hasCards = sections.some((s) => s.cards.length > 0)
+  // A freshly created deck (`## Commander` and `## Main`, no cards) keeps its
+  // sections too, so the first whole-file rewrite (an editor save, `cleanup`)
+  // does not strip the scaffold `ritual new` wrote.
   const isKeptEmpty = (section: DeckSection): boolean =>
-    hasCards &&
-    !(section === syntheticMain && !syntheticMainAdopted) &&
-    !isDroppedEmptySection(section)
+    !(section === syntheticMain && !syntheticMainAdopted) && !isDroppedEmptySection(section)
   const validSections = sections.filter((s) => s.cards.length > 0 || isKeptEmpty(s))
   if (hasCards) {
     for (const section of sections) {

@@ -258,6 +258,12 @@ describe('add-card CLI (Integration)', () => {
   })
 
   describe('deck adds', () => {
+    test('the text result names the list, not its file', async () => {
+      const result = await runCli(['add-card', '--deck', 'test', 'Sol', 'Ring', '--exact'], dir)
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Added '1 Sol Ring' to Test Deck (Main)")
+    })
+
     test('adds a card and records the allocated card ID in the changelog', async () => {
       const result = await runCli(
         ['add-card', '--deck', 'test', 'Sol', 'Ring', '--exact', '--output', 'json'],
@@ -672,11 +678,12 @@ describe('add-card CLI (Integration)', () => {
       expect(content).not.toContain('- Sol Ring')
     })
 
-    test('auto-creates a missing wanted list when the type flag pins it', async () => {
+    test('--create makes a missing wanted list beside existing ones', async () => {
       const result = await runCli(
         [
           'add-card',
           '--wanted',
+          '--create',
           'fresh',
           'Sol',
           'Ring',
@@ -949,6 +956,74 @@ describe('add-card CLI (Integration)', () => {
       expect(content).toContain('- Sol Ring (LEA:270) &1')
     })
 
+    test('a near-miss name beside existing lists is refused with a suggestion, writing nothing', async () => {
+      const before = await snapshotTree(dir)
+      const result = await runCli(
+        [
+          'add-card',
+          '--collection',
+          'mian',
+          'Sol',
+          'Ring',
+          '--exact',
+          '--set',
+          'lea',
+          '--collector-number',
+          '270',
+          '--condition',
+          'NONE',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(3)
+      expect(result.stderr).toContain("Did you mean 'main'?")
+      expect(result.stderr).toContain('--create')
+      expect(await snapshotTree(dir)).toEqual(before)
+    })
+
+    test('a near-miss reports its suggestion in the --output json envelope', async () => {
+      const result = await runCli(
+        ['add-card', 'mian', 'Sol', 'Ring', '--exact', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(3)
+      const err = JSON.parse(result.stderr) as CliErrorPayload & {
+        error: { messageKey?: string; messageParams?: Record<string, string> }
+      }
+      expect(err.error.messageKey).toBe('errors.resolveList.didYouMean')
+      expect(err.error.messageParams?.names).toBe("'main'")
+    })
+
+    test('a near-miss deck name is suggested beside the new-deck advice', async () => {
+      const result = await runCli(['add-card', '--deck', 'tset', 'Sol', 'Ring', '--exact'], dir)
+      expect(result.exitCode).toBe(3)
+      expect(result.stderr).toContain("Did you mean 'test'?")
+      expect(result.stderr).toContain('ritual new deck')
+    })
+
+    test.each([[['--create']], [['--deck', '--create']]])(
+      '%p without a collection or wanted type is a usage error, writing nothing',
+      async (flags) => {
+        const before = await snapshotTree(dir)
+        const result = await runCli(['add-card', ...flags, 'fresh', 'Sol', 'Ring', '--exact'], dir)
+        expect(result.exitCode).toBe(2)
+        expect(result.stderr).toContain('--create')
+        expect(await snapshotTree(dir)).toEqual(before)
+      },
+    )
+
+    test('--create naming an existing list adds to it, never a twin', async () => {
+      const result = await runCli(
+        ['add-card', '--wanted', '--create', 'needs', 'Sol', 'Ring', '--exact', '--name-only'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      expect(await fs.readdir(path.join(dir, 'wanted'))).not.toContain('needs 2.md')
+      expect(await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')).toContain(
+        '- Sol Ring &2',
+      )
+    })
+
     test('a missing deck is still an error in an empty workspace', async () => {
       const empty = await createWorkspace({ dirs: [] })
       await seedCardCache(empty, SEED_CARDS)
@@ -971,6 +1046,7 @@ describe('add-card CLI (Integration)', () => {
         [
           'add-card',
           '--collection',
+          '--create',
           'Brand New',
           'Sol',
           'Ring',
@@ -1046,11 +1122,21 @@ describe('add-card CLI (Integration)', () => {
     test('a dry run against a missing list creates neither the file nor its sidecar', async () => {
       const before = await snapshotTree(dir)
       const result = await runCli(
-        ['add-card', '--wanted', 'Brand New', 'Sol', 'Ring', '--exact', '--name-only', '--dry-run'],
+        [
+          'add-card',
+          '--wanted',
+          '--create',
+          'Brand New',
+          'Sol',
+          'Ring',
+          '--exact',
+          '--name-only',
+          '--dry-run',
+        ],
         dir,
       )
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain('[dry-run] Would add: - Sol Ring &1')
+      expect(result.stdout).toContain('[dry-run] Would add to Brand New: - Sol Ring &1')
       expect(await snapshotTree(dir)).toEqual(before)
     })
 

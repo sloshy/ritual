@@ -223,7 +223,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
       // Skipped lines are content the import silently lost — the client must
       // be able to report them (the CLI's text path exits 1 on the same class).
       notices = parsed.notices
-      if (deckData.sections.length === 0) {
+      if (deckData.sections.every((section) => section.cards.length === 0)) {
         return badRequest(apiMessage('admin.api.importDeck.noCardLines'))
       }
     }

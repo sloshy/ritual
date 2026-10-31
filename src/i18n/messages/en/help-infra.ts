@@ -137,7 +137,8 @@ export const helpInfraMessages = {
     '(Beta) Offer sell mode for this run even when the {configKey} config is off: update the Card Kingdom buylist (~70 MB) and include its buy prices',
 
   // ── init-site ─────────────────────────────────────────────────────────
-  'help.initSite.description': 'Initialize the current directory for publishing a Ritual site',
+  'help.initSite.description':
+    "Set up publishing your site to GitHub Pages or another host (CI workflow and site settings). Not needed to get started: create lists with '{newCommand}' or '{importCommand}'",
   'help.initSite.force':
     'Re-initialize and overwrite all generated files, ignoring the existing site config',
   'help.initSite.ci': "CI system for a fresh init: 'github-actions' or 'manual'",

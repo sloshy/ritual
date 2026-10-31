@@ -41,6 +41,29 @@ export const helpMeta = {
       'Default help text for the shared --refresh flag. "ask", "auto", "no-bulk" and "never" are the flag\'s literal values and never translate; the parenthetical explains what "ask" does when no prompt can be shown.',
   },
 
+  'help.group.start': {
+    description:
+      'Heading over the commands a newcomer starts with (create, import, add cards, edit) in `ritual --help`.',
+  },
+  'help.group.browse': {
+    description:
+      'Heading over the read-only commands in `ritual --help` that list your lists, look up cards and price them.',
+  },
+  'help.group.publish': {
+    description: 'Heading over the commands that build and serve your website in `ritual --help`.',
+  },
+  'help.group.advanced': {
+    description:
+      'Heading over the plumbing commands (CI change detection, migrations, cache keys, dependency licenses) shown only by `ritual help --all`.',
+  },
+  'help.tier.moreTitle': {
+    description:
+      "Heading in `ritual --help` over a wrapped, comma-separated list of the command names not described above it. Ends with a colon like Commander's own section headings.",
+  },
+  'help.tier.allHint': {
+    description:
+      'Last line of `ritual --help`. {helpCommand} is `ritual help <command>` and {allCommand} is `ritual help --all`, command lines typed exactly as shown, so never translate them.',
+  },
   'help.group.lists': {
     description:
       'Heading over the commands that create, rename, edit and inspect whole lists in `ritual --help`.',
@@ -70,9 +93,6 @@ export const helpMeta = {
   },
   'help.group.utilities': {
     description: 'Heading over the maintenance and configuration commands in `ritual --help`.',
-  },
-  'help.group.legal': {
-    description: 'Heading over the license-reporting commands in `ritual --help`.',
   },
 
   'help.commander.version': {

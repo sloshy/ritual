@@ -12,6 +12,7 @@ import {
   type Argument,
   Command,
   CommanderError,
+  Help,
   InvalidArgumentError,
   type Option,
 } from 'commander'
@@ -45,14 +46,24 @@ import { isMessageParseError } from '../sync/message'
 import { PreActionFailure } from './action'
 import { messageArgParser } from './options'
 import { OUTPUT_FORMATS, type OutputFormat, type ScriptingOptions } from './output'
-import { ENV_VAR } from '../util/cli-tokens'
+import { ENV_VAR, FLAG, commandLine } from '../util/cli-tokens'
 
 /** Registers one command tree onto a program, e.g. `registerImportCommand`. */
 export type CommandRegistrar = (program: Command) => void
 
-/** One `--help` section: its localized heading key and the commands under it, in order. */
+/**
+ * How prominently `ritual --help` shows a group: `core` commands are listed
+ * with their descriptions, `more` commands are only named in one wrapped list,
+ * and `advanced` ones (plumbing for CI and maintenance) are left out. `ritual
+ * help --all` (or `--help --all`) describes every command, group by group.
+ */
+export type HelpTier = 'core' | 'more' | 'advanced'
+
+/** One `--help` section: its localized heading key, its tier, and the commands under it, in order. */
 export type CommandGroup = {
   titleKey: ParameterlessKey
+  /** Defaults to `core`. */
+  tier?: HelpTier
   commands: readonly CommandRegistrar[]
 }
 
@@ -73,11 +84,22 @@ export type BuildProgramOptions = {
    * postAction hook and prints the notice after the command's output. Neither
    * fails the command. The CLI passes `createUpdateNotice()`.
    */
-  updateNotice: UpdateNoticeHooks
+  updateNotice: ActionNoticeHooks
+  /**
+   * The first-sidecar introduction: `start` runs in the preAction hook,
+   * `finish` after the action. Omitted in tests that build a tree without it.
+   */
+  sidecarNotice?: ActionNoticeHooks
+  /**
+   * Render the root help in full — every command with its description, the
+   * advanced group included — rather than the newcomer view. The CLI passes
+   * {@link requestsFullHelp} of its argv.
+   */
+  fullHelp?: boolean
 }
 
-/** The two halves of the update-available notice the program's hooks call. */
-export type UpdateNoticeHooks = {
+/** A notice the program's hooks drive: `start` in the preAction hook, `finish` after the action. */
+export type ActionNoticeHooks = {
   start: (actionCommand: Command) => Promise<void>
   finish: (actionCommand: Command) => Promise<void>
 }
@@ -384,6 +406,85 @@ export function localizeCommanderError(raw: string): string {
   return `${localizeCommanderErrorBody(body)}\n${rendered}${newline}`
 }
 
+// ---------------------------------------------------------------------------
+// Tiered root help
+// ---------------------------------------------------------------------------
+
+/**
+ * Commander's implicit `help` command — not a registered command, so not in
+ * `COMMAND`, which lists only those.
+ */
+const HELP_COMMAND = ['help'] as const
+
+/**
+ * Whether argv asks for the full root help: `--all` anywhere before a bare
+ * `--`. Only the root help reads the answer, so a subcommand's own `--all`
+ * option (`export --all`) is unaffected by it.
+ */
+export function requestsFullHelp(argv: readonly string[]): boolean {
+  const end = argv.indexOf('--')
+  return (end === -1 ? argv : argv.slice(0, end)).includes(FLAG.all)
+}
+
+/**
+ * Commander's help configuration for the tiered root help: the root lists only
+ * `core` commands (plus `help`), and closes with the `more` commands named in
+ * one wrapped list and a pointer to `help --all`. Every other command's help —
+ * and the root's under `fullHelp` — is Commander's own.
+ */
+function tieredHelp(
+  program: Command,
+  tierOf: ReadonlyMap<Command, HelpTier>,
+  fullHelp: boolean,
+): Pick<Help, 'visibleCommands' | 'formatHelp'> {
+  // Set only while the root help text is being rendered: Commander also reads
+  // `visibleCommands` for its "(Did you mean …?)" suggestions, which must keep
+  // offering every command (`ritual renmae` still suggests `rename`).
+  let condensing = false
+  return {
+    visibleCommands(this: Help, cmd: Command): Command[] {
+      const visible = Help.prototype.visibleCommands.call(this, cmd)
+      if (!condensing || cmd !== program) return visible
+      return visible.filter((sub) => (tierOf.get(sub) ?? 'core') === 'core')
+    },
+    formatHelp(this: Help, cmd: Command, helper: Help): string {
+      if (cmd !== program || fullHelp) return Help.prototype.formatHelp.call(this, cmd, helper)
+      const more = Help.prototype.visibleCommands
+        .call(this, cmd)
+        .filter((sub) => tierOf.get(sub) === 'more')
+        .map((sub) => sub.name())
+      condensing = true
+      let base: string
+      try {
+        base = Help.prototype.formatHelp.call(this, cmd, helper)
+      } finally {
+        condensing = false
+      }
+      const width = helper.helpWidth ?? 80
+      const indent = '  '
+      const moreLines =
+        more.length === 0
+          ? []
+          : [
+              helper.styleTitle(t('help.tier.moreTitle')),
+              ...helper
+                .boxWrap(commanderList(more), width - indent.length)
+                .split('\n')
+                .map((line) => `${indent}${line}`),
+              '',
+            ]
+      const hint = helper.boxWrap(
+        t('help.tier.allHint', {
+          helpCommand: commandLine(HELP_COMMAND, '<command>'),
+          allCommand: commandLine(HELP_COMMAND, FLAG.all),
+        }),
+        width,
+      )
+      return [base, ...moreLines, hint, ''].join('\n')
+    },
+  }
+}
+
 // Commander stores `--no-input` as `input: false` (attribute `input`, default true).
 export type GlobalOptions = {
   cacheServer?: string
@@ -413,10 +514,13 @@ export function buildProgram(build: BuildProgramOptions): Command {
   // Both configurations are copied by reference into every subcommand created
   // after this point (`copyInheritedSettings`), so they must be installed before
   // the `register` calls in the group loop below rather than after.
+  // Filled in by the group loop below; read only when help is rendered.
+  const tierOf = new Map<Command, HelpTier>()
   program.configureHelp({
     styleTitle: localizeHelpTitle,
     optionDescription: localizedOptionDescription,
     argumentDescription: localizedArgumentDescription,
+    ...tieredHelp(program, tierOf, build.fullHelp ?? false),
   })
   program.configureOutput({
     outputError: (message, write) => write(localizeCommanderError(message)),
@@ -458,12 +562,17 @@ export function buildProgram(build: BuildProgramOptions): Command {
   // Runs after an action that resolved — including one that reported failure
   // through `process.exitCode` — but not after one that threw.
   program.hook('postAction', async (_program, actionCommand) => {
+    await build.sidecarNotice?.finish(actionCommand)
     await build.updateNotice.finish(actionCommand)
   })
 
   for (const group of build.groups) {
     program.commandsGroup(t(group.titleKey))
+    const before = program.commands.length
     for (const register of group.commands) register(program)
+    for (const command of program.commands.slice(before)) {
+      tierOf.set(command, group.tier ?? 'core')
+    }
   }
 
   return program
@@ -573,6 +682,9 @@ async function prepareAction(build: BuildProgramOptions, actionCommand: Command)
   // After the locale (a server prints the notice right here) and before the
   // backfill, so a lookup gets as much of the run as possible to answer in.
   await build.updateNotice.start(actionCommand)
+  // After the config load (the list folders it names) and before the backfill
+  // (which may refresh sidecars, though never creates the first one).
+  await build.sidecarNotice?.start(actionCommand)
 
   if (build.backfill(actionCommand)) {
     await ensureCardIdsForAllLists()

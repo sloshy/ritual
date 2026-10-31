@@ -12,7 +12,7 @@ You pick the card from the local card cache with an autocomplete prompt. If the 
 ritual add-card <targetName> <cardName...> [options]
 ```
 
-`<targetName>` names a list of any type (see [List Names](/list-resolution/)). Pass `--deck`, `--collection`, or `--wanted` to fix the type, or put a `deck:`/`collection:`/`wanted:` prefix on the name (`collection:Main Binder`). A flag or a type prefix is required when the name is ambiguous, and when you want to **create** a missing collection or wanted list. A prefix that contradicts the flag is a usage error (exit `2`) naming both.
+`<targetName>` names a list of any type (see [List Names](/list-resolution/)). Pass `--deck`, `--collection`, or `--wanted` to fix the type, or put a `deck:`/`collection:`/`wanted:` prefix on the name (`collection:Main Binder`). A flag or a type prefix is required when the name is ambiguous, and when you want to **create** a missing collection or wanted list (see [List Resolution](#list-resolution)). A prefix that contradicts the flag is a usage error (exit `2`) naming both.
 
 ## Arguments
 
@@ -26,8 +26,9 @@ ritual add-card <targetName> <cardName...> [options]
 | Option                     | Description                                                                                                          | Default | Applies To               |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------ |
 | `--deck`                   | Resolve the name as a deck                                                                                           |         |                          |
-| `--collection`             | Resolve the name as a collection (created if missing)                                                                |         |                          |
-| `--wanted`                 | Resolve the name as a wanted list (created if missing)                                                               |         |                          |
+| `--collection`             | Resolve the name as a collection (your first collection is created if missing)                                       |         |                          |
+| `--wanted`                 | Resolve the name as a wanted list (your first wanted list is created if missing)                                     |         |                          |
+| `--create`                 | With `--collection` or `--wanted`: create the list if no list of that name exists, even beside existing ones         |         | Collection, Wanted       |
 | `-q, --quantity <num>`     | Number of copies to add (positive integer)                                                                           | `1`     | Deck only                |
 | `-f, --finish <finish>`    | Card finish: `nonfoil`, `foil`, `etched`                                                                             |         | Deck, Collection, Wanted |
 | `-c, --condition <cond>`   | Card condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to record no condition                                      |         | Deck, Collection         |
@@ -119,7 +120,17 @@ ritual add-card --wanted "My Wants" Lightning Bolt --exact --set STA --collector
 
 `<targetName>` follows the rules in [List Names](/list-resolution/). A `--deck`/`--collection`/`--wanted` flag restricts the search to that type.
 
-A missing **collection** or **wanted list** is created automatically, but only when the type is fixed by a flag or a `collection:`/`wanted:` prefix. This covers the first-run case where the workspace has no lists of that type yet. Decks are never auto-created; create them first with [`new deck`](/commands/new/).
+A missing **collection** or **wanted list** can be created by the add, but only when the type is fixed by a flag or a `collection:`/`wanted:` prefix:
+
+- When the workspace has **no** list of that type yet, the first one is created automatically. This is the first-run case.
+- Beside existing lists of that type, a name that matches none of them is **refused** (exit `3`) as a likely typo, naming the closest existing lists. Pass `--create` to create the new list anyway:
+
+  ```text
+  $ ritual add-card --collection "Trade Bindr" "Sol Ring"
+  No collection named 'Trade Bindr' found. Did you mean 'Trade Binder'? To start a new collection with that name, add --create.
+  ```
+
+`--create` needs the type pinned to a collection or wanted list; with `--deck` or no type it is a usage error (exit `2`). Decks are never auto-created: create them first with [`new deck`](/commands/new/). A missing deck's error suggests the closest deck names the same way.
 
 The file is created **at write time**, after every validation has passed. A failed add (empty card cache, unknown printing pin, cancelled prompt) or a `--dry-run` never leaves an empty list file behind.
 
@@ -231,6 +242,15 @@ An add preserves existing lines. A card-looking line inside a [fenced code block
 
 ## Output
 
+In text mode, a successful add names the list by its display name (its `# Title`), not its file:
+
+```text
+Added '1 Llanowar Elves' to Pauper Elves (Main)
+Added to Trade Binder: - Sol Ring (FDC:286) &12
+```
+
+A deck add names the card, the copies added, and the section the line landed in. A collection or wanted-list add shows the line exactly as written to the file.
+
 With `--output json` (or `ndjson`), a successful add prints exactly one machine-readable record. Informational chatter (cache counts, price lines) never appears on stdout:
 
 ```json
@@ -260,11 +280,11 @@ Errors raised after argument parsing (usage, not-found, and runtime errors) go t
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                |
-| ---- | ------------------------------------------------------------------------------------------------------ |
-| `0`  | Card added (or, under `--dry-run`, the add reported with nothing written)                              |
-| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure) |
-| `2`  | Usage error (see below)                                                                                |
-| `3`  | Not found (missing deck, no exact card-name match, no cards matching the search)                       |
+| Code | Meaning                                                                                                                                |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Card added (or, under `--dry-run`, the add reported with nothing written)                                                              |
+| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure)                                 |
+| `2`  | Usage error (see below)                                                                                                                |
+| `3`  | Not found (missing deck, unknown collection or wanted list without `--create`, no exact card-name match, no cards matching the search) |
 
-Exit `2` covers invalid or conflicting flags, a type prefix contradicting a type flag, an unknown printing pin, an unavailable finish, a cancelled prompt, and a missing `--finish`/`--condition`/wanted-specificity flag when [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable).
+Exit `2` covers invalid or conflicting flags, `--create` without `--collection`/`--wanted`, a type prefix contradicting a type flag, an unknown printing pin, an unavailable finish, a cancelled prompt, and a missing `--finish`/`--condition`/wanted-specificity flag when [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable).

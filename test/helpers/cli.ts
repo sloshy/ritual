@@ -5,12 +5,12 @@
  */
 
 import { Command } from 'commander'
-import type { CommandRegistrar, UpdateNoticeHooks } from '../../src/cli/program'
+import type { CommandRegistrar, ActionNoticeHooks } from '../../src/cli/program'
 
 export type { CommandRegistrar }
 
 /** `buildProgram`'s update notice, switched off for suites that are not about it. */
-export const NO_UPDATE_NOTICE: UpdateNoticeHooks = {
+export const NO_UPDATE_NOTICE: ActionNoticeHooks = {
   start: () => Promise.resolve(),
   finish: () => Promise.resolve(),
 }

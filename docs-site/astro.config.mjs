@@ -70,13 +70,28 @@ export default defineConfig({
           items: [
             { label: 'Overview', slug: 'commands' },
             {
+              label: 'Get started',
+              items: [
+                'commands/new',
+                'commands/import',
+                'commands/add-card',
+                'commands/edit',
+                'commands/admin',
+              ],
+            },
+            {
+              label: 'Look up and price',
+              items: ['commands/lists', 'commands/card', 'commands/scry', 'commands/price'],
+            },
+            {
+              label: 'Publish',
+              items: ['commands/build-site', 'commands/serve'],
+            },
+            {
               label: 'Lists',
               items: [
-                'commands/lists',
-                'commands/new',
                 'commands/rename',
                 'commands/delete',
-                'commands/edit',
                 'commands/metadata',
                 'commands/categories',
                 'commands/set-list-image',
@@ -88,7 +103,6 @@ export default defineConfig({
             {
               label: 'Cards',
               items: [
-                'commands/add-card',
                 'commands/remove-card',
                 'commands/set-card',
                 'commands/note',
@@ -97,25 +111,15 @@ export default defineConfig({
             },
             {
               label: 'Import & Export',
-              items: [
-                'commands/import',
-                'commands/import-account',
-                'commands/import-changes',
-                'commands/export',
-              ],
+              items: ['commands/import-account', 'commands/import-changes', 'commands/export'],
             },
             {
               label: 'Lookup & Pricing',
-              items: ['commands/card', 'commands/scry', 'commands/price', 'commands/sell'],
+              items: ['commands/sell'],
             },
             {
               label: 'Site',
-              items: [
-                'commands/build-site',
-                'commands/serve',
-                'commands/init-site',
-                'commands/admin',
-              ],
+              items: ['commands/init-site'],
             },
             {
               label: 'Integrations',
@@ -128,17 +132,25 @@ export default defineConfig({
               ],
             },
             {
+              label: 'Cache',
+              items: ['commands/cache'],
+            },
+            {
               label: 'Utilities',
               items: [
-                'commands/cache',
                 'commands/cleanup',
-                'commands/migrate',
                 'commands/self-update',
-                'commands/detect-changes',
-                'commands/list-all-cards',
                 'commands/config',
                 'commands/locale',
                 'commands/license',
+              ],
+            },
+            {
+              label: 'Advanced',
+              items: [
+                'commands/migrate',
+                'commands/detect-changes',
+                'commands/list-all-cards',
                 'commands/dep-license',
               ],
             },

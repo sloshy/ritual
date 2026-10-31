@@ -38,6 +38,7 @@ import { t, type MessageParams } from '../i18n/t'
 import { LIST_TYPES, LIST_TYPE_SINGULAR, isListType, type ListType } from './list-type'
 import {
   isNonEmpty,
+  nestSync,
   renderSyncMessage,
   syncList,
   syncMessage,
@@ -49,6 +50,7 @@ import {
   type SyncParam,
 } from '../sync/message'
 import { FLAG } from '../util/cli-tokens'
+import { suggestListNames } from './list-name-suggest'
 
 /**
  * The folding every tier below the byte-exact one matches in. Defined in
@@ -68,7 +70,13 @@ export type ListLocation = {
 /** No list files exist in the searched scope. */
 export type NoListsError = { kind: 'no-lists'; type?: ListType }
 /** The name matched nothing. */
-export type NotFoundError = { kind: 'not-found'; query: string; type?: ListType }
+export type NotFoundError = {
+  kind: 'not-found'
+  query: string
+  type?: ListType
+  /** Existing names close enough to be a typo of `query` ({@link suggestListNames}); omitted when none. */
+  suggestions?: readonly string[]
+}
 /** The name matched more than one list at the best tier; caller must disambiguate. */
 export type AmbiguousError = { kind: 'ambiguous'; query: string; matches: ListLocation[] }
 
@@ -251,7 +259,13 @@ export function matchList(
     if (hits.length > 1) return { kind: 'ambiguous', query: cleaned, matches: hits }
   }
 
-  return { kind: 'not-found', query: cleaned, type }
+  const suggestions = suggestListNames(
+    candidates.map((c) => c.name),
+    cleaned,
+  )
+  return suggestions.length > 0
+    ? { kind: 'not-found', query: cleaned, type, suggestions }
+    : { kind: 'not-found', query: cleaned, type }
 }
 
 /** One matching tier of {@link matchList}: a label for reading, and its predicate. */
@@ -411,6 +425,22 @@ function ambiguousMatches(matches: readonly ListLocation[]): SyncListParam {
 }
 
 /**
+ * `message` followed by "Did you mean 'A' or 'B'?" when the resolver found
+ * names close to the one typed, or `message` unchanged when it found none.
+ */
+export function withListNameSuggestions(
+  message: SyncMessage,
+  suggestions: readonly string[] | undefined,
+): SyncMessage {
+  const quoted = (suggestions ?? []).map((name) => `'${name}'`)
+  if (!isNonEmpty(quoted)) return message
+  return syncMessage('errors.resolveList.didYouMean', {
+    message: nestSync(message),
+    names: joinAlternatives(quoted),
+  })
+}
+
+/**
  * A {@link ResolveListError} as a message: English, plus the key and (nested)
  * params a reader renders in its own language — what an API response carries.
  * `hint` declares the caller's disambiguation mechanism so the ambiguity remedy
@@ -422,10 +452,12 @@ export function resolveListErrorMessage(error: ResolveListError, hint: ResolveHi
       return error.type
         ? syncMessage('errors.resolveList.noListsOfType', { type: error.type })
         : syncMessage('errors.resolveList.noLists')
-    case 'not-found':
-      return error.type
+    case 'not-found': {
+      const notFound = error.type
         ? syncMessage('errors.resolveList.notFoundOfType', { type: error.type, query: error.query })
         : syncMessage('errors.resolveList.notFound', { query: error.query })
+      return withListNameSuggestions(notFound, error.suggestions)
+    }
     case 'ambiguous':
       return syncMessage('errors.resolveList.ambiguous', {
         query: error.query,

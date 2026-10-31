@@ -7,6 +7,7 @@ import {
   formatEntryChoiceTitle,
   formatEntryDetailLines,
   formatListChoiceTitle,
+  formatPriceLegend,
   formatPrintingPriceLines,
   formatReportHeaderLines,
   runPriceBrowser,
@@ -26,6 +27,7 @@ import {
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard, stubTty } from '../test-utils'
 import { captureConsole } from '../helpers/capture'
+import { t } from '../../src/i18n/t'
 import { pseudoCatalog, pseudoString, withSyntheticLocale } from '../helpers/sync-text'
 
 function entry(overrides: Partial<PricedEntry> = {}): PricedEntry {
@@ -111,13 +113,59 @@ describe('formatTotalsSegment', () => {
 
   test('shows lowest only when it differs and unpriced only when positive', () => {
     expect(formatTotalsSegment(totals({ lowestTotal: 8, unpricedCount: 2 }), 'usd')).toBe(
-      'Total $10.00 · Lowest $8.00 · 2 unpriced',
+      'Total $10.00 · Lowest possible $8.00 · 2 unpriced',
     )
     expect(formatTotalsSegment(totals({}), 'usd')).toBe('Total $10.00')
   })
 
   test('marks an estimated total', () => {
     expect(formatTotalsSegment(totals({ estimatedCount: 1 }), 'usd')).toBe('Total ~$10.00')
+  })
+})
+
+describe('formatPriceLegend', () => {
+  const totals = (overrides: Partial<PriceTotals> = {}): PriceTotals => ({
+    cardCount: 1,
+    total: 10,
+    lowestTotal: 10,
+    unpricedCount: 0,
+    estimatedCount: 0,
+    ...overrides,
+  })
+
+  test('explains nothing a listing does not show', () => {
+    expect(formatPriceLegend([entry()], totals())).toEqual([])
+  })
+
+  test('explains each marker the listing shows, once', () => {
+    const legend = formatPriceLegend(
+      [entry({ quantity: 4 }), entry({ pinned: false }), entry({ pinned: false })],
+      totals({ estimatedCount: 1, lowestTotal: 8 }),
+    )
+    expect(legend).toEqual([
+      t('cli.price.legendLineTotals'),
+      t('cli.price.legendUnpinned'),
+      t('cli.price.legendEstimate'),
+      t('cli.price.legendLowestTotal'),
+    ])
+  })
+
+  test('a row whose only note is a cheaper printing still gets the line-total legend', () => {
+    expect(formatPriceLegend([entry({ lowest: 1 })], undefined)).toEqual([
+      t('cli.price.legendLineTotals'),
+    ])
+  })
+
+  test('a row with no lowest price at all carries no note to explain', () => {
+    expect(formatPriceLegend([entry({ price: 3, lowest: 0 })], undefined)).toEqual([])
+  })
+
+  test('an unpinned entry with no printing shown has no * to explain', () => {
+    const legend = formatPriceLegend(
+      [entry({ pinned: false, set: undefined, collectorNumber: undefined })],
+      undefined,
+    )
+    expect(legend).toEqual([])
   })
 })
 
@@ -200,7 +248,9 @@ describe('buildMainMenuChoices', () => {
 describe('formatListChoiceTitle', () => {
   test('includes totals, unpriced badge, and card count', () => {
     const title = formatListChoiceTitle(summary({ unpricedCount: 3 }), 'usd')
-    expect(title).toContain('My Deck — Total $250.00 · Lowest $200.00 · 3 unpriced · 100 cards')
+    expect(title).toContain(
+      'My Deck — Total $250.00 · Lowest possible $200.00 · 3 unpriced · 100 cards',
+    )
   })
 
   test('counts a one-card list in the singular', () => {

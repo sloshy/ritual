@@ -39,6 +39,10 @@ export const errorMessages = {
   'errors.scripting.fieldsEmpty': 'Expected at least one field for {flag}.',
   'errors.scripting.portRange': 'Port must be an integer between 1 and 65535.',
 
+  // ── List type arguments ───────────────────────────────────────────────
+  'errors.listType.invalid':
+    "Invalid list type '{value}'. Use 'deck', 'collection', or 'wanted' (plurals such as 'decks' work too).",
+
   // ── List resolution ───────────────────────────────────────────────────
   //
   // One of the single-function multipliers: `formatResolveListError` is the only
@@ -62,6 +66,7 @@ export const errorMessages = {
     collection: "No collection named '{query}' found.",
     wanted: "No wanted list named '{query}' found.",
   },
+  'errors.resolveList.didYouMean': '{message} Did you mean {names}?',
   'errors.resolveList.ambiguous':
     "'{query}' is ambiguous — it matches multiple lists:\n{matches}\n{advice}",
   'errors.resolveList.match': '  - {type}: {name}',

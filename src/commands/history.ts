@@ -130,7 +130,7 @@ export function registerHistoryCommand(program: Command): void {
     addListTypeFlags(
       program
         .command('history')
-        .description(t('help.history.description'))
+        .description(t('help.history.description', { flag: FLAG.show }))
         .argument('[listName]', t('help.history.listName')),
     )
       .option('--show', t('help.history.show'), false)

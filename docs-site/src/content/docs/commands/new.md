@@ -17,6 +17,8 @@ ritual new <type> <name...> [options]
 | `<type>`    | List type: `deck`, `collection`, `wanted` | Yes      |
 | `<name...>` | Name of the list                          | Yes      |
 
+`<type>` also accepts the plural and two-word spellings, in any case: `decks`, `collections`, `wanted-list`, `"wanted lists"`. Unquoted, `ritual new wanted list Grails` works too: a bare `list` or `lists` right after `wanted` is read as part of the type, not the name. Anything else is a usage error that names the accepted types.
+
 ## Options
 
 | Option                  | Description                                                                                     | Default     |
@@ -64,7 +66,22 @@ The JSON payload is `{ type, slug, name, filePath }`.
 
 ## Output
 
-Creates a markdown file in the type's directory (`decks/`, `collections/`, or `wanted/`), named after the list, plus its `.sha256` content-hash file. Decks start with front matter and an empty `## Main` section. Collections and wanted lists start as a bare `# Name` heading.
+Creates a markdown file in the type's directory (`decks/`, `collections/`, or `wanted/`), named after the list, plus its `.sha256` content-hash file (see [the `.sha256` files](/list-format/#the-sha256-files)). Decks start with front matter and the sections their format expects: a format with a command zone (`commander`, `oathbreaker`, `brawl`, `historic-brawl`, `duel-commander`, `pauper-commander`, `pre-dh`) starts with an empty `## Commander` section and an empty `## Main` section, and any other format with `## Main` alone. Collections and wanted lists start as a bare `# Name` heading.
+
+```text
+---
+format: commander
+tags: []
+---
+
+# Atraxa Superfriends
+
+## Commander
+
+## Main
+```
+
+The first command that creates a `.sha256` file in a workspace (usually the first `new`, `import`, or `add-card`) prints one line on stderr explaining what the file is for and that it should be committed (not under `--quiet`, `--output json`/`ndjson`, or `--dry-run`). Later runs say nothing about it.
 
 ## List file names
 

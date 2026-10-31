@@ -158,6 +158,20 @@ describe('matchList', () => {
     expect(result).toEqual({ kind: 'not-found', query: 'dragons', type: 'deck' })
   })
 
+  it('carries the existing names a typo is close to', () => {
+    const result = matchList(
+      [loc('collection', 'Trade Binder'), loc('collection', 'Cube')],
+      'Trade Bindr',
+      'collection',
+    )
+    expect(result).toEqual({
+      kind: 'not-found',
+      query: 'Trade Bindr',
+      type: 'collection',
+      suggestions: ['Trade Binder'],
+    })
+  })
+
   it('reports not-found with no type when searching across all types', () => {
     const result = matchList([loc('deck', 'Elves'), loc('collection', 'Staples')], 'dragons')
     expect(result).toEqual({ kind: 'not-found', query: 'dragons', type: undefined })
@@ -197,6 +211,18 @@ describe('formatResolveListError', () => {
   it('formats not-found with the query name', () => {
     const err: ResolveListError = { kind: 'not-found', query: 'Goblins', type: 'deck' }
     expect(formatResolveListError(err, 'type-flags')).toBe("No deck named 'Goblins' found.")
+  })
+
+  it('asks "did you mean" when the error carries suggestions', () => {
+    const err: ResolveListError = {
+      kind: 'not-found',
+      query: 'Trade Bindr',
+      type: 'collection',
+      suggestions: ['Trade Binder', 'Trade Binder 2'],
+    }
+    expect(formatResolveListError(err, 'type-flags')).toBe(
+      "No collection named 'Trade Bindr' found. Did you mean 'Trade Binder' or 'Trade Binder 2'?",
+    )
   })
 
   it('names all three types in a not-found from an untyped search', () => {

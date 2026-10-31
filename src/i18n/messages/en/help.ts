@@ -45,6 +45,13 @@ export const helpMessages = {
     'Card cache refresh policy: ask (prompt; skip when prompts are unavailable), auto, no-bulk, never',
 
   // ── Command-group headings (`program.commandsGroup(…)`) ───────────────
+  'help.group.start': 'Get started',
+  'help.group.browse': 'Look up and price',
+  'help.group.publish': 'Publish',
+  'help.group.advanced': 'Advanced',
+  'help.tier.moreTitle': 'More commands:',
+  'help.tier.allHint':
+    "Run '{helpCommand}' for a command's options, or '{allCommand}' to describe every command, advanced ones included.",
   'help.group.lists': 'Lists',
   'help.group.cards': 'Cards',
   'help.group.importExport': 'Import & Export',
@@ -53,7 +60,6 @@ export const helpMessages = {
   'help.group.integrations': 'Integrations',
   'help.group.cache': 'Cache',
   'help.group.utilities': 'Utilities',
-  'help.group.legal': 'Legal',
 
   // ── Commander's built-in flag and command descriptions ────────────────
   'help.commander.version': 'output the version number',

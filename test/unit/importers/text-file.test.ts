@@ -211,9 +211,9 @@ describe('parseDeckText', () => {
     expect(parsed.warnings).toEqual([])
   })
 
-  test('a deck of nothing but empty boards still parses to no sections', () => {
-    const { deck, warnings } = parseDeckText('## Main\n\n## Sideboard\n', 'X')
-    expect(deck.sections).toEqual([])
+  test('a deck of nothing but empty boards keeps them, so a rewrite does not strip them', () => {
+    const { deck, warnings } = parseDeckText('## Main\n\n## Sideboard\n\n## Maybeboard\n', 'X')
+    expect(deck.sections.map((s) => s.name)).toEqual(['Main', 'Sideboard'])
     expect(warnings).toEqual([])
   })
 

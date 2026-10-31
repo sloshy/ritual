@@ -38,6 +38,7 @@ import type { RefreshMode } from '../cache/refresh'
 import { isNoInput } from '../util/no-input'
 import {
   formatEntryChoiceTitle,
+  formatPriceLegend,
   formatListChoiceTitle,
   formatReportHeaderLines,
   formatTotalsSegment,
@@ -144,10 +145,7 @@ function emitSummary(
   for (const summary of report.lists) {
     emitOutput(formatListChoiceTitle(summary, report.currency), scriptingOptions)
   }
-  if (!scriptingOptions.quiet) {
-    emitOutput('', scriptingOptions)
-    emitOutput(t('cli.price.disclaimer'), scriptingOptions)
-  }
+  emitLegendAndDisclaimer(formatPriceLegend([], report.totals), scriptingOptions)
 }
 
 function emitListDetail(
@@ -196,10 +194,22 @@ function emitListDetail(
       scriptingOptions,
     )
   }
-  if (!scriptingOptions.quiet) {
-    emitOutput('', scriptingOptions)
-    emitOutput(t('cli.price.disclaimer'), scriptingOptions)
-  }
+  emitLegendAndDisclaimer(formatPriceLegend(entries, summary), scriptingOptions)
+}
+
+/**
+ * The closing block of a text price view: the legend for the markers it showed,
+ * then the condition disclaimer. Both explain rather than report, so `--quiet`
+ * drops them.
+ */
+function emitLegendAndDisclaimer(
+  legend: readonly string[],
+  scriptingOptions: ScriptingOptions,
+): void {
+  if (scriptingOptions.quiet) return
+  emitOutput('', scriptingOptions)
+  for (const line of legend) emitOutput(line, scriptingOptions)
+  emitOutput(t('cli.price.disclaimer'), scriptingOptions)
 }
 
 function emitCardSearch(
@@ -246,6 +256,7 @@ function emitCardSearch(
     }),
     scriptingOptions,
   )
+  emitLegendAndDisclaimer(formatPriceLegend(matches, totals), scriptingOptions)
 }
 
 export function registerPriceCommand(program: Command): void {

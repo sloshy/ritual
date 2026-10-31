@@ -2,7 +2,7 @@
 title: 'history'
 ---
 
-Compact and rewrite a list's change history (`.changes.md`) in a menu-driven editor, or print it read-only with `--show`.
+Show a list's change history (`.changes.md`) with `--show`, or tidy it in a menu-driven editor: merge, retime, or reword its entries.
 
 A change log can get noisy: many small sessions before a commit, mistimed entries, or sets you would rather merge. `history` edits the change log **only**; it never edits the list's own `.md` file. Nothing is written until you choose to save. Opening the editor runs the standard [card-ID backfill](/cli-conventions/#the-card-id-backfill) first, since _Rewrite with defaults_ embeds `&N` IDs in the lines it generates. `--show` skips it.
 

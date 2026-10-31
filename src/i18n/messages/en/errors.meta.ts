@@ -78,6 +78,10 @@ export const errorsMeta = {
   'errors.scripting.portRange': {
     description: 'Rejection of a --port value that is not an integer in the TCP port range.',
   },
+  'errors.listType.invalid': {
+    description:
+      "A typed list type (`ritual new <type>`, `import --type`) was not one of the accepted spellings. {value} is what the user typed. The quoted 'deck', 'collection', 'wanted' and 'decks' are the tokens the user types, so never translate them.",
+  },
   'errors.resolveList.noLists': {
     description:
       'No list files of any kind exist in the workspace, and the command did not pin a type.',
@@ -93,6 +97,10 @@ export const errorsMeta = {
   'errors.resolveList.notFoundOfType': {
     description:
       'A list name matched nothing within the pinned type. One branch per list type; {query} is what the user typed, quoted.',
+  },
+  'errors.resolveList.didYouMean': {
+    description:
+      'A not-found error followed by the existing list names closest to what the user typed. {message} is the already-rendered not-found sentence (errors.resolveList.notFound or notFoundOfType, or a command-specific one); {names} is one or more quoted list names joined by errors.resolveList.alternative.',
   },
   'errors.resolveList.ambiguous': {
     description:

@@ -137,6 +137,18 @@ export function formatHasCommandZone(format: DeckFormatKey): boolean {
 export const COMMANDER_SECTION = 'Commander'
 
 /**
+ * The sections a freshly created, empty deck of `format` starts with: a
+ * `Commander` section first for a format with a command zone (the one
+ * {@link COMMANDER_SECTION} names, so marking a commander later fills it rather
+ * than adding a second), then `Main`. Shared by every way a deck is created.
+ */
+export function newDeckSections(format: DeckFormatKey): DeckSection[] {
+  const main: DeckSection = { name: DEFAULT_SECTION, cards: [] }
+  if (!formatHasCommandZone(format)) return [main]
+  return [{ name: COMMANDER_SECTION, cards: [] }, main]
+}
+
+/**
  * What a deck section *is*, decided by its name. `main` is the catch-all: every
  * name the table does not list — `Creatures`, `Ramp`, `Token Generators`,
  * `Commander Damage Notes`, `Sideboard (post-board)` — is a main-deck section.

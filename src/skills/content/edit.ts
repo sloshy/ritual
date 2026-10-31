@@ -62,9 +62,14 @@ ritual add-card "Main Binder" "Sol Ring" --collection --set c21 --collector-numb
 ritual add-card "Winota Stax" "Sol Ring" --deck -q 4 --dry-run   # preview, writes nothing
 \`\`\`
 
-- \`--collection\` / \`--wanted\` create the list if it does not exist — including in a
-  workspace with no lists of that type yet (\`--deck\` does not — use \`ritual new deck\`).
-  The file is created only at write time, so a failed add (or a \`--dry-run\`) leaves none.
+- \`--collection\` / \`--wanted\` create the list if the workspace has **no** list of that
+  type yet. Beside existing ones, a name that matches none of them is refused (exit 3,
+  with "Did you mean …?" naming the closest lists) as a likely typo; pass \`--create\`
+  to make it anyway. \`--deck\` never creates — use \`ritual new deck\`. The file is
+  created only at write time, so a failed add (or a \`--dry-run\`) leaves none.
+- The text result names the list by its display name (\`Added '1 Sol Ring' to Winota
+  Stax (Main)\`, \`Added to Main Binder: - Sol Ring (C21:263) &4\`); the JSON \`list\`
+  field is the file name.
 - Deck adds go through the same engine as the editors: copies **merge onto an
   existing line** for the same card and printing, a new line is appended at the end
   of the target section (the deck's first regular section by default — never a

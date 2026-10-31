@@ -33,24 +33,42 @@ export function registerListsCommand(program: Command): void {
         if (!scripting.quiet) emitOutput(t('cli.lists.empty'), scripting)
         return
       }
-      // Terminal columns, not code units — a slug is ASCII but a list name (or
-      // a translated type) is not, and the same padding helper is what keeps
-      // every table honest. The type reads in the UI language; JSON keeps the
-      // `deck` / `collection` / `wanted` token.
-      const types = rows.map((row) => listTypeNoun(row.type))
-      const typeWidth = Math.max(...types.map(displayWidth))
-      const slugWidth = Math.max(...rows.map((row) => displayWidth(row.slug)))
-      rows.forEach((row, index) => {
-        emitOutput(
-          `${padEndDisplay(types[index] ?? '', typeWidth)}  ${padEndDisplay(row.slug, slugWidth)}  ${row.name}`,
-          scripting,
-        )
-      })
+      for (const line of formatListsTable(rows)) emitOutput(line, scripting)
       return
     }
 
     emitOutput(rows, scripting)
   })
+}
+
+/**
+ * The text table: a heading row, then one row per list — type, display name,
+ * and the file name only when some list's file name differs from its name
+ * (otherwise the column would repeat the name). Padded in terminal columns,
+ * not code units: a list name (or a translated type) need not be ASCII. The
+ * type reads in the UI language; JSON keeps the `deck` / `collection` /
+ * `wanted` token.
+ */
+export function formatListsTable(rows: readonly ListInfo[]): string[] {
+  const showFile = rows.some((row) => row.slug !== row.name)
+  const table: string[][] = [
+    [
+      t('cli.lists.columnType'),
+      t('cli.lists.columnName'),
+      ...(showFile ? [t('cli.lists.columnFile')] : []),
+    ],
+    ...rows.map((row) => [listTypeNoun(row.type), row.name, ...(showFile ? [row.slug] : [])]),
+  ]
+  const widths = table[0]!.map((_, column) =>
+    Math.max(...table.map((cells) => displayWidth(cells[column] ?? ''))),
+  )
+  return table.map((cells) =>
+    cells
+      .map((cell, column) =>
+        column === cells.length - 1 ? cell : padEndDisplay(cell, widths[column] ?? 0),
+      )
+      .join('  '),
+  )
 }
 
 /** Deterministic display order: deck, collection, wanted — then slug within each type. */

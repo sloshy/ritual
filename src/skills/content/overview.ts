@@ -16,7 +16,10 @@ skills cover each area in detail.
 
 The current directory (or one passed with \`--base-dir <path>\`) is a Ritual
 workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, or a
-\`ritual.config.json\`. Confirm Ritual is installed with \`ritual --help\`.
+\`ritual.config.json\`. Confirm Ritual is installed with \`ritual --help\`, which
+describes the core commands and only names the rest; \`ritual help --all\`
+describes every command, the advanced ones (\`migrate\`, \`detect-changes\`,
+\`list-all-cards\`, \`dep-license\`) included.
 
 ## Workspace layout
 
@@ -28,6 +31,10 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
   events — the block is what Ritual reads back, the prose is rendered only and is
   always English whatever the UI locale; an entry with no block is legacy and shows
   no events until \`ritual cleanup\` converts it)
+- \`<name>.md.sha256\` — a hash of the list as Ritual last wrote it, which lets
+  \`ritual detect-changes\` tell Ritual's own writes from hand edits and log the
+  hand edits; commit it with the list (the first command that creates one in a
+  workspace prints a one-line note saying so, on stderr)
 - \`<name>.art.json\` — optional custom-art sidecar next to a list, mapping card
   \`&N\` ids to a replacement image (see **Custom art** below)
 - \`<name>.categories.json\` — optional per-list category sidecar (plus its
@@ -72,16 +79,23 @@ whole-command flag cannot scope a single argument. A prefix that contradicts a t
 flag (\`delete deck:X --collection\`) is a usage error, not a silent override. When the
 matches are all the **same** type, no type selector can help: type more of the name,
 or the full name exactly as spelled. The error's last line always names the
-remedy that actually applies.
+remedy that actually applies. A name that matches nothing gets up to three
+existing lists close to it as a suggestion ("No collection named 'Trade Bindr'
+found. Did you mean 'Trade Binder'?"); under \`--output json\` its \`messageKey\` is
+then \`errors.resolveList.didYouMean\`.
 
 **Discovering lists:** \`ritual lists\` is the discovery primitive — it enumerates
-every deck, collection, and wanted list as \`type slug name\` rows (the text type
-column is worded in the UI language, e.g. \`wanted list\`). Filter with
+every deck, collection, and wanted list as a headed table of type and name, plus a
+file column (the slug) only when some list's file name differs from its name (the
+text type column is worded in the UI language, e.g. \`wanted list\`). Filter with
 \`--deck\`/\`--collection\`/\`--wanted\`, and pass \`--output json\` for machine-readable
 \`{type, slug, name}\` objects whose \`type\` is always \`deck\`/\`collection\`/\`wanted\`. Prefer it over globbing the workspace folders.
 
 **List lifecycle:** \`ritual new <deck|collection|wanted> "<name>"\` creates a list
-(\`-f/--format\` for decks, default \`commander\`), \`ritual rename <list> "<new name>"\`
+(plurals such as \`decks\` or \`"wanted lists"\` are accepted too, as by
+\`import --type\`; \`-f/--format\` for
+decks, default \`commander\`; a deck whose format has a command zone starts with an
+empty \`## Commander\` section before \`## Main\`), \`ritual rename <list> "<new name>"\`
 renames one (file, sidecars, and front matter together), and
 \`ritual delete <list> --confirm "<name>"\` deletes one (\`--confirm\` must repeat the
 display name; without it a terminal prompts). \`new\` and \`rename\` **refuse** a name

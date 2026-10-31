@@ -29,13 +29,15 @@ tags: []
 
 # My Commander Deck
 
+## Commander
+
 ## Main
 - 1 Sol Ring &1
 ```
 
-You can edit it with Ritual or in any text editor. The `&1` at the end of the line is the card's ID within the list; Ritual adds it and keeps it stable. [List Files](/list-format/) describes the whole format.
+You can edit it with Ritual or in any text editor. A Commander deck starts with an empty `## Commander` section; `ritual add-card "My Commander Deck" "Atraxa, Praetors' Voice" --commander` fills it. The `&1` at the end of the line is the card's ID within the list; Ritual adds it and keeps it stable. [List Files](/list-format/) describes the whole format.
 
-Beside it, Ritual keeps `My Commander Deck.changes.md`, a dated log of the cards it adds, removes or changes, and `My Commander Deck.md.sha256`, a hash of the file as Ritual last wrote it. When you edit the file by hand, [`ritual detect-changes`](/commands/detect-changes/) uses that hash to notice the edit and log it. The GitHub workflow [`init-site`](/commands/init-site/) writes can run it for you on every push.
+Beside it, Ritual keeps `My Commander Deck.changes.md`, a dated log of the cards it adds, removes or changes, and `My Commander Deck.md.sha256`, a hash of the file as Ritual last wrote it. When you edit the file by hand, [`ritual detect-changes`](/commands/detect-changes/) uses that hash to notice the edit and log it. The GitHub workflow [`init-site`](/commands/init-site/) writes can run it for you on every push. Commit both files along with the deck; the first command that creates a `.sha256` file in a workspace (here, `new`) prints a one-line note saying so. See [The `.sha256` files](/list-format/#the-sha256-files).
 
 ## Import Instead
 
