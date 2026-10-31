@@ -10,7 +10,7 @@
  * app icon (`app.svg`) and the demo's home-page screenshot, in the docs' dark
  * palette, with the Playwright Chromium the end-to-end tests use
  * (`bunx playwright install chromium`). Re-run it after the icon, the
- * tagline, or the home screenshot changes, and commit the two PNGs.
+ * tagline, or the home screenshot changes, and commit the two images.
  */
 import { chromium } from '@playwright/test'
 import { readFile } from 'node:fs/promises'

@@ -12,6 +12,8 @@ ligh = "ligh"
 gam = "gam"
 sav = "sav"
 categor = "categor"
+# A misspelled deck section the add-card tests type, to check the suggestion.
+mian = "mian"
 # Set codes (ANC, WTH, SOM) and "un-IDed".
 anc = "anc"
 wth = "wth"

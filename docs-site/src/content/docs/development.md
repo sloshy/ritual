@@ -212,8 +212,6 @@ bun run index.ts --base-dir demo serve
 
 The demo keeps its card cache in its own folder rather than your shared per-user cache: its `ritual.config.json` sets [`cacheDir`](/configuration/#cache-directory-cachedir) to `cache`. So the first build downloads the Scryfall card cache into `demo/cache/` (about 80 MB), which is the path the docs workflow caches and the screenshot and recording scripts reuse. `demo/.gitignore` keeps the cache and the built `demo/dist/` out of git.
 
-`.github/workflows/deploy-docs.yml` builds Ritual from the pushed commit, builds the demo into `docs-site/dist/demo/` after the Starlight build, and publishes both together. It also runs every Monday, so the demo's prices stay current between pushes. The card cache is kept between runs with `actions/cache`, keyed by day: the first build each day downloads fresh card data, and later builds that day reuse it.
-
 The screenshots in these docs (the homepage, the Public Site and Admin Site pages) and in the README are of the demo. To retake them after a visible change to either site:
 
 ```bash
@@ -256,6 +254,18 @@ Each recording types its commands into a shell in a 100-column pseudo-terminal, 
 | Docker image builds | `docker build` of the `Dockerfile`, without pushing                                                                             |
 | Binaries            | All six release binaries, cross-compiled on Linux, then each started on its own OS and architecture (`scripts/smoke-binary.sh`) |
 
+## Docs Deploy
+
+**Docs deploy from the latest release.** `.github/workflows/deploy-docs.yml` publishes the docs site and the [demo](#demo-site): it builds Ritual, then the demo into `docs-site/dist/demo/` after the Starlight build, and publishes both together. The card cache is kept between runs with `actions/cache`, keyed by day: the first build each day downloads fresh card data, and later builds that day reuse it.
+
+Both are built from the **latest stable release**, not from `main`, so they describe the Ritual people install. A docs change merged to `main` goes live with the next release. The deploy runs:
+
+- after each release: the release workflow starts it once the release is published;
+- every Monday, so the demo's prices stay current;
+- by hand from the Actions page ("Deploy Docs to GitHub Pages", **Run workflow**), which can also deploy a tag or branch you name, for example to fix a docs mistake between releases.
+
+Prereleases never deploy once a stable release exists. Until the first stable release, the site deploys from `main` instead, because the prereleases before it predate the demo and most of these docs. The pull-request CI still builds the docs and checks their links on every change.
+
 ## Releasing
 
 A release is published by pushing its tag; `.github/workflows/release.yml` does the rest.
@@ -263,6 +273,6 @@ A release is published by pushing its tag; `.github/workflows/release.yml` does 
 1. In one commit, set `version` in `package.json` to the new version and move the `Unreleased` notes in `CHANGELOG.md` under a `## [X.Y.Z] - <date>` heading.
 2. Tag that commit `vX.Y.Z` (`vX.Y.Z-rc1` and the like for a prerelease) and push the tag.
 
-The workflow refuses a tag that disagrees with `package.json`, and a stable release without a `CHANGELOG.md` section (a prerelease without one gets GitHub's generated notes). It then runs the CI gates, builds and smoke-tests the binaries with the tag's version, records a provenance attestation for each, and attaches the binaries and their `.sha256` files to a **draft** release. Only once everything is attached is the release published, so the installers and `ritual self-update` never see a release without its binaries. The Docker image is pushed last: tagged with the version, plus `X.Y` and `X` for a stable release (no bare `X` while the version is 0.x, where a minor release may break), and `latest` only for a stable release.
+The workflow refuses a tag that disagrees with `package.json`, and a stable release without a `CHANGELOG.md` section (a prerelease without one gets GitHub's generated notes). It then runs the CI gates, builds and smoke-tests the binaries with the tag's version, records a provenance attestation for each, and attaches the binaries and their `.sha256` files to a **draft** release. Only once everything is attached is the release published, so the installers and `ritual self-update` never see a release without its binaries. Once it is published, the workflow starts the [docs deploy](#docs-deploy). The Docker image is pushed last: tagged with the version, plus `X.Y` and `X` for a stable release (no bare `X` while the version is 0.x, where a minor release may break), and `latest` only for a stable release.
 
 A release you drafted for the tag beforehand, for example to write its notes by hand, is filled in and published as it stands. A failed run is re-run from the Actions page.

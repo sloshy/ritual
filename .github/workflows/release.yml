@@ -16,6 +16,9 @@ name: Release
 #              release whose binaries are not there yet
 #   docker     the image, tagged with the version (and `latest` for a stable
 #              release only), pushed only once the release is out
+#   docs       starts deploy-docs.yml, which publishes the docs and demo from
+#              the latest stable release (so a prerelease leaves them as they
+#              are once a stable release exists)
 #
 # Nothing is published unless every gate before it passed.
 
@@ -184,3 +187,21 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=release
           cache-to: type=gha,mode=max,scope=release
+
+  # The docs site deploys from the latest release (see deploy-docs.yml). A
+  # release published with GITHUB_TOKEN starts no `release`-triggered
+  # workflow, but a workflow_dispatch sent with it does. The run is on main, so
+  # the Pages environment's branch rule allows it, and it checks out the
+  # release tag itself.
+  docs:
+    name: Deploy the docs
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run deploy-docs.yml --ref main

@@ -1,13 +1,31 @@
 name: Deploy Docs to GitHub Pages
 
+# Publishes https://ritual.rpeters.dev: the Starlight docs plus the live demo
+# (/demo/), both built from the LATEST RELEASE, never from whatever is on main,
+# so the site documents the Ritual people actually install. Docs edits merged
+# to main go live with the next release.
+#
+# Which release: the latest stable one (GitHub's "latest release"). Prereleases
+# never deploy once a stable release exists. While Ritual has no stable release
+# yet, the site deploys from main instead: the prereleases before 0.1.0 predate
+# demo/ and most of these docs, so deploying one would take the site backwards.
+#
+# Runs:
+# - after each release: release.yml dispatches this workflow once the release
+#   is published (a release a workflow publishes with GITHUB_TOKEN raises no
+#   `release` event for other workflows, but a dispatch it sends does start one);
+# - weekly, so the demo's prices stay current between releases;
+# - by hand from the Actions page, optionally with a tag or branch to deploy.
+
 on:
-  push:
-    branches:
-      - main
-  # Weekly rebuild, so the demo site's prices stay current between pushes.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Tag or branch to deploy (default the latest release)
+        type: string
+        default: ''
   schedule:
     - cron: '0 6 * * 1'
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -22,11 +40,36 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Find the release to deploy
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUESTED: ${{ inputs.ref }}
+        run: |
+          if [ -n "$REQUESTED" ]; then
+            ref="$REQUESTED"
+          # GitHub's "latest release" is the newest stable one: never a
+          # prerelease or a draft. It answers 404 while there is none.
+          elif ref=$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name 2> latest.err); then
+            :
+          elif grep -q 'HTTP 404' latest.err; then
+            ref=main
+            echo "::warning::No stable release yet; deploying main."
+          else
+            cat latest.err >&2
+            exit 1
+          fi
+          echo "Deploying $ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          # Full history and tags, so the Ritual built below names its version
-          # (`git describe`) in the demo site's footer.
+          ref: ${{ steps.release.outputs.ref }}
+          # Full history and tags: the Ritual built below names its version
+          # (`git describe`) in the demo site's footer, and each docs page's
+          # "Last updated" date comes from its last commit.
           fetch-depth: 0
 
       - name: Setup Node
@@ -46,7 +89,7 @@ jobs:
         run: cd docs-site && npm run build
 
       # The live demo (https://ritual.rpeters.dev/demo/): the `demo/` workspace
-      # built by Ritual from this commit, published beside the docs. It runs
+      # built by the same release's Ritual, published beside the docs. It runs
       # after the Astro build, which empties docs-site/dist. `--out-dir` resolves
       # against the workspace, hence the absolute path.
       - uses: oven-sh/setup-bun@v2

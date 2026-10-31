@@ -16,7 +16,7 @@ export default defineConfig({
       favicon: '/app.svg',
       // Link previews: Starlight already emits og:title/description and
       // `twitter:card: summary_large_image`; this gives both the image they
-      // need. Regenerate the PNGs with scripts/docs-og-image.ts.
+      // need. Regenerate the images with scripts/docs-og-image.ts.
       head: [
         { tag: 'meta', attrs: { property: 'og:image', content: `${SITE}/og.png` } },
         { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },

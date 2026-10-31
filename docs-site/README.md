@@ -33,5 +33,7 @@ Builds the static site into `dist/`. Internal links are validated at build time 
 
 ## Deployment
 
-Deployed to GitHub Pages automatically on push to `main` via
-`.github/workflows/deploy-docs.yml`.
+Deployed to GitHub Pages by `.github/workflows/deploy-docs.yml`, from the latest stable
+release rather than from `main`: after each release, every Monday, and on demand. A docs
+change merged to `main` goes live with the next release. See "Docs deploy from the latest
+release" in `src/content/docs/development.md`.
