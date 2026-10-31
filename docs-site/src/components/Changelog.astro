@@ -1,0 +1,10 @@
+---
+// The repository's CHANGELOG.md, rendered into the docs' Changelog page, so
+// the page can never drift from the file each release's notes come from. Its
+// own `# Changelog` heading is dropped: the page has its title already.
+import * as changelog from '../../../CHANGELOG.md'
+
+const html = (await changelog.compiledContent()).replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>/, '')
+---
+
+<div class="changelog"><Fragment set:html={html} /></div>

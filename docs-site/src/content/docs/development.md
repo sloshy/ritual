@@ -101,7 +101,7 @@ bun run build:assets
 
 This project uses `bun test`.
 
-Tests never touch your real [card cache](/commands/cache/#where-the-cache-lives). The test preload (`test/preload.ts`) and `playwright.config.ts` set `RITUAL_CACHE_DIR=cache`, which resolves against each workspace, so every temporary workspace a test creates keeps its own `cache/` folder, and spawned CLIs inherit the setting — but only when the spawn passes `env` (`runCli` does): `Bun.spawn` without `env` hands a child the environment Bun started with, missing what the preload set. A test of the location itself passes its own environment.
+Tests never touch your real [card cache](/card-cache/). The test preload (`test/preload.ts`) and `playwright.config.ts` set `RITUAL_CACHE_DIR=cache`, which resolves against each workspace, so every temporary workspace a test creates keeps its own `cache/` folder, and spawned CLIs inherit the setting — but only when the spawn passes `env` (`runCli` does): `Bun.spawn` without `env` hands a child the environment Bun started with, missing what the preload set. A test of the location itself passes its own environment.
 
 ### Local check suite
 

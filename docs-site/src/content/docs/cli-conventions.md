@@ -23,7 +23,7 @@ A few environment variables have no flag:
 | `RITUAL_NO_UPDATE_CHECK`   | Never look up or announce newer Ritual releases (the [update notice](/commands/self-update/#update-notice))                                           |
 | `RITUAL_DEBUG`             | Print the full stack trace of a failure Ritual did not anticipate, instead of its bare message ([Reporting a bug](/commands/doctor/#reporting-a-bug)) |
 | `RITUAL_STATE_DIR`         | Where Ritual keeps its small per-user [state file](/commands/migrate/#when-ritual-offers-to-migrate)                                                  |
-| `RITUAL_CACHE_DIR`         | Where the [card cache](/commands/cache/#where-the-cache-lives) lives; outranks the `cacheDir` key. A relative path resolves against the workspace     |
+| `RITUAL_CACHE_DIR`         | Where the [card cache](/card-cache/) lives; outranks the `cacheDir` key. A relative path resolves against the workspace                               |
 | `RITUAL_ADMIN_SETUP_TOKEN` | Pins the one-time token `ritual admin` requires to create the first account ([First-Time Setup](/commands/admin/#first-time-setup))                   |
 | `CI`                       | Marks a CI run: no offer to migrate and no update notice. `CI=false` (or another off spelling) counts as unset                                        |
 
@@ -31,7 +31,7 @@ A few environment variables have no flag:
 
 ### `--base-dir`
 
-By default Ritual reads and writes files relative to the directory you run it from. `--base-dir` points it at a different directory:
+By default Ritual reads and writes files relative to the directory you run it from, its [workspace](/workspace/). `--base-dir` points it at a different directory:
 
 ```bash
 # Run from anywhere, but operate on files in ~/my-collection

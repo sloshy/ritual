@@ -6,7 +6,7 @@ sidebar:
   order: 7
 ---
 
-Routes that build the public site, report on and refresh the [card cache](/commands/cache/), run the same checks as [`ritual doctor`](/commands/doctor/), and read or change `ritual.config.json`. Every route here follows the [conventions on the overview page](/admin/api/): the [message triple](/admin/api/#the-message-triple), the [error responses](/admin/api/#error-responses) and [authentication](/admin/api/#authentication).
+Routes that build the public site, report on and refresh the [card cache](/card-cache/), run the same checks as [`ritual doctor`](/commands/doctor/), and read or change `ritual.config.json`. Every route here follows the [conventions on the overview page](/admin/api/): the [message triple](/admin/api/#the-message-triple), the [error responses](/admin/api/#error-responses) and [authentication](/admin/api/#authentication).
 
 ## Build Site
 

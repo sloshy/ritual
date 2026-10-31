@@ -33,4 +33,4 @@ Every site [`build-site`](/commands/build-site/) produces shows this notice in i
 | Deck imports                                         | Archidekt, Moxfield, and MTGGoldfish, when you import from them                             |
 | Deck and collection sync                             | Archidekt, with your own account                                                            |
 
-Ritual downloads Scryfall's bulk data files into a local [card cache](/commands/cache/) rather than looking cards up one at a time, so most commands never touch the network. None of these sites is affiliated with Ritual.
+Ritual downloads Scryfall's bulk data files into a local [card cache](/card-cache/) rather than looking cards up one at a time, so most commands never touch the network. None of these sites is affiliated with Ritual.

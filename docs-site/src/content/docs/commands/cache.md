@@ -2,7 +2,7 @@
 title: 'cache'
 ---
 
-Manage the card cache: inspect it, preload it, and run the always-on cache server and the experimental peer-to-peer cache feed.
+Manage the card cache: inspect it, preload it, and run the always-on cache server and the experimental peer-to-peer cache feed. For what the cache is, start with [Card Cache](/card-cache/); this page has every option.
 
 ## Where the cache lives
 

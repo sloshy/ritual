@@ -5,6 +5,8 @@ import starlightLinksValidator from 'starlight-links-validator'
 
 export default defineConfig({
   site: 'https://ritual.rpeters.dev',
+  // The Changelog page renders the repository's CHANGELOG.md, one level up.
+  vite: { server: { fs: { allow: ['..'] } } },
   integrations: [
     starlight({
       title: 'Ritual',
@@ -54,6 +56,8 @@ export default defineConfig({
         {
           label: 'Concepts',
           items: [
+            'workspace',
+            'card-cache',
             'list-format',
             'list-resolution',
             'configuration',
@@ -194,8 +198,11 @@ export default defineConfig({
           ],
         },
         { label: 'Hosting', items: ['docker'] },
+        {
+          label: 'Reference',
+          items: [{ autogenerate: { directory: 'reference' } }, 'attribution'],
+        },
         { slug: 'development' },
-        { slug: 'attribution' },
       ],
     }),
   ],
