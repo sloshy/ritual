@@ -10,7 +10,7 @@ import {
   validateSkill,
 } from '../../src/skills/catalog'
 import { classifyInstalledSkill } from '../../src/skills/install'
-import { MCP_TOOL_NAMES, RETIRED_MCP_TOOL_NAMES } from '../../src/mcp/tools/names'
+import { MCP_TOOL_NAMES } from '../../src/mcp/tools/names'
 import type { RitualSkill } from '../../src/skills/types'
 import { version } from '../../src/config/version'
 import { SECTION_ROLES } from '../../src/list/deck-format'
@@ -210,16 +210,6 @@ describe('skill bodies name only tools that exist', () => {
     const site = SKILLS.find((skill) => skill.name === 'ritual-site')
     const missing = MIGRATION_CHECK_EXEMPT.filter((name) => !site?.body.includes(`\`${name}\``))
     expect(missing).toEqual([])
-  })
-
-  test('no skill mentions a retired tool name', () => {
-    for (const skill of SKILLS) {
-      for (const retired of RETIRED_MCP_TOOL_NAMES) {
-        const found = new RegExp(`\\b${retired}\\b`).test(skillText(skill))
-        expect({ skill: skill.name, retired, found }) //
-          .toEqual({ skill: skill.name, retired, found: false })
-      }
-    }
   })
 
   test('every tool-name-shaped token in a skill is a registered tool', () => {

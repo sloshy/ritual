@@ -53,23 +53,3 @@ export const MCP_TOOL_NAMES = [
 
 /** Every tool name the server registers, as a type. */
 export type McpToolName = (typeof MCP_TOOL_NAMES)[number]
-
-/** Names retired by an earlier rename/merge sweep — never valid again. */
-export const RETIRED_MCP_TOOL_NAMES = [
-  'load_list',
-  'load_history',
-  'card_printings',
-  'card_price',
-  'price_report',
-  'import_changes',
-  'move_cards',
-  'remove_cards',
-  'deck_sync_status',
-  'collection_sync_status',
-  'set_card_note',
-  'set_card_section',
-  'set_commander',
-  'unset_commander',
-  'get_audit_log',
-  'search_cards',
-] as const
