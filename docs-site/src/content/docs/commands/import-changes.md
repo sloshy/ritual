@@ -5,7 +5,7 @@ sidebar:
   label: 'import-changes'
 ---
 
-Apply a change bundle to your list files. A bundle is the JSON exported by the public site's [in-browser editor](/public-site/editing/) or the admin editor's Export panel. The command previews every change grouped by target list, lists cross-list moves after them, and writes nothing until you confirm.
+Apply a change bundle to your list files. A bundle is the JSON exported by the public site's [in-browser editor](/public-site/editing/). The command previews every change grouped by target list, lists cross-list moves after them, and writes nothing until you confirm.
 
 The same JSON can be applied on the [admin site](/admin/import/#import-changes) (**Import Changes** page) and via the [MCP](/commands/mcp/) `import_change_bundle` tool.
 

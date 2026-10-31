@@ -456,7 +456,7 @@ discarded first.
 ## Apply exported changes
 
 \`ritual import-changes\` applies a change bundle exported from the public site's
-edit mode (or the admin editor's Export panel) to the underlying list files. The
+edit mode to the underlying list files. The
 JSON is a \`ritual-change-bundle\` (version 1) covering one or more lists — the export
 panel's "This list" and "All lists" scopes both produce it. Each list's own edits sit
 in \`lists[].changes\`; cross-list moves are normalized into one top-level \`moves\`
