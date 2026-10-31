@@ -2,6 +2,7 @@
 title: 'Hosting with a Live Backend'
 description: Serve the public site with live list data and cache-backed card search, on one origin or split across a CDN and an API host.
 sidebar:
+  order: 11
   badge:
     text: Beta
     variant: caution

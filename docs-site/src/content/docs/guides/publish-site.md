@@ -1,6 +1,8 @@
 ---
 title: 'Publish Your Deck Site'
 description: 'Put your workspace in a GitHub repository, set it up with init-site, and let GitHub Actions build and publish your lists to GitHub Pages on every push. Or build locally and host the files anywhere.'
+sidebar:
+  order: 1
 ---
 
 This guide takes a workspace of lists and publishes it as a website. The main path uses GitHub: your lists live in a repository, and a GitHub Actions workflow builds the site and deploys it to GitHub Pages each time you push. At the end there is a second path for building on your own machine and hosting the files anywhere.

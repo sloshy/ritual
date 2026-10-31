@@ -1,6 +1,8 @@
 ---
 title: 'Use Ritual with AI Agents'
 description: 'Connect an AI assistant to your workspace through the MCP server, or install skills that teach a coding agent the ritual CLI.'
+sidebar:
+  order: 4
 ---
 
 An AI assistant can read and edit your decks, collections and wanted lists in two ways:

@@ -61,20 +61,20 @@ export default defineConfig({
           errorOnLocalLinks: false,
         }),
       ],
+      // Start Here, Guides, Public Site, Reference and the Admin API are
+      // generated from their folders, ordered by each page's `sidebar.order`.
+      // The rest stay explicit: the concept pages sit at the top level (moving
+      // them would change their URLs), the commands are grouped by task rather
+      // than by folder, and the Admin Site group nests the API under a label of
+      // its own (a generated subgroup would be named after its folder, "api").
       sidebar: [
         {
           label: 'Start Here',
-          items: ['start/install', 'start/first-deck', 'start/tour'],
+          items: [{ autogenerate: { directory: 'start' } }],
         },
         {
           label: 'Guides',
-          items: [
-            'guides/publish-site',
-            'guides/archidekt-sync',
-            'guides/collection-trade-sell',
-            'guides/ai-agents',
-            'guides/public-edits',
-          ],
+          items: [{ autogenerate: { directory: 'guides' } }],
         },
         {
           label: 'Concepts',
@@ -186,20 +186,7 @@ export default defineConfig({
         },
         {
           label: 'Public Site',
-          items: [
-            { label: 'Overview', slug: 'public-site' },
-            'public-site/browsing',
-            'public-site/filtering',
-            'public-site/prices',
-            'public-site/editing',
-            'public-site/combined-view',
-            'public-site/find',
-            'public-site/find-printings',
-            'public-site/trade',
-            'public-site/sell',
-            'public-site/mobile',
-            'public-site/hosted',
-          ],
+          items: [{ autogenerate: { directory: 'public-site' } }],
         },
         {
           label: 'Admin Site',

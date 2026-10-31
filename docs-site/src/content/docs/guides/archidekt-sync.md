@@ -1,6 +1,8 @@
 ---
 title: 'Sync with Archidekt'
 description: 'Sign in, import your Archidekt decks, and keep decks and your collection in step in both directions, previewing every run first.'
+sidebar:
+  order: 2
 ---
 
 This guide connects a Ritual workspace to an Archidekt account: sign in, bring your decks in, then keep decks and your collection in step in both directions. Each step links to the full reference.

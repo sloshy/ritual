@@ -1,6 +1,8 @@
 ---
 title: 'Take Edits from Your Public Site'
 description: 'Edit a list on your static public site, export the changes as a file, and apply them to your workspace with import-changes, the admin site, or the MCP server.'
+sidebar:
+  order: 5
 ---
 
 Your public site is static: it has no server and cannot write to your files. You can still edit lists on it. The editor runs in the browser, and when you are done you download your edits as a **change bundle**, a small JSON file. Back at your workspace, you apply the bundle and Ritual writes the list files and their changelogs.

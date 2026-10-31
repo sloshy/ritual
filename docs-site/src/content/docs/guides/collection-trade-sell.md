@@ -1,6 +1,8 @@
 ---
 title: 'Manage a Collection, Trade and Sell'
 description: 'Keep your cards in collection lists, mark what you will trade or sell, track what you want, and use prices, the Trade page and the Card Kingdom buylist to decide.'
+sidebar:
+  order: 3
 ---
 
 This guide covers the cards you own: where to keep them, how to mark what each copy is for, and how to move from "what do I have" to a trade or a sale. Each step links to the reference page with every option.
