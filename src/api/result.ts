@@ -52,17 +52,6 @@ export type ApiMessageParams = RenderParams
 export type ApiMessage = MessageTriple<ApiMessageParams>
 
 /**
- * The shared API response envelope: did it work, and what to tell the user.
- *
- * Individual routes extend this with their own payload rather than returning it
- * bare — `success` is narrowed to `true` on a success arm, and the extra fields
- * (a new slug, a report, a content hash) are each route's own contract.
- */
-export type ApiResult = ApiMessage & {
-  success: boolean
-}
-
-/**
  * Build the message triple from a catalog key.
  *
  * The English text is rendered here, from the same catalog entry the client

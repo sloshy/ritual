@@ -25,7 +25,3 @@ export { searchResults }
 export function setSearchResultsData(data: SearchResultsData): void {
   setSearchResults(data)
 }
-
-export function clearSearchResults(): void {
-  setSearchResults(null)
-}

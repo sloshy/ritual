@@ -31,17 +31,9 @@ export interface CardNavListId {
 
 const [pending, setPending] = createSignal<CardNavTarget | null>(null)
 
-/** The card awaiting scroll-into-view, or null. Exposed for tests. */
-export const pendingCardNav: Accessor<CardNavTarget | null> = pending
-
 /** Record a card to scroll to once its list's page has rendered. */
 export function requestCardNav(target: CardNavTarget): void {
   setPending(target)
-}
-
-/** Drop any pending target (e.g. when the user navigates somewhere else). */
-export function clearCardNav(): void {
-  setPending(null)
 }
 
 /** Whether a pending target refers to the given list. Pure; exported for tests. */

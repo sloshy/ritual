@@ -101,10 +101,10 @@ export function applySetFilter(
  *
  * Skip rules:
  * - Finish answered when the user's default applies, or the printing has exactly
- *   one nonfoil-only finish (matching the legacy auto-skip behavior).
+ *   one finish and it is nonfoil (there is nothing to choose).
  * - Condition answered when the user's default applies, or this list type
- *   doesn't track condition (wanted lists), or the legacy "no specific printing
- *   required" path supplies the NM default for decks.
+ *   doesn't track condition (wanted lists), or the list does not require a
+ *   printing (decks), where condition is optional and NM is the default.
  */
 export function resolveAutoOptions(
   printing: ScryfallCard,
@@ -132,7 +132,7 @@ export function resolveAutoOptions(
   } else if (!context.usesCondition) {
     condition = undefined
   } else if (!context.requirePrinting) {
-    // Legacy path for decks: condition is optional and defaults to NM.
+    // Decks: condition is optional and defaults to NM.
     condition = 'NM'
   } else {
     // Collections require an explicit condition; without a default we cannot skip.

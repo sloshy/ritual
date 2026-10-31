@@ -71,8 +71,6 @@ export const COMMANDS_WITH_ID_BACKFILL = [
   'mcp',
 ] as const
 
-export type BackfillCommandName = (typeof COMMANDS_WITH_ID_BACKFILL)[number]
-
 const BACKFILL_COMMAND_NAMES: ReadonlySet<string> = new Set(COMMANDS_WITH_ID_BACKFILL)
 
 type ServeModeOptions = Pick<ServeCliOptions, 'build' | 'api'>

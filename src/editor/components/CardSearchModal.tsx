@@ -64,7 +64,7 @@ type CardSearchModalProps = {
    * The defaults' `kind` also drives whether condition is tracked at all
    * (wanted lists do not).
    */
-  defaults?: EditorDefaults
+  defaults: EditorDefaults
   /**
    * When set, the modal skips the card-search step and opens straight on the
    * printing selection for this card. Used by the "change printing" flow, which
@@ -139,19 +139,13 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const [setFilterFellBack, setSetFilterFellBack] = createSignal(false)
 
   // Derived: whether this list type tracks card condition. Wanted lists do not.
-  // Falls back to `requirePrinting` for legacy callers that pass no defaults
-  // (collections require printing AND condition; decks/wanted opt out).
-  const usesCondition = createMemo(() => {
-    const d = props.defaults
-    if (d) return d.kind !== 'wanted'
-    return props.requirePrinting ?? true
-  })
+  const usesCondition = createMemo(() => props.defaults.kind !== 'wanted')
 
   // Pull the defaulted condition (if any). Encapsulates the kind narrowing so
   // it doesn't have to be repeated at each read site.
   const defaultCondition = (): Condition | undefined => {
     const d = props.defaults
-    if (!d || d.kind === 'wanted') return undefined
+    if (d.kind === 'wanted') return undefined
     return d.condition
   }
 
@@ -291,7 +285,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     setPrintingFilter('')
     setLoadingPrintings(false)
     setSelectedPrinting(null)
-    setSelectedFinish(props.defaults?.finish ?? 'nonfoil')
+    setSelectedFinish(props.defaults.finish ?? 'nonfoil')
     setSelectedCondition(defaultCondition() ?? 'NM')
     setSelectedAddLanguage(undefined)
     setQuantity(1)
@@ -411,14 +405,14 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       // English (default) object.
       const { printings: filtered, fellBack } = applySetFilter(
         dedupePrintingsByKey(allPrintings),
-        props.defaults?.sets ?? [],
+        props.defaults.sets,
       )
       setSetFilterFellBack(fellBack)
       setPrintings(filtered)
       // When the set-code default narrows to a single matching printing AND no
       // fallback was triggered, auto-advance with that printing — this is the
       // batch-entry shortcut that mirrors the CLI's session filters.
-      if (filtered.length === 1 && !fellBack && (props.defaults?.sets.length ?? 0) > 0) {
+      if (filtered.length === 1 && !fellBack && props.defaults.sets.length > 0) {
         const only = filtered[0]!
         // Synchronous — SolidJS batches subsequent state changes (incl. setStep)
         // before the next render, so the printing step never visibly mounts.
@@ -497,7 +491,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     // English writes a bare line, so it is stamped as "no token".
     const languageOption = storedLanguage(language)
     const auto = resolveAutoOptions(printing, {
-      defaultFinish: props.defaults?.finish,
+      defaultFinish: props.defaults.finish,
       defaultCondition: defaultCondition(),
       usesCondition: usesCondition(),
       requirePrinting: props.requirePrinting ?? false,
@@ -529,7 +523,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     // models no usable finish still offers nonfoil rather than nothing.
     const availableFinishes = printingFinishes(printing)
     setSelectedFinish(
-      props.defaults?.finish && availableFinishes.includes(props.defaults.finish)
+      props.defaults.finish && availableFinishes.includes(props.defaults.finish)
         ? props.defaults.finish
         : defaultPrintingFinish(printing),
     )
@@ -927,7 +921,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
           filter={printingFilter()}
           active={props.open && step() === 'printing'}
           setFilterFellBack={setFilterFellBack()}
-          filterSets={props.defaults?.sets ?? []}
+          filterSets={props.defaults.sets}
           blocked={addOptionsBlocked()}
           gridRef={(el) => (printingGridRef = el)}
           onFilter={setPrintingFilter}

@@ -44,8 +44,6 @@ export const INDEX_GROUP_OPTIONS = [
   { value: 'format', label: 'site.index.groupFormat' },
 ] as const satisfies readonly IndexGroupOptionShape[]
 
-export type IndexGroupOption = (typeof INDEX_GROUP_OPTIONS)[number]
-
 /** Narrow a raw `<select>` value to the sort union, falling back to the default. */
 export function parseIndexSort(raw: string): IndexSort {
   return INDEX_SORT_OPTIONS.find((o) => o.value === raw)?.value ?? DEFAULT_INDEX_SORT

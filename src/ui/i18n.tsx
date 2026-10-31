@@ -31,7 +31,6 @@ import {
 import {
   tDynamic,
   tIn,
-  tSegmentsDynamic,
   tSegmentsIn,
   type MessageParams,
   type ParameterlessKey,
@@ -53,8 +52,6 @@ export type I18nStore = {
   tDynamic: (key: MessageKey, params?: RenderParams) => string
   /** Reactive `tSegments`, for a parameter that must render as markup mid-sentence. */
   tSegments: <K extends MessageKey>(key: K, params: MessageParams<K>) => MessageSegment[]
-  /** Reactive {@link I18nStore.tSegments} for a key chosen at runtime. */
-  tSegmentsDynamic: (key: MessageKey, params?: RenderParams) => MessageSegment[]
 }
 
 /**
@@ -142,8 +139,6 @@ function buildStore(): BuiltStore {
     tDynamic: (key: MessageKey, params?: RenderParams): string => tDynamic(locale(), key, params),
     tSegments: <K extends MessageKey>(key: K, params: MessageParams<K>): MessageSegment[] =>
       tSegmentsIn(locale(), key, params),
-    tSegmentsDynamic: (key: MessageKey, params?: RenderParams): MessageSegment[] =>
-      tSegmentsDynamic(locale(), key, params),
   }
   return { store: built, wire }
 }
@@ -237,9 +232,4 @@ export function useTDynamic(): I18nStore['tDynamic'] {
  */
 export function useTSegments(): I18nStore['tSegments'] {
   return useI18n().tSegments
-}
-
-/** {@link useTSegments} for a key chosen at runtime. See {@link useTDynamic}. */
-export function useTSegmentsDynamic(): I18nStore['tSegmentsDynamic'] {
-  return useI18n().tSegmentsDynamic
 }

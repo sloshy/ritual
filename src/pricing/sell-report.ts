@@ -105,7 +105,6 @@ export type SellInputScope = {
 export type LoadedSellInputs = Omit<LoadedPriceInputs, 'inputs'> & { inputs: SellListInput[] }
 
 export const SELL_ENTRY_STATUSES = ['buying', 'not-buying', 'no-match'] as const
-export type SellEntryStatus = (typeof SELL_ENTRY_STATUSES)[number]
 
 /**
  * Why an entry has no CK product: the entry is a non-English copy, which an

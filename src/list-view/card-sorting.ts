@@ -118,12 +118,6 @@ export const SORT_BYS = Object.keys(SORT_BY_LABELS) as readonly SortBy[]
 export const SELL_GROUP_BYS = ['buylist-price', 'on-buylist'] as const satisfies readonly GroupBy[]
 
 /**
- * The group-by values sell mode adds. Narrower than `GroupBy`, so a page whose
- * own group-by union is a subset of it can still spread these values in.
- */
-export type SellGroupBy = (typeof SELL_GROUP_BYS)[number]
-
-/**
  * The groupings that nest inside a deck's boards. One table,
  * compile-checked against `GroupBy`, shared by the page dropdowns and by the
  * deck nesting leaf so the two halves can never disagree.

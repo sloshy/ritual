@@ -57,7 +57,8 @@ import type { PreloadCacheOptions } from './progress'
 
 export const scryfallClient = new ScryfallClient(defaultHttpClient, cardCache)
 
-// Helper wrappers for backward compatibility
+// Module-level entry points bound to the process-wide client above, so callers
+// import plain functions rather than reaching for `scryfallClient` themselves.
 export function fetchSymbology(options?: FetchSymbologyOptions): Promise<ScryfallSymbol[]> {
   return scryfallClient.fetchSymbology(options)
 }

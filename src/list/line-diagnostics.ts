@@ -51,9 +51,6 @@ export type ListFileParseOptions = {
   file?: string
 }
 
-/** Which string channel a {@link ParseNotice} rides: lost content, or a word about read content. */
-export type ParseNoticeSeverity = 'warning' | 'advisory'
-
 /** Content the parser could not read: a whole-file rewrite would delete it. */
 export type WarningNotice = {
   severity: 'warning'

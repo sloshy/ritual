@@ -632,11 +632,6 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   },
 ]
 
-// Lookup: variable name → metadata.
-export const themeVarsByName: Record<string, ThemeVarMeta> = Object.fromEntries(
-  themeVarMetadata.map((m) => [m.name, m]),
-)
-
 // Lookup: group id → variables in that group.
 export const themeVarsByGroup: Record<ThemeVarGroupId, ThemeVarMeta[]> = themeVarGroups.reduce(
   (acc, group) => {

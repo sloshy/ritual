@@ -228,14 +228,6 @@ export function probeMacosLocale(): string | undefined {
   return macosProbeResult
 }
 
-/** Clear the memoized OS probes. For tests. */
-export function resetLocaleProbes(): void {
-  windowsProbeRan = false
-  windowsProbeResult = undefined
-  macosProbeRan = false
-  macosProbeResult = undefined
-}
-
 /**
  * The OS-detected UI locale, or `undefined` when the environment names none —
  * in which case the caller falls back to `en`.

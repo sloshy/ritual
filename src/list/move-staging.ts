@@ -134,7 +134,7 @@ export function stagedDefaultLabels(staged: StagedFile): CardLabel[] | undefined
   return listDefaultLabelsInLines(staged.type, staged.content.split('\n'))
 }
 
-export type DeckWithFrontMatter = {
+type DeckWithFrontMatter = {
   deck: DeckData
   /** Validated on load (`parseDeckFrontMatter`), so its `labels` is already the deck's default. */
   frontMatter: DeckFrontMatter
@@ -158,13 +158,6 @@ export type StagedFile = StagedDeckFile | StagedTextFile
 export type LoadStagedResult =
   | { ok: true; file: StagedFile }
   | { ok: false; reason: 'unreadable-file' | 'unreadable-lines'; message: SyncMessage }
-
-export async function readDeckAndFrontMatter(
-  filePath: string,
-): Promise<DeckWithFrontMatter | null> {
-  const result = await loadStagedDeck(filePath)
-  return result.ok && result.file.kind === 'deck' ? result.file.data : null
-}
 
 async function loadStagedDeck(filePath: string): Promise<LoadStagedResult> {
   const fm = await parseDeckFrontMatter(filePath).catch(() => null)
