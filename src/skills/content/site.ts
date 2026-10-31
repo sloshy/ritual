@@ -612,7 +612,10 @@ or interrupted build never replaces the live \`dist/\`. It streams the build as 
 runs: a progress bar over four structural steps (starting, building, publishing,
 done) and a live log of the build's own output, falling back to one plain request
 when the event stream cannot be opened. A second build while one is running is
-refused. The MCP \`build_site\` tool is the same operation.
+refused. The background build cannot be asked anything, so it runs with
+\`--refresh auto\`: it downloads the card cache, fresh prices and tags the build
+needs, as the deploy workflow's build does. The MCP \`build_site\` tool is the
+same operation.
 
 The admin's **Sync Collection** page is its counterpart for collections, running
 \`ritual collection-sync\`: pick a direction, scope the run to the whole

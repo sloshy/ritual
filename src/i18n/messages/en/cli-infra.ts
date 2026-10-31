@@ -185,12 +185,18 @@ export const cliInfraMessages = {
   'cli.cacheGate.bulkMismatchConfirm': '{reason} Redownload the card cache now?',
   'cli.cacheGate.bulkMismatchRefreshing': '{reason} Redownloading the card cache...',
   'cli.cacheGate.staleConfirm': 'Card cache is {age} old. Would you like to update it?',
-  'cli.cacheGate.emptyForAutocomplete':
-    'Card cache is empty. A preloaded cache is required for card autocomplete.',
+  'cli.cacheGate.empty':
+    "Card cache is empty. Ritual looks cards up in a local copy of Scryfall's card database.",
   'cli.cacheGate.downloadDatabaseConfirm': 'Would you like to download the card database now?',
   'cli.cacheGate.locationShared':
     'Card data is cached in {path}, shared by every workspace on this computer.',
   'cli.cacheGate.location': 'Card data is cached in {path}.',
+  'cli.cacheGate.downloadSize': {
+    $select: 'bulk',
+    default_cards: 'The download is about 80 MB and takes about 450 MB of disk space.',
+    all_cards:
+      'The every-language download is about 400 MB, and takes several times the disk space of the English-only cache.',
+  },
   'cli.cacheGate.pricesStaleRefreshing':
     'Cached prices are more than a day old. Refreshing the card cache from Scryfall...',
   'cli.cacheGate.uploadConfirm': '{reason} Update it before uploading?',
@@ -254,6 +260,14 @@ export const cliInfraMessages = {
   'cli.cacheStore.bulkWeekOld': 'Card cache bulk download is more than a week old. Refreshing...',
   'cli.cacheStore.bulkNever':
     'Card cache has never been bulk-downloaded. Downloading from Scryfall...',
+  'cli.cacheStore.bulkWeekOldConfirm':
+    'Card cache bulk download is more than a week old. Redownload it from Scryfall now?',
+  'cli.cacheStore.bulkNeverConfirm':
+    'Card cache has never been bulk-downloaded. Download it from Scryfall now?',
+  'cli.cacheStore.manyMissingConfirm':
+    'Over {threshold} cards are not in the card cache. Redownload it from Scryfall now?',
+  'cli.cacheStore.bulkSkipped':
+    'Skipped the card cache download; cards missing from the cache are fetched from Scryfall one by one. Re-run with {flag} to download it without asking.',
   'cli.cacheStore.manyMissing':
     'Over {threshold} cards not found in cache. Triggering bulk cache refresh...',
   'cli.cacheStore.feedUnchanged': 'Cache feed is unchanged; card cache is current.',

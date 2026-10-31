@@ -14,6 +14,7 @@ import { getCardPrice, getPriceField } from '../pricing/price-currency'
 import { getBannedPrintings } from '../config/ritual-config'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
 import { getLogger } from '../util/logger'
+import { createProgressMeter } from '../util/progress-meter'
 import { CancelledError, getErrorMessage, isAbortError } from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
@@ -1079,7 +1080,12 @@ export class ScryfallClient implements PricingBackend {
     options?: PreloadCacheOptions,
   ): Promise<void> {
     const report: CacheRefreshProgressHandler = options?.onProgress ?? ((): void => {})
-    // Progress update max every 100ms to avoid spamming stdout
+    // Progress update max every 100ms to avoid spamming stdout; the meter
+    // thins that further to a few whole lines when stdout is not a terminal.
+    const meter = createProgressMeter({
+      interactive: getLogger().interactiveProgress === true,
+      write: (text) => getLogger().progress(text),
+    })
     let lastUpdate = 0
     const onProgress = ({ compressedBytes }: GzipJsonLinesProgress): void => {
       const now = Date.now()
@@ -1093,13 +1099,13 @@ export class ScryfallClient implements PricingBackend {
           received,
           total: syncSize(totalBytes),
         })
-        // The console line rewrites itself in place; the report is the same
-        // line, in English plus its key.
-        getLogger().progress(`\r${renderSyncMessage(line)}`)
+        // The console line is the same line, in the CLI's language; the
+        // report carries it in English plus its key.
+        meter.update({ percent: percentage, line: renderSyncMessage(line) })
         report({ stage: 'download', percentage, ...line })
       } else {
         const line = syncMessage('domain.cache.refresh.processingUnsized', { received })
-        getLogger().progress(`\r${renderSyncMessage(line)}`)
+        meter.update({ percent: undefined, line: renderSyncMessage(line) })
         report({ stage: 'download', ...line })
       }
     }
@@ -1140,8 +1146,11 @@ export class ScryfallClient implements PricingBackend {
       // as the cancellation it is rather than as a download failure.
       if (isAbortError(error)) throw cancelledRefresh()
       throw error
+    } finally {
+      // Close the redrawn line even when the download fails or is cancelled,
+      // so the error never prints glued onto a progress frame.
+      meter.end()
     }
-    getLogger().progress('\n')
 
     if (malformedCount > 0) {
       getLogger().warn(t('cli.scryfall.skippedMalformed', { count: malformedCount }))

@@ -256,9 +256,16 @@ describe('localized help annotations', () => {
   test("every option and argument of the real tree matches Commander's own English", () => {
     const help = new Command().createHelp()
     let compared = 0
+    let booleanDefaults = 0
     const walk = (command: Command): void => {
       for (const option of command.options) {
-        expect(localizedOptionDescription(option)).toBe(help.optionDescription(option))
+        if (option.isBoolean() && typeof option.defaultValue === 'boolean') {
+          // The one deliberate difference: a switch's `(default: false)` is dropped.
+          expect(localizedOptionDescription(option)).toBe(option.description)
+          booleanDefaults += 1
+        } else {
+          expect(localizedOptionDescription(option)).toBe(help.optionDescription(option))
+        }
         compared += 1
       }
       for (const argument of command.registeredArguments) {
@@ -268,8 +275,10 @@ describe('localized help annotations', () => {
       for (const sub of command.commands) walk(sub)
     }
     walk(realProgram())
-    // Vacuity guard: the tree has hundreds of rows, annotated ones among them.
+    // Vacuity guard: the tree has hundreds of rows, annotated ones among them,
+    // and `--quiet` alone gives it boolean defaults to drop.
     expect(compared).toBeGreaterThan(200)
+    expect(booleanDefaults).toBeGreaterThan(0)
   })
 
   test('so do the annotations no Ritual option uses yet', () => {

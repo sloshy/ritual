@@ -19,16 +19,16 @@ ritual admin disable-totp
 
 ## Options
 
-| Option                 | Description                                                                                                                                                   | Default   |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `-p, --port <number>`  | Port to serve on                                                                                                                                              | `8080`    |
-| `--host <address>`     | Host address to bind to                                                                                                                                       | `0.0.0.0` |
-| `--theme <name>`       | Initial theme. Append `-inverted` (e.g. `boros-inverted`) for the inverted variant. See [`build-site` themes](/commands/build-site/#themes) for the palettes. | `default` |
-| `--refresh <mode>`     | Card cache **and buylist** refresh policy on startup: `ask` (prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                        | `ask`     |
-| `--mcp`                | Also serve an [MCP](/commands/mcp/) endpoint in this process (requires `--mcp-token`)                                                                         |           |
-| `--mcp-port <number>`  | Port for the embedded MCP server (only with `--mcp`)                                                                                                          | `8765`    |
-| `--mcp-token <secret>` | Bearer token required on the embedded MCP endpoint (with `--mcp`)                                                                                             |           |
-| `--sell-mode`          | (Beta) Offer [sell mode](/public-site/sell/) for this run even when `site.sellMode` is off (enable-only). See [Sell mode](#sell-mode).                        |           |
+| Option                 | Description                                                                                                                                                                                                                       | Default   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `-p, --port <number>`  | Port to serve on                                                                                                                                                                                                                  | `8080`    |
+| `--host <address>`     | Host address to bind to                                                                                                                                                                                                           | `0.0.0.0` |
+| `--theme <name>`       | Initial theme. Append `-inverted` (e.g. `boros-inverted`) for the inverted variant. See [`build-site` themes](/commands/build-site/#themes) for the palettes; `--help` shows two examples, and an unknown name lists every theme. | `default` |
+| `--refresh <mode>`     | Card cache **and buylist** refresh policy on startup: `ask` (prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                                                                                            | `ask`     |
+| `--mcp`                | Also serve an [MCP](/commands/mcp/) endpoint in this process (requires `--mcp-token`)                                                                                                                                             |           |
+| `--mcp-port <number>`  | Port for the embedded MCP server (only with `--mcp`)                                                                                                                                                                              | `8765`    |
+| `--mcp-token <secret>` | Bearer token required on the embedded MCP endpoint (with `--mcp`)                                                                                                                                                                 |           |
+| `--sell-mode`          | (Beta) Offer [sell mode](/public-site/sell/) for this run even when `site.sellMode` is off (enable-only). See [Sell mode](#sell-mode).                                                                                            |           |
 
 On startup, `admin`:
 

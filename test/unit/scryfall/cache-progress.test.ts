@@ -140,10 +140,11 @@ describe('preloadCache progress reporting', () => {
 
       // The console, meanwhile, speaks the process's own language: the same
       // line rendered in it (the pseudo-locale rewords it, German changes its
-      // decimal mark), and the CLI's own lines from the catalog.
+      // decimal mark), and the CLI's own lines from the catalog. A memory
+      // logger is no terminal, so the progress line is a whole line, not a redraw.
       const lines = logger.entries.map((entry) => String(entry.args[0]))
       expect(local.line).not.toBe(last?.message)
-      expect(lines).toContain(`\r${local.line}`)
+      expect(lines).toContain(`${local.line}\n`)
       expect(lines).toContain(local.processed)
     },
   )

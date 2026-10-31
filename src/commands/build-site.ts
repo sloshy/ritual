@@ -68,7 +68,13 @@ import {
 } from '../util/errors'
 import { parseEnumField } from '../util/parse-enum'
 import { emptyCacheAdvice } from '../cache/freshness'
-import { normalizeThemeName, resolveThemeName, themeNames, type CustomTheme } from '../theme/themes'
+import {
+  normalizeThemeName,
+  resolveThemeName,
+  themeNames,
+  THEME_HELP_EXAMPLES,
+  type CustomTheme,
+} from '../theme/themes'
 import { isMessageParseError, renderSyncMessage, SyncMessageError } from '../sync/message'
 import type { RefreshMode, RefreshPolicy } from '../cache/refresh'
 import {
@@ -614,7 +620,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
  * Shared by `build-site` and `serve --build` so the two stay in sync.
  */
 export function applyBuildSiteOptions(command: Command): Command {
-  const withBuildFlags = addRefreshOption(command, t('help.buildSite.refresh'))
+  const withBuildFlags = addRefreshOption(command)
     .option('-v, --verbose', t('help.buildSite.verbose'))
     .option('--cache-images', t('help.buildSite.cacheImages'))
     .option(
@@ -638,7 +644,7 @@ export function applyBuildSiteOptions(command: Command): Command {
     .option(
       '--theme <name>',
       t('help.buildSite.theme', {
-        themes: themeNames.join(', '),
+        ...THEME_HELP_EXAMPLES,
         flag: FLAG.themeFile,
         filesKey: CONFIG_KEY.siteThemeFiles,
         configKey: CONFIG_KEY.siteTheme,

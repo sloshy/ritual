@@ -341,25 +341,8 @@ const DEFAULT_CONFIG = {
   'admin' | 'collectionSync' | 'site' | 'managed' | 'cacheFeedUrl' | 'cacheDir'
 >
 
-/**
- * Everything the last config read produced. The declared-key flag rides on the
- * same value as the config itself rather than in a variable beside it, so a
- * reset (or a base-dir switch) can never leave one stale against the other.
- */
-type LoadedRitualConfig = {
-  config: RitualConfig
-  /**
-   * The file actually named `defaultLanguage`, as opposed to it being defaulted
-   * to {@link DEFAULT_CARD_LANGUAGE}. The loaded config cannot answer this —
-   * {@link applyDefaults} defaults every key — and the `edit` session says so on
-   * startup, since a user who never chose a language is about to have `en`
-   * stamped on every card they add.
-   */
-  defaultLanguageDeclared: boolean
-}
-
 /** The last config read, or null before any read (the sync getters then default). */
-let loaded: LoadedRitualConfig | null = null
+let loaded: RitualConfig | null = null
 
 export function getRitualConfigPath(): string {
   return path.join(getBaseDir(), FILE.config)
@@ -1455,16 +1438,12 @@ export async function writeRawRitualConfig(raw: RawConfig): Promise<void> {
  * is benign: a malformed file raises {@link RitualConfigParseError} and any
  * other read failure propagates as-is.
  */
-async function readConfigFromDisk(): Promise<LoadedRitualConfig | null> {
+async function readConfigFromDisk(): Promise<RitualConfig | null> {
   const parsed = await readRawRitualConfig()
   if (parsed === null) return null
   // Nothing in the file has been validated yet — `applyDefaults` is what reads
-  // and checks the fields — so the declared-key probe goes through the same
-  // untrusted view rather than a type that claims more than is known.
-  return {
-    config: applyDefaults(parsed, warnAndDefault),
-    defaultLanguageDeclared: parsed.defaultLanguage !== undefined,
-  }
+  // and checks the fields.
+  return applyDefaults(parsed, warnAndDefault)
 }
 
 /**
@@ -1520,7 +1499,7 @@ export async function loadPublishableRitualConfig(): Promise<RitualConfig> {
  */
 export async function loadRitualConfig(): Promise<RitualConfig> {
   const fromDisk = await readConfigFromDisk()
-  return fromDisk?.config ?? getDefaultRitualConfig()
+  return fromDisk ?? getDefaultRitualConfig()
 }
 
 async function writeRitualConfigFile(config: Partial<RitualConfig>): Promise<void> {
@@ -1529,8 +1508,7 @@ async function writeRitualConfigFile(config: Partial<RitualConfig>): Promise<voi
 
 export async function saveRitualConfig(config: RitualConfig): Promise<void> {
   await writeRitualConfigFile(config)
-  // A full save writes every key, `defaultLanguage` included.
-  loaded = { config: { ...config }, defaultLanguageDeclared: true }
+  loaded = { ...config }
 }
 
 /**
@@ -1558,8 +1536,8 @@ export async function savePartialRitualConfig(config: Partial<RitualConfig>): Pr
  */
 export async function refreshRitualConfig(): Promise<RitualConfig> {
   const fromDisk = await readConfigFromDisk()
-  loaded = fromDisk ?? { config: getDefaultRitualConfig(), defaultLanguageDeclared: false }
-  return loaded.config
+  loaded = fromDisk ?? getDefaultRitualConfig()
+  return loaded
 }
 
 /**
@@ -1567,7 +1545,7 @@ export async function refreshRitualConfig(): Promise<RitualConfig> {
  * refreshRitualConfig() was never called (e.g. in tests that bypass index.ts).
  */
 export function getRitualConfig(): RitualConfig {
-  return loaded?.config ?? getDefaultRitualConfig()
+  return loaded ?? getDefaultRitualConfig()
 }
 
 function resolveDir(dir: string): string {
@@ -1673,17 +1651,6 @@ export function wantsCardKingdomFeed(config: RitualConfig = getRitualConfig()): 
  */
 export function getDefaultLanguage(config: RitualConfig = getRitualConfig()): CardLanguage {
   return config.defaultLanguage
-}
-
-/**
- * Whether `defaultLanguage` was actually written in ritual.config.json, as
- * opposed to defaulted. {@link getDefaultLanguage} deliberately cannot tell the
- * two apart — every consumer wants the effective value — but a session that is
- * about to stamp a language on every card the user adds says so once when the
- * choice was never made.
- */
-export function isDefaultLanguageConfigured(): boolean {
-  return loaded?.defaultLanguageDeclared ?? false
 }
 
 /**

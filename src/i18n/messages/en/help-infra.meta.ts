@@ -120,10 +120,6 @@ export const helpInfraMeta = {
 
   // ── build-site ────────────────────────────────────────────────────────
   'help.buildSite.description': { description: 'Summary of the `build-site` command.' },
-  'help.buildSite.refresh': {
-    description:
-      '`--refresh`, shared by `build-site` and `serve --build`. ask/auto/no-bulk/never are literal flag values.',
-  },
   'help.buildSite.verbose': { description: '`build-site --verbose`.' },
   'help.buildSite.cacheImages': { description: '`build-site --cache-images`.' },
   'help.buildSite.decks': {
@@ -144,7 +140,7 @@ export const helpInfraMeta = {
   },
   'help.buildSite.theme': {
     description:
-      '`build-site --theme`. {themes} is the comma-separated list of built-in themes. {flag} is the `--theme-file` flag; {configKey} is the `site.theme` config key the flag overrides; {filesKey} is the `site.themeFiles` config key. Both are typed or matched exactly by the user, so never translate them.',
+      '`build-site --theme`. {example} and {invertedExample} are two built-in theme names (e.g. "izzet", "izzet-inverted"), typed exactly. {flag} is the `--theme-file` flag; {configKey} is the `site.theme` config key the flag overrides; {filesKey} is the `site.themeFiles` config key. Both are typed or matched exactly by the user, so never translate them.',
   },
   'help.buildSite.themeFile': {
     description:
@@ -227,7 +223,8 @@ export const helpInfraMeta = {
   'help.admin.port': { description: '`admin --port`.' },
   'help.admin.host': { description: '`admin --host`.' },
   'help.admin.theme': {
-    description: '`admin --theme`. {themes} is the comma-separated list of built-in themes.',
+    description:
+      '`admin --theme`. {example} and {invertedExample} are two built-in theme names (e.g. "izzet", "izzet-inverted"), typed exactly, so never translate them.',
   },
   'help.admin.mcp': {
     description:

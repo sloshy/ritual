@@ -410,9 +410,9 @@ export const cliInfraMeta = {
     description:
       'Yes/no prompt: the card cache is more than a week old. {age} is a whole number of days, already worded with its unit (e.g. "9 days").',
   },
-  'cli.cacheGate.emptyForAutocomplete': {
+  'cli.cacheGate.empty': {
     description:
-      'Before an interactive card entry session: the card cache holds nothing, and typing card names needs it.',
+      'Before offering the first card-cache download (`add-card`, the admin server at startup): the card cache holds nothing, and Ritual reads card names, printings and prices from it.',
   },
   'cli.cacheGate.locationShared': {
     description:
@@ -421,6 +421,10 @@ export const cliInfraMeta = {
   'cli.cacheGate.location': {
     description:
       'Printed before the offer to download the card database into an empty cache: where the download will be stored. {path} is the absolute folder path, chosen by a setting (an environment variable or the workspace settings file); never translate it.',
+  },
+  'cli.cacheGate.downloadSize': {
+    description:
+      'Printed after where the card data will be stored, before the offer to download it: roughly how big the download is. The form is chosen by {bulk}, the Scryfall bulk the card language setting needs ("default_cards" for English, "all_cards" for every language), which is not itself printed. The sizes are approximate; keep the "about" wording and the MB unit.',
   },
   'cli.cacheGate.downloadDatabaseConfirm': {
     description: 'Yes/no prompt following the previous message: download the card cache now?',
@@ -547,6 +551,22 @@ export const cliInfraMeta = {
   'cli.cacheStore.bulkNever': {
     description:
       'Progress line: the cache was never fully downloaded, so it is downloaded now from Scryfall (a card database).',
+  },
+  'cli.cacheStore.bulkWeekOldConfirm': {
+    description:
+      "Yes/no prompt (default yes) before building a site: the cache's last full download is over a week old; download it again now?",
+  },
+  'cli.cacheStore.bulkNeverConfirm': {
+    description:
+      'Yes/no prompt (default yes) before building a site: the card cache was never fully downloaded from Scryfall (a card database); download it now?',
+  },
+  'cli.cacheStore.manyMissingConfirm': {
+    description:
+      'Yes/no prompt (default yes) before building a site: more than {threshold} of the cards needed are missing from the cache; download the whole cache again now? {threshold} is a number.',
+  },
+  'cli.cacheStore.bulkSkipped': {
+    description:
+      'The cache download was declined, or could not be asked because prompts are unavailable. The build carries on, fetching missing cards individually. {flag} is `--refresh auto`, a flag and its value; it is typed or matched exactly by the user, so never translate it.',
   },
   'cli.cacheStore.manyMissing': {
     description:

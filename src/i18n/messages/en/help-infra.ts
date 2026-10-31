@@ -109,8 +109,6 @@ export const helpInfraMessages = {
   // ── build-site ────────────────────────────────────────────────────────
   'help.buildSite.description':
     'Generate a static website for your decks, collections, and wanted lists',
-  'help.buildSite.refresh':
-    'Card cache refresh policy: ask (default; bulk-downloads an empty or stale cache without asking, prompts for the price and tag refreshes), auto, no-bulk, never',
   'help.buildSite.verbose': 'Show list of cards to be fetched',
   'help.buildSite.cacheImages':
     'Download and use local deck card images instead of Scryfall image URLs',
@@ -122,7 +120,7 @@ export const helpInfraMessages = {
   'help.buildSite.priceSources':
     'Comma-separated price stores to offer: tcgplayer, cardmarket, cardkingdom, cardhoarder (default: every enabled {configKey} store; this can only narrow them). Each store brings its own currency',
   'help.buildSite.theme':
-    'Initial theme baked into the generated HTML ({themes}, or a custom theme name loaded via {flag} or {filesKey}; default: the {configKey} config value, else default)',
+    'Initial theme baked into the generated HTML: a built-in name such as {example} or {invertedExample}, or a custom theme loaded via {flag} or {filesKey} (default: the {configKey} config value, else default). An unknown name lists every theme',
   'help.buildSite.themeFile':
     'Load one or more custom theme JSON files; their names become selectable alongside the built-ins (replaces the {configKey} config value for this run)',
   'help.buildSite.locale':
@@ -177,7 +175,8 @@ export const helpInfraMessages = {
   'help.admin.description': 'Start the web admin interface',
   'help.admin.port': 'Port to serve on',
   'help.admin.host': 'Host address to bind to',
-  'help.admin.theme': 'Initial theme baked into the served HTML ({themes})',
+  'help.admin.theme':
+    'Initial theme baked into the served HTML, such as {example} or {invertedExample}. An unknown name lists every theme',
   'help.admin.mcp':
     'Also serve an MCP (Model Context Protocol) endpoint in this process (requires {flag})',
   'help.admin.mcpPort': 'Port for the embedded MCP server (with {flag})',

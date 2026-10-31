@@ -56,7 +56,7 @@ Details:
 - **Builds when there is nothing to serve.** Under `--api` the data is live, so an unbuilt directory is only a missing app shell. The command builds the site and then serves it. (Plain `serve` refuses, since there the build is the content.) An existing build is served as-is. Pass `--build` to rebuild it, which is also the only way to pass the build any of its flags.
 - **Cache warming.** Live payloads come from the card cache with **no Scryfall fallback**, so startup applies the same freshness gates as [`build-site`](/commands/build-site/#card-cache-refresh) over every card the served lists reference (entries, deck primers, and change history), under the same `--refresh` policy. `--refresh` is therefore valid with `--api` even without `--build`. The gates, in order:
 
-  1. A bulk download when the cache has never been downloaded, is more than a week old, or is missing many of those cards.
+  1. The offer to bulk-download (default yes; without asking under `auto`; declined when nothing can answer it) when the cache has never been downloaded, is more than a week old, or is missing many of those cards.
   2. The offer to redownload day-old prices.
   3. The offer to download oracle/art tags when a sample of the site's cards carries none. Skipped on an empty cache.
 

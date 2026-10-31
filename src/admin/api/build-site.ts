@@ -31,6 +31,7 @@ import {
 import type { RouteProgress, RouteProgressSink } from '../../util/progress'
 import type { SyncMessage } from '../../sync/message'
 import { COMMAND, FILE, FLAG } from '../../util/cli-tokens'
+import type { RefreshMode } from '../../cache/refresh'
 
 // Re-exported: the sweep's age rule is shared with the CLI builder now, but this
 // route is where its tests and callers have always addressed it.
@@ -90,6 +91,12 @@ export type BuildSiteRunOptions = {
 // cross a spawn boundary — without this the server would advertise sell mode
 // and then publish a site with it off. Passing it when the config would have
 // enabled it anyway is harmless: the flag is enable-only.
+//
+// `--refresh auto` because the child has no terminal: under the default `ask`
+// every cache question — the bulk download a never-downloaded or week-old
+// cache needs included — would be declined, and the button would publish
+// from whatever the cache holds. A build asked for from the admin site or
+// MCP refreshes what it needs, as the generated CI workflow's build does.
 export const defaultBuildArgv: BuildSiteArgv = (outDir) =>
   ritualArgv([
     FLAG.baseDir,
@@ -97,6 +104,8 @@ export const defaultBuildArgv: BuildSiteArgv = (outDir) =>
     ...COMMAND.buildSite,
     FLAG.outDir,
     outDir,
+    FLAG.refresh,
+    'auto' satisfies RefreshMode,
     ...(getSiteSellMode() ? [FLAG.sellMode] : []),
   ])
 

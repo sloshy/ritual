@@ -85,7 +85,7 @@ services:
     command: serve --api --host 0.0.0.0 --port 3000 --refresh never
 ```
 
-`--refresh never` stops the container from downloading Scryfall's bulk data on startup. Under the default `ask`, an empty or week-old cache is bulk-downloaded without prompting. So populate the cache first with `ritual cache preload-all`, or point the container at a shared cache server with `--cache-server`.
+`--refresh never` stops the container from downloading anything on startup. The default `ask` would offer the bulk download an empty or week-old cache needs, and a container has no terminal to answer it, so it is declined. Populate the cache first with `ritual cache preload-all`, point the container at a shared cache server with `--cache-server`, or pass `--refresh auto` to let the container download what it needs on startup.
 
 An empty `dist/` mount is fine: `--api` builds the site on startup when there is none. That build needs card data, so with `--refresh never` **and** an empty cache it fails and the container exits 1. Add `--build` to rebuild the site on every start.
 

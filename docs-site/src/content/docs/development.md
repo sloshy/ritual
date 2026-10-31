@@ -213,7 +213,7 @@ bun run index.ts --base-dir demo build-site --refresh auto
 bun run index.ts --base-dir demo serve
 ```
 
-The demo keeps its card cache in its own folder rather than your shared per-user cache: its `ritual.config.json` sets [`cacheDir`](/configuration/#cache-directory-cachedir) to `cache`. So the first build downloads the Scryfall card cache into `demo/cache/` (about 75 MB), which is the path the docs workflow caches and the screenshot and recording scripts reuse. `demo/.gitignore` keeps the cache and the built `demo/dist/` out of git.
+The demo keeps its card cache in its own folder rather than your shared per-user cache: its `ritual.config.json` sets [`cacheDir`](/configuration/#cache-directory-cachedir) to `cache`. So the first build downloads the Scryfall card cache into `demo/cache/` (about 80 MB), which is the path the docs workflow caches and the screenshot and recording scripts reuse. `demo/.gitignore` keeps the cache and the built `demo/dist/` out of git.
 
 `.github/workflows/deploy-docs.yml` builds Ritual from the pushed commit, builds the demo into `docs-site/dist/demo/` after the Starlight build, and publishes both together. It also runs every Monday, so the demo's prices stay current between pushes. The card cache is kept between runs with `actions/cache`, keyed by day: the first build each day downloads fresh card data, and later builds that day reuse it.
 

@@ -3,6 +3,12 @@ export interface Logger {
   warn(message?: unknown, ...optionalParams: unknown[]): void
   error(message?: unknown, ...optionalParams: unknown[]): void
   progress(message: string): void
+  /**
+   * Whether `progress` writes to a terminal that can redraw a line in place
+   * (`\r`). Absent reads as false: a progress meter then prints a few whole
+   * lines instead of a stream of redraws (see `src/util/progress-meter.ts`).
+   */
+  readonly interactiveProgress?: boolean
 }
 
 export interface LogEntry {
@@ -25,6 +31,10 @@ class ConsoleLogger implements Logger {
 
   progress(message: string): void {
     process.stdout.write(message)
+  }
+
+  get interactiveProgress(): boolean {
+    return process.stdout.isTTY === true
   }
 }
 
@@ -53,6 +63,10 @@ export class MemoryLogger implements Logger {
     this.mirrorTo?.progress(message)
   }
 
+  get interactiveProgress(): boolean {
+    return this.mirrorTo?.interactiveProgress === true
+  }
+
   clear(): void {
     this.entries.length = 0
   }
@@ -77,6 +91,9 @@ export const STDERR_LOGGER: Logger = {
   },
   progress(message: string): void {
     process.stderr.write(message)
+  },
+  get interactiveProgress(): boolean {
+    return process.stderr.isTTY === true
   },
 }
 

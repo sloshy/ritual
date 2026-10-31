@@ -139,7 +139,7 @@ const RECORDINGS: readonly Recording[] = [
     folder: 'cards',
     rows: 22,
     steps: [
-      command('ritual scry "type:goblin cmc=1 r:rare" --output text'),
+      command('ritual scry "type:goblin cmc=1 r:rare"'),
       pause(1500),
       command(
         'ritual scry "type:goblin cmc=1 r:rare" --fields name,set,prices.usd --output ndjson',

@@ -127,6 +127,15 @@ export type ThemeName = keyof typeof themes
 // `ThemeName[]` describe the same set.
 export const themeNames = Object.keys(themes) as ThemeName[]
 
+/**
+ * The two theme names `--theme` help text shows as examples, in place of the
+ * whole list (an unknown name's refusal lists every theme).
+ */
+export const THEME_HELP_EXAMPLES = {
+  example: 'izzet',
+  invertedExample: 'izzet-inverted',
+} as const satisfies Record<string, ThemeName>
+
 export function isThemeName(value: string): value is ThemeName {
   return Object.prototype.hasOwnProperty.call(themes, value)
 }

@@ -28,6 +28,7 @@ import { getBannedPrintings } from '../config/ritual-config'
 import { t } from '../i18n/t'
 import { VALID_CURRENCIES, type PriceCurrency } from '../pricing/price-currency'
 import { getErrorMessage } from '../util/errors'
+import { createProgressMeter, type ProgressFrame } from '../util/progress-meter'
 import { sortPrintingsByRelease } from './shared'
 import type { EnsureSymbols } from './assets'
 import type { SiteCardData } from './types'
@@ -54,7 +55,7 @@ export type CardCachePrepInput = {
 
 /** The gates {@link prepareCardCache} runs, injectable so a test can drive them without a network. */
 export type CardCachePrepDeps = {
-  ensureCards?: (names: Set<string>, allowBulk: boolean) => Promise<boolean>
+  ensureCards?: (names: Set<string>, policy: RefreshPolicy) => Promise<boolean>
   offerPrices?: (names: readonly string[], cacheJustRefreshed: boolean) => Promise<void>
   /** The line printed when the bulk download fails; the build's wording by default. */
   downloadFailed?: (reason: string) => string
@@ -68,8 +69,10 @@ export type CardCachePrep = {
 
 /**
  * Ensure the card cache has been bulk-downloaded at least once per week, or
- * refreshed if many cards are missing (unless bulk downloads aren't permitted).
- * A failed download must not abort a build the existing cache can still serve.
+ * refreshed if many cards are missing — asked first under `--refresh ask`
+ * (default yes; declined when prompts are unavailable), run outright under
+ * `auto`, never under `no-bulk`/`never`. A failed download must not abort a
+ * build the existing cache can still serve.
  */
 export async function prepareCardCache(
   input: CardCachePrepInput,
@@ -77,8 +80,14 @@ export async function prepareCardCache(
 ): Promise<CardCachePrep> {
   const ensureCards =
     deps.ensureCards ??
-    (async (names, allowBulk) =>
-      (await ensureCacheForCards(names, undefined, { allowBulk })).refreshed)
+    (async (names, policy) =>
+      (
+        await ensureCacheForCards(names, undefined, {
+          allowBulk: bulkAllowed(policy.mode),
+          // `ask` asks, as it does everywhere else; `auto` downloads outright.
+          ...(policy.mode === 'ask' ? { confirm: policy.confirm } : {}),
+        })
+      ).refreshed)
   const offerPrices =
     deps.offerPrices ??
     ((names, cacheJustRefreshed) => offerBulkPriceRefresh(names, input.policy, cacheJustRefreshed))
@@ -93,7 +102,7 @@ export async function prepareCardCache(
 
   let cacheJustRefreshed = false
   try {
-    cacheJustRefreshed = await ensureCards(input.cardNames, bulkAllowed(input.policy.mode))
+    cacheJustRefreshed = await ensureCards(input.cardNames, input.policy)
   } catch (e) {
     console.error(downloadFailed(getErrorMessage(e)))
   }
@@ -256,33 +265,54 @@ export type FetchedCards = {
   latestPriceTimestamp: number | null
 }
 
-function updateProgress(current: number, total: number): void {
+/**
+ * The fetch pass's progress frame: a bar on a terminal, the bare count in a
+ * log. Exported so the frame is pinned without running a build.
+ */
+export function fetchProgressFrame(
+  current: number,
+  total: number,
+  withBar: boolean,
+): ProgressFrame {
   const width = 30
-  const percentage = total === 0 ? 100 : Math.round((current / total) * 100)
-  const filled = total === 0 ? width : Math.round((width * current) / total)
-  const empty = width - filled
-  const bar = '█'.repeat(filled) + '░'.repeat(empty)
-  process.stdout.write(`\r[${bar}] ${percentage}% (${current}/${total})`)
+  const percent = Math.floor((current / total) * 100)
+  const count = `${percent}% (${current}/${total})`
+  if (!withBar) return { percent, line: count }
+  const filled = Math.floor((width * current) / total)
+  const bar = '█'.repeat(filled) + '░'.repeat(width - filled)
+  return { percent, line: `[${bar}] ${count}` }
 }
 
-/** Resolve every name to its displayed printings, with a progress bar. */
+/**
+ * Resolve every name to its displayed printings, with a progress meter — none
+ * at all when there is nothing to fetch, so an empty workspace never prints a
+ * `100% (0/0)` frame.
+ */
 export async function fetchBuildCards(input: CardFetchInput): Promise<FetchedCards> {
   const fetched: FetchedCards = {
     cardData: emptySiteCardData(input.availableCurrencies),
     latestPriceTimestamp: input.priceTimestampSeed,
   }
   const totalCards = input.uniqueCards.length
+  if (totalCards === 0) return fetched
+
+  const interactive = process.stdout.isTTY === true
+  const meter = createProgressMeter({
+    interactive,
+    write: (text) => process.stdout.write(text),
+  })
   let processed = 0
-  updateProgress(0, totalCards)
+  meter.update(fetchProgressFrame(0, totalCards, interactive))
 
   for (const name of input.uniqueCards) {
     if (!(await cardCache.isBlocked(name)) && !fetched.cardData.cards[name]) {
       await fetchCard(name, input, fetched)
     }
     processed++
-    updateProgress(processed, totalCards)
+    meter.update(fetchProgressFrame(processed, totalCards, interactive))
   }
-  process.stdout.write('\n\n')
+  meter.end()
+  process.stdout.write('\n')
   return fetched
 }
 

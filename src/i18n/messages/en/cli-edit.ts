@@ -215,8 +215,6 @@ export const cliEditMessages = {
   'cli.edit.categoriesRenamed': 'Renamed category "{from}" to "{to}".',
   'cli.edit.categoriesReordered': 'Category order: {order}',
   'cli.edit.noPrintings': 'No printings found.',
-  'cli.edit.noConfiguredLanguage':
-    'No {configKey} configured; adding cards as English ({language}). Change it for this session with the 🌐 Card Language menu action, or for good with `{command}`.',
   'cli.edit.noPrintingsNameOnly': 'No printings found. Adding name only.',
   'cli.edit.fileWarning': '{file}: {warning}',
 

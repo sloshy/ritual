@@ -63,7 +63,7 @@ The editor reads card data from the local Scryfall cache. `--refresh <mode>` dec
 
 When the cache was downloaded for a different `defaultLanguage` than the one now configured, `ask` offers a full redownload instead (default yes) and `auto` runs it; `no-bulk` / `never` keep the mismatched cache.
 
-When the cache is **empty** the session cannot start, so the same policy decides the download that fills it. `ask` offers it (default yes), naming the English-only `default_cards` bulk, or the every-language `all_cards` bulk when `defaultLanguage` is not `en`. `auto` downloads without asking. `no-bulk` / `never` skip the offer, and the session fails with the `ritual cache preload-all` advice.
+When the cache is **empty** the session cannot start, so the same policy decides the download that fills it. `ask` offers it (default yes), naming the English-only `default_cards` bulk, or the every-language `all_cards` bulk when `defaultLanguage` is not `en`, after saying where the data will be stored and roughly how big the download is. `auto` downloads without asking. `no-bulk` / `never` skip the offer, and the session fails with the `ritual cache preload-all` advice.
 
 ## The List Selection Menu
 
@@ -420,7 +420,7 @@ Every card entry has a [language](/list-format/#card-language) token (`[ja]`), o
 
 ### The Session Language
 
-A session starts on the configured [`defaultLanguage`](/configuration/#default-language). When the key is absent it starts in English and says so once on startup. Two menu rows move it:
+A session starts on the configured [`defaultLanguage`](/configuration/#default-language), English when the key is absent. Two menu rows move it:
 
 - `🌐 Card Language (English)` sets the language for **every card added from here on**, across every list the session has open. It shows the current language, and the change applies only to this session; use [`ritual config set defaultLanguage <code>`](/configuration/#default-language) to make it stick.
 - `🌐 Change Language (Sol Ring)` re-picks the language of the card you **just added**, without re-asking for its printing, finish, or condition the way `✏️ Edit Previous Card` does. It appears only once a card has been added this session.

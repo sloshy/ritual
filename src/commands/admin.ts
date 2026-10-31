@@ -33,7 +33,7 @@ import {
   generateAllThemesCss,
   resolveThemeName,
   themeFlameStops,
-  themeNames,
+  THEME_HELP_EXAMPLES,
   type ThemeName,
 } from '../theme/themes'
 import { isMessageParseError, renderSyncMessage } from '../sync/message'
@@ -146,7 +146,7 @@ export function registerAdminCommand(program: Command): void {
   const admin = addRefreshOption(program.command('admin').description(t('help.admin.description')))
     .option('-p, --port <number>', t('help.admin.port'), parsePort, 8080)
     .option('--host <address>', t('help.admin.host'), '0.0.0.0')
-    .option('--theme <name>', t('help.admin.theme', { themes: themeNames.join(', ') }), 'default')
+    .option('--theme <name>', t('help.admin.theme', THEME_HELP_EXAMPLES), 'default')
     .option('--mcp', t('help.admin.mcp', { flag: FLAG.mcpToken }))
     .option('--mcp-port <number>', t('help.admin.mcpPort', { flag: FLAG.mcp }), parsePort, 8765)
     .option(

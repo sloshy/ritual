@@ -98,9 +98,9 @@ export const REFRESH_COMMANDS = wrapProse(
     `\`sell\` — where the mode also governs its Card Kingdom buylist cache — ` +
     `\`build-site\`, \`serve --build\`/\`--api\`, \`admin\`) share a \`--refresh <mode>\` ` +
     `option controlling cache freshness: \`ask\` (the default — prompt about stale ` +
-    `or empty caches, skipping the prompt when prompts are unavailable; two ` +
-    `exceptions download without asking: \`build-site\` bulk-downloads an empty or ` +
-    `week-old card cache, since it cannot build a site without card data, and a ` +
+    `or empty caches, skipping the prompt when prompts are unavailable — so a ` +
+    `headless \`build-site\` passes \`--refresh auto\` to get its bulk download; one ` +
+    `exception downloads without asking: a ` +
     `Card Kingdom buylist already downloaded is redownloaded once it is a day ` +
     `old — by \`sell\`, and, wherever sell mode is enabled, by \`build-site\` and ` +
     `by \`admin\`/\`serve --api\` at startup — since a ` +

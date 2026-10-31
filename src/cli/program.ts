@@ -184,21 +184,19 @@ function choicesAnnotation(choices: readonly string[]): string {
 
 /**
  * `Help.optionDescription`, re-rendered from the catalog: the same annotations
- * under the same conditions as the library's (`lib/help.js`), with only the
- * words translated. The values — choices, defaults, presets, the environment
+ * under the same conditions as the library's (`lib/help.js`) — except a
+ * boolean flag's default, which is left out — with only the words translated. The values — choices, defaults, presets, the environment
  * variable — are spec data and stay verbatim.
  */
 export function localizedOptionDescription(option: Option): string {
   const annotations: string[] = []
   if (option.argChoices) annotations.push(choicesAnnotation(option.argChoices))
   if (option.defaultValue !== undefined) {
-    // Commander shows a boolean flag's default only when it is a real boolean,
-    // and a value-taking option's always.
-    const showDefault =
-      option.required ||
-      option.optional ||
-      (option.isBoolean() && typeof option.defaultValue === 'boolean')
-    if (showDefault) {
+    // A value-taking option's default is shown, as Commander shows it. A
+    // boolean flag's is not, where Commander would print `(default: false)`:
+    // a switch is off until given, and saying so on every `--quiet` row of
+    // every command is noise.
+    if (!option.isBoolean()) {
       annotations.push(
         t('help.commander.annotationDefault', {
           value: option.defaultValueDescription || JSON.stringify(option.defaultValue),

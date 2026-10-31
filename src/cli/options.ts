@@ -220,8 +220,7 @@ export function parseRefreshFlag(value: string): RefreshMode {
  *
  * `description` overrides the help text for commands where `ask` does not mean
  * "skip when prompts are unavailable" — `collection-sync`'s CSV-upload gate
- * fails the run instead, and `build-site`'s empty/stale-cache bulk download
- * runs without asking. A command whose help describes the wrong behavior is
+ * fails the run instead. A command whose help describes the wrong behavior is
  * worse than no help.
  */
 export function addRefreshOption(command: Command, description?: string): Command {

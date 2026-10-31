@@ -16,8 +16,8 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Added
 
-- **One card cache for all your workspaces.** The Scryfall card cache (about 75 MB to
-  download, a few hundred MB on disk) used to live in each workspace's own `cache/` folder;
+- **One card cache for all your workspaces.** The Scryfall card cache (about 80 MB to
+  download, about 450 MB on disk) used to live in each workspace's own `cache/` folder;
   it now lives once per user account, so a second workspace reuses the first one's
   download: `$XDG_CACHE_HOME/ritual` (or `~/.cache/ritual`) on Linux,
   `~/Library/Caches/ritual` on macOS, and `%LOCALAPPDATA%\ritual\cache` on Windows. The
@@ -95,6 +95,41 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
   The admin Sync Collection page shows the listing.
 
 ### Changed
+
+- **`ritual card` and `ritual scry` print readable text by default** instead of the raw
+  Scryfall JSON. `card` shows the name and mana cost, type line, rules text (each face of a
+  double-faced, split or adventure card), the printing and its price in your
+  `defaultPriceSource` currency; `scry` prints one `Name · SET:CN · Type line · price` line
+  per card. `--output json` (and `ndjson`) still emit the Scryfall objects unchanged, and
+  `--fields` given without `--output` implies `--output json`. A name `card` cannot find
+  prints a plain sentence with a `--fuzzy` hint (the JSON error envelope is unchanged
+  under `--output json`). **If a script parses `card` or `scry` output, add
+  `--output json`** (a run with `--fields` already gets JSON).
+- `build-site` (and `serve --build`/`--api`) now asks before the Scryfall bulk download it
+  needs for a never-downloaded, week-old or badly incomplete card cache, like every other
+  command under `--refresh ask` (the default); the question defaults to yes. Where nothing
+  can answer it (`--no-input`, or no terminal), the download is skipped with a note and the
+  build fetches the missing cards one by one. **A headless build that relied on the
+  automatic download must pass `--refresh auto`**; the "Publish for me" workflow already
+  does, and the admin **Build Site** page and MCP `build_site` (whose background build
+  cannot be asked) now run theirs with `--refresh auto` too, so they also take the bulk
+  price refresh and tag download the build offers.
+- Every offer of a first card-cache download now says roughly how big it is (about 80 MB,
+  about 450 MB on disk; the every-language data a non-English `defaultLanguage` needs is
+  about 400 MB to download), after the line saying where it will be stored. The `edit`
+  session's offer now says both too, and the empty-cache message no longer talks about
+  "autocomplete".
+- Progress written to a log or pipe instead of a terminal (CI, `| tee`, the admin Build
+  Site log) is now a few whole lines (the start, each 25%, the end) rather than dozens of
+  redrawn fragments run together, both for the card-cache download and for `build-site`'s
+  card fetch; a build with no cards to fetch prints no `100% (0/0)` bar.
+- Quieter output: `add-card` no longer prints `Loaded N cards from cache.`, an `edit`
+  session no longer prints `Loaded N cards.` on startup, and `edit` no longer warns that no
+  `defaultLanguage` is configured every time it starts in a workspace that never set one
+  (English is the default; the session's `🌐 Card Language` row shows it).
+- `--help` no longer prints `(default: false)` after on/off flags such as `--quiet`, and
+  `admin --help` and `build-site --help` show two example `--theme` names instead of all 22
+  (an unknown theme name still lists them all).
 
 - A sync no longer empties one side because the other is empty. `collection-sync pull`
   against an Archidekt collection with no cards (a new account, or one emptied elsewhere)

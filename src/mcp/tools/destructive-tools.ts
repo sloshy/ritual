@@ -285,6 +285,8 @@ export function registerDestructiveTools(
         'Rebuild the public static site from the current lists. Runs asynchronously in a child ' +
         'process and publishes atomically, so an interrupted build never leaves a broken site. ' +
         'It opens on the configured site.theme and loads site.themeFiles (see update_config). ' +
+        'It runs with --refresh auto, so it may download the card cache (about 80 MB), fresh ' +
+        'prices and tags the build needs. ' +
         'Emits progress notifications when the call supplies a progressToken, and honours ' +
         'cancellation.',
       inputSchema: z.object({}),

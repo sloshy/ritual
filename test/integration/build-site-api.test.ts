@@ -276,6 +276,12 @@ describe('handleBuildSite (Integration)', () => {
       expect(argv).toContain(path.join(ws.dir, 'dist'))
     })
 
+    test('answers the cache questions with --refresh auto, since the child has no terminal', () => {
+      const argv = defaultBuildArgv(path.join(ws.dir, 'dist'))
+
+      expect(argv[argv.indexOf('--refresh') + 1]).toBe('auto')
+    })
+
     test('omits --sell-mode when the server has sell mode off', () => {
       expect(defaultBuildArgv(path.join(ws.dir, 'dist'))).not.toContain('--sell-mode')
     })

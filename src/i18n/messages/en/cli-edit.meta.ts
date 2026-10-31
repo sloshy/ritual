@@ -329,10 +329,6 @@ export const cliEditMeta = {
     description:
       'Shown when the typed tags are refused, before the prompt is offered again. {reason} is the English data-format rule the tag parser states (which punctuation a tag cannot contain).',
   },
-  'cli.edit.noConfiguredLanguage': {
-    description:
-      'Startup warning when ritual.config.json declares no defaultLanguage, so new cards are stamped English. {language} is the `en` code, a literal that never translates. {configKey} is the `defaultLanguage` config key; {command} is the `ritual config set defaultLanguage <code>` command line. Each is typed or matched exactly by the user, so never translate them.',
-  },
   'cli.edit.noPrintings': {
     description:
       "The card has no printings left after the session's set filters and digital-only exclusion, so there is nothing to pick.",

@@ -6,7 +6,7 @@ Manage the card cache: inspect it, preload it, and run the always-on cache serve
 
 ## Where the cache lives
 
-The card cache is one folder per user, shared by every workspace on the computer, so the Scryfall download (about 75 MB, several hundred MB on disk) happens once rather than once per workspace:
+The card cache is one folder per user, shared by every workspace on the computer, so the Scryfall download (about 80 MB, about 450 MB on disk) happens once rather than once per workspace:
 
 | Platform               | Default folder                                                                  |
 | ---------------------- | ------------------------------------------------------------------------------- |
@@ -21,7 +21,7 @@ The folder is chosen in this order, highest precedence first:
 3. The workspace's own old `cache/` folder, while it still holds a cache and [`ritual migrate`](/commands/migrate/#migration-3-the-shared-card-cache) has not yet moved it. So an upgraded workspace never downloads into the empty shared cache before its own cache has had the chance to move there.
 4. The per-user default above.
 
-A relative path in the first two is resolved against the workspace, so `cacheDir: "cache"` (or `RITUAL_CACHE_DIR=cache`) keeps a workspace's cache in its own `cache/` folder, as every workspace did before. A value starting with `~` is refused (only a shell expands it; write the full path), as is a file system root, your home folder itself, the workspace itself or a folder containing it, and a deck, collection or wanted-list folder: the cache writes and deletes hundreds of megabytes of files in its folder. A refused `RITUAL_CACHE_DIR` is a usage error (exit `2`) for a CLI command, while a server (`admin`, `serve`, `mcp`, `cache server`) ignores it with a warning and uses the next choice in the list; a refused `cacheDir` is refused by `config set` and the admin API, and ignored with a warning when hand-edited into the file. [`cache status`](#status) shows the folder in use and which setting chose it. The first command that offers to download the card database also says where it will go.
+A relative path in the first two is resolved against the workspace, so `cacheDir: "cache"` (or `RITUAL_CACHE_DIR=cache`) keeps a workspace's cache in its own `cache/` folder, as every workspace did before. A value starting with `~` is refused (only a shell expands it; write the full path), as is a file system root, your home folder itself, the workspace itself or a folder containing it, and a deck, collection or wanted-list folder: the cache writes and deletes hundreds of megabytes of files in its folder. A refused `RITUAL_CACHE_DIR` is a usage error (exit `2`) for a CLI command, while a server (`admin`, `serve`, `mcp`, `cache server`) ignores it with a warning and uses the next choice in the list; a refused `cacheDir` is refused by `config set` and the admin API, and ignored with a warning when hand-edited into the file. [`cache status`](#status) shows the folder in use and which setting chose it. The first command that offers to download the card database also says where it will go and roughly how big it is (about 80 MB to download and 450 MB on disk for the English-only data; the every-language data a non-English [`defaultLanguage`](/configuration/) needs is about 400 MB to download and several times larger on disk).
 
 Everything below that names a cache file (`cache.json`, `card-bulk.json`, `tags.json`, `cardkingdom.json`, `images/`, `feed-client/`, `feed/`, `.ritual-cache-lock`) means that file inside this folder.
 

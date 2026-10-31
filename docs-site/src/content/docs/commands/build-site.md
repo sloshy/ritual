@@ -324,7 +324,14 @@ If nothing was priced, the build exits `1` and says why. When every selected lis
 
 A build gets card data and prices in four steps, in order:
 
-1. **Automatic bulk download**: if the cache is empty, more than a week old, or missing more than 100 of the requested cards, the full Scryfall bulk dataset is downloaded first (the same as `ritual cache preload-all`).
+1. **Bulk download**: if the cache was never downloaded, is more than a week old, or is missing more than 100 of the requested cards, the build offers to download the full Scryfall bulk dataset first (the same as `ritual cache preload-all`). The prompt defaults to **Yes**:
+
+   ```
+   Card cache has never been bulk-downloaded. Download it from Scryfall now? (Y/n)
+   ```
+
+   Before a first download it says where the data will be stored and that the download is about 80 MB (about 450 MB on disk).
+
 2. **Bulk price-refresh prompt**: otherwise, if more than 100 cards have prices older than 24 hours, the build offers a bulk redownload instead of refreshing each card individually:
 
    ```
@@ -336,20 +343,18 @@ A build gets card data and prices in four steps, in order:
 3. **Per-card fetch**: every card whose cached price is older than 24 hours is refetched individually. Cards with fresh prices come from the cache.
 4. **Tag download**: if none of the build's cards carry oracle/art tags (needed by the site's [tag filters](/public-site/filtering/)), the build offers to download them into the cache. The prompt defaults to **Yes**. Under `no-bulk` or `never` the download is skipped and the tag filters stay empty for that build.
 
-When prompts are unavailable (stdin is not a TTY, or `--no-input` / `RITUAL_NO_INPUT` is set; see [When prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)), every prompt is **declined**, never answered with its default. This covers steps 2 and 4.
-
-Step 1 is **not** a prompt. Under `ask` (the default) and `auto`, an empty, week-old, or badly incomplete cache is downloaded automatically, headless or not, because the build has no usable card data otherwise. Pass `--refresh no-bulk` or `--refresh never` to suppress it.
+When prompts are unavailable (stdin is not a TTY, or `--no-input` / `RITUAL_NO_INPUT` is set; see [When prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)), every prompt is **declined**, never answered with its default. This covers steps 1, 2 and 4. A declined bulk download says so and the build carries on, fetching the cards the cache lacks one by one in step 3, which is slow on an empty cache. For CI and other headless builds pass `--refresh auto`, as the [generated workflow](/guides/publish-site/) does.
 
 ### The `--refresh` mode
 
 `--refresh <mode>` answers the prompts non-interactively and controls the bulk download:
 
-| Mode                | Automatic bulk download (step 1) | Bulk price-refresh prompt (step 2)   | Per-card refresh of stale prices (step 3) | Tag download (step 4)                | Symbology download                   |
-| ------------------- | -------------------------------- | ------------------------------------ | ----------------------------------------- | ------------------------------------ | ------------------------------------ |
-| `ask` (the default) | Runs automatically               | Prompts (declined when unanswerable) | Yes                                       | Prompts (declined when unanswerable) | Yes, when not cached                 |
-| `auto`              | Runs automatically               | Yes, without prompting               | Yes                                       | Yes, without prompting               | Yes, when not cached                 |
-| `no-bulk`           | **Suppressed**                   | **Skipped**                          | Yes                                       | **Skipped**                          | Yes, when not cached                 |
-| `never`             | **Suppressed**                   | **Skipped**                          | **No** (uses cached prices as-is)         | **Skipped**                          | **Skipped** (warns; symbols missing) |
+| Mode                | Bulk download (step 1)               | Bulk price-refresh prompt (step 2)   | Per-card refresh of stale prices (step 3) | Tag download (step 4)                | Symbology download                   |
+| ------------------- | ------------------------------------ | ------------------------------------ | ----------------------------------------- | ------------------------------------ | ------------------------------------ |
+| `ask` (the default) | Prompts (declined when unanswerable) | Prompts (declined when unanswerable) | Yes                                       | Prompts (declined when unanswerable) | Yes, when not cached                 |
+| `auto`              | Yes, without prompting               | Yes, without prompting               | Yes                                       | Yes, without prompting               | Yes, when not cached                 |
+| `no-bulk`           | **Suppressed**                       | **Skipped**                          | Yes                                       | **Skipped**                          | Yes, when not cached                 |
+| `never`             | **Suppressed**                       | **Skipped**                          | **No** (uses cached prices as-is)         | **Skipped**                          | **Skipped** (warns; symbols missing) |
 
 [`serve --api`](/commands/serve/#live-api-mode---api) runs steps 1, 2, and 4 at startup over the cards its served lists reference. It never runs step 3, since a live server only reads the cache, so on a warm cache `no-bulk` and `never` behave the same.
 
@@ -361,7 +366,7 @@ ritual build-site --refresh never    # build from the existing cache
 
 > **Note on `never`:** a card the cache does not hold at all is still fetched individually in step 3, since a card with no data cannot be rendered. With no cached symbology, the build warns and the site renders without mana symbols. Re-run with `--refresh auto` to download them.
 
-> **Note:** `no-bulk` and `never` suppress the automatic bulk download (step 1). On an empty or very stale cache every card is then fetched individually, which is slow and can hit Scryfall rate limits. Use them when you already have a populated cache.
+> **Note:** `no-bulk` and `never` suppress the bulk download (step 1). On an empty or very stale cache every card is then fetched individually, which is slow and can hit Scryfall rate limits. Use them when you already have a populated cache.
 
 `bun run dev serve` requires an explicit `--refresh` mode. See [Development → Dev Workflow](/development/#dev-workflow).
 

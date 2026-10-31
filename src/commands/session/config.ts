@@ -5,7 +5,8 @@ import { cardCache } from '../../cache'
 import { configuredCardBulkType } from '../../scryfall/bulk-manifest'
 import { getDefaultLanguage } from '../../config/ritual-config'
 import { emptyCacheAdvice, refreshCardCacheForSession } from '../../cache/freshness'
-import { decideBulkRefresh, type RefreshPolicy } from '../../cache/refresh'
+import { bulkAllowed, decideBulkRefresh, type RefreshPolicy } from '../../cache/refresh'
+import { firstDownloadNotes } from '../../cache/download-notes'
 import { getLogger } from '../../util/logger'
 import {
   type Condition,
@@ -113,6 +114,9 @@ async function offerSessionPreload(
           language: getDefaultLanguage(),
           configKey: CONFIG_KEY.defaultLanguage,
         })
+  // Where the data goes and how big it is, before the question — but only when
+  // the policy can download at all, or the notes describe nothing.
+  if (bulkAllowed(policy.mode)) for (const line of firstDownloadNotes()) console.log(line)
   const accepted = await decideBulkRefresh(policy, {
     message: t('cli.session.preloadPrompt', { scope }),
     initial: true,
@@ -144,7 +148,6 @@ async function loadCardNamesOrWarn(
   console.log(t('cli.session.loadingCards'))
   const cardNames = await loadCardNames({ sets, excludeDigitalOnly })
   if (cardNames.length === 0) return refuseEmptyCache()
-  console.log(t('cli.session.loadedCards', { count: cardNames.length }))
   return cardNames
 }
 
