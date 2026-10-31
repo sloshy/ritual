@@ -1,6 +1,6 @@
+import { advisoryMessages } from '../../list/unreadable-content'
 import {
   IMPORT_TEXT_PARSE_OPTIONS,
-  importParseAdvisories,
   importParseWarnings,
   parseDeckText,
   type DeckParseNotice,
@@ -245,7 +245,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
     const warnings = importParseWarnings(notices)
     // A URL import's category notes join the advisories: news, not loss.
     const advisories: SyncMessage[] = [
-      ...importParseAdvisories(notices),
+      ...advisoryMessages({ notices }),
       ...importCategoryAdvisories(refusedCategories, outcome.categoryError),
     ]
 

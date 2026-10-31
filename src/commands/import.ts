@@ -1,9 +1,9 @@
+import { advisoryMessages } from '../list/unreadable-content'
 import { Command } from 'commander'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
 import {
   IMPORT_TEXT_PARSE_OPTIONS,
-  importParseAdvisories,
   importParseWarnings,
   loadDeckFile,
   type ImportParseWarning,
@@ -948,7 +948,7 @@ export function registerImportCommand(program: Command): void {
         defaultLabels,
       } = await loadDeckFile(source, { ...IMPORT_TEXT_PARSE_OPTIONS, listType })
       const warnings = importParseWarnings(notices)
-      const advisories = importParseAdvisories(notices)
+      const advisories = advisoryMessages({ notices })
 
       // The file's own default rides along, so each line's labels land as the
       // file states them (a move's rule) rather than as a bare token.

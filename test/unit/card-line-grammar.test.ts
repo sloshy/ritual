@@ -464,6 +464,15 @@ describe('advisories', () => {
     expect(result.ok && result.advisories).toEqual([])
   })
 
+  test.each(['collection', 'wanted'] as const)(
+    'a %s line led by a 4+-digit run reads it as the name, with no quantity-expanded advisory',
+    (type) => {
+      const result = parseCardLine(type, '- 1234 Sol Ring (C21:263)')
+      expect(result.ok && result.tokens).toMatchObject({ quantity: 1, name: '1234 Sol Ring' })
+      expect(result.ok && result.advisories).toEqual([])
+    },
+  )
+
   test('a suspect printing on a collection still refuses for the missing printing', () => {
     // The advisory is not a substitute for the refusal: the line names no
     // printing a collection can store.

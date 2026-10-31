@@ -21,8 +21,8 @@
  * ```
  *
  * The parser reads **only** the block. An entry without one (a prose-only
- * entry, written by hand or before the block existed) yields zero events and one advisory —
- * there is no prose fallback, and nothing in Ritual converts such entries.
+ * entry, written by hand or before the block existed) yields zero events and
+ * one advisory — there is no prose fallback, and nothing in Ritual converts such entries.
  *
  * **Persistence fence — this module must never import `src/i18n`.**
  */

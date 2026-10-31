@@ -265,10 +265,8 @@ async function resolveDeckDocument(
   parsed: ParsedDeckDocument,
   options: CleanupOptions,
 ): Promise<ListDocument> {
-  const { original, deck, parseWarnings: warnings } = parsed
-  const frontMatter = parsed.frontMatter
+  const { original, deck, frontMatter, parseWarnings: warnings } = parsed
   let formatSet: DeckFormatKey | undefined
-  let missingFormat: boolean | undefined
   // A declared format stands; anything less — including a format the sections
   // merely imply — is the user's call. The deck's shape orders the choices.
   if (!(deck.format ?? frontMatter.format)) {
@@ -282,14 +280,13 @@ async function resolveDeckDocument(
       // Not chosen (cancelled, or dry-run). Leave the file's content entirely
       // alone: re-emitting would stamp the section-inferred format the user
       // just declined to confirm (`serializeDeckToMarkdown` persists it).
-      missingFormat = true
       return {
         displayName: deck.name,
         original,
         canonical: original,
         parseWarnings: warnings,
         advisories: parsed.advisories,
-        missingFormat,
+        missingFormat: true,
         // Nothing is written, so nothing is folded.
         foldedNames: [],
       }
@@ -302,7 +299,6 @@ async function resolveDeckDocument(
     parseWarnings: warnings,
     advisories: parsed.advisories,
     formatSet,
-    missingFormat,
     foldedNames: parsed.foldedNames,
   }
 }

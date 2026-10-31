@@ -325,11 +325,8 @@ export async function runUnifiedEditor(options: UnifiedEditorOptions): Promise<v
       // Edit mode autocompletes over every in-scope list's entries, so they
       // must all be loaded up front — the engine builds that picker synchronously.
       console.log(t('cli.edit.openingLists', { count: inScope.length }))
-      const files: string[] = []
-      for (const ref of inScope) {
-        const opened = await openList(ref)
-        files.push(opened.ref.file)
-      }
+      for (const ref of inScope) await openList(ref)
+      const files = inScope.map((ref) => ref.file)
       const session = createScopedSession({
         scope,
         // Resolved against the open-list map on every read, so a list created
@@ -359,14 +356,9 @@ export async function runUnifiedEditor(options: UnifiedEditorOptions): Promise<v
       continue
     }
 
-    let open: OpenList
-    if (selection.kind === 'new') {
-      const newList = await createList(selection.type)
-      if (!newList) continue
-      open = newList
-    } else {
-      open = await openList(selection.list)
-    }
+    const open =
+      selection.kind === 'new' ? await createList(selection.type) : await openList(selection.list)
+    if (!open) continue
 
     const result = await runCardSession({
       strategy: open.strategy,

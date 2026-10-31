@@ -155,11 +155,6 @@ export function importParseWarnings(notices: readonly DeckParseNotice[]): Import
     )
 }
 
-/** A parse's advisories as an import surface reports them, in recording order. */
-export function importParseAdvisories(notices: readonly DeckParseNotice[]): SyncMessage[] {
-  return notices.filter((notice) => notice.severity === 'advisory').map((notice) => notice.message)
-}
-
 /** A parsed deck plus a warning for every body line the parser had to skip. */
 export type DeckParseResult = {
   deck: DeckData
@@ -488,9 +483,8 @@ export function parseDeckText(
           card.code === 'conflicting-labels' ? readCardLine('deck', trimmed) : undefined
         if (recovered !== undefined) {
           if (recorded !== undefined) labelsDropped.add(recorded)
-          // The rest of the line was read, so what it has to say still counts —
-          // a held quantity behind the refused token above all, which must
-          // keep blocking a rewrite once the labels are fixed.
+          // The rest of the line was read, so its advisories (a suspect
+          // printing, a dialect rewrite) still count.
           for (const advisory of recovered.advisories) {
             report.record(advisory, bodyOffset + index + 1)
           }

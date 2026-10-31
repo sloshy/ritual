@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   advisoryMessages,
   rewriteBlockingMessages,
+  rewriteRefusal,
   unreadableContentMessage,
   unreadableLines,
   unreadableProblems,
@@ -133,7 +134,7 @@ describe('a parser’s warnings are its warning notices', () => {
 
 describe('rewriteBlockingMessages and advisoryMessages', () => {
   test('split a parse by severity: the lines a rewrite would lose, and the words about read lines', () => {
-    const advisory = syncMessage('domain.import.text.malformedLine', { line: 'read' })
+    const advisory = syncMessage('domain.list.frontMatter.notMapping')
     const parsed: ParsedListContent = {
       fencedLines: 3,
       notices: [
@@ -143,5 +144,30 @@ describe('rewriteBlockingMessages and advisoryMessages', () => {
     }
     expect(rewriteBlockingMessages(parsed)).toEqual([SKIPPED])
     expect(advisoryMessages(parsed)).toEqual([advisory])
+  })
+
+  test('a real parse: an expanded quantity is an advisory, never a rewrite blocker', () => {
+    const parsed = parseCollectionFile('# Binder\n\n## Main\n- 3 Sol Ring (LEA:1) &1\n')
+    expect(rewriteBlockingMessages(parsed)).toEqual([])
+    expect(advisoryMessages(parsed)).toHaveLength(1)
+  })
+})
+
+describe('rewriteRefusal', () => {
+  test('refuses nothing for a clean parse, or one with only advisories', () => {
+    const advisoryOnly: ParsedListContent = {
+      fencedLines: 0,
+      notices: [
+        { severity: 'advisory', message: syncMessage('domain.list.frontMatter.notMapping') },
+      ],
+    }
+    expect(rewriteRefusal('/lists/binder.md', fencedOnly(0), 'saving')).toBeUndefined()
+    expect(rewriteRefusal('/lists/binder.md', advisoryOnly, 'saving')).toBeUndefined()
+  })
+
+  test('refuses lost content with the shared unreadable-content message', () => {
+    expect(rewriteRefusal('/lists/binder.md', PARSED, 'moving')?.messageKey).toBe(
+      'domain.list.unreadableContent',
+    )
   })
 })

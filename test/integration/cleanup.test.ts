@@ -951,8 +951,8 @@ describe('cleanup — labels and front matter', () => {
 /**
  * The list-format migration: one `ritual cleanup` brings every older shape —
  * bulletless deck lines, a file name that is not the list's title,
- * quantity-prefixed flat-list lines, prose-only changelog entries — to the
- * canonical form, and a second run writes nothing.
+ * quantity-prefixed flat-list lines — to the canonical form, carries a
+ * prose-only changelog along unchanged, and a second run writes nothing.
  */
 describe('cleanup — list-format migration', () => {
   let workspace: BoundWorkspace

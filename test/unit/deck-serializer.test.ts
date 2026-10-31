@@ -50,7 +50,7 @@ describe('serializeDeckToMarkdown: empty sections', () => {
   // otherwise leave a bare `## Maybeboard` behind — which the parser then reads
   // as content a rewrite would delete, blocking every later whole-file save.
   test.each(['Maybeboard', 'Tokens'])('drops an empty %s section', (name) => {
-    const result = serializeDeckToMarkdown(withEmptyExtras(name), { name: 'Test Deck' })
+    const result = serializeDeckToMarkdown(withEmptyExtras(name), {})
     expect(result).not.toContain(`## ${name}`)
     expect(result).toContain('## Main')
   })
@@ -58,7 +58,7 @@ describe('serializeDeckToMarkdown: empty sections', () => {
   test('keeps an extras section that still holds cards', () => {
     const deck = withEmptyExtras('Maybeboard')
     deck.sections[1]!.cards.push({ quantity: 1, name: 'Cavern-Hoard Dragon' })
-    expect(serializeDeckToMarkdown(deck, { name: 'Test Deck' })).toContain('## Maybeboard')
+    expect(serializeDeckToMarkdown(deck, {})).toContain('## Maybeboard')
   })
 
   test('a deck of nothing but empty extras serializes to a body with no sections', () => {
@@ -67,7 +67,7 @@ describe('serializeDeckToMarkdown: empty sections', () => {
     // blank lines or a throw.
     const result = serializeDeckToMarkdown(
       { name: 'Test Deck', sections: [{ name: 'Maybeboard', cards: [] }] },
-      { name: 'Test Deck' },
+      {},
     )
     expect(result).not.toContain('##')
     expect(parseDeckText(result, 'Fallback').deck.sections).toEqual([])
@@ -82,7 +82,7 @@ describe('serializeDeckToMarkdown: empty sections', () => {
         { name: 'Sideboard', cards: [] },
       ],
     }
-    const result = serializeDeckToMarkdown(deck, { name: 'Test Deck' })
+    const result = serializeDeckToMarkdown(deck, {})
     expect(result).toContain('## Main')
     expect(result).toContain('## Sideboard')
   })
@@ -100,7 +100,7 @@ describe('serializeDeckToMarkdown: canonical format', () => {
   test('writes a format that was only inferred from the sections', () => {
     // The site infers "Commander" from the section; saving makes that explicit so
     // every other reader (the editors, the CLI menu) agrees without re-inferring.
-    const result = serializeDeckToMarkdown(commanderDeck, { name: 'Test Deck' })
+    const result = serializeDeckToMarkdown(commanderDeck, {})
     expect(result).toContain('format: commander')
     expect(parseDeckText(result, 'Fallback').deck.format).toBe('commander')
   })
@@ -108,13 +108,13 @@ describe('serializeDeckToMarkdown: canonical format', () => {
   // A save re-emits the file's own front matter, which is hand-editable, so raw,
   // unvalidated values do reach the serializer.
   test('rewrites a declared format into its canonical key', () => {
-    const untrusted: Record<string, unknown> = { name: 'Test Deck', format: 'Duel Commander' }
+    const untrusted: Record<string, unknown> = { format: 'Duel Commander' }
     const result = serializeDeckToMarkdown({ name: 'Test Deck', sections: [] }, untrusted)
     expect(result).toContain('format: duel-commander')
   })
 
   test('drops an unparseable format rather than persisting it', () => {
-    const untrusted: Record<string, unknown> = { name: 'Test Deck', format: 'cube' }
+    const untrusted: Record<string, unknown> = { format: 'cube' }
     const deck: DeckData = { name: 'Test Deck', sections: [{ name: 'Main', cards: [] }] }
     expect(serializeDeckToMarkdown(deck, untrusted)).not.toContain('format:')
   })
@@ -136,9 +136,10 @@ describe('round-trip: parse → serialize → parse', () => {
   test('deck with card IDs round-trips correctly', () => {
     const original = [
       '---',
-      'name: Round Trip Deck',
       'description: Testing round trip',
       '---',
+      '',
+      '# Round Trip Deck',
       '',
       '## Commander',
       '1 Kenrith, the Returned King &1',
@@ -152,14 +153,11 @@ describe('round-trip: parse → serialize → parse', () => {
 
     const { deck: deck1 } = parseDeckText(original, 'Fallback')
 
-    const serialized = serializeDeckToMarkdown(deck1, {
-      name: deck1.name,
-      description: deck1.description,
-    })
+    const serialized = serializeDeckToMarkdown(deck1, { description: deck1.description })
 
     const { deck: deck2 } = parseDeckText(serialized, 'Fallback')
 
-    expect(deck2.name).toBe(deck1.name)
+    expect(deck2.name).toBe('Round Trip Deck')
     expect(deck2.description).toBe(deck1.description)
     expect(deck2.sections).toHaveLength(deck1.sections.length)
 
@@ -205,7 +203,7 @@ describe('serializeDeckToMarkdown assigns missing card IDs', () => {
         },
       ],
     }
-    const result = serializeDeckToMarkdown(deck, { name: 'Test' })
+    const result = serializeDeckToMarkdown(deck, {})
     expect(result).toContain('1 Sol Ring &1')
     expect(result).toContain('1 Lightning Bolt &2')
     expect(result).toContain('1 Mana Crypt &3')
@@ -225,7 +223,7 @@ describe('serializeDeckToMarkdown assigns missing card IDs', () => {
         },
       ],
     }
-    const result = serializeDeckToMarkdown(deck, { name: 'Test' })
+    const result = serializeDeckToMarkdown(deck, {})
     const cardLines = result.split('\n').filter((l) => /^- \d+ /.test(l.trim()))
     expect(cardLines.length).toBe(3)
     for (const line of cardLines) {

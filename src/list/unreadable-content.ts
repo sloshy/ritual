@@ -94,9 +94,7 @@ export function advisoryMessages(parsed: Pick<ParsedListContent, 'notices'>): Sy
  * in the reader's language.
  */
 export function unreadableProblems(parsed: ParsedListContent): SyncText[] {
-  const lost = rewriteBlockingMessages(parsed)
-  if (parsed.fencedLines > 0) lost.push(fencedContentMessage(parsed.fencedLines))
-  return lost.map(nestSync)
+  return unreadableMessages(parsed).map(nestSync)
 }
 
 /**

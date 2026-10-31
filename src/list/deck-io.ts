@@ -107,13 +107,13 @@ export function findCardById(deck: DeckData, cardId: number): DeckCardLocation |
   return null
 }
 
-/** An existing deck on disk: its display name (from front matter) and absolute file path. */
+/** An existing deck on disk: its display name (its `# Title` H1, else the file name) and absolute file path. */
 export type ExistingDeck = { name: string; file: string }
 
 /**
  * List existing decks for the selection prompt. Each entry pairs the deck's
- * display name (the `name:` front matter field, not the file slug) with its file
- * path, sorted by display name. Mirrors how the collection/wanted pickers present
+ * display name (its `# Title` H1, else the file name) with its file path,
+ * sorted by display name. Mirrors how the collection/wanted pickers present
  * lists by their human-facing name.
  */
 export async function listExistingDecks(): Promise<ExistingDeck[]> {

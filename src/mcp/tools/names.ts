@@ -1,10 +1,9 @@
 /**
- * The tool names the MCP server registers, and the ones it used to.
+ * The tool names the MCP server registers.
  *
- * Shared with the skills guard test, which asserts that no skill body mentions a
- * name that no longer exists and that every tool-name-shaped token it does
- * mention is one the server actually registers. Keeping both lists here means a
- * rename updates one place and the guard follows.
+ * Shared with the skills guard test, which asserts that every tool-name-shaped
+ * token a skill body mentions is one the server actually registers, so a rename
+ * updates one place and the guard follows.
  */
 
 /** Every tool name the server registers, in registration order (read → write → destructive). */

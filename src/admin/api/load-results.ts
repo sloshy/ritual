@@ -98,8 +98,8 @@ export interface ListLoadBase extends ListLoadStamp, ListCategoriesFields {
   totalCount: number
   /**
    * What a whole-file save could not write back as it is: lines the parser
-   * could not read, and fenced code blocks. **Always present** — an empty array is the honest report for a
-   * clean file, and an optional field is how a client that never checks it
+   * could not read, and fenced code blocks. **Always present** — an empty
+   * array is the honest report for a clean file, and an optional field is how a client that never checks it
    * silently accepts a list that loaded merely shorter than it is (the
    * `CardIndexResponse` precedent).
    *

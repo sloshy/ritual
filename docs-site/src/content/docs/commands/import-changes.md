@@ -1,6 +1,6 @@
 ---
 title: 'ritual import-changes'
-description: 'Apply a change bundle exported from the public site or admin editor to your lists.'
+description: 'Apply a change bundle exported from the public site editor to your lists.'
 sidebar:
   label: 'import-changes'
 ---
@@ -33,7 +33,7 @@ ritual import-changes <file>
 
 ## Format
 
-The file is a **`ritual-change-bundle`** JSON (format version **1**; any other version is refused) covering one or more lists. Card labels in a bundle are signed and [adjust the list default](/list-format/#card-labels). The Export panel's **This list** scope produces a one-list bundle. Its **All lists** scope (offered when edit mode has changes across several lists) covers every edited list in one envelope.
+The file is a **`ritual-change-bundle`** JSON (format version **1**; any other version is refused) covering one or more lists. Card labels in a bundle are signed and [adjust the list default](/list-format/#card-labels). The public site editor's [Export panel](/public-site/editing/)'s **This list** scope produces a one-list bundle. Its **All lists** scope (offered when edit mode has changes across several lists) covers every edited list in one envelope.
 
 ```json
 {

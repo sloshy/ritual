@@ -229,7 +229,7 @@ describe('parseChangeBundle validation', () => {
   })
 
   it.each<[string, unknown, string]>([
-    ['a missing format marker', { version: 2, lists: [], moves: [] }, 'ritual change bundle'],
+    ['a missing format marker', { version: 1, lists: [], moves: [] }, 'ritual change bundle'],
     [
       'a change missing its id',
       {
@@ -342,7 +342,17 @@ describe('parseChangeBundle validation', () => {
       },
       'Move #1: "tags" must be an array of tags',
     ],
-    ['any version but 1', { ...sampleBundle(), version: 2 }, 'version'],
+    ['version 2', { ...sampleBundle(), version: 2 }, 'Unsupported change-bundle version: 2.'],
+    [
+      'a missing version',
+      { ...sampleBundle(), version: undefined },
+      'Unsupported change-bundle version',
+    ],
+    [
+      'version 1 as a string',
+      { ...sampleBundle(), version: '1' },
+      'Unsupported change-bundle version: 1.',
+    ],
     ['a non-array lists field', { ...sampleBundle(), lists: 'nope' }, '"lists"'],
     ['a missing moves array', { ...sampleBundle(), moves: undefined }, '"moves"'],
     [

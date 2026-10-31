@@ -25,14 +25,14 @@ export const QUANTITY_MARKER = 'x'
  */
 export const BARE_QUANTITY_MAX_DIGITS = 3
 
+/** The marker in either case, as a regex character class. */
+const MARKER_CLASS = `[${QUANTITY_MARKER}${QUANTITY_MARKER.toUpperCase()}]`
+
 /**
  * The quantity token's pattern — digits, then an optional marker in either
  * case — as regex source, for the patterns that embed it (the deck-line
  * candidate test in `card-line-read.ts`).
  */
-/** The marker in either case, as a regex character class. */
-const MARKER_CLASS = `[${QUANTITY_MARKER}${QUANTITY_MARKER.toUpperCase()}]`
-
 export const QUANTITY_PATTERN = `\\d+${MARKER_CLASS}?`
 
 /** A leading quantity token and the whitespace that ends it. */
@@ -51,31 +51,6 @@ export type QuantityToken = {
   length: number
 }
 
-/** A leading digit run, as {@link QUANTITY_RE} found it, before any cap is applied. */
-type QuantityMatch = {
-  digits: string
-  /** Whether a {@link QUANTITY_MARKER} followed the digits. */
-  marked: boolean
-  /** The digits plus any marker, exactly as written. */
-  text: string
-  /** How many characters it spans, the whitespace after it included. */
-  length: number
-}
-
-/** The leading digit run of `text`, marked or not, or `undefined` when there is none. */
-function matchQuantity(text: string): QuantityMatch | undefined {
-  const match = QUANTITY_RE.exec(text)
-  const digits = match?.[1]
-  if (match === null || digits === undefined) return undefined
-  const marker = match[2]
-  return {
-    digits,
-    marked: marker !== undefined,
-    text: digits + (marker ?? ''),
-    length: match[0].length,
-  }
-}
-
 /** Whether a run of `digits` with no marker reads as a quantity. */
 function isBareQuantity(digits: string): boolean {
   return digits.length <= BARE_QUANTITY_MAX_DIGITS
@@ -88,9 +63,12 @@ function isBareQuantity(digits: string): boolean {
  * start of a card name (`1996 World Champion`).
  */
 export function readQuantityToken(text: string): QuantityToken | undefined {
-  const match = matchQuantity(text)
-  if (match === undefined || (!match.marked && !isBareQuantity(match.digits))) return undefined
-  return { value: Number(match.digits), text: match.text, length: match.length }
+  const match = QUANTITY_RE.exec(text)
+  const digits = match?.[1]
+  if (match === null || digits === undefined) return undefined
+  const marker = match[2]
+  if (marker === undefined && !isBareQuantity(digits)) return undefined
+  return { value: Number(digits), text: digits + (marker ?? ''), length: match[0].length }
 }
 
 /**

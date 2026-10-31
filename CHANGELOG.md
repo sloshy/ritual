@@ -1305,8 +1305,8 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
 
   A deck line still in the old shape reads as one copy of a card named "1234 Sol Ring",
   with no warning, and the next save writes it as `- 1 1234 Sol Ring`: either way it
-  can't be told apart from a card really named that way, so Ritual can't flag or repair
-  it. **Check your decks by hand for card names that start with a number of four or more
+  can't be told apart from a card really named that way, so Ritual no longer flags it
+  and can't repair it. **Check your decks by hand for card names that start with a number of four or more
   digits**, and rewrite any you find as `- 1234x Sol Ring`. Text exports and **Copy as
   Text** output made by an earlier version carry the same bare form (`1234 Sol Ring`):
   fix those to `1234x Sol Ring` before you import them again.

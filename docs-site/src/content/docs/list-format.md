@@ -77,7 +77,7 @@ An optional YAML block between `---` fences at the top of the file. Each type ha
 
 A deck with no `format` and a `## Commander` section is inferred as Commander.
 
-A list's name is its `# Title` heading, never a front-matter key. Any key not in the table above is kept as written and otherwise ignored.
+A list's name is its `# Title` heading, never a front-matter key; an old `name:` or `created:` is just an unknown key.
 
 ### Default labels and descriptions
 

@@ -25,8 +25,8 @@
  * event together.
  *
  * An entry with no `ritual-changes` block is a **prose-only** entry (one
- * written by hand, or before the block existed): its prose is carried verbatim, it yields zero
- * events, and the parse reports one {@link ChangelogAdvisory} for it — never
+ * written by hand, or before the block existed): its prose is carried
+ * verbatim, it yields zero events, and the parse reports one {@link ChangelogAdvisory} for it — never
  * silence. Nothing here parses prose.
  *
  * **Persistence fence — this module must never import `src/i18n`.**
