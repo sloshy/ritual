@@ -244,8 +244,7 @@ deck with cards elsewhere is kept instead: it is written back bare, with no warn
 removing or moving a section's last card leaves its heading the same way.
 
 A deck's YAML front matter carries its \`format:\` and \`tags:\` (a fixed set of keys — see
-the **ritual-decks** skill; \`name:\`/\`created:\` are legacy keys that \`cleanup\` and every
-deck save strip, the name having moved to the \`# Title\` H1). A deck with no \`format:\` is treated as Commander when it
+the **ritual-decks** skill; the deck's name is its \`# Title\` H1, never a front-matter key). A deck with no \`format:\` is treated as Commander when it
 has a \`## Commander\` section, and the tools write that down on the next save.
 A **collection's** YAML front matter carries its default card labels
 (\`labels: [sale, trade]\` or \`labels: [keep]\`), and a **deck's** carries
@@ -420,8 +419,7 @@ The three modes fail differently, on purpose:
 **Prefer the CLI (or the web admin / MCP server) over hand-editing files**, so the
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for
 inspection is fine. To normalize a whole workspace — canonical formatting (bullets,
-token order, expanded flat-list quantities, \`# Title\` H1 with legacy \`name:\`/\`created:\`
-stripped, repeated-face card names like \`Steam Vents // Steam Vents\` folded onto the card with
+token order, expanded flat-list quantities, repeated-face card names like \`Steam Vents // Steam Vents\` folded onto the card with
 their categories following), file names that match list names, and a \`format:\` on every deck — run
 \`ritual cleanup\`
 (\`-n\`/\`--dry-run\` to preview; \`--check\` to also exit 1 when any file would

@@ -135,27 +135,17 @@ export function serializeDeckToMarkdown(deck: DeckData, frontMatter: DeckFrontMa
  *
  * Keys with an `undefined` value are also dropped — a caller that builds front
  * matter from optional `DeckData` fields would otherwise fail the YAML dump.
- *
- * The legacy `name:` and `created:` keys are dropped too: the deck's name lives
- * in its `# Title` H1 and nothing else, so a client still sending `name:` would
- * otherwise resurrect a second source of truth.
  */
 function canonicalFrontMatter(deck: DeckData, frontMatter: DeckFrontMatter): DeckFrontMatter {
   const next: DeckFrontMatter = {}
   for (const [key, value] of Object.entries(frontMatter)) {
-    if (value !== undefined && !LEGACY_FRONT_MATTER_KEYS.has(key)) next[key] = value
+    if (value !== undefined) next[key] = value
   }
   const format = resolveDeckFormat(deck, frontMatter.format)
   if (format) next.format = format
   else delete next.format
   return next
 }
-
-/**
- * Front-matter keys Ritual no longer writes or reads. `name:` was replaced by the
- * `# Title` H1; `created:` was dropped outright. Stripped on every deck save.
- */
-const LEGACY_FRONT_MATTER_KEYS: ReadonlySet<string> = new Set(['name', 'created'])
 
 /**
  * The front matter a freshly created deck starts with. Shared by every way a deck

@@ -19,7 +19,6 @@ import {
 } from '../list/deck-file'
 import type { DeckData } from '../list/deck'
 import { advisoryMessages, unreadableMessages } from '../list/unreadable-content'
-import { parseTitleFromContent } from '../list/section-format'
 import { parseDeckText } from '../importers/text-file'
 import { listNameCollision, unusableFileNameMessage } from '../list/list-lifecycle'
 import { moveListFileAndSidecars, renameListThroughTemp } from '../list/list-sidecars'
@@ -74,12 +73,10 @@ import { FLAG } from '../util/cli-tokens'
  * 2. every file is re-emitted through the canonical serializers, so older
  *    formatting variants converge on what a fresh save would write: `- `
  *    bullets on deck lines, canonical token order and spacing, uppercase set
- *    codes, a flat list's quantity prefixes expanded to one line per copy, a
- *    deck's legacy `name:` front matter turned into its `# Title` H1 with
- *    `name:` and `created:` dropped (every other key, `tags:` included, stays);
- * 3. every file is named exactly as its list is named (its `# Title` H1, or for
- *    a deck without one its legacy `name:`), replacing file names left over from
- *    the old lower-kebab-case deck slugs;
+ *    codes, a flat list's quantity prefixes expanded to one line per copy
+ *    (every front-matter key stays);
+ * 3. every file is named exactly as its list is named (its `# Title` H1),
+ *    replacing file names left over from the old lower-kebab-case deck slugs;
  * 4. every card line spelled with a repeated face (`Steam Vents // Steam Vents`,
  *    Scryfall's name for a reversible printing) is renamed to the card's folded
  *    name, the one the card cache files that printing under — and its category
@@ -254,22 +251,8 @@ async function readDeckDocument(location: ListLocation): Promise<ParsedDeckDocum
   // Copy before mutating: gray-matter caches parses by content string, so the
   // parsed front matter object is shared between byte-identical files.
   const frontMatter = { ...(await parseDeckFrontMatter(location.filePath)) }
-  // Legacy title fallback — the ONE place that still reads a deck's `name:`
-  // front matter. A deck written before the `# Title` H1 existed has no H1 and
-  // carries its name here; the parser fell back to the file's basename, which
-  // may be an old kebab-case slug. The canonical re-emit below writes the H1
-  // and drops `name:` (and `created:`), so this key is read exactly once.
-  const legacyName = legacyDeckName(original, frontMatter)
-  if (legacyName !== undefined) deck.name = legacyName
   const foldedNames = foldCardLineNames(deck.sections.flatMap((section) => section.cards))
   return { original, deck, frontMatter, parseWarnings: warnings, advisories, foldedNames }
-}
-
-/** A deck's legacy `name:` front matter, when it has one and no `# Title` H1 names it instead. */
-function legacyDeckName(original: string, frontMatter: DeckFrontMatter): string | undefined {
-  if (parseTitleFromContent(original) !== null) return undefined
-  const name = frontMatter['name']
-  return typeof name === 'string' && name.trim() !== '' ? name.trim() : undefined
 }
 
 /**

@@ -134,6 +134,11 @@ https://cyclonedx.org/bom`). The Docker
   candidate migrated records a higher `managed.migration` and reads as updated by a newer
   Ritual; **set `managed.migration` to `0` in its `ritual.config.json` by hand**, then run
   `ritual migrate`.
+- **A deck's `name:` and `created:` front matter are no longer special.** A deck's name is
+  its `# Title` heading; `cleanup` no longer turns an old `name:` into that heading, and a
+  deck save no longer strips `name:` or `created:`. Either is now an unknown key, kept as
+  written and otherwise ignored. A deck that still names itself only in `name:` is titled
+  after its file name; add the `# Title` heading by hand.
 - **The admin site refuses requests sent from other websites.** Any `/api/*` request a
   browser sends from another site, a sibling port or subdomain included, now answers `403`
   (`admin.api.server.crossSite`) before any route runs: `/api/setup` and `/api/login`,

@@ -279,7 +279,7 @@ Save an editing session: the request carries **only the changes**, never the lis
 
 What the route takes from the file rather than the request:
 
-- **Front matter** is never taken from the request (edit it with [List Metadata](#list-metadata)). A collection or wanted list keeps its block byte for byte. A deck's is re-written in canonical form: a known field of the wrong type, or a legacy `name:` / `created:` key, is dropped, and an inferred format is made explicit. A deck whose front matter is not readable YAML is a `400`, rather than a write that would drop it.
+- **Front matter** is never taken from the request (edit it with [List Metadata](#list-metadata)). A collection or wanted list keeps its block byte for byte. A deck's is re-written in canonical form: a known field of the wrong type is dropped, and an inferred format is made explicit. A deck whose front matter is not readable YAML is a `400`, rather than a write that would drop it.
 - **The title** (a deck's name, a flat list's `# Title`), or the file's name when it has none, as the load route reports it.
 - **Section order**: the file's order with the session's `add-section` / `rename-section` / `remove-section` changes replayed over it, so a section the session added survives the write while still empty.
 

@@ -77,7 +77,7 @@ An optional YAML block between `---` fences at the top of the file. Each type ha
 
 A deck with no `format` and a `## Commander` section is inferred as Commander.
 
-Older files may carry `name:` or `created:`. Neither is a key today; the list's name is its `# Title` heading. A deck save strips both, and [`cleanup`](/commands/cleanup/) moves an old `name:` into the H1.
+A list's name is its `# Title` heading, never a front-matter key. Any key not in the table above is kept as written and otherwise ignored.
 
 ### Default labels and descriptions
 
@@ -478,7 +478,6 @@ Beside each list, Ritual keeps `<name>.md.sha256`: a hash of the list file as Ri
 
 - bullets on deck lines, canonical token order and spacing, uppercase set codes, defaults omitted;
 - flat-list quantities expanded to one line per copy;
-- a legacy `name:` turned into the `# Title` H1, with `name:` and `created:` dropped (`tags:` and every other key kept);
 - `&N` on every line;
 - a card spelled with a repeated face (`Steam Vents // Steam Vents`, Scryfall's name for a reversible printing) renamed to the card's own name, with its category assignments moved along;
 - each file renamed after its title;

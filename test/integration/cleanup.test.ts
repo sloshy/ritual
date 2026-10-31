@@ -949,8 +949,8 @@ describe('cleanup — labels and front matter', () => {
 })
 
 /**
- * The list-format migration: one `ritual cleanup` brings every legacy shape —
- * bulletless deck lines, `name:` front matter instead of a `# Title` H1,
+ * The list-format migration: one `ritual cleanup` brings every older shape —
+ * bulletless deck lines, a file name that is not the list's title,
  * quantity-prefixed flat-list lines, prose-only changelog entries — to the
  * canonical form, and a second run writes nothing.
  */
@@ -967,9 +967,9 @@ describe('cleanup — list-format migration', () => {
 
   const dir = (): string => workspace.dir
 
-  /** A deck written before `# Title` H1s existed: `name:`/`created:` front matter, bulletless lines. */
+  /** A deck in an older shape: flow-style tags, bulletless lines, a kebab-case file name. */
   const LEGACY_DECK =
-    '---\nname: Winota Stax\ncreated: 2025-01-01\nformat: commander\ntags: [stax]\nsourceId: abc123\n---\n\n' +
+    '---\nformat: commander\ntags: [stax]\nsourceId: abc123\n---\n\n# Winota Stax\n\n' +
     '## Commander\n1 Winota, Joiner of Forces &1\n\n## Main\n4 Lightning Bolt (lea:161) &2\n// scratch note\n1 Plains &3\n2x Mountain (LEA) 292 *F*\n'
 
   const CANONICAL_DECK =
@@ -981,7 +981,7 @@ describe('cleanup — list-format migration', () => {
     '# Changelog for Winota Stax\n\n## 2026-03-07T22:01:21.452Z\n\n' +
     '- Added "Lightning Bolt" (LEA:161) &2\n- Removed "Mox Emerald" &9\n'
 
-  test('a legacy deck is titled from `name:`, bulleted, and stripped of name:/created:', async () => {
+  test('an older-shape deck is bulleted and renamed after its H1', async () => {
     // The old kebab-case slug file name, so the rename axis is exercised too.
     const oldPath = path.join(dir(), 'decks', 'winota-stax.md')
     await fs.writeFile(oldPath, LEGACY_DECK)
@@ -994,17 +994,17 @@ describe('cleanup — list-format migration', () => {
       warnings: [],
     })
     const newPath = path.join(dir(), 'decks', 'Winota Stax.md')
-    // The H1 comes from `name:`; `name:` and `created:` are gone; `tags:` and
-    // `sourceId:` survive; every line is bulleted; the `//` comment is dropped.
+    // `tags:` and `sourceId:` survive; every line is bulleted; the `//` comment
+    // is dropped.
     expect(await fs.readFile(newPath, 'utf-8')).toBe(CANONICAL_DECK)
     expect(await Bun.file(oldPath).exists()).toBeFalse()
   })
 
-  test('a deck with an H1 keeps it and only loses name:/created:', async () => {
+  test('a stray name: key is an unknown key: kept, and never the title or the file name', async () => {
     const filePath = path.join(dir(), 'decks', 'Winota Stax.md')
     await fs.writeFile(
       filePath,
-      '---\nname: Old Name\ncreated: 2025-01-01\nformat: commander\ntags: [stax]\n---\n\n# Winota Stax\n\n## Main\n- 1 Plains &1\n',
+      '---\nname: Old Name\nformat: commander\ntags: [stax]\n---\n\n# Winota Stax\n\n## Main\n- 1 Plains &1\n',
     )
 
     const result = resultFor(await cleanupAllLists(), 'Winota Stax.md')
@@ -1012,7 +1012,7 @@ describe('cleanup — list-format migration', () => {
     expect(result).toMatchObject({ rewritten: true, warnings: [] })
     expect(result.renamedTo).toBeUndefined()
     expect(await fs.readFile(filePath, 'utf-8')).toBe(
-      '---\nformat: commander\ntags:\n  - stax\n---\n\n# Winota Stax\n\n## Main\n- 1 Plains &1\n',
+      '---\nname: Old Name\nformat: commander\ntags:\n  - stax\n---\n\n# Winota Stax\n\n## Main\n- 1 Plains &1\n',
     )
   })
 
@@ -1076,7 +1076,7 @@ describe('cleanup — list-format migration', () => {
     expect(staleHash).not.toBe(computeHash(CANONICAL_DECK) + '\n')
   })
 
-  test('the sidecar of a Ritual-clean legacy file is refreshed to the canonical content', async () => {
+  test('the sidecar of a Ritual-clean older-shape file is refreshed to the canonical content', async () => {
     const filePath = path.join(dir(), 'decks', 'Winota Stax.md')
     await writeFileWithHash(filePath, LEGACY_DECK)
 
@@ -1096,7 +1096,7 @@ describe('cleanup — list-format migration', () => {
     )
   })
 
-  test('one run migrates every legacy shape; a second run writes nothing', async () => {
+  test('one run migrates every older shape; a second run writes nothing', async () => {
     await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.md'), LEGACY_DECK)
     await fs.writeFile(
       path.join(dir(), 'collections', 'binder.md'),
@@ -1129,10 +1129,10 @@ describe('cleanup — list-format migration', () => {
 describe('cleanup CLI — list-format migration', () => {
   test('detect-changes --verify is clean after cleanup of a Ritual-clean workspace', async () => {
     await withWorkspace(async (dir) => {
-      // Every file is Ritual's own last write (hashed), in the legacy shape.
+      // Every file is Ritual's own last write (hashed), in an older shape.
       await writeFileWithHash(
         path.join(dir, 'decks', 'Winota Stax.md'),
-        '---\nname: Winota Stax\ncreated: 2025-01-01\nformat: commander\n---\n\n## Main\n1 Plains &1\n',
+        '---\nformat: commander\n---\n\n## Main\n1 Plains &1\n',
       )
       await writeFileWithHash(
         path.join(dir, 'collections', 'Binder.md'),

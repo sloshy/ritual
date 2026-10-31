@@ -319,16 +319,12 @@ describe('deck title round trip', () => {
     expect(second).toBe(first)
   })
 
-  test('legacy name: and created: keys are stripped on write', () => {
+  test('a stray name: key is an unknown key, kept as written and never the title', () => {
     const deck: DeckData = { name: 'Fresh', sections: [{ name: 'Main', cards: [] }] }
-    const result = serializeDeckToMarkdown(deck, {
-      name: 'Stale',
-      created: '2024-01-01T00:00:00.000Z',
-      tags: [],
-    })
-    expect(result).not.toContain('name:')
-    expect(result).not.toContain('created:')
+    const result = serializeDeckToMarkdown(deck, { name: 'Stale', tags: [] })
+    expect(result).toContain('name: Stale')
     expect(result).toContain('# Fresh')
+    expect(parseDeckText(result, 'fallback').deck.name).toBe('Fresh')
   })
 
   test('a line break in the title or a section name cannot inject lines into the file', () => {
