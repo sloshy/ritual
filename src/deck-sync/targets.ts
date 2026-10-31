@@ -11,7 +11,7 @@ import {
   readDeckName,
   type DeckParseResult,
 } from '../importers/text-file'
-import { rewriteHoldRefusal, unreadableMessages } from '../list/unreadable-content'
+import { unreadableMessages } from '../list/unreadable-content'
 import {
   errorMessage,
   errorParam,
@@ -206,21 +206,6 @@ export async function resolveTargetDecks(
         name,
         status: 'failed',
         reason: syncMessage('domain.sync.deckFileUnreadable', { error: nestSync(loaded) }),
-        subject: { scope: 'named', deck: name },
-        level: 'error',
-      })
-      return
-    }
-    // A held line (`- 1234 Sol Ring`) fails the deck outright, whatever the
-    // caller accepts: the re-serialize would turn it into one card named
-    // "1234 Sol Ring" for good (and a push would send that name to the site),
-    // which is no loss an accept-the-unreadable-lines answer can cover.
-    const hold = rewriteHoldRefusal(path.basename(filePath), loaded, 'syncing')
-    if (hold) {
-      problem({
-        name,
-        status: 'failed',
-        reason: hold,
         subject: { scope: 'named', deck: name },
         level: 'error',
       })

@@ -183,7 +183,6 @@ Any of `section`, `nameContains`, `limit`, or `offset` makes the body a **slice*
 
 - Body lines the parser could not read — malformed card lines, prose, comments, or any other text the list grammar does not model.
 - One summary entry per file holding a [fenced code block](/list-format/#fenced-code-blocks) (`Fenced code block content (N lines) — …`). A fenced block parses cleanly, so it gets no per-line warning, but the serializers cannot emit it.
-- Held deck lines (`domain.card.line.suspectQuantityInName`, located like a refused line): a deck line with no quantity whose name starts with four or more digits (`- 1234 Sol Ring`). It loads as one card of that whole name, but it may be 1,234 copies an earlier version wrote without the `x`, and the write would re-emit it as `- 1 1234 Sol Ring` for good. Only the user can settle it, by editing the file (`- 1234x Sol Ring` or `- 1 1234 Sol Ring`).
 
 A deck's empty extras section (`## Maybeboard`, `## Tokens`) is deliberately **not** listed: it holds nothing to lose and the next write clears it.
 
@@ -350,7 +349,7 @@ See [`effects`](#effects) for what the array reports.
 
 ### Unreadable lines block a save
 
-All three save routes parse the file on disk before applying anything, and refuse with `400` when that parse yields any [`warnings`](#load-deck). A line the parser cannot read, or a [fenced code block](/list-format/#fenced-code-blocks), is content the re-serializing write would delete, releasing any `&N` ids it held back into the reuse pool. The message names the file and each entry. Nothing is written. Fix the line, or remove the fenced block, and retry; `GET /api/{type}/:slug` reports the same list in its `warnings` field. A held deck line refuses the save the same way, with its own message (`messageKey: domain.list.rewriteHold`, `action: saving`): nothing would be deleted, but the write would change what the line means. When a file holds both, the refusal says both. MCP mutations surface the same refusal as a tool error.
+All three save routes parse the file on disk before applying anything, and refuse with `400` when that parse yields any [`warnings`](#load-deck). A line the parser cannot read, or a [fenced code block](/list-format/#fenced-code-blocks), is content the re-serializing write would delete, releasing any `&N` ids it held back into the reuse pool. The message names the file and each entry. Nothing is written. Fix the line, or remove the fenced block, and retry; `GET /api/{type}/:slug` reports the same list in its `warnings` field. MCP mutations surface the same refusal as a tool error.
 
 ### Line breaks
 

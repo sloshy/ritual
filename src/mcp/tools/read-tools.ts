@@ -361,10 +361,9 @@ export function registerReadTools(server: McpServer): void {
         'assignments), with every returned card also carrying its own resolved categories, ' +
         'primary first, absent when it has none. ' +
         'warnings holds what a whole-file save cannot write back as it is — lines the parser ' +
-        'could not read, fenced code blocks, and held deck lines (`- 1234 Sol Ring`, read as one ' +
-        'card but possibly 1,234 copies written without the x) — as message objects ' +
+        'could not read and fenced code blocks — as message objects ' +
         '({ message, messageKey, messageParams }); a mutation refuses a list that has any, and ' +
-        'only the user can settle them by editing the file (`1234x …` or `- 1 1234 …`). ' +
+        'only the user can settle them by editing the file. ' +
         'artWarnings holds custom-art sidecar problems and categoryWarnings holds ' +
         'categories-sidecar problems, neither of which blocks anything.',
       inputSchema: z.object({

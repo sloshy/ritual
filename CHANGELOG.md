@@ -1299,29 +1299,10 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
   files and every text export: `export --format text` in all four dialects, the deck
   page's download, and **Copy as Text**.
 
-  A deck line still in the old shape, never re-saved since, is now **held**: it loads as
-  one copy of "1234 Sol Ring" and is reported with both fixes wherever a deck's
-  unreadable lines are reported (`cleanup`, `import`, `detect-changes`, the admin load
-  route and MCP `get_list`), and Ritual no longer rewrites it for you:
-
-  - every whole-file save of that deck refuses until you settle the line: the admin and
-    hosted editors, the MCP write tools, `cleanup`, `move`, and `import --append`;
-  - `deck-sync` pull and push fail that deck every time, even with `-y` or Sync anyway;
-  - `ritual edit` won't open the deck: named on the command line it exits 1, and picked
-    from the menu it is skipped;
-  - a one-shot edit aimed at that line (`set-card`, `note`, a label or tag, or an
-    `add-card` that would merge onto it) refuses. Removing it, moving it to another
-    section, and every edit to the deck's other lines keep working and leave it as written.
-
-  Settle it by editing the file: `- 1234x Sol Ring` for 1,234 copies, or
-  `- 1 1234 Sol Ring` if that really is the card's name. `detect-changes` pairs lines by
-  their `&N`, so settling `- 1234 Sol Ring &5` as `- 1234x Sol Ring &5` shows up in the
-  changelog as copies of "Sol Ring" added (1,233 here) on that line; a line with no
-  `&N`, or one whose `&N` changed, is recorded as a removal plus an addition instead.
-
-  A line that has been re-saved since reads `- 1 1234 Sol Ring`, which can't be told
-  apart from a card that is really named that way, so Ritual can't flag or repair it.
-  **Check your decks by hand for card names that start with a number of four or more
+  A deck line still in the old shape reads as one copy of a card named "1234 Sol Ring",
+  with no warning, and the next save writes it as `- 1 1234 Sol Ring`: either way it
+  can't be told apart from a card really named that way, so Ritual can't flag or repair
+  it. **Check your decks by hand for card names that start with a number of four or more
   digits**, and rewrite any you find as `- 1234x Sol Ring`. Text exports and **Copy as
   Text** output made by an earlier version carry the same bare form (`1234 Sol Ring`):
   fix those to `1234x Sol Ring` before you import them again.

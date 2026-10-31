@@ -94,20 +94,6 @@ export function readQuantityToken(text: string): QuantityToken | undefined {
 }
 
 /**
- * The quantity a card name *would* have carried had its leading digit run been
- * marked: `1234 Sol Ring` → 1234, the shape an older writer left behind when it
- * wrote 1,000+ copies bare. `undefined` for a name that does not start with a
- * run past the cap, or whose run names no copies.
- */
-export function readUnmarkedQuantity(name: string): QuantityToken | undefined {
-  const match = matchQuantity(name)
-  if (match === undefined || match.marked || isBareQuantity(match.digits)) return undefined
-  const value = Number(match.digits)
-  if (!isWritableQuantity(value)) return undefined
-  return { value, text: match.text, length: match.length }
-}
-
-/**
  * Whether a card line can carry `quantity`: a whole number of copies, at least
  * one, small enough to be read back exactly.
  */

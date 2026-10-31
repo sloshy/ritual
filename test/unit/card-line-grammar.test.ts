@@ -255,11 +255,7 @@ describe('quantities', () => {
   test('a four-digit run is a card name, not a quantity', () => {
     const result = parseCardLine('deck', '1996 World Champion')
     expect(result.ok && result.tokens).toEqual({ quantity: 1, name: '1996 World Champion' })
-    // Read as written — and, with no quantity in front, flagged: the shape an
-    // older writer left for 1,996 copies of "World Champion".
-    expect(result.ok && result.advisories.map((advisory) => advisory.kind)).toEqual([
-      'suspect-quantity-in-name',
-    ])
+    expect(result.ok && result.advisories).toEqual([])
     expect(parsed('collection', '- 1996 World Champion (PCEL:1)')).toMatchObject({
       quantity: 1,
       name: '1996 World Champion',
@@ -445,7 +441,6 @@ describe('advisories', () => {
       ['deck', '4 Lightning Bolt (M10) 146'],
       ['wanted', '- 3 Sol Ring'],
       ['deck', '1 Very Cryptic Command (Untap)'],
-      ['deck', '- 1234 Sol Ring'],
     ]
     const kinds = lines.flatMap(([type, line]) => {
       const result = parseCardLine(type, line)
@@ -454,50 +449,18 @@ describe('advisories', () => {
     expect([...new Set(kinds)].sort()).toEqual([...CARD_LINE_ADVISORY_KINDS].sort())
   })
 
-  test('a deck line led by an unmarked 1,000+ run is read as a name, and flagged', () => {
-    // The shape an older writer left for 1,000+ copies. Read as one copy of the
-    // whole name — a card may really be called that — but never silently.
-    const result = parseCardLine('deck', '- 1234 Sol Ring (C21:263) &4')
-    expect(result.ok && result.tokens).toMatchObject({ quantity: 1, name: '1234 Sol Ring' })
-    expect(result.ok && result.advisories).toEqual([
-      {
-        severity: 'advisory',
-        kind: 'suspect-quantity-in-name',
-        token: '1234',
-        detail: lineText('suspect-quantity-in-name', {
-          name: '1234 Sol Ring',
-          count: 1234,
-          fix: '1234x Sol Ring',
-        }),
-      },
-    ])
-  })
-
-  test('a leading run of zeros naming one copy suggests the one-copy fix', () => {
-    const result = parseCardLine('deck', '- 0001 Sol Ring')
-    expect(result.ok && result.advisories).toEqual([
-      {
-        severity: 'advisory',
-        kind: 'suspect-quantity-in-name',
-        token: '0001',
-        detail: lineText('suspect-quantity-in-name', {
-          name: '0001 Sol Ring',
-          count: 1,
-          fix: '1 Sol Ring',
-        }),
-      },
-    ])
-  })
-
   test.each([
-    // What the writer produces for a real digit-led card: the quantity comes first.
-    ['deck', '- 1 1996 World Champion'],
-    ['deck', '- 1234x Sol Ring'],
-    ['deck', '- 999 Sol Ring'],
-    // A flat line never carries a quantity on write, so its name is its own.
-    ['collection', '- 1996 World Champion (PCEL:1)'],
-  ] as const)('%s line %s raises no suspect-quantity advisory', (type, line) => {
-    const result = parseCardLine(type, line)
+    // An unmarked run of four or more digits is the start of the name, whatever it
+    // looks like; the writer marks a quantity past 999 (`1234x`) and puts a
+    // quantity in front of a digit-led name (`- 1 1996 World Champion`).
+    ['- 1234 Sol Ring (C21:263) &4', { quantity: 1, name: '1234 Sol Ring', cardId: 4 }],
+    ['- 0001 Sol Ring', { quantity: 1, name: '0001 Sol Ring' }],
+    ['- 1 1996 World Champion', { quantity: 1, name: '1996 World Champion' }],
+    ['- 1234x Sol Ring', { quantity: 1234, name: 'Sol Ring' }],
+    ['- 999 Sol Ring', { quantity: 999, name: 'Sol Ring' }],
+  ] as const)('deck line %s reads as %j, with no advisory', (line, tokens) => {
+    const result = parseCardLine('deck', line)
+    expect(result.ok && result.tokens).toMatchObject(tokens)
     expect(result.ok && result.advisories).toEqual([])
   })
 

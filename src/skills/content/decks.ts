@@ -300,7 +300,7 @@ unknown user from an account with no public decks, so check the spelling.
 ritual deck-sync pull                        # pull remote changes for all linked decks
 ritual deck-sync push "Winota Stax"          # push local changes for one deck
 ritual deck-sync push --dry-run              # preview without sending anything
-ritual deck-sync pull --yes                  # accept dropping lines the parser can't read (never a held line)
+ritual deck-sync pull --yes                  # accept dropping lines the parser can't read
 ritual deck-sync pull --only additions       # add cards locally, never remove any
 ritual deck-sync push --only removals        # push removals only, add nothing remotely
 ritual deck-sync push "Winota Stax" --force  # overwrite remote edits made since the last sync
@@ -392,10 +392,7 @@ ${SYNC_REMOVE_ALL_GUARD}
 Syncing rewrites the deck file, so a line the parser cannot read would be deleted.
 Such decks are listed with their exact lines and confirmed before syncing;
 \`--yes\` answers up front, and without a terminal (\`--no-input\`, a pipe, or
-\`--output json\`) those decks fail instead. A deck holding a **held** line
-(\`- 1234 Sol Ring\`, possibly 1,234 copies written without the \`x\`) always fails,
-\`--yes\` or not: the sync would rewrite it as one card of that name (and a push would
-send that name). The user settles it by editing the file to \`- 1234x …\` or \`- 1 1234 …\`.
+\`--output json\`) those decks fail instead.
 
 A pull also adopts the deck's Archidekt format (mapped onto Ritual's format
 keys). A push does not push the local format back.

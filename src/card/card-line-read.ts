@@ -34,7 +34,8 @@ import type { ListType } from '../list/list-type'
 /**
  * A deck card candidate: a leading quantity, optionally behind a `- ` bullet.
  * Any digit run counts here, marked or not — `- 1234 Sol Ring` is offered to
- * the tokenizer, which reads it as a name and says so with an advisory.
+ * the tokenizer, which reads an unmarked run past three digits as the start of
+ * the name (one copy of "1234 Sol Ring").
  *
  * Requiring the quantity is what keeps hand-written prose prose — an imported
  * decklist's commentary would otherwise become one card per sentence. The
@@ -62,8 +63,7 @@ export type ReadCardLine = {
   tokens: LineTokens
   /**
    * The advisories of whichever parse read the line — the recovered one's on a
-   * line whose labels conflict — so a caller that must not re-emit a held line
-   * (`suspect-quantity-in-name`) still sees it behind a refused labels token.
+   * line whose labels conflict.
    */
   advisories: readonly CardLineAdvisory[]
   /**

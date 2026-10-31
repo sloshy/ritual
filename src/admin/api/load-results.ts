@@ -98,17 +98,14 @@ export interface ListLoadBase extends ListLoadStamp, ListCategoriesFields {
   totalCount: number
   /**
    * What a whole-file save could not write back as it is: lines the parser
-   * could not read, fenced code blocks, and held deck lines (`- 1234 Sol Ring`,
-   * read as one card but possibly 1,234 copies an older version wrote without
-   * the `x`). **Always present** — an empty array is the honest report for a
+   * could not read, and fenced code blocks. **Always present** — an empty array is the honest report for a
    * clean file, and an optional field is how a client that never checks it
    * silently accepts a list that loaded merely shorter than it is (the
    * `CardIndexResponse` precedent).
    *
    * The save routes refuse a file whose baseline parse produces any: the
-   * re-serialize would delete the lost lines (recycling their `&N` ids) or
-   * change a held line's meaning. Only the user can settle them, by editing the
-   * file (a held line becomes `1234x …` or `- 1 1234 …`). Each is a message:
+   * re-serialize would delete the lost lines (recycling their `&N` ids). Only
+   * the user can settle them, by editing the file. Each is a message:
    * English `message` plus its key and params, which a client renders in its
    * reader's language.
    */

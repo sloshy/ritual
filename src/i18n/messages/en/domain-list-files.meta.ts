@@ -96,14 +96,6 @@ export const domainListFilesMeta = {
     description:
       "Refusal: a list file holds content Ritual cannot write back, and the operation would rewrite the whole file and delete it, freeing the card ids (&N, literal syntax) it holds. One branch per operation (saving the list, moving cards out of or into it, appending imported cards). {file} is the file's path; {problems} lists each problem, already worded and joined.",
   },
-  'domain.list.rewriteHoldLine': {
-    description:
-      "Refusal shown in the CLI and returned by the API and MCP when a one-card change (a note, a printing, a label, adding a copy) is aimed at a card line the program read but would rewrite with a different meaning — e.g. '- 1234 Sol Ring', which may be 1,234 copies written by an older version or one card whose name starts with 1234. Nothing was changed; the user must edit the line by hand. {problem} is the note about that line, already a full sentence with its line number.",
-  },
-  'domain.list.rewriteHold': {
-    description:
-      "Refusal shown in the CLI, the admin site and returned by the API and MCP when a list file holds a card line the program read, but would rewrite with a different meaning if it wrote the whole file back — e.g. '- 1234 Sol Ring', which may be 1,234 copies written by an older version or one card whose name starts with 1234. Nothing is deleted; the user must edit the line by hand. {file} is the list file; {problems} is the list of such lines, each already a full sentence. Branches on {action}: saving, moving (cards between lists), appending (an import into the list), opening (the interactive editor declines to open the list), syncing (with a deck website).",
-  },
   'domain.list.move.destinationNotFound': {
     description:
       "A cross-list move aborted before writing: the destination list does not exist (deleted or renamed since the move was queued). {name} is the card name; {list} is the list, already named in the reader's language (domain.change.listRef, e.g. Deck 'Burn').",

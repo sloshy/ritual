@@ -742,31 +742,6 @@ describe('deck-sync API', () => {
     expect(after).not.toContain('this line is not a card')
   })
 
-  test('a deck with a held line fails even when the caller accepts unreadable lines', async () => {
-    // `- 1234 Sol Ring` may be 1,234 copies an older writer spelled bare: a
-    // sync would re-emit it as one card named "1234 Sol Ring" (and a push would
-    // send that name), which accepting unreadable lines must not cover.
-    await signIn()
-    stubArchidekt()
-    const deckPath = path.join(tmpDir, 'decks', 'linked.md')
-    await fs.writeFile(deckPath, `${await fs.readFile(deckPath, 'utf-8')}- 1234 Sol Ring &9\n`)
-    const before = await fs.readFile(deckPath, 'utf-8')
-
-    const report = await runReport({
-      direction: 'pull',
-      decks: ['linked'],
-      ignoreUnreadableLines: true,
-    })
-    expect(report.decks).toHaveLength(1)
-    expect(report.decks[0]).toMatchObject({
-      name: 'Linked Deck',
-      status: 'failed',
-      reasonKey: 'domain.list.rewriteHold',
-    })
-    expect(report.decks[0]?.reason).toContain('a sync would rewrite with a different meaning')
-    expect(await fs.readFile(deckPath, 'utf-8')).toBe(before)
-  })
-
   test('streams the unreadable lines so a caller can decide', async () => {
     await signIn()
     stubArchidekt()

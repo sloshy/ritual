@@ -20,8 +20,8 @@ import { writeFileWithHash } from '../changes/content-hash'
 import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from './deck-file'
 import { listDeckFiles, loadDeckFile, readDeckName } from '../importers/text-file'
 import { assignMissingDeckCardIds } from '../card/card-id'
-import { rewriteHoldRefusal, unreadableMessages } from './unreadable-content'
-import { renderSyncMessage, SyncMessageError } from '../sync/message'
+import { unreadableMessages } from './unreadable-content'
+import { renderSyncMessage } from '../sync/message'
 
 /** A loaded deck file: its parsed structure plus the front matter needed to round-trip it. */
 export type LoadedDeck = {
@@ -29,24 +29,10 @@ export type LoadedDeck = {
   frontMatter: DeckFrontMatter
 }
 
-/**
- * Thrown by {@link loadDeck} for a deck holding a line a whole-file save would
- * re-emit with a different meaning (`- 1234 Sol Ring`, see `isRewriteHold`).
- * The session never opens such a deck: it would
- * hold the line as one copy of "1234 Sol Ring", and its save would write that
- * back as `- 1 1234 Sol Ring` — even over a fix the user made to the file
- * while the session was open.
- */
-export class DeckRewriteHoldError extends SyncMessageError {
-  override name = 'DeckRewriteHoldError' as const
-}
-
 /** Load a deck file into structured data plus its front matter for later re-serialization. */
 export async function loadDeck(filePath: string): Promise<LoadedDeck> {
   const parseResult = await loadDeckFile(filePath)
   const { deck: parsed } = parseResult
-  const hold = rewriteHoldRefusal(path.basename(filePath), parseResult, 'opening')
-  if (hold) throw new DeckRewriteHoldError(hold)
   // Parity with the flat-list sessions: a session save re-serializes the whole
   // file, so any line the parser skipped — and any fenced code block, which the
   // canonical serializer cannot emit — would be dropped by that save. Warn up

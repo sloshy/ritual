@@ -178,8 +178,7 @@ async function loadStagedDeck(filePath: string): Promise<LoadStagedResult> {
   }
   // A deck side of a move is written back by re-serializing the whole file, so
   // anything the parse could not carry — a skipped line, a fenced code block —
-  // would be deleted by the write, and a held line would change its meaning.
-  // Refuse the move instead.
+  // would be deleted by the write. Refuse the move instead.
   const refusal = rewriteRefusal(filePath, parsed, 'moving')
   if (refusal) return { ok: false, reason: 'unreadable-lines', message: refusal }
   return { ok: true, file: { kind: 'deck', data: { deck: parsed.deck, frontMatter: fm } } }

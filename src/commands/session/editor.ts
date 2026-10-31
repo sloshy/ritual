@@ -32,8 +32,6 @@ import {
   type ListScope,
 } from './scoped-session'
 import { renderSyncMessage } from '../../sync/message'
-import { DeckRewriteHoldError } from '../../list/deck-io'
-import { ExitCode } from '../../util/errors'
 
 /**
  * The unified editor behind the `edit` command: one interactive session over
@@ -192,20 +190,10 @@ export async function runUnifiedEditor(options: UnifiedEditorOptions): Promise<v
       0,
     )
 
-  // Undefined when the list refuses to open: a deck holding a line a save
-  // would re-emit with a different meaning (`DeckRewriteHoldError`). Said and
-  // skipped rather than thrown, so the lists already open keep their changes.
-  const openList = async (ref: UnifiedListRef): Promise<OpenList | undefined> => {
+  const openList = async (ref: UnifiedListRef): Promise<OpenList> => {
     const existing = openLists.get(ref.file)
     if (existing) return existing
-    let opened: OpenList
-    try {
-      opened = await openListSession(ref, sessionConfig, excludeDigitalOnly, moveTargets)
-    } catch (error) {
-      if (!(error instanceof DeckRewriteHoldError)) throw error
-      console.error(renderSyncMessage(error.syncMessage))
-      return undefined
-    }
+    const opened = await openListSession(ref, sessionConfig, excludeDigitalOnly, moveTargets)
     openLists.set(ref.file, opened)
     return opened
   }
@@ -302,10 +290,6 @@ export async function runUnifiedEditor(options: UnifiedEditorOptions): Promise<v
   // engine already ran the exit menu (save-all / discard / cancel) on 'exit'.
   if (directRef) {
     const open = await openList(directRef)
-    if (!open) {
-      process.exitCode = ExitCode.RuntimeError
-      return
-    }
     const result = await runCardSession({
       strategy: open.strategy,
       cardNames,
@@ -344,7 +328,7 @@ export async function runUnifiedEditor(options: UnifiedEditorOptions): Promise<v
       const files: string[] = []
       for (const ref of inScope) {
         const opened = await openList(ref)
-        if (opened) files.push(opened.ref.file)
+        files.push(opened.ref.file)
       }
       const session = createScopedSession({
         scope,
@@ -381,9 +365,7 @@ export async function runUnifiedEditor(options: UnifiedEditorOptions): Promise<v
       if (!newList) continue
       open = newList
     } else {
-      const opened = await openList(selection.list)
-      if (!opened) continue
-      open = opened
+      open = await openList(selection.list)
     }
 
     const result = await runCardSession({

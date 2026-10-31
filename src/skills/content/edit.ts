@@ -371,9 +371,7 @@ bundle's \`moves\` (\`pinsCardId\` / \`replacement\`).
 
 \`ritual edit\` is **the** interactive TUI (requires a terminal) for editing decks,
 collections, and wanted lists: a selection menu covers all lists (plus create-new
-items). It will not open a deck holding a held line (\`- 1234 Sol Ring\`, possibly 1,234
-copies written without the \`x\`): named on the command line it exits 1, and picked from
-the menu it is skipped, until the line is settled by hand. Sessions support name/collector entry modes, per-type edit modes over
+items). Sessions support name/collector entry modes, per-type edit modes over
 existing entries (with nothing typed the whole list is listed below the menu
 rows, so it can be scrolled as well as searched), and undo. Collector mode is a \`SET:CN\` search over **every
 printing in the local Scryfall cache** (\`mkm:123\`, \`mkm 123\`, \`123 mkm\`, or a bare token

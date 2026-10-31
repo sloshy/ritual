@@ -117,9 +117,6 @@ export const domainCardMeta = {
   'domain.card.line.suspectPrintingInName': {
     description: `${ADVISORY_CONTEXT} The card name still ends in something that looks like a set code in parentheses, so the line probably came from an export format the program does not recognize and the card name may be wrong. ${LINE_PARAM}`,
   },
-  'domain.card.line.suspectQuantityInName': {
-    description: `${ADVISORY_CONTEXT} A deck line's card name begins with a number of four or more digits and the line has no quantity before it, e.g. '- 1234 Sol Ring'. It is read as ONE copy of a card with that whole name; an earlier version of the program wrote a deck card with 1,000 or more copies this way by mistake. {name} is the whole card name as read (e.g. 1234 Sol Ring). {count} is its leading number (always 1000 or more). {fix} is the corrected line text, e.g. 1234x Sol Ring — card-line syntax, keep it exactly as given. '- 1 {name}' is the other correction, also card-line syntax: keep the '- 1 ' exactly.`,
-  },
   'domain.card.line.lineBreak': {
     description: `${LINE_CONTEXT} An internal safeguard: a card name, set code or collector number about to be written into a list file contains a line break, which would forge a second card line. {text} is that value as JSON (quoted).`,
   },

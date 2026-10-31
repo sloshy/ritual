@@ -346,11 +346,10 @@ type FlatEntry = (CollectionEntry | WantedListEntry) & { cardId?: number }
 type AppendResult = { content: string; changes: ChangeEvent[] }
 
 /**
- * An append refused because the canonical re-serialize would delete or change
- * content of the existing file. Append rewrites the whole file from parsed
- * entries, so a skipped line or a fenced code block is content the write would
- * drop, and a held line one it would change — the same gate the admin saves,
- * `cleanup` and the sync engines apply.
+ * An append refused because the canonical re-serialize would delete content
+ * of the existing file. Append rewrites the whole file from parsed entries, so
+ * a skipped line or a fenced code block is content the write would drop — the
+ * same gate the admin saves, `cleanup` and the sync engines apply.
  */
 type AppendRefused = { refusal: SyncMessage }
 

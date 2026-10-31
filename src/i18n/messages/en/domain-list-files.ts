@@ -109,22 +109,6 @@ export const domainListFilesMessages = {
       '{file} holds content the parser cannot re-emit, and appending would delete it (releasing any &N ids it carries). Fix the file first — {problems}',
   },
 
-  'domain.list.rewriteHold': {
-    $select: 'action',
-    saving:
-      '{file} holds a card line that saving would rewrite with a different meaning, so nothing was saved. Settle the line by hand first — {problems}',
-    moving:
-      '{file} holds a card line that moving would rewrite with a different meaning, so nothing was moved. Settle the line by hand first — {problems}',
-    appending:
-      '{file} holds a card line that appending would rewrite with a different meaning, so nothing was appended. Settle the line by hand first — {problems}',
-    opening:
-      '{file} holds a card line that the editor would rewrite with a different meaning on save, so it was not opened. Settle the line by hand first — {problems}',
-    syncing:
-      '{file} holds a card line that a sync would rewrite with a different meaning, so it was not synced. Settle the line by hand first — {problems}',
-  },
-  'domain.list.rewriteHoldLine':
-    'Changing this card would rewrite its line with a different meaning, so nothing was changed. Settle the line by hand first — {problem}',
-
   // ── Cross-list moves ──────────────────────────────────────────────────
   'domain.list.move.destinationNotFound': 'Cannot move "{name}": destination {list} not found',
   'domain.list.move.sourceNotFound': 'Cannot move "{name}": source {list} not found',

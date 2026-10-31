@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  formatQuantityToken,
-  readQuantityToken,
-  readUnmarkedQuantity,
-} from '../../src/card/card-line-quantity'
+import { formatQuantityToken, readQuantityToken } from '../../src/card/card-line-quantity'
 import { plainTextCardLine } from '../../src/card/card-line'
 import { deckToExportText, deckToMarkdown } from '../../src/list/deck-text'
 import { collectionToText } from '../../src/list/list-export'
@@ -42,24 +38,6 @@ describe('readQuantityToken', () => {
       expect(readQuantityToken(text)).toBeUndefined()
     },
   )
-})
-
-describe('readUnmarkedQuantity', () => {
-  test('reads the quantity an unmarked 1,000+ run would have named', () => {
-    expect(readUnmarkedQuantity('1234 Sol Ring')).toEqual({ value: 1234, text: '1234', length: 5 })
-  })
-
-  test.each([
-    '999 Sol Ring',
-    '1234x Sol Ring',
-    '0000 Sol Ring',
-    // Past the safe-integer range: no count to suggest.
-    '99999999999999999999 Sol Ring',
-    '1996',
-    'Sol Ring',
-  ])('%j names no unmarked quantity', (name) => {
-    expect(readUnmarkedQuantity(name)).toBeUndefined()
-  })
 })
 
 describe('formatQuantityToken', () => {

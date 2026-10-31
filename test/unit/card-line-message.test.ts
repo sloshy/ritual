@@ -148,15 +148,6 @@ const SAMPLES: Record<CardLineTextCode, Sample> = {
     lineText('suspect-printing-in-name', { line: '4 Lightning Bolt (M10) 146 *A*' }),
     "Card name still contains a printing token, so the line's format was not recognized: 4 Lightning Bolt (M10) 146 *A*",
   ],
-  'suspect-quantity-in-name': [
-    lineText('suspect-quantity-in-name', {
-      name: '1234 Sol Ring',
-      count: 1234,
-      fix: '1234x Sol Ring',
-    }),
-    'Read as one copy of "1234 Sol Ring". If the line means 1234 copies, write it as 1234x Sol Ring;' +
-      ' if "1234 Sol Ring" really is the card\'s name, write it as - 1 1234 Sol Ring.',
-  ],
   'did-you-mean': [lineText('did-you-mean', { language: 'ja' }), 'did you mean [ja]?'],
   'insert-space': [
     lineText('insert-space', { token: '(LEA:270)', side: 'after' }),
@@ -189,20 +180,6 @@ describe('every card-line text code', () => {
     // one code's English under another's name.
     expect<string>(text.code).toBe(code)
     expect(keyedMessage(toSyncMessage(cardLineTextRef(text)))).toBe(english)
-  })
-
-  // The sample above renders the `other` branch; a leading `0001` is the one
-  // run that reaches `one`.
-  test('suspect-quantity-in-name renders its one-copy branch', () => {
-    const text = lineText('suspect-quantity-in-name', {
-      name: '0001 Sol Ring',
-      count: 1,
-      fix: '1 Sol Ring',
-    })
-    expect(keyedMessage(toSyncMessage(cardLineTextRef(text)))).toBe(
-      'Read as one copy of "0001 Sol Ring". If the line means 1 copy, write it as 1 Sol Ring;' +
-        ' if "0001 Sol Ring" really is the card\'s name, write it as - 1 0001 Sol Ring.',
-    )
   })
 
   /**

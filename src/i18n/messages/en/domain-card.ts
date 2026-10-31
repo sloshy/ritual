@@ -87,12 +87,6 @@ export const domainCardMessages = {
     'Read the export printing {token} as ({printing}) [{finish}].',
   'domain.card.line.suspectPrintingInName':
     "Card name still contains a printing token, so the line's format was not recognized: {line}",
-  'domain.card.line.suspectQuantityInName': {
-    $plural: 'count',
-    one: 'Read as one copy of "{name}". If the line means {count} copy, write it as {fix}; if "{name}" really is the card\'s name, write it as - 1 {name}.',
-    other:
-      'Read as one copy of "{name}". If the line means {count} copies, write it as {fix}; if "{name}" really is the card\'s name, write it as - 1 {name}.',
-  },
   'domain.card.line.lineBreak': 'A card line cannot hold a line break: {text}',
   'domain.card.line.unwritableQuantity':
     'A card line cannot hold a quantity of {quantity}: it must be a whole number of copies, from 1 to {max}.',

@@ -44,7 +44,7 @@ Names resolve within decks only, following the usual [list name rules](/list-res
 | Option               | Description                                                                                                                        | Default     |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | `-n, --dry-run`      | Report what would sync without writing files or pushing changes                                                                    | `false`     |
-| `-y, --yes`          | Sync decks with unreadable lines without asking (those lines are removed); never a deck with a [held line](#held-lines)            | `false`     |
+| `-y, --yes`          | Sync decks with unreadable lines without asking (those lines are removed)                                                          | `false`     |
 | `--only <changes>`   | Apply only `additions` or `removals` (relative to the sync destination)                                                            | all changes |
 | `--force`            | **push only** — overwrite a remote deck that changed since its last sync                                                           | `false`     |
 | `--allow-remove-all` | Sync a deck even when one side is empty and every card would be removed from the other (see [Empty-deck guard](#empty-deck-guard)) | `false`     |
@@ -279,10 +279,6 @@ Answering no (the default) fails those decks; the rest of the run continues. Pas
 Without a terminal to ask (`--no-input`, a piped stdin, or `--output json`/`ndjson`), the affected decks fail with `N unreadable lines would be dropped by a sync`, and the command exits 1. Pass `--yes` to sync them anyway, or fix the lines first. The listing is written to stderr in every mode, and every report carries an `unreadable` array with the same decks and lines.
 
 `--dry-run` is exempt: a preview writes nothing, so there is nothing to confirm. The lines are listed and the deck is previewed like any other.
-
-### Held lines
-
-A deck line with no quantity whose name starts with four or more digits (`- 1234 Sol Ring`) is **held**: it reads as one card of that whole name, but it may be 1,234 copies an earlier version of Ritual wrote without the `x` (see [read tolerances](/list-format/#read-tolerances)). A sync would rewrite it as `- 1 1234 Sol Ring` for good, and a push would send `1234 Sol Ring` to Archidekt, so a deck holding one **always fails**, in every mode: `--yes`, a yes at the prompt, and the admin page's Sync anyway never cover it, and it is not listed with the unreadable lines. The failure names the line and both fixes. Edit the file to `- 1234x Sol Ring` (copies) or `- 1 1234 Sol Ring` (the card's name), then sync again.
 
 ## Failure Behavior
 

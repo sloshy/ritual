@@ -75,13 +75,13 @@ describe('readCardLine', () => {
     expect(read?.tokens.labels).toBeUndefined()
   })
 
-  test("the recovered read carries the retry's advisories, a held quantity among them", () => {
-    // Behind a refused labels token the line is still `- 1234 Sol Ring`: a
-    // caller that must not re-emit a held line has to see it here too.
-    const read = readCardLine('deck', '- 1234 Sol Ring [proxy,no-proxy] &5')
-    expect(read?.invalidLabels).toBe('proxy,no-proxy')
-    expect(read?.tokens).toMatchObject({ quantity: 1, name: '1234 Sol Ring', cardId: 5 })
-    expect(read?.advisories.map((advisory) => advisory.kind)).toEqual(['suspect-quantity-in-name'])
+  test("the recovered read carries the retry's advisories", () => {
+    // Behind a refused labels token the line still holds 3 copies on a
+    // one-line-per-copy list, and the caller still hears so.
+    const read = readCardLine('collection', '- 3 Sol Ring (LEA:1) [sale,keep] &5')
+    expect(read?.invalidLabels).toBe('sale,keep')
+    expect(read?.tokens).toMatchObject({ quantity: 3, name: 'Sol Ring', cardId: 5 })
+    expect(read?.advisories.map((advisory) => advisory.kind)).toEqual(['quantity-expanded'])
   })
 
   test('the recovered read keeps every other token on the line', () => {

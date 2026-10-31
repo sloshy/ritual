@@ -38,8 +38,6 @@ import { listDefaultLabelsInLines } from './flat-list-front-matter'
 import { readCardLine, type ReadCardLine } from '../card/card-line-read'
 import { sameCardTags, withCardTag, withoutCardTag, type CardTag } from '../card/card-tags'
 import type { LineTokens } from '../card/card-line-grammar'
-import { cardLineDiagnosticMessage } from '../card/card-line-message'
-import { isRewriteHoldKind } from './line-diagnostics'
 import { storedLanguage, type CardLanguage } from '../card/card-language'
 import { canonicalCardLine } from './deck-text'
 import { parseHeading } from './section-format'
@@ -66,12 +64,7 @@ import {
 import { applyConditionUpdate, type Finish } from '../card/finish-condition'
 import { canSetFinish } from '../card/card-printing'
 import { noteOrUndefined } from '../card/note-helpers'
-import {
-  ExitCode,
-  CardCommandError,
-  localizedCommandError,
-  messageCommandError,
-} from '../util/errors'
+import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import type { ListType } from './list-type'
 import type { CardMutationChange } from './list-mutate'
 import type { EntryRef } from './entry-ref'
@@ -234,8 +227,6 @@ export function applyTargetedChangesToContent(
   const rewriteWith = (mutate: () => void, ownsLabels = false): void => {
     const idx = findTargetLineIndex(lines, type, entry)
     if (idx === -1) throw targetLineGone()
-    const held = heldLineRefusal(lines, idx, type)
-    if (held) throw held
     entry.cardId ??= lineCardIdAt(lines, idx, type)
     entry.language ??= lineLanguageAt(lines, idx, type)
     // Tags likewise: a rewrite about some other field must not strip the
@@ -497,32 +488,6 @@ function finishWithoutPrinting(finish: Finish): CardCommandError {
     ExitCode.UsageError,
     'cli.lineMutate.finishWithoutPrinting',
     { finish, setFlag: FLAG.set, collectorNumberFlag: FLAG.collectorNumber },
-  )
-}
-
-/**
- * The refusal for re-emitting the line at `idx` when it is a held line
- * (`- 1234 Sol Ring`, see `isRewriteHoldKind`): its canonical form
- * `- 1 1234 Sol Ring` would erase the one sign that it may be 1,234 copies, so
- * only the user may settle it. A removal never asks — it re-emits nothing —
- * and a section move carries the line as written.
- */
-function heldLineRefusal(
-  lines: string[],
-  idx: number,
-  type: ListType,
-): CardCommandError | undefined {
-  // Through the tolerant reader: a held line whose labels token conflicts is
-  // still held, and a `set-card --label` repairing the token must not re-emit it.
-  const read = readCardLine(type, lines[idx]!.trim())
-  const hold = read?.advisories.find((advisory) => isRewriteHoldKind(advisory.kind))
-  if (hold === undefined) return undefined
-  return messageCommandError(
-    'usage_error',
-    ExitCode.UsageError,
-    syncMessage('domain.list.rewriteHoldLine', {
-      problem: nestSync(cardLineDiagnosticMessage(hold, { line: idx + 1 })),
-    }),
   )
 }
 
@@ -867,8 +832,6 @@ export function applyDeckAddToContent(
   for (let copy = 0; copy < copies; copy++) {
     const idx = findDeckMergeLineIndex(lines, card, cardId, listLabels, scope)
     if (idx !== -1) {
-      const held = heldLineRefusal(lines, idx, 'deck')
-      if (held) throw held
       if (copy === 0) merged = true
       // Rewrite from the line's OWN fields, not the incoming card's: a merge
       // target may carry a `{note}` (notes are not part of `isSamePrinting`) and

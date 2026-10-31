@@ -31,12 +31,7 @@
 
 import { type CardPrinting, resolvePrinting } from './card-line'
 import { matchCardId } from './card-line-id'
-import {
-  formatQuantityToken,
-  isWritableQuantity,
-  readQuantityToken,
-  readUnmarkedQuantity,
-} from './card-line-quantity'
+import { isWritableQuantity, readQuantityToken } from './card-line-quantity'
 import { printingLabel } from './card-line-tail'
 import {
   isSignedCardLabel,
@@ -124,24 +119,18 @@ export type CardLineAdvisoryKind =
   | 'quantity-expanded'
   /** The name still carries a set-like token — a dialect nobody taught the parser. */
   | 'suspect-printing-in-name'
-  /** A deck line's name starts with a digit run that reads as a quantity only when `x`-marked. */
-  | 'suspect-quantity-in-name'
 
 /** Every advisory kind, for exhaustive iteration by consumers and tests. */
 export const CARD_LINE_ADVISORY_KINDS: readonly CardLineAdvisoryKind[] = Object.values({
   'dialect-rewritten': 'dialect-rewritten',
   'quantity-expanded': 'quantity-expanded',
   'suspect-printing-in-name': 'suspect-printing-in-name',
-  'suspect-quantity-in-name': 'suspect-quantity-in-name',
 } as const satisfies Record<CardLineAdvisoryKind, CardLineAdvisoryKind>)
 
 /**
  * A non-fatal note about a line the parser *did* read. Advisories must never be
  * promoted into the `warnings` channel: nothing was lost. They leave the
- * whole-file-rewrite gates (`unreadableLines`) alone too, with one exception
- * the list diagnostics apply: `suspect-quantity-in-name`, whose line a rewrite
- * would re-emit with a meaning no later read can recover (see `ParseNotice`'s
- * `blocksRewrite` in `line-diagnostics.ts`).
+ * whole-file-rewrite gates (`unreadableLines`) alone too.
  */
 export type CardLineAdvisory = {
   /**
@@ -1083,28 +1072,6 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
           detail: lineText('suspect-printing-in-name', { line: line.trim() }),
         })
       }
-    }
-  }
-
-  // A deck line led by a digit run too long to be a bare quantity, with no
-  // quantity before it: `- 1234 Sol Ring`. The writer never produces that for a
-  // real digit-led card (it writes `- 1 1996 World Champion`), so the line was
-  // either hand-written or left by an older writer that spelled 1,000+ copies
-  // bare. It reads as one copy of the whole name — said out loud, never
-  // silently rewritten, since a card may really be named that way.
-  if (type === 'deck' && quantityToken === undefined) {
-    const unmarked = readUnmarkedQuantity(name)
-    if (unmarked) {
-      advisories.push({
-        severity: 'advisory',
-        kind: 'suspect-quantity-in-name',
-        token: unmarked.text,
-        detail: lineText('suspect-quantity-in-name', {
-          name,
-          count: unmarked.value,
-          fix: `${formatQuantityToken(unmarked.value)} ${name.slice(unmarked.length)}`,
-        }),
-      })
     }
   }
 

@@ -209,7 +209,7 @@ const GET_LIST_COMMON_PROPS = {
   slug: str(),
   warnings: arr(
     SYNC_MESSAGE,
-    'What a whole-file save cannot write back as it is: lines the parser could not read, fenced code blocks, and held deck lines (`- 1234 Sol Ring`, read as one card but possibly 1,234 copies written without the x). Always present, empty when the file is clean. A write refuses a list that has any; only the user can settle them by editing the file (`1234x Sol Ring` or `- 1 1234 Sol Ring`). Each is a message: English `message`, plus `messageKey`/`messageParams`.',
+    'What a whole-file save cannot write back as it is: lines the parser could not read, and fenced code blocks. Always present, empty when the file is clean. A write refuses a list that has any; only the user can settle them by editing the file. Each is a message: English `message`, plus `messageKey`/`messageParams`.',
   ),
 } as const satisfies Properties
 const GET_LIST_COMMON_REQUIRED = ['view', 'listType', 'slug', 'warnings'] as const

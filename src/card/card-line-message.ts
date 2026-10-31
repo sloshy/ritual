@@ -57,7 +57,6 @@ const TEXT_KEYS = {
   'export-printing': 'domain.card.line.exportPrinting',
   'export-printing-finish': 'domain.card.line.exportPrintingFinish',
   'suspect-printing-in-name': 'domain.card.line.suspectPrintingInName',
-  'suspect-quantity-in-name': 'domain.card.line.suspectQuantityInName',
   'did-you-mean': 'domain.card.line.hint.didYouMean',
   'insert-space': 'domain.card.line.hint.insertSpace',
   'id-last': 'domain.card.line.hint.idLast',

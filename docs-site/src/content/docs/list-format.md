@@ -214,7 +214,7 @@ The reader accepts all of the following. The next save rewrites them into the ca
 - **Any bracket-token order.** `[NM] [foil]` and `[foil] [NM]` mean the same thing. Tokens are recognized by value, not position.
 - **Any run of whitespace** between tokens and around the name.
 - **The bullet is optional on a deck line.** A deck line is recognized by its leading quantity (`4 Lightning Bolt`, `- 4 Lightning Bolt`). A collection or wanted-list line is recognized by its bullet, so a bulletless line there is prose, not a card.
-- **`Nx` quantities.** `4x Lightning Bolt` reads as four. A run of four or more digits with no `x` is part of the name (`1996 World Champion`), so Ritual itself writes a quantity of 1,000 or more with the `x` (`- 1234x Sol Ring`), in list files and in its text exports alike. A deck line with **no** quantity whose name starts with four or more digits and a space (`- 1234 Sol Ring`) is read as one copy of that whole name and reported: Ritual writes a real digit-led card as `- 1 1996 World Champion`, so that shape is a hand-written line or one an earlier version saved for 1,000+ copies. Rewriting it would erase that difference for good, so it [holds back every whole-file rewrite](#whole-file-rewrites) until you settle it: `- 1234x Sol Ring` for 1,234 copies, or `- 1 1234 Sol Ring` for one card of that name.
+- **`Nx` quantities.** `4x Lightning Bolt` reads as four. A run of four or more digits with no `x` is part of the name (`1996 World Champion`), so Ritual itself writes a quantity of 1,000 or more with the `x` (`- 1234x Sol Ring`), in list files and in its text exports alike. A deck line with **no** quantity whose name starts with four or more digits (`- 1234 Sol Ring`) is therefore one copy of a card named `1234 Sol Ring`, and Ritual writes it back as `- 1 1234 Sol Ring`; write `- 1234x Sol Ring` for 1,234 copies.
 - **A quantity on a collection or wanted-list line.** `- 4 Lightning Bolt (LEA:161)` reads as four copies and is expanded into four lines on the next save. This is an advisory, not a warning, since nothing is lost. The first copy keeps the line's `&N`; the others get fresh ids.
 - **The Arena / MTGO export form** `Name (SET) CN`, with a trailing `*F*` / `*E*` finish marker, and **Moxfield's bulk-edit form** `Name (SET) *F* CN`. Both become `(SET:CN)` plus `[foil]` / `[etched]`. A parenthesized set with **no collector number** stays part of the name (`Very Cryptic Command (Untap)` is a real card) and raises an advisory.
 - **Repeated tags, or one `#` per tag.** `#ramp #staple #ramp` reads as the tags `ramp` and `staple` and is written back as one token, `#ramp, staple`. Case is kept: `Ramp` and `ramp` are two tags.
@@ -405,14 +405,6 @@ Surfaces that rewrite a whole file from its parsed cards cannot re-emit a fenced
 | [`import --append`](/commands/import/)                                                | Refuses and writes nothing                                                                      |
 | A deck on either side of [`move`](/commands/move/)                                    | Refuses and writes nothing                                                                      |
 | `ritual edit` sessions                                                                | **Warns on load and drops the block on the next save** — check the session output before saving |
-
-A **held** deck line, one that may hold 1,000+ unmarked copies (`- 1234 Sol Ring`, see [read tolerances](#read-tolerances)), holds back the same surfaces with its own message: nothing would be deleted, but the rewrite would change what the line means. Three differ from the table:
-
-- `ritual edit` **refuses to open the deck** rather than warn, since its save would re-emit the line as `- 1 1234 Sol Ring`. A deck named on the command line exits `1`; one picked from the menu is skipped.
-- `deck-sync` **always fails** the deck: `--yes` and the admin page's Sync anyway do not cover it.
-- The one-shot card commands below still edit the deck's other lines, but refuse to rewrite the held line itself (a note, a printing, a label, or an add merging onto it). Removing it, or moving it to another section, still works and leaves it as written.
-
-The load surfaces (MCP `get_list`, the admin load route, `detect-changes`) report it alongside the unreadable lines.
 
 The one-shot card commands (`add-card`, `set-card`, `remove-card`, `note`) preserve lines and work normally, as does a `move` between two collections or wanted lists. The exception is an **append into an unclosed fence**: a card line appended after it would be prose, so `add-card` and `move` refuse rather than write a line no later parse can see.
 

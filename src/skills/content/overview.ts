@@ -192,15 +192,10 @@ format: commander
   codes. A refused line (an unknown or disallowed token, a collection line with no
   printing) is a warning naming the file, line, and token, and blocks every
   whole-file write of that file; line-preserving commands leave it alone.
-- **Held deck lines** are the one read *not* rewritten on save: a deck line with no
-  quantity whose name starts with 4+ digits (\`- 1234 Sol Ring\`) reads as one card of
-  that whole name, but may be 1,234 copies an older version wrote without the \`x\`. It
-  is reported with the fix, and nothing may re-emit it: every whole-file write of the
-  deck refuses (admin/MCP saves, \`cleanup\`, \`move\`, \`import --append\`, and
-  \`deck-sync\` even with \`--yes\`), \`ritual edit\` won't open the deck, and a one-shot
-  edit aimed at that line refuses (removing or re-sectioning it still works). Only the
-  user settles it, by editing the file to \`- 1234x Sol Ring\` (copies) or
-  \`- 1 1234 Sol Ring\` (the card's name).
+- **Quantities:** a bare quantity is at most three digits (\`999 Sol Ring\`); 1,000 or
+  more copies take the \`x\` (\`- 1234x Sol Ring\`). An unmarked run of four or more
+  digits is the start of the card name, so \`- 1234 Sol Ring\` is one copy of a card
+  named "1234 Sol Ring", and Ritual writes a digit-led card as \`- 1 1996 World Champion\`.
 - **Sections** are matched by exact name (case-insensitive) against a closed table:
   \`Commander\`/\`Commanders\`/\`Command Zone\`, \`Companion\`, \`Oathbreaker\`/\`Signature
   Spell\`, \`Sideboard\`, \`Maybeboard\`, \`Tokens\`/\`Token\`, \`Main\`/\`Mainboard\`/\`Deck\`.
