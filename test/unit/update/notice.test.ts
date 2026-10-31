@@ -8,7 +8,10 @@ import {
   UPDATE_CHECK_INTERVAL_MS,
   UPDATE_CHECK_RETRY_MS,
   UPDATE_NOTICE_INTERVAL_MS,
+  updateCheckEligibility,
   versionToAnnounce,
+  type UpdateCheckEligibility,
+  type UpdateCheckGate,
 } from '../../../src/update/notice'
 import type { UpdateCheckState } from '../../../src/util/user-state'
 import { FAKE_API, fakeRelease, fakeReleaseApiEnv, hangingFetch } from '../../helpers/fake-release'
@@ -207,5 +210,22 @@ describe('lookupLatestVersion', () => {
     cancel.abort()
     expect(await pending).toEqual({ kind: 'failed' })
     expect(seen?.aborted).toBeTrue()
+  })
+})
+
+describe('updateCheckEligibility', () => {
+  // The rule the notice gates on and `ritual doctor` reports: the Docker image
+  // is updated by pulling it, so it wins over everything; then the build.
+  test.each<[string, UpdateCheckGate, UpdateCheckEligibility]>([
+    ['a release build', { release: true, installKind: undefined, optedOut: false }, 'on'],
+    ['an opted-out release', { release: true, installKind: undefined, optedOut: true }, 'off'],
+    [
+      'a development build',
+      { release: false, installKind: undefined, optedOut: false },
+      'development',
+    ],
+    ['the Docker image', { release: true, installKind: 'docker', optedOut: true }, 'docker'],
+  ])('%s → %s', (_label, gate, expected) => {
+    expect(updateCheckEligibility(gate)).toBe(expected)
   })
 })

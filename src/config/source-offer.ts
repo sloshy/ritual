@@ -67,6 +67,15 @@ export function sourceOfferFor(buildVersion: string, sourceUrl: string): SourceO
   }
 }
 
+/**
+ * Where bugs in a build whose source lives at `sourceUrl` are reported: the
+ * repository's issue tracker. A fork built with `RITUAL_SOURCE_URL` points its
+ * users at its own tracker, not upstream's.
+ */
+export function issuesUrlFor(sourceUrl: string): string {
+  return `${sourceUrl.replace(/\/+$/, '')}/issues`
+}
+
 /** Every field of {@link SourceOffer}; the `satisfies` makes a new field a compile error here. */
 const SOURCE_OFFER_FIELDS = Object.keys({
   version: true,

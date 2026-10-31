@@ -20,6 +20,12 @@ import {
   type ExitCodeValue,
 } from '../util/errors'
 import { emitError, markStdoutClosed, type ScriptingOptions } from './output'
+import {
+  debugTrace,
+  isEnvironmentFailure,
+  unexpectedErrorContext,
+  unexpectedErrorText,
+} from './unexpected-error'
 import { envelopeRef, renderSyncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
 
 /**
@@ -72,13 +78,45 @@ export function reportCommandFailure(scripting: ScriptingOptions, err: unknown):
     process.exitCode = ExitCode.RuntimeError
     return
   }
-  // A bug rather than a refusal: there is no catalog key behind it, and the
-  // raw Error is not `details` (it stringifies to `{}` and a subclass could
-  // leak a path).
-  emitError('runtime_error', getErrorMessage(err), scripting)
+  // A bug rather than a refusal: there is no catalog key behind it.
+  reportUnexpectedFailure(scripting, err)
   // Deliberately overrides any code an earlier emit set: the run ended in a
   // bug, and that is what the caller should see.
   process.exitCode = ExitCode.RuntimeError
+}
+
+/**
+ * `details` of an unanticipated failure's envelope: whether it looks like a bug
+ * in Ritual or a failure of the machine around it (what text mode's report
+ * line says), where bugs are reported, and — under `RITUAL_DEBUG` — the trace.
+ */
+export type UnexpectedErrorDetails = {
+  kind: 'bug' | 'environment'
+  issuesUrl: string
+  stack?: string
+}
+
+/**
+ * Report a failure nothing anticipated — no catalog key behind it — without
+ * touching the exit code (the caller decides). Text mode prints the message
+ * (the trace under `RITUAL_DEBUG`) and, for a bug, the line pointing at the
+ * details and the issue tracker (`./unexpected-error.ts`). A structured mode
+ * carries the same verdict in its one envelope's {@link UnexpectedErrorDetails};
+ * the raw Error itself never is `details` (it stringifies to `{}` and a
+ * subclass could leak a path).
+ */
+export function reportUnexpectedFailure(scripting: ScriptingOptions, err: unknown): void {
+  const context = unexpectedErrorContext()
+  if (scripting.output === 'text') {
+    emitError('runtime_error', unexpectedErrorText(err, context), scripting)
+    return
+  }
+  const details: UnexpectedErrorDetails = {
+    kind: isEnvironmentFailure(err) ? 'environment' : 'bug',
+    issuesUrl: context.issuesUrl,
+  }
+  if (context.debug) details.stack = debugTrace(err)
+  emitError('runtime_error', getErrorMessage(err), scripting, details)
 }
 
 /**

@@ -93,6 +93,25 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
   response and the MCP `sync_collection` result, and a push's deletions of cards no list
   holds are in the new `unlisted`. A card the CSV import created is marked `via: "csv"`.
   The admin Sync Collection page shows the listing.
+- **`ritual doctor`** checks your setup and prints a short report to paste into a bug
+  report: the Ritual version, build and install method, platform and Bun version; the
+  workspace and its list counts; whether `ritual.config.json` is valid, listing every
+  setting Ritual ignores; pending workspace updates (what `ritual migrate --check` would
+  find); the card cache's folder, size and age; and the last update check's answer. Each
+  check is `ok`, `warn` or `fail` with a one-line fix, and the command exits `1` when one
+  fails. It only reads and never goes online, runs even when `ritual.config.json` is not
+  valid JSON, and shows paths under your home folder as `~`. `--output json`, the admin
+  `GET /api/doctor` route and the new MCP `get_diagnostics` tool give the same report. The
+  bug-report form now asks for its output.
+- **Bug reports for unexpected errors.** When Ritual fails in a way it did not anticipate
+  (a bug, not a refusal such as an unknown list or a bad flag, and not a system error
+  such as a permission denied), it now adds one line after the error saying so, how to get
+  the details, and where to report it: the build's own issue tracker, so a fork built with
+  `RITUAL_SOURCE_URL` points at its own. Set **`RITUAL_DEBUG=1`** to print the full stack
+  trace (and the failure that caused it) instead of the bare message; release binaries
+  carry their source map, so the trace names Ritual's source files. Under `--output json`,
+  the error envelope of such a failure now carries `details` (`kind`: `bug` or
+  `environment`, and the `issuesUrl`), and `RITUAL_DEBUG` adds the trace as `details.stack`.
 
 ### Changed
 

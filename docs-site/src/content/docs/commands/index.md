@@ -24,7 +24,7 @@ Every Ritual command, grouped the way `ritual help --all` groups them. Each page
 - **Site**: [init-site](/commands/init-site/)
 - **Integrations**: [login](/commands/login/), [deck-sync](/commands/deck-sync/), [collection-sync](/commands/collection-sync/), [mcp](/commands/mcp/), [skills](/commands/skills/)
 - **Cache**: [cache](/commands/cache/)
-- **Utilities**: [cleanup](/commands/cleanup/), [self-update](/commands/self-update/), [config](/commands/config/), [locale](/commands/locale/), [license](/commands/license/)
+- **Utilities**: [cleanup](/commands/cleanup/), [self-update](/commands/self-update/), [config](/commands/config/), [doctor](/commands/doctor/), [locale](/commands/locale/), [license](/commands/license/)
 
 ## Advanced
 

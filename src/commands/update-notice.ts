@@ -36,17 +36,22 @@ import {
   lookupLatestVersion,
   recordLookup,
   recordNotice,
+  updateCheckEligibility,
+  updateChecksOptedOut,
   versionToAnnounce,
   type LookupFailed,
   type LookupFound,
 } from '../update/notice'
 import { resolveChannel } from '../update/release'
-import { envFlagSet, isCiEnvironment } from '../util/no-input'
+import { isCiEnvironment } from '../util/no-input'
 import { readUserState, writeUserStateSection, type UpdateCheckState } from '../util/user-state'
 import { COMMAND, commandLine } from '../util/cli-tokens'
 
-/** Commands that never check: matched by qualified name, subcommands included. */
-export const UPDATE_NOTICE_EXEMPT: readonly string[] = ['self-update', 'mcp', 'help']
+/**
+ * Commands that never check: matched by qualified name, subcommands included.
+ * `doctor` reports the last check's answer itself and makes no network calls.
+ */
+export const UPDATE_NOTICE_EXEMPT: readonly string[] = ['self-update', 'mcp', 'help', 'doctor']
 
 /**
  * Commands that run until stopped: notice at startup, background refresh,
@@ -75,7 +80,7 @@ export function defaultUpdateNoticeEnv(): UpdateNoticeEnv {
     apiBase,
     build,
     installKind,
-    optedOut: envFlagSet(process.env.RITUAL_NO_UPDATE_CHECK),
+    optedOut: updateChecksOptedOut(),
     ci: isCiEnvironment(),
     stderrIsTTY: process.stderr.isTTY === true,
     now: () => Date.now(),
@@ -107,8 +112,12 @@ export type UpdateNoticeGate = Pick<
  * after this, since it costs a file read.
  */
 export function updateNoticeMode(gate: UpdateNoticeGate): UpdateNoticeMode {
-  if (!gate.build.release || gate.installKind === 'docker') return 'off'
-  if (gate.optedOut || gate.ci || !gate.stderrIsTTY) return 'off'
+  const eligibility = updateCheckEligibility({
+    release: gate.build.release,
+    installKind: gate.installKind,
+    optedOut: gate.optedOut,
+  })
+  if (eligibility !== 'on' || gate.ci || !gate.stderrIsTTY) return 'off'
   if (gate.output !== 'text' || gate.quiet) return 'off'
   if (isCommandOrSubcommand(gate.command, UPDATE_NOTICE_EXEMPT)) return 'off'
   if (LONG_RUNNING_COMMANDS.has(gate.command)) return 'long-running'

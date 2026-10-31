@@ -506,7 +506,7 @@ describe('CLI scripting behavior (Integration)', () => {
   // action body — `loadHash` swallows read failures, so the write is the only
   // throw site. It throws before the stamp warnings are emitted, so stderr is
   // exactly the envelope and nothing else.
-  test('an unexpected failure is a runtime_error envelope with no messageKey', async () => {
+  test('an unexpected failure is a runtime_error envelope with no messageKey, judged by kind', async () => {
     await withTempDir(async (dir) => {
       await writeDeckFile(dir, 'sample', {
         name: 'sample',
@@ -518,9 +518,11 @@ describe('CLI scripting behavior (Integration)', () => {
 
       expect(result.exitCode).toBe(1)
       const { error } = JSON.parse(result.stderr) as { error: ErrorEnvelope }
-      expect(Object.keys(error).sort()).toEqual(['code', 'message'])
+      expect(Object.keys(error).sort()).toEqual(['code', 'details', 'message'])
       expect(error.code).toBe('runtime_error')
       expect(error.message).toContain('EISDIR')
+      // A system error, not a Ritual bug: no "report this" verdict.
+      expect(error.details).toMatchObject({ kind: 'environment' })
     })
   })
 })

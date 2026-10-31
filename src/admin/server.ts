@@ -13,6 +13,7 @@ import {
 } from '../config/ritual-config'
 import { parseSessionCookie, validateSession } from './session'
 import { handleStatus, handleListDecks } from './api/status'
+import { handleDoctor } from './api/doctor'
 import { handleImportDeck } from './api/import-deck'
 import { handleImportCsv } from './api/import-csv'
 import { handleImportChanges } from './api/import-changes'
@@ -179,6 +180,7 @@ export const routes: Route[] = [
     requiresAuth: true,
   },
   { method: 'GET', path: '/api/cache/status', handler: handleCacheStatus, requiresAuth: true },
+  { method: 'GET', path: '/api/doctor', handler: handleDoctor, requiresAuth: true },
   {
     method: 'POST',
     path: '/api/cache/refresh',

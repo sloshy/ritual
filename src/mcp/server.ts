@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/server'
-import { SOURCE_OFFER, version } from '../config/version'
+import { ISSUES_URL, SOURCE_OFFER, version } from '../config/version'
 import { NEVER_CACHE, STATIC_CATALOG_CACHE } from './cache-hints'
 import { createListChangeNotifier } from './notify'
 import { registerResources } from './resources'
@@ -46,7 +46,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   get_list's "warnings", the sync tools' "report.unreadable[].warnings", export_cards' and
   diff_lists' "warnings", import_deck's and import_csv's "warnings"/"advisories", and
   refresh_buylist's "staleFallback" and "skippedRows" (a skipped feed row's reason nested as
-  "reason") are message objects, not strings ({ message,
+  "reason"), and get_diagnostics' "checks[].summary"/"hint"/"details", "config.problems",
+  "migrations.problem" and "cache.problem" are message objects, not strings ({ message,
   messageKey?, messageParams? }; an import_deck warning whose card was kept without its labels
   adds "labelsDropped": true), and each import_csv "failures" row carries "reasonKey"/
   "reasonParams" beside its English "reason".
@@ -121,7 +122,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   (present only under a session flag) is what this running server is actually operating with,
   e.g. {"site.sellMode": true}.
 - About: Ritual ${SOURCE_OFFER.version}, free software under the ${SOURCE_OFFER.license}. The source
-  of this version is at ${SOURCE_OFFER.revisionUrl}.`
+  of this version is at ${SOURCE_OFFER.revisionUrl}. When Ritual itself misbehaves, get_diagnostics
+  reports the setup; bugs are reported at ${ISSUES_URL}.`
 
 /** How a transport wants the server built. */
 export interface McpServerOptions {

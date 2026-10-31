@@ -53,7 +53,7 @@ You rarely need to remember `migrate`. Before every other command, Ritual checks
 
 A workspace [from a newer Ritual](#a-workspace-from-a-newer-ritual) gets a one-line warning on stderr instead, naming the release to install with [`ritual self-update --tag`](/commands/self-update/#installing-a-specific-release) when one was recorded. The command still runs: CI pinned to an older release, for example, keeps building a workspace that a development build migrated further.
 
-The notice and the warning never change a command's exit code, and nothing in the workspace is written unless you answer yes. `migrate`, `self-update`, `init-site`, `config` (all its subcommands), `help`, `mcp`, and `detect-changes` (which must see the workspace exactly as committed) skip the check entirely, as does a directory with no `ritual.config.json`.
+The notice and the warning never change a command's exit code, and nothing in the workspace is written unless you answer yes. `migrate`, `self-update`, `init-site`, `config` (all its subcommands), `help`, `mcp`, `detect-changes` (which must see the workspace exactly as committed), and [`doctor`](/commands/doctor/) (which reports pending updates itself) skip the check entirely, as does a directory with no `ritual.config.json`.
 
 The once-a-day memory lives in a small per-user state file, not in the workspace:
 

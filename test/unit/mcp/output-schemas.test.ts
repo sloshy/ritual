@@ -13,6 +13,7 @@ import {
   GET_CACHE_STATUS_OUTPUT,
   GET_CARD_PRINTINGS_OUTPUT,
   GET_CONFIG_OUTPUT,
+  GET_DIAGNOSTICS_OUTPUT,
   GET_HISTORY_OUTPUT,
   GET_LIST_OUTPUT,
   GET_PRICE_REPORT_OUTPUT,
@@ -60,6 +61,8 @@ import type {
   CollectionSyncReport,
 } from '../../../src/collection-sync/engine'
 import { setupMcpClient, type McpTestSession } from './harness'
+import { buildDoctorReport } from '../../../src/doctor/report'
+import { CONTEXT, healthy } from '../../helpers/doctor-facts'
 
 /**
  * The drift net for the hand-authored output schemas.
@@ -595,6 +598,44 @@ describe('MCP output schemas, as authored', () => {
           durationMs: 12,
         }),
       ).toBe(true)
+    })
+
+    test('get_diagnostics accepts every arm of the report', async () => {
+      // The live tool only ever reports the suite's own setup (a dev build, a
+      // local cache), so the other arms are sampled from the engine itself.
+      const troubled = healthy()
+      troubled.config = {
+        state: 'invalid',
+        problems: [syncMessage('domain.config.mustBeBoolean', { field: 'updateCheck' })],
+      }
+      troubled.migrations = {
+        state: 'ahead',
+        remedy: 'ritual self-update --tag 9.0.0',
+        problem: null,
+      }
+      troubled.cache = { ...troubled.cache, server: '127.0.0.1:4000', status: null }
+      troubled.update = { ...troubled.update, latest: '9.0.0', available: true }
+      expect(await validates(GET_DIAGNOSTICS_OUTPUT, buildDoctorReport(troubled, CONTEXT))).toBe(
+        true,
+      )
+
+      const broken = healthy()
+      broken.config = {
+        state: 'unreadable',
+        problems: [syncMessage('domain.config.fileNotObject')],
+      }
+      broken.migrations = { state: 'unknown', remedy: null, problem: null }
+      broken.cache = {
+        ...broken.cache,
+        status: null,
+        problem: syncMessage('domain.config.fileNotObject'),
+      }
+      broken.update = { mode: 'docker', latest: null, checkedAt: null, available: false }
+      expect(await validates(GET_DIAGNOSTICS_OUTPUT, buildDoctorReport(broken, CONTEXT))).toBe(true)
+      // And the healthy report, whose cache status is the get_cache_status payload.
+      expect(await validates(GET_DIAGNOSTICS_OUTPUT, buildDoctorReport(healthy(), CONTEXT))).toBe(
+        true,
+      )
     })
 
     test('refresh_buylist carries its fallback and skipped rows as messages', async () => {

@@ -18,15 +18,16 @@ These options work on every command. Each has an environment variable that does 
 
 A few environment variables have no flag:
 
-| Environment variable       | Description                                                                                                                                       |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RITUAL_NO_UPDATE_CHECK`   | Never look up or announce newer Ritual releases (the [update notice](/commands/self-update/#update-notice))                                       |
-| `RITUAL_STATE_DIR`         | Where Ritual keeps its small per-user [state file](/commands/migrate/#when-ritual-offers-to-migrate)                                              |
-| `RITUAL_CACHE_DIR`         | Where the [card cache](/commands/cache/#where-the-cache-lives) lives; outranks the `cacheDir` key. A relative path resolves against the workspace |
-| `RITUAL_ADMIN_SETUP_TOKEN` | Pins the one-time token `ritual admin` requires to create the first account ([First-Time Setup](/commands/admin/#first-time-setup))               |
-| `CI`                       | Marks a CI run: no offer to migrate and no update notice. `CI=false` (or another off spelling) counts as unset                                    |
+| Environment variable       | Description                                                                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RITUAL_NO_UPDATE_CHECK`   | Never look up or announce newer Ritual releases (the [update notice](/commands/self-update/#update-notice))                                           |
+| `RITUAL_DEBUG`             | Print the full stack trace of a failure Ritual did not anticipate, instead of its bare message ([Reporting a bug](/commands/doctor/#reporting-a-bug)) |
+| `RITUAL_STATE_DIR`         | Where Ritual keeps its small per-user [state file](/commands/migrate/#when-ritual-offers-to-migrate)                                                  |
+| `RITUAL_CACHE_DIR`         | Where the [card cache](/commands/cache/#where-the-cache-lives) lives; outranks the `cacheDir` key. A relative path resolves against the workspace     |
+| `RITUAL_ADMIN_SETUP_TOKEN` | Pins the one-time token `ritual admin` requires to create the first account ([First-Time Setup](/commands/admin/#first-time-setup))                   |
+| `CI`                       | Marks a CI run: no offer to migrate and no update notice. `CI=false` (or another off spelling) counts as unset                                        |
 
-`RITUAL_NO_UPDATE_CHECK` and `CI` read `0`, `false`, `no`, and `off` (any casing) as unset, like [`RITUAL_NO_INPUT`](#--no-input).
+`RITUAL_NO_UPDATE_CHECK`, `RITUAL_DEBUG` and `CI` read `0`, `false`, `no`, and `off` (any casing) as unset, like [`RITUAL_NO_INPUT`](#--no-input).
 
 ### `--base-dir`
 
@@ -153,7 +154,7 @@ Three commands differ:
 - [`sell`](/commands/sell/) adds `--output csv` with a different payload: Card Kingdom's sell-cart upload rows, not the report.
 - [`export`](/commands/export/) has no `--output`. Its stdout payload _is_ the export; choose it with `--format csv|json|text|md` and redirect it with `--out <file>`.
 
-Errors always go to **stderr**, structured to match the output mode. Under `json`/`ndjson` an error is `{"error": {"code", "messageKey", "messageParams", "message", "details"}}`; under `text` it is a plain line. `code` and `messageKey` never change with the locale, so match on those. `message` is prose in the UI locale. `messageParams` is always flat strings and numbers in English: a param that is itself a message, a list or a duration is given as its English rendering, so the pair stays locale-invariant. `messageKey` and `messageParams` are omitted when the failure has no message-catalog entry, such as an error quoted verbatim from Scryfall or the filesystem. An unexpected internal failure uses the same envelope with `code: "runtime_error"`, exit code `1`, and neither `messageKey` nor `details`. stdout stays parseable in every case.
+Errors always go to **stderr**, structured to match the output mode. Under `json`/`ndjson` an error is `{"error": {"code", "messageKey", "messageParams", "message", "details"}}`; under `text` it is a plain line. `code` and `messageKey` never change with the locale, so match on those. `message` is prose in the UI locale. `messageParams` is always flat strings and numbers in English: a param that is itself a message, a list or a duration is given as its English rendering, so the pair stays locale-invariant. `messageKey` and `messageParams` are omitted when the failure has no message-catalog entry, such as an error quoted verbatim from Scryfall or the filesystem. An unexpected internal failure uses the same envelope with `code: "runtime_error"`, exit code `1`, no `messageKey`, and `details` of `{"kind", "issuesUrl"}`: `kind` is `bug` when it looks like a bug in Ritual or `environment` for a system or network error, and `issuesUrl` is where to report it. `RITUAL_DEBUG` adds the stack trace as `details.stack`. Under `text`, a failure that looks like a bug in Ritual (not a refusal, and not a system or network error such as a permission denied or a refused connection) is followed by one line pointing at `RITUAL_DEBUG=1` and the issue tracker; see [Reporting a bug](/commands/doctor/#reporting-a-bug). stdout stays parseable in every case.
 
 ### `--quiet` suppresses chatter, never data
 
@@ -162,7 +163,7 @@ Errors always go to **stderr**, structured to match the output mode. Under `json
 - the **structured payload**. `--output json`/`ndjson` stdout is always emitted, so `--quiet --output json` is a JSON document with nothing around it. For total silence, redirect stdout.
 - **errors**, and **warnings that mean content was lost**: a card line the parser could not read, a change skipped as a conflict, a result set truncated by the page cap. These always print to stderr.
 
-A command with no non-essential output does not register the flag at all. `card`, `diff`, `scry`, `cache status`, `dep-license`, `history`, `login status`, `deck-sync status`, and `skills list` accept `--output` but no `--quiet`: everything they print is either the payload or a warning that must survive.
+A command with no non-essential output does not register the flag at all. `card`, `diff`, `scry`, `cache status`, `dep-license`, `doctor`, `history`, `login status`, `deck-sync status`, and `skills list` accept `--output` but no `--quiet`: everything they print is either the payload or a warning that must survive.
 
 ### Exit codes
 

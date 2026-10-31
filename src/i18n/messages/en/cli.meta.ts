@@ -722,4 +722,21 @@ export const cliMeta = {
   'cli.import.promptListType': {
     description: 'Prompt asking which kind of list an import should create or extend.',
   },
+
+  'cli.unexpected.causedBy': {
+    description:
+      'Under RITUAL_DEBUG, a failure is printed as a full stack trace followed by the failure that caused it. This line introduces that underlying failure; {trace} is its own stack trace (developer text, never translated).',
+  },
+  'cli.unexpected.causeTruncated': {
+    description:
+      'Under RITUAL_DEBUG, the last line of a stack trace whose chain of underlying failures ("Caused by: …" lines, see cli.unexpected.causedBy) was cut short because it is too long.',
+  },
+  'cli.unexpected.reportBugWithDebug': {
+    description:
+      'Printed on stderr after the message of a failure Ritual did not anticipate (a bug, not a user mistake). {envVar} is the environment variable name RITUAL_DEBUG, which makes the next run print full details; {url} is the address of the issue tracker where bugs are reported. Never translate either.',
+  },
+  'cli.unexpected.reportBug': {
+    description:
+      'The same as cli.unexpected.reportBugWithDebug, but printed when RITUAL_DEBUG is already on, so the full details (a stack trace) are printed just above this line. {url} is the issue tracker address.',
+  },
 } as const satisfies MetaFor<typeof cliMessages>

@@ -22,6 +22,7 @@ import { domainMessages } from './en/domain'
 import { domainCacheMessages } from './en/domain-cache'
 import { domainCardMessages } from './en/domain-card'
 import { domainConfigMessages } from './en/domain-config'
+import { domainDoctorMessages } from './en/domain-doctor'
 import { domainChangesMessages } from './en/domain-changes'
 import { domainExportMessages } from './en/domain-export'
 import { domainImportMessages } from './en/domain-import'
@@ -58,7 +59,8 @@ import { uiMessages } from './en/ui'
  *   the sync engines' text, the card cache's server-facing text, the config
  *   validator's refusals, the export engine's refusals, warnings and column
  *   labels, the importers' text and the list-file engines' text — which only
- *   the CLI and the admin SPA register;
+ *   the CLI and the admin SPA register, and `domain-doctor` (`ritual doctor`'s
+ *   verdicts), which only the CLI registers;
  * - `site` — `site` (shared) plus the four surface fragments;
  * - `cli` — `cli` (the shared CLI core) plus one fragment per command family;
  * - `help` — `help` (global options and the shared scripting flags) plus the
@@ -82,6 +84,7 @@ export const en = {
   ...domainCacheMessages,
   ...domainCardMessages,
   ...domainConfigMessages,
+  ...domainDoctorMessages,
   ...domainChangesMessages,
   ...domainExportMessages,
   ...domainImportMessages,

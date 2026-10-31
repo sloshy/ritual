@@ -344,4 +344,5 @@ export const helpInfraMeta = {
   'help.depLicense.packageArg': { description: 'The `[package]` argument of `dep-license`.' },
   'help.depLicense.list': { description: '`dep-license --list`.' },
   'help.depLicense.plain': { description: '`dep-license --plain`.' },
+  'help.doctor.description': { description: 'Summary of the `doctor` command.' },
 } as const satisfies MetaFor<typeof helpInfraMessages>

@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { sourceOfferFor, UPSTREAM_SOURCE_URL, type SourceOffer } from './source-offer'
+import { issuesUrlFor, sourceOfferFor, UPSTREAM_SOURCE_URL, type SourceOffer } from './source-offer'
 
 // GIT_VERSION is injected at compile time via --define in scripts/build.sh.
 // In development (bun run), it falls back to running git describe at runtime.
@@ -87,3 +87,6 @@ export const SOURCE_OFFER: Readonly<SourceOffer> = Object.freeze(
       : UPSTREAM_SOURCE_URL,
   ),
 )
+
+/** The running build's issue tracker: where an unexpected error and `ritual doctor` send a reporter. */
+export const ISSUES_URL: string = issuesUrlFor(SOURCE_OFFER.sourceUrl)

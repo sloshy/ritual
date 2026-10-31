@@ -15,9 +15,11 @@ import { registerCliMessages } from './src/i18n/register/cli'
 import { ExitCode, CardCommandError, getErrorMessage, isBrokenPipeError } from './src/util/errors'
 import { markStdoutClosed, TEXT_ONLY } from './src/cli/output'
 import { SyncMessageError } from './src/sync/message'
-import { PreActionFailure, reportCommandFailure } from './src/cli/action'
+import { PreActionFailure, reportCommandFailure, reportUnexpectedFailure } from './src/cli/action'
 import { isReleaseBuild } from './src/config/version'
 import { removeLeftoverBinary } from './src/update/install'
+import { setMigrationProbe } from './src/doctor/collect'
+import { doctorMigrationProbe } from './src/migrate/doctor-probe'
 
 // Wrapped in a function because the compiled binary (bun build --bytecode)
 // does not support top-level await.
@@ -54,6 +56,11 @@ async function main(): Promise<void> {
   // is the surface that asks for all seven. Must precede `initI18n()`, and
   // therefore every `t()` call in the process.
   registerCliMessages()
+
+  // `ritual doctor` — and `GET /api/doctor` and MCP `get_diagnostics` in a
+  // server this process runs — report pending workspace updates through the
+  // migration engine, which sits above the doctor engine and is handed in.
+  setMigrationProbe(doctorMigrationProbe)
 
   // Resolve the UI locale before the command tree exists: Commander evaluates
   // help strings at registration time, so this is the last moment at which
@@ -98,7 +105,7 @@ async function main(): Promise<void> {
       // Everything thrown inside a command action is caught by
       // `runCommandAction`, and the `preAction` hook's throws arrive above as a
       // `PreActionFailure`. An exit code the run already recorded stands.
-      process.stderr.write(`${getErrorMessage(error)}\n`)
+      reportUnexpectedFailure(TEXT_ONLY, error)
       if (!process.exitCode) process.exitCode = ExitCode.RuntimeError
     }
   } finally {

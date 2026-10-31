@@ -102,7 +102,7 @@ Lookups use the same GitHub API as `self-update` (including `GITHUB_TOKEN`, see 
 - the workspace sets [`updateCheck: false`](/configuration/#update-check) (`ritual config set updateCheck false`);
 - the `CI` environment variable is set, or stderr is not a terminal;
 - the command writes `--output json`, `ndjson`, or `csv`, or runs with `--quiet`;
-- the command is `self-update`, `mcp`, or `help`.
+- the command is `self-update`, `mcp`, `help`, or [`doctor`](/commands/doctor/) (which reports the last check's answer instead).
 
 The notice never changes a command's exit code. A command that fails (exit `1`–`3`) still gets it; only one that crashes outright does not.
 

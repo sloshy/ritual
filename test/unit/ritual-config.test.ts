@@ -26,6 +26,8 @@ import {
   parseDefaultLanguage,
   parseManagedConfig,
   parseRitualConfig,
+  inspectRitualConfig,
+  refreshRitualConfigQuietly,
   cardKingdomPricesEnabled,
   getPriceSources,
   getDefaultPriceCurrency,
@@ -50,6 +52,7 @@ import {
 } from '../../src/config/ritual-config'
 import { defaultSiteSelection } from '../../src/config/list-selection'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { captureConsole } from '../helpers/capture'
 import { localeTag } from '../../src/i18n/locale-tag-message'
 import type { PriceSource } from '../../src/pricing/price-source'
 
@@ -120,6 +123,21 @@ describe('ritual config', () => {
   test('refreshRitualConfig rejects a malformed config file rather than caching defaults', async () => {
     await fs.writeFile(configPath, '{ not valid json }')
     await expectRejection(refreshRitualConfig(), RitualConfigParseError)
+  })
+
+  test('refreshRitualConfigQuietly defaults a malformed file and refused fields, printing nothing', async () => {
+    await fs.writeFile(configPath, '{ not valid json }')
+    const warnings = await captureConsole(['warn'], () => refreshRitualConfigQuietly())
+    expect(warnings.result).toEqual(getDefaultRitualConfig())
+    expect(warnings.all).toEqual([])
+
+    await fs.writeFile(configPath, JSON.stringify({ decksDir: './mine', updateCheck: 'no' }))
+    // The control: the ordinary load does warn about this file.
+    const loud = await captureConsole(['warn'], () => refreshRitualConfig())
+    expect(loud.all).toHaveLength(1)
+    const quiet = await captureConsole(['warn'], () => refreshRitualConfigQuietly())
+    expect(quiet.all).toEqual([])
+    expect(getRitualConfig()).toMatchObject({ decksDir: './mine', updateCheck: true })
   })
 
   test('a JSON document that is not an object is a config parse error', async () => {
@@ -1163,6 +1181,29 @@ describe('parseManagedConfig', () => {
     ['an unprefixed output hash', { migration: 1, output: 'abc' }, '"output"'],
   ] as const)('rejects %s', (_label, input, fragment) => {
     expectParseError(parseManagedConfig(input), fragment)
+  })
+})
+
+describe('inspectRitualConfig', () => {
+  test('reports every refused field, in field order, beside the defaulted config', () => {
+    const { config, problems } = inspectRitualConfig({
+      updateCheck: 'no',
+      decksDir: './mine',
+      defaultLanguage: 'jp',
+    })
+    expect(problems.map((problem) => problem.error.messageParams?.field)).toEqual([
+      'defaultLanguage',
+      'updateCheck',
+    ])
+    expect(config).toMatchObject({ decksDir: './mine', defaultLanguage: 'en', updateCheck: true })
+  })
+
+  test('a valid config has no problems, and parseRitualConfig returns the same config', () => {
+    const raw = { decksDir: './mine', updateCheck: false }
+    const { config, problems } = inspectRitualConfig(raw)
+    expect(problems).toEqual([])
+    expect(config).toMatchObject({ decksDir: './mine', updateCheck: false })
+    expect(parseRitualConfig(raw)).toEqual(config)
   })
 })
 

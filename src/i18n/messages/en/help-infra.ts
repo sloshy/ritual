@@ -271,4 +271,6 @@ export const helpInfraMessages = {
   'help.depLicense.packageArg': 'Package name to display directly',
   'help.depLicense.list': 'List every bundled dependency with its version and license',
   'help.depLicense.plain': 'Output directly to stdout without pager',
+  'help.doctor.description':
+    'Check your Ritual setup and print a report to paste into a bug report',
 } as const satisfies MessageCatalogShape

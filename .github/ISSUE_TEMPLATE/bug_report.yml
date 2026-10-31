@@ -35,6 +35,12 @@ body:
         - Other
     validations:
       required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: ritual doctor output
+      description: Run `ritual doctor` in the workspace where the problem happens and paste what it prints. It shows your Ritual version, install, platform, configuration and card cache, with your home folder shortened to `~`.
+      render: text
   - type: dropdown
     id: surface
     attributes:
@@ -74,5 +80,5 @@ body:
     id: output
     attributes:
       label: Relevant output
-      description: Error messages, logs or terminal output. It is formatted as code automatically, so no backticks are needed.
+      description: Error messages, logs or terminal output. If Ritual says "This looks like a bug in Ritual", run the command again with `RITUAL_DEBUG=1` and paste the full stack trace it prints. It is formatted as code automatically, so no backticks are needed.
       render: shell

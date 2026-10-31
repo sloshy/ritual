@@ -51,6 +51,7 @@ import { COMMAND, FILE, FLAG, commandLine } from '../util/cli-tokens'
  * - `mcp` speaks JSON-RPC on stdout and its stdin is the client, not a person.
  * - `detect-changes` must see the workspace exactly as the user committed it,
  *   and its `--verify` mode must write nothing at all.
+ * - `doctor` reports pending updates itself and promises to change nothing.
  *
  * The root hook in `src/cli/program.ts` separately skips the config load for
  * `migrate`; keep the two in step.
@@ -63,6 +64,7 @@ export const MIGRATION_CHECK_EXEMPT = [
   'help',
   'mcp',
   'detect-changes',
+  'doctor',
 ] as const
 
 /** Whether the check skips this invocation — see {@link MIGRATION_CHECK_EXEMPT}. */

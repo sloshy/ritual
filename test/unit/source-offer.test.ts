@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   isSourceOffer,
+  issuesUrlFor,
   revisionRef,
   sourceOfferFor,
   UPSTREAM_SOURCE_URL,
@@ -61,6 +62,15 @@ describe('sourceOfferFor', () => {
   test('a version naming no ref links the repository', () => {
     expect(sourceOfferFor('0.0.0-unknown', 'https://github.com/sloshy/ritual').revisionUrl).toBe(
       'https://github.com/sloshy/ritual',
+    )
+  })
+})
+
+describe('issuesUrlFor', () => {
+  test("a build's issues live under its own repository, a fork's under the fork", () => {
+    expect(issuesUrlFor(UPSTREAM_SOURCE_URL)).toBe('https://github.com/sloshy/ritual/issues')
+    expect(issuesUrlFor('https://git.example.com/me/ritual/')).toBe(
+      'https://git.example.com/me/ritual/issues',
     )
   })
 })

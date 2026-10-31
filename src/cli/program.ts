@@ -39,6 +39,7 @@ import {
   parseCacheDir,
   parseUiLocale,
   refreshRitualConfig,
+  refreshRitualConfigQuietly,
 } from '../config/ritual-config'
 import { nonBlank } from '../util/user-dirs'
 import { ExitCode, CardCommandError, messageCommandError } from '../util/errors'
@@ -652,10 +653,14 @@ async function prepareAction(build: BuildProgramOptions, actionCommand: Command)
 
   // `ritual migrate` reads the raw config itself: it must run against a file
   // the loader would reject or warn about, since fixing that file is its job.
-  // Only the top-level command — a subcommand that happens to be named
-  // `migrate` loads the config like any other.
-  const isMigrate = qualifiedCommandName(actionCommand) === 'migrate'
-  if (!isMigrate) {
+  // `ritual doctor` diagnoses that same file, so it loads it without the
+  // warnings and survives one that is not JSON at all — its report says what
+  // is wrong. Only the top-level commands — a subcommand that happens to share
+  // a name loads the config like any other.
+  const command = qualifiedCommandName(actionCommand)
+  if (command === 'doctor') {
+    await refreshRitualConfigQuietly()
+  } else if (command !== 'migrate') {
     await refreshRitualConfig()
   }
   // A RITUAL_CACHE_DIR naming a folder the cache must never take over (a

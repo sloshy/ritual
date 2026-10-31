@@ -1354,6 +1354,24 @@ function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
  * `ritual migrate` validates a migrated config with this before writing it.
  */
 export function parseRitualConfig(raw: RawConfig): RitualConfig | ConfigParseError {
+  const { config, problems } = inspectRitualConfig(raw)
+  return problems[0] ?? config
+}
+
+/** What {@link inspectRitualConfig} found: the defaulted config, and every field it refused. */
+export type RitualConfigInspection = {
+  /** The config with every refused field defaulted — what the lenient loader would use. */
+  config: RitualConfig
+  /** Every malformed field, in field order — empty when the file is valid. */
+  problems: ConfigParseError[]
+}
+
+/**
+ * Strictly check a raw `ritual.config.json` object and report **every** field
+ * the strict parser refuses, not just the first — `ritual doctor` lists them
+ * all. Prints nothing.
+ */
+export function inspectRitualConfig(raw: RawConfig): RitualConfigInspection {
   const errors: ConfigParseError[] = []
   const recordError: FieldPolicy = (parsed, key, fallback) => {
     if (isConfigParseError<unknown>(parsed)) {
@@ -1369,7 +1387,7 @@ export function parseRitualConfig(raw: RawConfig): RitualConfig | ConfigParseErr
     return parsed
   }
   const config = applyDefaults(raw, recordError)
-  return errors[0] ?? config
+  return { config, problems: errors }
 }
 
 /**
@@ -1388,11 +1406,13 @@ export function parseRitualConfig(raw: RawConfig): RitualConfig | ConfigParseErr
  */
 export class RitualConfigParseError extends SyncMessageError {
   readonly configPath: string
-  /** `reason` is the JSON parser's own message, or the catalog's "not an object". */
+  /** The JSON parser's own message, or the catalog's "not an object". */
+  readonly reason: SyncText
   constructor(configPath: string, reason: SyncText) {
     super(syncMessage('domain.config.fileNotJson', { path: configPath, reason, file: FILE.config }))
     this.name = 'RitualConfigParseError'
     this.configPath = configPath
+    this.reason = reason
   }
 }
 
@@ -1537,6 +1557,25 @@ export async function savePartialRitualConfig(config: Partial<RitualConfig>): Pr
 export async function refreshRitualConfig(): Promise<RitualConfig> {
   const fromDisk = await readConfigFromDisk()
   loaded = fromDisk ?? getDefaultRitualConfig()
+  return loaded
+}
+
+/**
+ * {@link refreshRitualConfig} for `ritual doctor`, which diagnoses the very file
+ * the load would complain about: a malformed field is defaulted without the
+ * console warning (the report lists it), and a file that is not a JSON object
+ * — or cannot be read at all — leaves the defaults in place instead of
+ * stopping the run.
+ */
+export async function refreshRitualConfigQuietly(): Promise<RitualConfig> {
+  let raw: RawConfig | null
+  try {
+    raw = await readRawRitualConfig()
+  } catch {
+    // Not JSON, or not readable at all (EACCES, EISDIR): doctor reports why.
+    raw = null
+  }
+  loaded = raw === null ? getDefaultRitualConfig() : inspectRitualConfig(raw).config
   return loaded
 }
 

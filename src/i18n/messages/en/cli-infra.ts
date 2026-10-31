@@ -1107,4 +1107,17 @@ export const cliInfraMessages = {
   'cli.locale.detectDeclined': 'Left {configKey} unchanged.',
   'cli.locale.detectNoPrompt': 'Not offering to save it ({reason}). To apply it, run: {command}',
   'cli.prompt.subject.uiLocale': 'whether to save the detected UI locale',
+
+  // ── doctor ────────────────────────────────────────────────────────────
+  //
+  // The text report of `ritual doctor`: one line per check, its status word
+  // first in a column padded to the widest status word, then the check's own
+  // summary (`domain.doctor.*`). A problem's fix and any further lines are
+  // indented under it.
+  'cli.doctor.status.ok': 'ok',
+  'cli.doctor.status.warn': 'warn',
+  'cli.doctor.status.fail': 'fail',
+  'cli.doctor.hint': 'Fix: {hint}',
+  'cli.doctor.detail': '- {detail}',
+  'cli.doctor.paste': 'Paste this into a bug report: {url}',
 } as const satisfies MessageCatalogShape

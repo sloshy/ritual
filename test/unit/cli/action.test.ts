@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { runCommandAction } from '../../../src/cli/action'
+import { runCommandAction, type UnexpectedErrorDetails } from '../../../src/cli/action'
 import {
   isStdoutClosed,
   resetStdoutClosed,
@@ -12,6 +12,8 @@ import { syncMessage, SyncMessageError } from '../../../src/sync/message'
 import { withSyntheticLocaleAsync } from '../../helpers/sync-text'
 import { captureStream } from '../../helpers/capture'
 import { captureExitCode } from '../../helpers/cli'
+import { ISSUES_URL } from '../../../src/config/version'
+import { t } from '../../../src/i18n/t'
 
 const TEXT: ScriptingOptions = { output: 'text', quiet: false }
 const JSON_OUT: ScriptingOptions = { output: 'json', quiet: false }
@@ -56,6 +58,19 @@ function brokenPipe(): NodeJS.ErrnoException {
 afterEach(() => {
   resetStdoutClosed()
 })
+
+/** Run `body` with `RITUAL_DEBUG` set to `value` (unset for `undefined`), restoring it after. */
+async function withDebug<T>(value: string | undefined, body: () => Promise<T>): Promise<T> {
+  const saved = process.env.RITUAL_DEBUG
+  if (value === undefined) delete process.env.RITUAL_DEBUG
+  else process.env.RITUAL_DEBUG = value
+  try {
+    return await body()
+  } finally {
+    if (saved === undefined) delete process.env.RITUAL_DEBUG
+    else process.env.RITUAL_DEBUG = saved
+  }
+}
 
 describe('runCommandAction', () => {
   test('a clean body writes nothing and leaves the exit code alone', async () => {
@@ -155,26 +170,63 @@ describe('runCommandAction', () => {
     expect(exitCode).toBe(ExitCode.UsageError)
   })
 
-  test('an unexpected throw becomes a runtime_error envelope with no key and no details', async () => {
-    const { stderr, exitCode } = await runThrowing(JSON_OUT, new Error('EISDIR: read failed'))
+  test('an unexpected throw becomes a keyless runtime_error envelope saying it is a bug', async () => {
+    const { stderr, exitCode } = await withDebug(undefined, () =>
+      runThrowing(JSON_OUT, new Error('EISDIR: read failed')),
+    )
     // The keys must be *absent*, not present-and-undefined: `ErrorEnvelope`
     // promises a keyless failure serializes byte-identically to one that never
     // had the fields.
-    expect(Object.keys(envelopeOf(stderr)).sort()).toEqual(['code', 'message'])
+    expect(Object.keys(envelopeOf(stderr)).sort()).toEqual(['code', 'details', 'message'])
     expect(envelopeOf(stderr).message).toBe('EISDIR: read failed')
+    // What text mode's report line says, as data: no code, so a bug.
+    expect(envelopeOf(stderr).details).toEqual({ kind: 'bug', issuesUrl: ISSUES_URL })
     expect(exitCode).toBe(ExitCode.RuntimeError)
     expect(isStdoutClosed()).toBe(false)
   })
 
   test('a non-Error throw is stringified rather than crashing the catch-all', async () => {
     const { stderr, exitCode } = await runThrowing(TEXT, 'boom')
-    expect(stderr).toBe('boom\n')
+    expect(stderr.split('\n')[0]).toBe('boom')
     expect(exitCode).toBe(ExitCode.RuntimeError)
   })
 
-  test('an unexpected throw is a bare message line under --output text', async () => {
-    const { stderr, exitCode } = await runThrowing(TEXT, new Error('EISDIR: read failed'))
+  test('a bug under --output text adds one line: details via RITUAL_DEBUG, and where to report it', async () => {
+    const { stderr, exitCode } = await withDebug(undefined, () =>
+      runThrowing(TEXT, new TypeError("Cannot read properties of undefined (reading 'name')")),
+    )
+    expect(stderr).toBe(
+      "Cannot read properties of undefined (reading 'name')\n" +
+        t('cli.unexpected.reportBugWithDebug', { envVar: 'RITUAL_DEBUG', url: ISSUES_URL }) +
+        '\n',
+    )
+    expect(exitCode).toBe(ExitCode.RuntimeError)
+  })
+
+  test('a failure of the machine around Ritual (an errno) is only its message', async () => {
+    const thrown = Object.assign(new Error('EISDIR: read failed'), { code: 'EISDIR' })
+    const { stderr, exitCode } = await withDebug(undefined, () => runThrowing(TEXT, thrown))
     expect(stderr).toBe('EISDIR: read failed\n')
     expect(exitCode).toBe(ExitCode.RuntimeError)
+    const json = await withDebug(undefined, () => runThrowing(JSON_OUT, thrown))
+    expect(envelopeOf(json.stderr).details).toMatchObject({ kind: 'environment' })
+  })
+
+  test('RITUAL_DEBUG prints the trace, cause included, and still points at the tracker', async () => {
+    const thrown = new Error('outer failure', { cause: new Error('inner failure') })
+    const { stderr } = await withDebug('1', () => runThrowing(TEXT, thrown))
+    const lines = stderr.trimEnd().split('\n')
+    expect(lines[0]).toBe('Error: outer failure')
+    // A frame of this very file: the trace is the real stack, not a summary.
+    expect(stderr).toContain('action.test.ts')
+    expect(stderr).toContain('Caused by: Error: inner failure')
+    expect(lines.at(-1)).toBe(t('cli.unexpected.reportBug', { url: ISSUES_URL }))
+  })
+
+  test('RITUAL_DEBUG adds the trace to the json envelope as details.stack', async () => {
+    const { stderr } = await withDebug('1', () => runThrowing(JSON_OUT, new Error('kaboom')))
+    const envelope = envelopeOf(stderr)
+    expect(envelope.message).toBe('kaboom')
+    expect((envelope.details as UnexpectedErrorDetails).stack).toStartWith('Error: kaboom\n')
   })
 })

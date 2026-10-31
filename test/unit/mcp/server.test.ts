@@ -38,6 +38,8 @@ import {
   toolError,
 } from '../../mcp-test-utils'
 import { makeScryfallCard } from '../../test-utils'
+import { DOCTOR_CHECK_IDS } from '../../../src/doctor/report'
+import { ISSUES_URL } from '../../../src/config/version'
 import {
   setupMcpClient,
   setupRitualTestEnv,
@@ -68,6 +70,7 @@ const EXPECTED_TOOLS = [
   'get_history',
   'get_config',
   'get_cache_status',
+  'get_diagnostics',
   'diff_lists',
   'export_cards',
   // write
@@ -196,6 +199,8 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(instructions).toContain(
       `About: Ritual ${SOURCE_OFFER.version}, free software under the AGPL-3.0-only. The source of this version is at ${SOURCE_OFFER.revisionUrl}.`,
     )
+    // The one place an agent learns the build's own (fork-aware) issue tracker.
+    expect(instructions).toContain(`bugs are reported at ${ISSUES_URL}.`)
   })
 
   test('lists the full tool catalogue in registration order with valid input schemas', async () => {
@@ -569,6 +574,18 @@ describe('Ritual MCP server (in-memory transport)', () => {
     // The harness seeds through `bulkSet`, which stamps the refresh time, so the
     // prices this cache carries are fresh by the 24h convention.
     expect(data.priceStale).toBe(false)
+  })
+
+  test('get_diagnostics relays the doctor report through its declared schema', async () => {
+    // The verdicts are pinned on the engine (`doctor-report.test.ts`); this is
+    // the wiring: the route answers, the envelope is stripped, and the report
+    // validates against the output schema (an invalid one is `isError`).
+    const data = toolData<{ ok: boolean; checks: { id: string }[] }>(
+      await callTool(client, 'get_diagnostics', {}),
+    )
+    expect(data).not.toHaveProperty('success')
+    expect(typeof data.ok).toBe('boolean')
+    expect(data.checks.map((check) => check.id)).toEqual([...DOCTOR_CHECK_IDS])
   })
 
   test('get_card_printings projects identity only unless prices are asked for', async () => {

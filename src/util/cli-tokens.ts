@@ -189,6 +189,7 @@ export const COMMAND = {
   depLicense: ['dep-license'],
   detectChanges: ['detect-changes'],
   diff: ['diff'],
+  doctor: ['doctor'],
   edit: ['edit'],
   export: ['export'],
   getPrimer: ['get-primer'],
@@ -228,12 +229,14 @@ export const ENV_VAR = {
   bundledLocales: 'RITUAL_BUNDLED_LOCALES',
   cacheDir: 'RITUAL_CACHE_DIR',
   cacheFeedRefresh: 'RITUAL_CACHE_FEED_REFRESH',
+  debug: 'RITUAL_DEBUG',
   githubToken: 'GITHUB_TOKEN',
   i18nStrict: 'RITUAL_I18N_STRICT',
   locale: 'RITUAL_LOCALE',
   mcpToken: 'RITUAL_MCP_TOKEN',
   moxfieldUserAgent: 'MOXFIELD_USER_AGENT',
   noInput: 'RITUAL_NO_INPUT',
+  noUpdateCheck: 'RITUAL_NO_UPDATE_CHECK',
   version: 'RITUAL_VERSION',
 } as const satisfies Record<string, Uppercase<string>>
 
@@ -271,6 +274,7 @@ export const CONFIG_KEY = {
   siteTheme: 'site.theme',
   siteThemeFiles: 'site.themeFiles',
   uiLocale: 'uiLocale',
+  updateCheck: 'updateCheck',
 } as const satisfies Record<string, ConfigKeyToken>
 
 /** `M`, unless one of its values is a live config key — then `never`, which no value satisfies. */

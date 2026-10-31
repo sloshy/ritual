@@ -209,6 +209,9 @@ export default [
                 'src/site-build',
                 // `self-update`'s release lookup, verification and binary swap.
                 'src/update',
+                // `ritual doctor`'s facts and verdicts; the migration check is
+                // handed in from the entry layer (`setMigrationProbe`).
+                'src/doctor',
               ],
             },
             { name: 'ui', dirs: ['src/ui'] },

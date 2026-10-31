@@ -123,6 +123,11 @@ export function parseInstallKind(value: string | undefined): InstallKind {
   return nonEmpty(value) === 'docker' ? 'docker' : undefined
 }
 
+/** This process's {@link InstallKind}, from `RITUAL_INSTALL`. */
+export function currentInstallKind(): InstallKind {
+  return parseInstallKind(process.env.RITUAL_INSTALL)
+}
+
 /** The real environment of this process. */
 export function defaultSelfUpdateEnv(): SelfUpdateEnv {
   return {
@@ -131,7 +136,7 @@ export function defaultSelfUpdateEnv(): SelfUpdateEnv {
     platform: process.platform,
     arch: process.arch,
     build: { version, release: isReleaseBuild },
-    installKind: parseInstallKind(process.env.RITUAL_INSTALL),
+    installKind: currentInstallKind(),
     githubToken: nonEmpty(process.env[ENV_VAR.githubToken]),
     apiBase: GITHUB_RELEASES_API,
     runBinary: runCaptured,

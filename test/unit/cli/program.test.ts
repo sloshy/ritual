@@ -122,6 +122,7 @@ describe('buildProgram', () => {
       'cleanup',
       'self-update',
       'config',
+      'doctor',
       'locale',
       'license',
       'migrate',

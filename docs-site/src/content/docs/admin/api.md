@@ -19,7 +19,7 @@ Every response body, success or refusal, carries its user-facing prose as up to 
 
 Match on `messageKey`, never on the English text.
 
-A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, an [error a route did not expect](#error-responses), such as a cache-lock time-out, the [list-file engines' refusals](#error-responses) (a list's unknown keys or valid formats as a `unit` list, an unreadable `.art.json`'s reason, a rewrite gate's problems), the [config validator's refusals](#update-config) (a block's refusal nesting its field's, the accepted values as a `unit` list, a malformed `uiLocale`'s nested tag-parser reason), a list load's [`warnings`](#load-deck) (a card-line diagnostic nested as `text` inside its `domain.card.line.atLine` location, its hint inside `domain.card.line.withHint`), the [card vocabulary's refusals](#error-responses) (a tag or category refusal nesting its shape `rule`, a card language's valid codes as a `unit` list), [Export Cards](#export-cards)' and [Diff Lists](#diff-lists)' `warnings` (a list's parse warning nested as `warning`, a decklist's omitted sections as a `unit` list, each `section` a `domain.board.*` message for a standard board and the heading as written otherwise) and export refusals (the accepted columns or values as a `unit` list), and the [cache refresh stream](#refresh-cache-stream)'s progress lines, whose download sizes are a size (`{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale), the buylist routes' `503` when no feed is downloaded (`domain.cache.cardKingdom.missingApiAdvice`, whose `lead` nests the `domain.cache.cardKingdom.noFeed` sentence), [Sell Refresh](#sell-refresh)'s `staleFallback` and `skippedRows` (a failed download's underlying `error`, a skipped feed row's `reason`), and [Sell Cart](#sell-cart)'s `warnings` (the etched titles as a `unit` list). The [Archidekt sync routes](#sync-decks) nest too: a deck's per-card change lines and the stream's `log` lines (and each item's `reasonParams`) name a standard board (`Main`, `Sideboard`, …) as a `domain.board.*` message, so it is worded in the reader's language. Every other response's params are plain strings and numbers.
+A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, an [error a route did not expect](#error-responses), such as a cache-lock time-out, the [list-file engines' refusals](#error-responses) (a list's unknown keys or valid formats as a `unit` list, an unreadable `.art.json`'s reason, a rewrite gate's problems), the [config validator's refusals](#update-config) (a block's refusal nesting its field's, the accepted values as a `unit` list, a malformed `uiLocale`'s nested tag-parser reason), a list load's [`warnings`](#load-deck) (a card-line diagnostic nested as `text` inside its `domain.card.line.atLine` location, its hint inside `domain.card.line.withHint`), the [card vocabulary's refusals](#error-responses) (a tag or category refusal nesting its shape `rule`, a card language's valid codes as a `unit` list), [Export Cards](#export-cards)' and [Diff Lists](#diff-lists)' `warnings` (a list's parse warning nested as `warning`, a decklist's omitted sections as a `unit` list, each `section` a `domain.board.*` message for a standard board and the heading as written otherwise) and export refusals (the accepted columns or values as a `unit` list), and the [cache refresh stream](#refresh-cache-stream)'s progress lines, whose download sizes are a size (`{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale), the buylist routes' `503` when no feed is downloaded (`domain.cache.cardKingdom.missingApiAdvice`, whose `lead` nests the `domain.cache.cardKingdom.noFeed` sentence), [Sell Refresh](#sell-refresh)'s `staleFallback` and `skippedRows` (a failed download's underlying `error`, a skipped feed row's `reason`), and [Sell Cart](#sell-cart)'s `warnings` (the etched titles as a `unit` list). The [Archidekt sync routes](#sync-decks) nest too: a deck's per-card change lines and the stream's `log` lines (and each item's `reasonParams`) name a standard board (`Main`, `Sideboard`, …) as a `domain.board.*` message, so it is worded in the reader's language. [Setup Diagnostics](#setup-diagnostics)' check summaries nest as well: the build and install kind as `domain.doctor.*` messages, a workspace's list counts as a `unit` list of `domain.count.*` messages, the cache's card count as a message, and an age as a duration (`{ durationMs }`, rendered as days and hours in the reader's locale). Every other response's params are plain strings and numbers.
 
 ## Error responses
 
@@ -744,6 +744,90 @@ Report the card cache's size, freshness, tag coverage, and source — the same p
 | `defaultLanguage` | The configured [`defaultLanguage`](/configuration/#default-language)                                                                                                                                                  |
 | `cardBulkType`    | Which bulk built the cache (`default_cards`/`all_cards`), or `null` when no ingest has recorded provenance                                                                                                            |
 | `bulkTypeStale`   | `true` when the cache's bulk disagrees with `defaultLanguage`; a full refresh is needed (see [bulk selection](/commands/cache/#bulk-selection-and-language))                                                          |
+
+## Setup Diagnostics
+
+```
+GET /api/doctor
+```
+
+Check the setup — the same report [`ritual doctor --output json`](/commands/doctor/) prints, and what the [`get_diagnostics`](/commands/mcp/) MCP tool returns. Read-only and offline: it never refreshes the cache, asks a configured cache server anything, or looks up releases. A failing check is still a `200`; `ok` is `false` when any check failed. The config verdict reads `ritual.config.json` as it is on disk now, so a file edited by hand after the server started is reported as it stands.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "ok": true,
+  "checks": [
+    {
+      "id": "ritual",
+      "status": "ok",
+      "summary": {
+        "message": "Ritual 0.1.0 (release build, installed binary) on linux x64, Bun 1.4.4",
+        "messageKey": "domain.doctor.ritual.summary",
+        "messageParams": {
+          "version": "0.1.0",
+          "build": { "messageKey": "domain.doctor.build.release" },
+          "install": { "messageKey": "domain.doctor.install.binary" },
+          "platform": "linux",
+          "arch": "x64",
+          "bun": "1.4.4"
+        }
+      },
+      "hint": null,
+      "details": []
+    }
+  ],
+  "ritual": {
+    "version": "0.1.0",
+    "build": "release",
+    "install": "binary",
+    "platform": "linux",
+    "arch": "x64",
+    "bunVersion": "1.4.4",
+    "issuesUrl": "https://github.com/sloshy/ritual/issues"
+  },
+  "workspace": {
+    "baseDir": "/home/you/mtg",
+    "configFile": true,
+    "folders": {
+      "deck": { "dir": "/home/you/mtg/decks", "exists": true, "lists": 12 },
+      "collection": { "dir": "/home/you/mtg/collections", "exists": true, "lists": 2 },
+      "wanted": { "dir": "/home/you/mtg/wanted", "exists": true, "lists": 1 }
+    }
+  },
+  "config": { "state": "valid", "problems": [] },
+  "migrations": { "state": "current", "remedy": null, "problem": null },
+  "cache": {
+    "dir": "/home/you/.cache/ritual",
+    "dirSource": "default",
+    "dirExists": true,
+    "server": null,
+    "status": { "empty": false, "cardCount": 31240, "…": "the Cache Status payload" },
+    "problem": null
+  },
+  "update": {
+    "mode": "on",
+    "latest": "0.1.0",
+    "checkedAt": "2026-10-30T09:00:00.000Z",
+    "available": false
+  }
+}
+```
+
+(`checks` holds one entry per area, in the order `ritual`, `workspace`, `config`, `migrations`, `cache`, `update`; one is shown.)
+
+| Field        | Description                                                                                                                                                                                                                                                                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ok`         | `false` when any check's `status` is `fail`                                                                                                                                                                                                                                                                                                    |
+| `checks`     | One verdict per area: `status` (`ok`, `warn`, `fail`), `summary`, a one-line `hint` (or `null`) and further `details` lines, each an English `message` plus `messageKey`/`messageParams`                                                                                                                                                       |
+| `ritual`     | The running build: `build` is `release` or `development`, `install` is `binary`, `source` or `docker`; `issuesUrl` is where its bugs are reported (a fork's own tracker for a fork's build)                                                                                                                                                    |
+| `workspace`  | The base directory, whether `ritual.config.json` exists, and each list folder's path, existence and list count                                                                                                                                                                                                                                 |
+| `config`     | `state` is `absent`, `valid`, `invalid` (`problems` lists every refused setting) or `unreadable` (`problems` holds the parser's reason)                                                                                                                                                                                                        |
+| `migrations` | `state` is `no-config`, `current`, `pending`, `ahead` (`remedy` is the command that updates Ritual), `invalid` (`problem` is the refused setting) or `unknown` (the check failed — `problem` says why — or was skipped behind a failing config check)                                                                                          |
+| `cache`      | The cache folder, the setting that chose it (`dirSource`, as in [Cache Status](#cache-status)), whether it exists, the configured cache `server` (or `null`), the [Cache Status](#cache-status) payload as `status` (`null` with a cache server, or when reading the cache failed), and `problem`, why the cache could not be read (or `null`) |
+| `update`     | `mode` is `on`, `off` (`updateCheck: false` or `RITUAL_NO_UPDATE_CHECK`), `development` or `docker`; `latest`/`checkedAt` are the last successful [update check](/commands/self-update/#update-notice)'s answer (or `null`), and `available` says whether `latest` is newer                                                                    |
 
 ## Price Summary
 

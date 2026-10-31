@@ -141,6 +141,7 @@ export default defineConfig({
                 'commands/cleanup',
                 'commands/self-update',
                 'commands/config',
+                'commands/doctor',
                 'commands/locale',
                 'commands/license',
               ],

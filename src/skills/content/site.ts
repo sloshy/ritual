@@ -73,7 +73,7 @@ bookkeeping in the \`managed\` block of \`ritual.config.json\` (\`version\`,
 
 **The pending-updates notice.** Every other command checks for pending updates
 first (except \`migrate\`, \`self-update\`, \`init-site\`, \`config\`, \`help\`,
-\`mcp\` and \`detect-changes\`).
+\`mcp\`, \`detect-changes\` and \`doctor\`, which reports pending updates itself).
 In a non-interactive run like yours it never prompts: it prints one stderr line
 and the command proceeds with its normal exit code and output:
 

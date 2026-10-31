@@ -46,6 +46,24 @@ import { VALID_FINISHES } from '../card/finish-condition'
 import { CARD_LANGUAGES } from '../card/card-language'
 import { CARD_BULK_TYPES } from '../scryfall/bulk-manifest'
 import { CACHE_DIR_SOURCES } from '../config/cache-location'
+import {
+  BUILD_KINDS,
+  CONFIG_STATES,
+  DOCTOR_CHECK_IDS,
+  DOCTOR_STATUSES,
+  INSTALL_METHODS,
+  MIGRATION_STATES,
+  UPDATE_CHECK_MODES,
+  type DoctorCacheFacts,
+  type DoctorCheck,
+  type DoctorConfigFacts,
+  type DoctorListFolder,
+  type DoctorMigrationFacts,
+  type DoctorReport,
+  type DoctorRitualFacts,
+  type DoctorUpdateFacts,
+  type DoctorWorkspaceFacts,
+} from '../doctor/report'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
 import { DIFF_BY_MODES } from '../changes/list-diff'
 import { BUYERS, CK_CSV_MAX_CARDS, CK_CSV_MAX_TITLES, SELL_MATCH_VIAS } from '../buylist'
@@ -737,6 +755,122 @@ export const GET_CACHE_STATUS_OUTPUT: JsonSchemaType = obj(
     'cardBulkType',
     'bulkTypeStale',
   ],
+)
+
+// Each property map below `satisfies` its doctor type's keys, so a field added
+// to `src/doctor/report.ts` is a compile error here until the schema has it.
+
+/** One list type's folder in the `get_diagnostics` workspace facts. */
+const DOCTOR_LIST_FOLDER_PROPS = {
+  dir: str('Absolute path of the folder, as the config names it.'),
+  exists: bool(),
+  lists: int('List files in it.'),
+} satisfies Record<keyof DoctorListFolder, JsonSchemaType>
+
+/** One verdict of `get_diagnostics`. */
+const DOCTOR_CHECK_PROPS = {
+  id: enumOf(DOCTOR_CHECK_IDS),
+  status: enumOf(DOCTOR_STATUSES, 'ok, warn (worth attention), or fail (a real problem).'),
+  summary: SYNC_MESSAGE,
+  hint: nullable(SYNC_MESSAGE, 'How to fix it, in one line; null when there is nothing to do.'),
+  details: arr(SYNC_MESSAGE, 'Further lines under the summary, such as each invalid setting.'),
+} satisfies Record<keyof DoctorCheck, JsonSchemaType>
+
+const DOCTOR_RITUAL_PROPS = {
+  version: str(),
+  build: enumOf(BUILD_KINDS),
+  install: enumOf(INSTALL_METHODS),
+  platform: str(),
+  arch: str(),
+  bunVersion: str(),
+  issuesUrl: str('Where bugs in this build are reported.'),
+} satisfies Record<keyof DoctorRitualFacts, JsonSchemaType>
+
+const DOCTOR_WORKSPACE_PROPS = {
+  baseDir: str('Absolute path of the workspace.'),
+  configFile: bool('Whether ritual.config.json exists.'),
+  folders: obj(
+    {
+      deck: obj(DOCTOR_LIST_FOLDER_PROPS, ['dir', 'exists', 'lists']),
+      collection: obj(DOCTOR_LIST_FOLDER_PROPS, ['dir', 'exists', 'lists']),
+      wanted: obj(DOCTOR_LIST_FOLDER_PROPS, ['dir', 'exists', 'lists']),
+    },
+    ['deck', 'collection', 'wanted'],
+  ),
+} satisfies Record<keyof DoctorWorkspaceFacts, JsonSchemaType>
+
+const DOCTOR_CONFIG_PROPS = {
+  state: enumOf(CONFIG_STATES),
+  problems: arr(
+    SYNC_MESSAGE,
+    'Every refused setting (invalid), or why the file could not be read (unreadable).',
+  ),
+} satisfies Record<keyof DoctorConfigFacts, JsonSchemaType>
+
+const DOCTOR_MIGRATION_PROPS = {
+  state: enumOf(
+    MIGRATION_STATES,
+    'What `ritual migrate --check` would find; unknown when the check failed or was ' +
+      'skipped behind a failing config check.',
+  ),
+  remedy: nullableStr('The command that updates Ritual (state ahead).'),
+  problem: nullable(SYNC_MESSAGE, 'Why the migrated config is invalid, or the check failed.'),
+} satisfies Record<keyof DoctorMigrationFacts, JsonSchemaType>
+
+const DOCTOR_CACHE_PROPS = {
+  dir: str('Absolute path of the card cache directory.'),
+  dirSource: enumOf(CACHE_DIR_SOURCES),
+  dirExists: bool(),
+  server: nullableStr('The configured cache server, when card data comes from one.'),
+  status: nullable(
+    GET_CACHE_STATUS_OUTPUT,
+    'The get_cache_status report; null with a cache server (asking it would be a network ' +
+      'call) or when reading the cache failed.',
+  ),
+  problem: nullable(SYNC_MESSAGE, 'Why the cache could not be read.'),
+} satisfies Record<keyof DoctorCacheFacts, JsonSchemaType>
+
+const DOCTOR_UPDATE_PROPS = {
+  mode: enumOf(
+    UPDATE_CHECK_MODES,
+    'Whether the daily release check runs: on, off (turned off), or not applicable to a ' +
+      'development build or the Docker image.',
+  ),
+  latest: nullableStr('Newest release the last successful check saw (never looked up live).'),
+  checkedAt: nullableStr('ISO-8601 time of that check.'),
+  available: bool('latest is newer than the running version.'),
+} satisfies Record<keyof DoctorUpdateFacts, JsonSchemaType>
+
+export const GET_DIAGNOSTICS_OUTPUT: JsonSchemaType = obj(
+  {
+    ok: bool('No check failed (warnings allowed).'),
+    checks: arr(
+      obj(DOCTOR_CHECK_PROPS, ['id', 'status', 'summary', 'hint', 'details']),
+      'Every verdict, in report order.',
+    ),
+    ritual: obj(DOCTOR_RITUAL_PROPS, [
+      'version',
+      'build',
+      'install',
+      'platform',
+      'arch',
+      'bunVersion',
+      'issuesUrl',
+    ]),
+    workspace: obj(DOCTOR_WORKSPACE_PROPS, ['baseDir', 'configFile', 'folders']),
+    config: obj(DOCTOR_CONFIG_PROPS, ['state', 'problems']),
+    migrations: obj(DOCTOR_MIGRATION_PROPS, ['state', 'remedy', 'problem']),
+    cache: obj(DOCTOR_CACHE_PROPS, [
+      'dir',
+      'dirSource',
+      'dirExists',
+      'server',
+      'status',
+      'problem',
+    ]),
+    update: obj(DOCTOR_UPDATE_PROPS, ['mode', 'latest', 'checkedAt', 'available']),
+  } satisfies Record<keyof DoctorReport, JsonSchemaType>,
+  ['ok', 'checks', 'ritual', 'workspace', 'config', 'migrations', 'cache', 'update'],
 )
 
 export const DIFF_LISTS_OUTPUT: JsonSchemaType = withDefs(
@@ -1443,6 +1577,7 @@ export const TOOL_OUTPUT_SCHEMAS: Readonly<Record<McpToolName, JsonSchemaType>> 
   get_history: GET_HISTORY_OUTPUT,
   get_config: GET_CONFIG_OUTPUT,
   get_cache_status: GET_CACHE_STATUS_OUTPUT,
+  get_diagnostics: GET_DIAGNOSTICS_OUTPUT,
   diff_lists: DIFF_LISTS_OUTPUT,
   export_cards: EXPORT_CARDS_OUTPUT,
   create_list: CREATE_LIST_OUTPUT,

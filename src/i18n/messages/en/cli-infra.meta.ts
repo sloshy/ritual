@@ -2231,4 +2231,32 @@ export const cliInfraMeta = {
     description:
       'Noun phrase naming what the `locale --detect` confirmation wanted, spliced into "Input required: {subject} ({reason})".',
   },
+
+  'cli.doctor.status.ok': {
+    description:
+      'Status word in the first column of a `ritual doctor` report line: this check found nothing wrong. Keep it short — the column is as wide as the longest of the three status words.',
+    maxLen: 8,
+  },
+  'cli.doctor.status.warn': {
+    description:
+      'Status word of a `ritual doctor` check that found something worth attention that does not stop Ritual working (for example pending workspace updates). Keep it short.',
+    maxLen: 8,
+  },
+  'cli.doctor.status.fail': {
+    description:
+      'Status word of a `ritual doctor` check that found a real problem (for example an invalid setting); the command then exits with an error. Keep it short.',
+    maxLen: 8,
+  },
+  'cli.doctor.hint': {
+    description:
+      'Indented line under a `ritual doctor` check that found a problem: {hint} is a full sentence saying how to fix it (domain.doctor.*Hint).',
+  },
+  'cli.doctor.detail': {
+    description:
+      'Indented list item under a `ritual doctor` check: {detail} is one further fact, such as one invalid setting and why it is refused.',
+  },
+  'cli.doctor.paste': {
+    description:
+      'Last line of the `ritual doctor` report, inviting the user to paste the whole report into a bug report. {url} is the issue tracker address; never translate it.',
+  },
 } as const satisfies MetaFor<typeof cliInfraMessages>

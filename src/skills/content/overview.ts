@@ -4,7 +4,7 @@ import { asBullet, NO_INPUT_GUARANTEE, REFRESH_COMMANDS } from './shared'
 export const overviewSkill: RitualSkill = {
   name: 'ritual',
   description:
-    'Entry point for working with Ritual, a Magic: The Gathering toolkit that manages decks, collections, and wanted lists as Markdown files. Use when a workspace has decks/, collections/, or wanted/ folders or a ritual.config.json, or when the user mentions Ritual, MTG decks, collections, or wanted lists, or asks to update Ritual itself (ritual self-update).',
+    'Entry point for working with Ritual, a Magic: The Gathering toolkit that manages decks, collections, and wanted lists as Markdown files. Use when a workspace has decks/, collections/, or wanted/ folders or a ritual.config.json, or when the user mentions Ritual, MTG decks, collections, or wanted lists, or asks to update Ritual itself (ritual self-update) or to diagnose or report a Ritual problem (ritual doctor).',
   body: `# Ritual — Magic: The Gathering decks, collections & wanted lists
 
 Ritual is a CLI that manages Magic: The Gathering **decks**, **collections**, and
@@ -482,6 +482,17 @@ A stderr line saying **Ritual X is available** is informational too: a newer
 release exists, and nothing changed. Mention it if relevant, but never run
 \`ritual self-update\` without asking the user first.
 
+**When Ritual itself fails.** A failure Ritual did not anticipate (a bug, not a
+refusal) prints its message plus one line: **This looks like a bug in Ritual**,
+how to see details (\`RITUAL_DEBUG=1\`, which prints the full stack trace), and
+the issue tracker to report it at. Re-run with \`RITUAL_DEBUG=1\` to capture the
+trace, and run \`ritual doctor\` (read-only, offline) to see the setup — Ritual
+version and install, the workspace and its list counts, every invalid
+\`ritual.config.json\` setting, pending workspace updates, and the card cache.
+Its text output is meant to be pasted into a bug report; offer to draft one, but
+let the user file it. A failure of the machine around Ritual (a permission
+error, no network) prints just its message.
+
 ## Scripting conventions (uniform across commands)
 
 - \`--output text|json|ndjson\` always selects the **stdout envelope**, never a
@@ -493,9 +504,11 @@ release exists, and nothing changed. Mention it if relevant, but never run
   on prose), while \`message\` follows the UI locale. A keyed engine failure (a
   cache lock that timed out, a failed Archidekt request) is \`code:
   "runtime_error"\` with its \`messageKey\`/\`messageParams\` and exit \`1\`. An
-  unexpected internal failure uses the same envelope and code, carrying
-  neither \`messageKey\` nor \`details\` — there is no catalog entry and no
-  structured payload behind it. Three
+  unexpected internal failure uses the same envelope and code, carrying no
+  \`messageKey\` (there is no catalog entry behind it) and \`details\` of
+  \`{kind, issuesUrl}\`: \`kind\` is \`bug\` (report it at \`issuesUrl\`) or
+  \`environment\` (a system or network error, the user's to fix);
+  \`RITUAL_DEBUG=1\` adds the stack trace as \`details.stack\`. Three
   exceptions, all deliberate: \`scry\` and \`sell\` add a fourth value
   \`--output csv\` (Scryfall's server-side CSV and Card Kingdom's sell-cart
   upload format, respectively — \`sell\`'s csv is a different payload, not the
@@ -569,6 +582,10 @@ ritual metadata set <list> <prop> <value...>  # list front matter, same shape as
                                   #   sourceUrl/labels; collection labels
 ritual metadata get|list|unset <list> [prop]  # read or clear it (get exits 3 when unset)
 ritual cache status               # report cache size/freshness/source/location without refreshing
+ritual doctor                     # check the setup: build, workspace, config validity, pending
+                                  #   updates, card cache, last update check — each ok/warn/fail
+                                  #   with a one-line fix; exit 1 when a check fails. Read-only and
+                                  #   offline; --output json is the same report as MCP get_diagnostics
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download); also
                                   #   refreshes the Card Kingdom buylist when site.sellMode is on
                                   #   or priceSources includes cardkingdom

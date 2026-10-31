@@ -25,6 +25,7 @@ export const MCP_TOOL_NAMES = [
   'get_history',
   'get_config',
   'get_cache_status',
+  'get_diagnostics',
   'diff_lists',
   'export_cards',
   'create_list',

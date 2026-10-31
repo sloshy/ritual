@@ -45,6 +45,7 @@ import { registerCleanupCommand } from './cleanup'
 import { registerMigrateCommand } from './migrate'
 import { registerSelfUpdateCommand } from './self-update'
 import { registerConfigCommand } from './config'
+import { registerDoctorCommand } from './doctor'
 import { registerMetadataCommand } from './metadata'
 import { registerCategoriesCommand } from './categories'
 import { registerSetListImageCommand } from './set-list-image'
@@ -144,6 +145,7 @@ export const COMMAND_GROUPS = [
       registerCleanupCommand,
       registerSelfUpdateCommand,
       registerConfigCommand,
+      registerDoctorCommand,
       registerLocaleCommand,
       registerLicenseCommand,
     ],

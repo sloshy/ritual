@@ -23,6 +23,8 @@ import type { CardPriceSuccess } from '../../api/card-price'
 import type { CardPrintingsSuccess } from '../../api/card-printings'
 import type { CardSearchSuccess } from '../../api/card-search'
 import type { CacheStatusResponse } from '../../admin/api/cache'
+import type { DoctorResponse } from '../../admin/api/doctor'
+import type { DoctorReport } from '../../doctor/report'
 import type { CardIndexResponse } from '../../admin/api/card-index'
 import type { ConfigResponse } from '../../admin/api/config'
 import type { DiffResponseBody } from '../../admin/api/diff'
@@ -854,6 +856,30 @@ export function registerReadTools(server: McpServer): void {
         const rest = await callApiData<CacheStatusResponse>('GET', '/api/cache/status')
         return rest
       }),
+  )
+
+  server.registerTool(
+    'get_diagnostics',
+    {
+      title: 'Get setup diagnostics',
+      description:
+        'Check the Ritual setup — what `ritual doctor` reports: the running build (version, ' +
+        'release or development, binary/source/Docker install, platform, Bun version, and the ' +
+        'issuesUrl bugs are reported at), the workspace (base directory, which list folders ' +
+        'exist, list counts), ritual.config.json (absent, valid, invalid with every refused ' +
+        'setting, or unreadable), pending workspace updates (what `ritual migrate --check` would ' +
+        'find), the card cache (directory, the setting that chose it, the get_cache_status ' +
+        'report), and the last update check. checks holds one verdict per area, each ok, warn or ' +
+        'fail with an English summary and a one-line hint; ok is false when any check failed. ' +
+        'Use it first when something behaves unexpectedly, and quote it when helping the user ' +
+        'write a bug report. Read-only and offline: it never refreshes the cache or looks ' +
+        'anything up on the network.',
+      inputSchema: z.object({}),
+      outputSchema: outputSchemaFor<DoctorReport>('get_diagnostics'),
+      annotations: { readOnlyHint: true },
+    },
+    async () =>
+      runTool((): Promise<DoctorReport> => callApiData<DoctorResponse>('GET', '/api/doctor')),
   )
 
   server.registerTool(

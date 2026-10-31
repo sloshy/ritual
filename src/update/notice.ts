@@ -13,10 +13,45 @@
 import { compareVersions, type UpdateChannel } from '../config/semver'
 import { isWithinWindow } from '../util/time-window'
 import type { UpdateCheckState } from '../util/user-state'
-import type { ReleaseApiEnv } from './env'
+import { ENV_VAR } from '../util/cli-tokens'
+import { envFlagSet } from '../util/no-input'
+import type { InstallKind, ReleaseApiEnv } from './env'
 import { fetchRelease } from './release'
 
 const HOUR_MS = 60 * 60 * 1000
+
+/**
+ * Whether a build checks for new releases at all, before anything about the
+ * run: `docker` (Ritual's image is updated by pulling it), `development` (not
+ * a release build, so there is nothing to compare against), `off` (the user
+ * opted out), or `on`. The notice applies its per-run rules on top of `on`;
+ * `ritual doctor` reports the answer, adding the `updateCheck` config key.
+ */
+export const UPDATE_CHECK_ELIGIBILITIES = ['on', 'off', 'development', 'docker'] as const
+export type UpdateCheckEligibility = (typeof UPDATE_CHECK_ELIGIBILITIES)[number]
+
+/** What {@link updateCheckEligibility} decides on. */
+export type UpdateCheckGate = {
+  /** A release build — see `isReleaseBuild`. */
+  release: boolean
+  installKind: InstallKind
+  /** `RITUAL_NO_UPDATE_CHECK` is set ({@link updateChecksOptedOut}). */
+  optedOut: boolean
+}
+
+/** See {@link UPDATE_CHECK_ELIGIBILITIES}. */
+export function updateCheckEligibility(gate: UpdateCheckGate): UpdateCheckEligibility {
+  if (gate.installKind === 'docker') return 'docker'
+  if (!gate.release) return 'development'
+  return gate.optedOut ? 'off' : 'on'
+}
+
+/** `RITUAL_NO_UPDATE_CHECK`, read with the same on/off spellings as `RITUAL_NO_INPUT`. */
+export function updateChecksOptedOut(
+  envValue: string | undefined = process.env[ENV_VAR.noUpdateCheck],
+): boolean {
+  return envFlagSet(envValue)
+}
 
 /** How long a successful lookup stays fresh. */
 export const UPDATE_CHECK_INTERVAL_MS = 24 * HOUR_MS
@@ -98,6 +133,20 @@ export function recordLookup(
 }
 
 /**
+ * The newest release the cache recorded for `channel`, when it is newer than
+ * `current` — "an update is available", before the notice's once-a-day rule.
+ */
+export function newerCachedRelease(
+  state: UpdateCheckState | undefined,
+  channel: UpdateChannel,
+  current: string,
+): string | undefined {
+  if (state === undefined || state.channel !== channel) return undefined
+  const { latest } = state
+  return latest !== undefined && compareVersions(latest, current) > 0 ? latest : undefined
+}
+
+/**
  * The version the notice should announce to a `current` build on `channel`, or
  * `undefined`: the cached newest release must be on that channel and newer
  * than `current`, and the notice must not have announced it in the last day.
@@ -108,9 +157,8 @@ export function versionToAnnounce(
   current: string,
   now: number,
 ): string | undefined {
-  if (state === undefined || state.channel !== channel) return undefined
-  const { latest } = state
-  if (latest === undefined || compareVersions(latest, current) <= 0) return undefined
+  const latest = newerCachedRelease(state, channel, current)
+  if (latest === undefined || state === undefined) return undefined
   if (
     state.notifiedVersion === latest &&
     isWithinWindow(state.notifiedAt, now, UPDATE_NOTICE_INTERVAL_MS)

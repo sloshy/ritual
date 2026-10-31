@@ -328,4 +328,12 @@ export const cliMessages = {
     'Confirmation required: pass {flag} to sync these decks non-interactively ({cost}), or fix the lines first.',
   'cli.sync.refuseCollectionLists':
     'Confirmation required: pass {flag} to sync these collection lists non-interactively ({cost}), or fix the lines first.',
+
+  // ── unexpected failures (src/cli/unexpected-error.ts) ─────────────────
+  'cli.unexpected.causedBy': 'Caused by: {trace}',
+  'cli.unexpected.causeTruncated': '… (more causes not shown)',
+  'cli.unexpected.reportBugWithDebug':
+    'This looks like a bug in Ritual. Run the command again with {envVar}=1 for details, and please report it at {url}',
+  'cli.unexpected.reportBug':
+    'This looks like a bug in Ritual. Please report it at {url}, with the details above.',
 } as const satisfies MessageCatalogShape
