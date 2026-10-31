@@ -69,7 +69,7 @@ import {
   handleListDelete,
   type ListLifecycleConfig,
 } from './api/list-lifecycle'
-import { apiError, errorResponse, notFoundResponse } from '../api/http'
+import { apiError, errorResponse, internalErrorResponse, notFoundResponse } from '../api/http'
 import { apiMessage } from '../api/result'
 import { t } from '../i18n/t'
 import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
@@ -675,7 +675,7 @@ export async function startAdminServer(options: AdminServerOptions): Promise<Adm
       },
       error(error) {
         console.error(t('cli.admin.serverError'), error)
-        return apiError(apiMessage('admin.api.server.internalError'), 500)
+        return withSecurityHeaders(internalErrorResponse())
       },
     }),
   )

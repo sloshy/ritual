@@ -269,7 +269,7 @@ async function installMode(target: string): Promise<number> {
 async function openDownload(
   env: SelfUpdateEnv,
   assets: InstallAssets,
-): Promise<ReadableStreamDefaultReader<Uint8Array> | undefined> {
+): Promise<ReadableStreamDefaultReader<Uint8Array>> {
   const { download } = assets
   const { name } = download
   const response = await request(
@@ -278,7 +278,12 @@ async function openDownload(
     'application/octet-stream',
     AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
   )
-  if (!response.ok) throw httpError(response, download.url)
+  // A refused download's body is released rather than left open until the timeout.
+  const refuse = async (error: CardCommandError): Promise<never> => {
+    await response.body?.cancel().catch(() => undefined)
+    throw error
+  }
+  if (!response.ok) return refuse(httpError(response, download.url))
   // A compressed body's Content-Length counts encoded bytes; the streamed count
   // in receiveVerified enforces the size either way.
   const announced = response.headers.get('content-length')
@@ -287,9 +292,10 @@ async function openDownload(
     response.headers.get('content-encoding') === null &&
     Number(announced) !== download.size
   ) {
-    throw sizeMismatch(name, Number(announced), download.size)
+    return refuse(sizeMismatch(name, Number(announced), download.size))
   }
-  return response.body?.getReader()
+  // A missing body is an empty download, which the size check then refuses.
+  return (response.body ?? new ReadableStream<Uint8Array>()).getReader()
 }
 
 /**
@@ -299,24 +305,25 @@ async function openDownload(
  */
 async function receiveVerified(
   assets: InstallAssets,
-  reader: ReadableStreamDefaultReader<Uint8Array> | undefined,
+  reader: ReadableStreamDefaultReader<Uint8Array>,
   expectedDigest: string,
-): Promise<Buffer> {
+): Promise<Uint8Array> {
   const { download } = assets
   const { name } = download
   const hash = createHash('sha256')
-  const chunks: Uint8Array[] = []
+  // The listed size bounds the body, so it is read into one buffer of that size.
+  const bytes = new Uint8Array(download.size)
   let received = 0
-  while (reader !== undefined) {
+  for (;;) {
     const chunk = await readBody(download.url, () => reader.read())
     if (chunk.done) break
-    received += chunk.value.byteLength
-    if (received > download.size) {
+    if (received + chunk.value.byteLength > download.size) {
       await reader.cancel()
-      throw sizeMismatch(name, received, download.size)
+      throw sizeMismatch(name, received + chunk.value.byteLength, download.size)
     }
+    bytes.set(chunk.value, received)
+    received += chunk.value.byteLength
     hash.update(chunk.value)
-    chunks.push(chunk.value)
   }
   if (received !== download.size) throw sizeMismatch(name, received, download.size)
   const actual = hash.digest('hex')
@@ -328,7 +335,7 @@ async function receiveVerified(
       { asset: name, expected: expectedDigest, actual },
     )
   }
-  return Buffer.concat(chunks)
+  return bytes
 }
 
 /**

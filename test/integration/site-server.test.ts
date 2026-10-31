@@ -177,22 +177,33 @@ describe('site server (Integration)', () => {
         headers: { 'Content-Type': 'application/json' },
         body,
       })
-    const [names, tooMany, notJson, notObject, tooLarge, limit, art, unknownApi, unknownDeck] =
-      await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
-        Promise.all([
-          postPrices(JSON.stringify({ names: 'Lightning Bolt' })),
-          postPrices(
-            JSON.stringify({ names: Array.from({ length: MAX_PRICE_NAMES + 1 }, () => 'x') }),
-          ),
-          postPrices('{"names": '),
-          postPrices('[1]'),
-          postPrices(JSON.stringify({ names: ['x'.repeat(MAX_PRICE_BODY_BYTES)] })),
-          fetch(`${base}/api/card-printings?name=Sol%20Ring&limit=%20abc%20`),
-          fetch(`${base}/art/nope.png`),
-          fetch(`${base}/api/no-such-route`),
-          fetch(`${base}/decks/no-such-deck.json`),
-        ]),
-      )
+    const [
+      names,
+      tooMany,
+      notJson,
+      notObject,
+      tooLarge,
+      limit,
+      art,
+      unknownApi,
+      unknownDeck,
+      unknownLocale,
+    ] = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      Promise.all([
+        postPrices(JSON.stringify({ names: 'Lightning Bolt' })),
+        postPrices(
+          JSON.stringify({ names: Array.from({ length: MAX_PRICE_NAMES + 1 }, () => 'x') }),
+        ),
+        postPrices('{"names": '),
+        postPrices('[1]'),
+        postPrices(JSON.stringify({ names: ['x'.repeat(MAX_PRICE_BODY_BYTES)] })),
+        fetch(`${base}/api/card-printings?name=Sol%20Ring&limit=%20abc%20`),
+        fetch(`${base}/art/nope.png`),
+        fetch(`${base}/api/no-such-route`),
+        fetch(`${base}/decks/no-such-deck.json`),
+        fetch(`${base}/locales/de-AT.json`),
+      ]),
+    )
 
     expect(names.status).toBe(400)
     const namesBody = (await names.json()) as ApiErrorResponse
@@ -245,7 +256,7 @@ describe('site server (Integration)', () => {
 
     // Every site-server 404 is the admin API's refusal envelope: the English
     // under `message`, its key beside it.
-    for (const missing of [art, unknownApi, unknownDeck]) {
+    for (const missing of [art, unknownApi, unknownDeck, unknownLocale]) {
       expect(missing.status).toBe(404)
       expect((await missing.json()) as ApiErrorResponse).toEqual({
         success: false,

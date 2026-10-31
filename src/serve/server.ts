@@ -2,8 +2,7 @@ import { matchRoute } from '../util/routing'
 import { serveSiteFile, type StaticSiteServer } from './static'
 import { createLiveSiteData } from './live-data'
 import { buildSiteRoutes } from './routes'
-import { apiError, MAX_BODY_SIZE, notFoundResponse } from '../api/http'
-import { apiMessage } from '../api/result'
+import { internalErrorResponse, MAX_BODY_SIZE, notFoundResponse } from '../api/http'
 import { t } from '../i18n/t'
 import { MAX_QUOTE_BODY_BYTES } from '../api/buylist'
 import { MAX_PRICE_BODY_BYTES } from '../api/card-prices'
@@ -96,7 +95,8 @@ export function startSiteServer(options: SiteServerOptions): StaticSiteServer {
     },
     error(error) {
       console.error(t('cli.serve.serverError'), error)
-      return apiError(apiMessage('admin.api.server.internalError'), 500)
+      // The same headers as every other reply, so a cross-origin page can read it.
+      return withHeaders(internalErrorResponse(), { ...BASE_HEADERS, ...CORS_HEADERS })
     },
   })
 }

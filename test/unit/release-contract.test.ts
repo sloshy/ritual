@@ -78,8 +78,8 @@ describe('build-binaries.yml', () => {
   test('uploads each archive with its .sha256, and never the bare binary', () => {
     // Without the archive's .sha256, self-update refuses the release outright;
     // release.yml publishes exactly what is uploaded here.
-    const [upload] = uses(workflow.jobs.build, 'actions/upload-artifact')
-    expect(lines(upload?.with?.path)).toEqual([
+    const uploads = uses(workflow.jobs.build, 'actions/upload-artifact')
+    expect(uploads.flatMap((upload) => lines(upload.with?.path))).toEqual([
       '${{ matrix.archive }}',
       '${{ matrix.archive }}.sha256',
     ])

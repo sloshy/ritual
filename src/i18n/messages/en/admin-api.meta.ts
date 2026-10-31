@@ -174,7 +174,7 @@ export const adminApiMeta = {
   },
   'admin.api.server.notFound': {
     description:
-      'Error body (HTTP 404) for a path the server has no route or file for — also what a route answers when it is switched off (the buylist routes without sell mode) or asked for a custom-art file that is not there, so it reads like a missing page. A short status phrase, like the HTTP reason phrase "Not Found".',
+      'Error body (HTTP 404) for a path the server has no route or file for, on the admin server or the site server (`ritual serve`) — also what a route answers when it is switched off (the buylist routes without sell mode) or asked for a custom-art file that is not there, so it reads like a missing page. A short status phrase, like the HTTP reason phrase "Not Found".',
   },
   'admin.api.server.internalError': {
     description:

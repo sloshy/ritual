@@ -132,6 +132,15 @@ export function notFoundResponse(): Response {
 }
 
 /**
+ * The last-resort `500` a server's `error()` hook answers with, in the shared
+ * refusal body: the admin server's and `ritual serve`'s. The details go to the
+ * server's console, never to the client.
+ */
+export function internalErrorResponse(): Response {
+  return apiError(apiMessage('admin.api.server.internalError'), 500)
+}
+
+/**
  * HTTP status for an error that reached the top of a handler. A
  * {@link CardCommandError} classifies itself — a client-correctable refusal
  * (e.g. an import conflict that needs `overwrite`) is a 400 or 404, not the 500

@@ -61,7 +61,7 @@ A few protections apply whatever you expose:
 
 ## Checking a download
 
-Every release binary, and the compressed archive each is also published in, has a `.sha256` checksum of that file and a build provenance record. The install scripts, `ritual self-update` and the deploy workflow [`init-site`](/commands/init-site/) generates check the checksum of what they download before they unpack or install it. To check a binary yourself, see [Other Methods](/start/install/#other-methods).
+Every release binary is published in a compressed archive (`.tar.gz`, or `.zip` for Windows), with a `.sha256` checksum of the archive and a build provenance record. The install scripts, `ritual self-update` and the deploy workflow [`init-site`](/commands/init-site/) generates check the checksum of what they download before they unpack or install it. To check a download yourself, see [Other Methods](/start/install/#other-methods).
 
 ## Software Bill of Materials
 

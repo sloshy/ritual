@@ -208,6 +208,8 @@ describe('the generated workflow’s Download Ritual step', () => {
   test('fails the step for a release without an archive', async () => {
     const result = await download(BARE_ONLY)
     expect(result.exitCode).not.toBe(0)
+    // The archive's own fetch fails the step, not a later check of a 404 page.
+    expect(result.stderr).toContain('curl: (22) 404')
     expect(await Bun.file(path.join(result.work, 'ritual')).exists()).toBeFalse()
   })
 

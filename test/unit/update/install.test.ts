@@ -29,7 +29,7 @@ import {
   fakeRelease,
   installedBinary,
   serveReleases,
-  sha256Hex,
+  sha256Line,
   type FakeReleaseOptions,
   type FakeRuns,
 } from '../../helpers/fake-release'
@@ -309,24 +309,21 @@ describe('installUpdate', () => {
   test.each<[string, FakeReleaseOptions, MessageKey]>([
     [
       'a checksum mismatch',
-      { checksum: `${sha256Hex('other')}  ${FAKE_ARCHIVE}` },
+      { checksum: sha256Line(FAKE_ARCHIVE, 'other') },
       'cli.selfUpdate.error.checksumMismatch',
     ],
     ['a download longer than listed', { listedSize: 3 }, 'cli.selfUpdate.error.sizeMismatch'],
     ['a download shorter than listed', { listedSize: 9999 }, 'cli.selfUpdate.error.sizeMismatch'],
     ['a failed download', { downloadStatus: 404 }, 'cli.selfUpdate.error.http'],
-  ])(
-    '%s is caught before the smoke test, and the temp file removed',
-    async (_label, options, key) => {
-      const { binary, plan, env, runs } = await setUp('v1.1.0', options)
+  ])('%s is caught before anything is written', async (_label, options, key) => {
+    const { binary, plan, env, runs } = await setUp('v1.1.0', options)
 
-      expect((await commandFailure(installUpdate(env, plan, binary))).messageKey).toBe(key)
+    expect((await commandFailure(installUpdate(env, plan, binary))).messageKey).toBe(key)
 
-      expect(runs.smokeTests).toEqual([])
-      expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.0.0'))
-      expect(await filesBeside(binary)).toEqual(['ritual'])
-    },
-  )
+    expect(runs.smokeTests).toEqual([])
+    expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.0.0'))
+    expect(await filesBeside(binary)).toEqual(['ritual'])
+  })
 
   test('a malformed checksum file nests why in the refusal', async () => {
     const { binary, plan, env } = await setUp('v1.1.0', { checksum: 'not a digest' })
@@ -371,7 +368,11 @@ describe('installUpdate', () => {
   ])('%s is refused before anything is written', async (_label, options, key) => {
     const { binary, plan, env, runs } = await setUp('v1.1.0', options)
 
-    expect((await commandFailure(installUpdate(env, plan, binary))).messageKey).toBe(key)
+    const error = await commandFailure(installUpdate(env, plan, binary))
+    expect({ key: error.messageKey, asset: error.messageParams?.asset }).toEqual({
+      key,
+      asset: FAKE_ARCHIVE,
+    })
 
     expect(runs.smokeTests).toEqual([])
     expect(server?.sent.some((sent) => sent.url.endsWith(FAKE_ARCHIVE))).toBeFalse()
@@ -471,7 +472,7 @@ describe('installUpdate', () => {
     const layered = stubFetch(
       {
         [assetUrl(plan, `${FAKE_ARCHIVE}.sha256`)]: () =>
-          new Response(`${sha256Hex(bytes)}  ${FAKE_ARCHIVE}`),
+          new Response(sha256Line(FAKE_ARCHIVE, bytes)),
         [assetUrl(plan, FAKE_ARCHIVE)]: () =>
           new Response(Buffer.from(bytes), {
             headers: { 'content-length': '3', 'content-encoding': 'gzip' },
@@ -487,12 +488,13 @@ describe('installUpdate', () => {
     expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.1.0'))
   })
 
-  describe('from an archive', () => {
-    test.each<[string, Partial<SelfUpdateEnv>, FakeReleaseOptions]>([
-      ['a .tar.gz on Linux', {}, {}],
-      ['a .zip on Windows', { platform: 'win32' }, { asset: 'ritual-windows-x86_64.exe' }],
-    ])('installs the binary unpacked from %s', async (_label, overrides, options) => {
-      const { binary, plan, env } = await setUp('v1.1.0', options, overrides)
+  describe('the archive', () => {
+    test('installs the binary unpacked from a .zip on Windows', async () => {
+      const { binary, plan, env } = await setUp(
+        'v1.1.0',
+        { asset: 'ritual-windows-x86_64.exe' },
+        { platform: 'win32' },
+      )
 
       await installUpdate(env, plan, binary)
 
@@ -511,15 +513,16 @@ describe('installUpdate', () => {
         key: 'cli.selfUpdate.error.missingAsset',
         params: { tag: 'v1.1.0', asset: FAKE_ARCHIVE },
       })
+      expect(server?.sent.some((sent) => sent.url.endsWith(`/${FAKE_ASSET}`))).toBeFalse()
       expect(runs.smokeTests).toEqual([])
-      expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.0.0'))
+      expect(await filesBeside(binary)).toEqual(['ritual'])
     })
 
     test('an archive that does not match its .sha256 is refused before it is unpacked', async () => {
       // Unpacking it would be refused too (badArchive); the checksum comes first.
       const { binary, plan, env, runs } = await setUp('v1.1.0', {
         archive: tarGz([{ name: '../ritual', data: fakeBinary('6.6.6') }]),
-        checksum: `${sha256Hex('other')}  ${FAKE_ARCHIVE}`,
+        checksum: sha256Line(FAKE_ARCHIVE, 'other'),
       })
 
       const error = await commandFailure(installUpdate(env, plan, binary))
@@ -530,17 +533,6 @@ describe('installUpdate', () => {
       })
       expect(runs.smokeTests).toEqual([])
       expect(await filesBeside(binary)).toEqual(['ritual'])
-    })
-
-    test('an archive without its .sha256 is refused, naming the archive', async () => {
-      const { binary, plan, env } = await setUp('v1.1.0', { checksum: null })
-
-      const error = await commandFailure(installUpdate(env, plan, binary))
-
-      expect({ key: error.messageKey, asset: error.messageParams?.asset }).toEqual({
-        key: 'cli.selfUpdate.error.missingChecksum',
-        asset: FAKE_ARCHIVE,
-      })
     })
 
     test('a verified archive whose entry climbs out of its directory is refused', async () => {
