@@ -10,7 +10,7 @@ import {
   combineSetsInto,
   canCombineSets,
   changeSetFromEvents,
-  isLegacyChangeSet,
+  isProseOnlyChangeSet,
   isValidIso8601,
   type ChangeSet,
 } from '../../src/changes/changelog-blocks'
@@ -30,8 +30,8 @@ function set(timestamp: string, events: ChangeEvent[], trailing?: string[]): Cha
   return trailing ? { ...made, trailing } : made
 }
 
-/** A legacy set: prose lines and no block. */
-function legacy(timestamp: string, lines: string[], trailing?: string[]): ChangeSet {
+/** A prose-only set: prose lines and no block. */
+function proseOnly(timestamp: string, lines: string[], trailing?: string[]): ChangeSet {
   return { timestamp, lines, events: [], ...(trailing ? { trailing } : {}) }
 }
 
@@ -107,15 +107,15 @@ describe('parseChangeSets', () => {
     expect(log.sets[1]!.lines).toEqual(['- Added "Sol Ring" &1'])
   })
 
-  it('reads a block-less entry as a legacy set with no events and one advisory', () => {
+  it('reads a block-less entry as a prose-only set with no events and one advisory', () => {
     const log = parseChangeSets(
       '# H\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "X" &1\n- Removed "Y" &2\n',
       'n',
     )
     expect(log.sets).toEqual([
-      legacy('2026-01-01T00:00:00.000Z', ['- Added "X" &1', '- Removed "Y" &2']),
+      proseOnly('2026-01-01T00:00:00.000Z', ['- Added "X" &1', '- Removed "Y" &2']),
     ])
-    expect(isLegacyChangeSet(log.sets[0]!)).toBe(true)
+    expect(isProseOnlyChangeSet(log.sets[0]!)).toBe(true)
     expect(log.advisories).toEqual([
       { kind: 'missing-block', timestamp: '2026-01-01T00:00:00.000Z' },
     ])
@@ -126,7 +126,7 @@ describe('parseChangeSets', () => {
       '## 2026-01-01T00:00:00.000Z\n\n- Added "X" &1\n\n```ritual-changes\n\n```\n',
       'n',
     )
-    expect(log.sets).toEqual([legacy('2026-01-01T00:00:00.000Z', ['- Added "X" &1'])])
+    expect(log.sets).toEqual([proseOnly('2026-01-01T00:00:00.000Z', ['- Added "X" &1'])])
     expect(log.advisories).toEqual([{ kind: 'empty-block', timestamp: '2026-01-01T00:00:00.000Z' }])
   })
 
@@ -275,10 +275,10 @@ describe('serializeChangeSets', () => {
     )
   })
 
-  it('writes a legacy set with no block', () => {
-    expect(serializeChangeSet(legacy('2026-03-09T10:00:00.000Z', ['- Added "Sol Ring" &1']))).toBe(
-      '\n## 2026-03-09T10:00:00.000Z\n\n- Added "Sol Ring" &1\n',
-    )
+  it('writes a prose-only set with no block', () => {
+    expect(
+      serializeChangeSet(proseOnly('2026-03-09T10:00:00.000Z', ['- Added "Sol Ring" &1'])),
+    ).toBe('\n## 2026-03-09T10:00:00.000Z\n\n- Added "Sol Ring" &1\n')
   })
 
   it('sorts sets oldest-first regardless of in-memory order', () => {
@@ -321,9 +321,9 @@ describe('editing operations', () => {
 
   it('sortNewestFirst orders descending by timestamp regardless of input order', () => {
     const unsorted: ChangeSet[] = [
-      legacy('2026-03-07T22:01:21.452Z', ['- a']),
-      legacy('2026-03-11T00:00:00.000Z', ['- b']),
-      legacy('2026-03-09T10:00:00.000Z', ['- c']),
+      proseOnly('2026-03-07T22:01:21.452Z', ['- a']),
+      proseOnly('2026-03-11T00:00:00.000Z', ['- b']),
+      proseOnly('2026-03-09T10:00:00.000Z', ['- c']),
     ]
     const sorted = sortNewestFirst(unsorted)
     expect(sorted.map((s) => s.timestamp)).toEqual([
@@ -502,24 +502,24 @@ describe('editing operations', () => {
     expect(result[0]!.events).toHaveLength(1)
   })
 
-  it('combineSetsInto merges two legacy sets as opaque prose, cancelling nothing', () => {
+  it('combineSetsInto merges two prose-only sets as opaque prose, cancelling nothing', () => {
     const sets: ChangeSet[] = [
-      legacy('2026-03-09T10:00:00.000Z', ['- Removed "Sol Ring" &1']),
-      legacy('2026-03-07T22:01:21.452Z', ['- Added "Sol Ring" &1']),
+      proseOnly('2026-03-09T10:00:00.000Z', ['- Removed "Sol Ring" &1']),
+      proseOnly('2026-03-07T22:01:21.452Z', ['- Added "Sol Ring" &1']),
     ]
     expect(canCombineSets(sets[0]!, sets[1]!)).toBe(true)
     const result = combineSetsInto(sets, 0, 1)
     expect(result).toEqual([
-      legacy('2026-03-09T10:00:00.000Z', ['- Added "Sol Ring" &1', '- Removed "Sol Ring" &1']),
+      proseOnly('2026-03-09T10:00:00.000Z', ['- Added "Sol Ring" &1', '- Removed "Sol Ring" &1']),
     ])
   })
 
-  it('combineSetsInto refuses to merge a legacy set with a block-bearing one', () => {
+  it('combineSetsInto refuses to merge a prose-only set with a block-bearing one', () => {
     // The merged prose and events could no longer pair up, and the migration
     // could no longer tell which lines the block covers — so it is a no-op.
     const sets: ChangeSet[] = [
       set('2026-03-09T10:00:00.000Z', [createRemoveChange('Sol Ring', { cardId: 1 })]),
-      legacy('2026-03-07T22:01:21.452Z', ['- Added "Sol Ring" &1']),
+      proseOnly('2026-03-07T22:01:21.452Z', ['- Added "Sol Ring" &1']),
     ]
     expect(canCombineSets(sets[0]!, sets[1]!)).toBe(false)
     expect(combineSetsInto(sets, 0, 1)).toEqual(sets)

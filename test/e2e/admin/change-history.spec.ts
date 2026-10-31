@@ -104,8 +104,10 @@ test.describe('Change History page', () => {
     expect(saved!.sets[0]!.trailing).toEqual(['NOTE: the FNM tuning session.'])
   })
 
-  test('combine shows an empty state when the only other set is a legacy one', async ({ page }) => {
-    await mockChangeHistoryApi(page, undefined, { legacyOlderSet: true })
+  test('combine shows an empty state when the only other set is a prose-only one', async ({
+    page,
+  }) => {
+    await mockChangeHistoryApi(page, undefined, { proseOnlyOlderSet: true })
     await openDeckHistory(page)
 
     await page

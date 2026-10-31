@@ -968,7 +968,7 @@ describe('cleanup — list-format migration', () => {
   const dir = (): string => workspace.dir
 
   /** A deck in an older shape: flow-style tags, bulletless lines, a kebab-case file name. */
-  const LEGACY_DECK =
+  const OLDER_SHAPE_DECK =
     '---\nformat: commander\ntags: [stax]\nsourceId: abc123\n---\n\n# Winota Stax\n\n' +
     '## Commander\n1 Winota, Joiner of Forces &1\n\n## Main\n4 Lightning Bolt (lea:161) &2\n// scratch note\n1 Plains &3\n2x Mountain (LEA) 292 *F*\n'
 
@@ -977,14 +977,14 @@ describe('cleanup — list-format migration', () => {
     '## Commander\n- 1 Winota, Joiner of Forces &1\n\n## Main\n- 4 Lightning Bolt (LEA:161) &2\n- 1 Plains &3\n- 2 Mountain (LEA:292) [foil] &4\n'
 
   /** A prose-only changelog entry from before the `ritual-changes` block existed. */
-  const LEGACY_CHANGELOG =
+  const PROSE_ONLY_CHANGELOG =
     '# Changelog for Winota Stax\n\n## 2026-03-07T22:01:21.452Z\n\n' +
     '- Added "Lightning Bolt" (LEA:161) &2\n- Removed "Mox Emerald" &9\n'
 
   test('an older-shape deck is bulleted and renamed after its H1', async () => {
     // The old kebab-case slug file name, so the rename axis is exercised too.
     const oldPath = path.join(dir(), 'decks', 'winota-stax.md')
-    await fs.writeFile(oldPath, LEGACY_DECK)
+    await fs.writeFile(oldPath, OLDER_SHAPE_DECK)
 
     const result = resultFor(await cleanupAllLists(), 'winota-stax.md')
 
@@ -1034,25 +1034,25 @@ describe('cleanup — list-format migration', () => {
   test('a block-less changelog beside a canonical list is never touched', async () => {
     await fs.writeFile(path.join(dir(), 'decks', 'Winota Stax.md'), CANONICAL_DECK)
     const changesPath = path.join(dir(), 'decks', 'Winota Stax.changes.md')
-    await fs.writeFile(changesPath, LEGACY_CHANGELOG)
+    await fs.writeFile(changesPath, PROSE_ONLY_CHANGELOG)
 
     const result = resultFor(await cleanupAllLists(), 'Winota Stax.md')
 
     expect(hasCleanupActions(result)).toBeFalse()
     expect(result.warnings).toEqual([])
-    expect(await fs.readFile(changesPath, 'utf-8')).toBe(LEGACY_CHANGELOG)
+    expect(await fs.readFile(changesPath, 'utf-8')).toBe(PROSE_ONLY_CHANGELOG)
   })
 
   test('a block-less changelog travels with a rename verbatim', async () => {
     const oldPath = path.join(dir(), 'decks', 'winota-stax.md')
-    await fs.writeFile(oldPath, LEGACY_DECK)
-    await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.changes.md'), LEGACY_CHANGELOG)
+    await fs.writeFile(oldPath, OLDER_SHAPE_DECK)
+    await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.changes.md'), PROSE_ONLY_CHANGELOG)
 
     const result = resultFor(await cleanupAllLists(), 'winota-stax.md')
 
     expect(result).toMatchObject({ renamedTo: 'Winota Stax.md', rewritten: true, warnings: [] })
     const newChanges = path.join(dir(), 'decks', 'Winota Stax.changes.md')
-    expect(await fs.readFile(newChanges, 'utf-8')).toBe(LEGACY_CHANGELOG)
+    expect(await fs.readFile(newChanges, 'utf-8')).toBe(PROSE_ONLY_CHANGELOG)
     expect(await Bun.file(path.join(dir(), 'decks', 'winota-stax.changes.md')).exists()).toBeFalse()
     // The changelog never gets a hash sidecar of its own.
     expect(await Bun.file(hashPath(newChanges)).exists()).toBeFalse()
@@ -1061,9 +1061,9 @@ describe('cleanup — list-format migration', () => {
   test('the sidecar of a file holding unrecorded hand edits is left stale, never stamped', async () => {
     const filePath = path.join(dir(), 'decks', 'Winota Stax.md')
     // Ritual's last write, hashed — then a hand edit (an added Plains) on top of it.
-    await writeFileWithHash(filePath, LEGACY_DECK.replace('1 Plains &3\n', ''))
+    await writeFileWithHash(filePath, OLDER_SHAPE_DECK.replace('1 Plains &3\n', ''))
     const staleHash = await Bun.file(hashPath(filePath)).text()
-    await fs.writeFile(filePath, LEGACY_DECK)
+    await fs.writeFile(filePath, OLDER_SHAPE_DECK)
 
     const result = resultFor(await cleanupAllLists(), 'Winota Stax.md')
 
@@ -1078,7 +1078,7 @@ describe('cleanup — list-format migration', () => {
 
   test('the sidecar of a Ritual-clean older-shape file is refreshed to the canonical content', async () => {
     const filePath = path.join(dir(), 'decks', 'Winota Stax.md')
-    await writeFileWithHash(filePath, LEGACY_DECK)
+    await writeFileWithHash(filePath, OLDER_SHAPE_DECK)
 
     await cleanupAllLists()
 
@@ -1086,18 +1086,18 @@ describe('cleanup — list-format migration', () => {
   })
 
   test('dry-run reports the list migration without writing it', async () => {
-    await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.md'), LEGACY_DECK)
+    await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.md'), OLDER_SHAPE_DECK)
 
     const result = resultFor(await cleanupAllLists({ dryRun: true }), 'winota-stax.md')
 
     expect(result).toMatchObject({ renamedTo: 'Winota Stax.md', rewritten: true })
     expect(await fs.readFile(path.join(dir(), 'decks', 'winota-stax.md'), 'utf-8')).toBe(
-      LEGACY_DECK,
+      OLDER_SHAPE_DECK,
     )
   })
 
   test('one run migrates every older shape; a second run writes nothing', async () => {
-    await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.md'), LEGACY_DECK)
+    await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.md'), OLDER_SHAPE_DECK)
     await fs.writeFile(
       path.join(dir(), 'collections', 'binder.md'),
       '---\nlabels: [sale]\n---\n\n# Binder\n\n- 2 Sol Ring (ltc:284) [foil] &1\n',

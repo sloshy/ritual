@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import type { ChangeEvent } from './change-event'
 import {
   changeSetFromEvents,
-  isLegacyChangeSet,
+  isProseOnlyChangeSet,
   parseChangeSets,
   serializeChangeSet,
   type ChangeSet,
@@ -63,7 +63,7 @@ function lastEntry(content: string): LastEntry {
  * With `continueSession`, a follow-up save merges into the most recent block
  * (appending its lines and events in lockstep and refreshing the timestamp) so
  * repeated saves in one editing session form a single changelog entry rather
- * than many. A legacy final entry (prose with no events block) is never merged
+ * than many. A prose-only final entry (no events block) is never merged
  * into — its prose and the new events could not be paired — so the new
  * changes open a fresh entry beneath it instead.
  *
@@ -93,7 +93,7 @@ export async function appendChangelog(
 
   if (options.continueSession && existingContent) {
     const { preceding, set } = lastEntry(existingContent)
-    if (set && !isLegacyChangeSet(set) && set.events.length === set.lines.length) {
+    if (set && !isProseOnlyChangeSet(set) && set.events.length === set.lines.length) {
       // Rewrite the final block in place: keep its prior lines and events,
       // append the new ones, and bump the header timestamp to now. Hand-written
       // prose in the block survives, re-emitted after the merged events block

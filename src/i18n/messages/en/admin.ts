@@ -264,7 +264,7 @@ export const adminMessages = {
   'admin.combine.message':
     'Choose a set to merge into {timestamp}. Its entries move in and it is then deleted; {timestamp} keeps its timestamp.',
   'admin.combine.noCandidates':
-    'No other set can be combined with this one. A legacy entry (one with no ritual-changes block) or an entry whose prose and events are out of step cannot be merged.',
+    'No other set can be combined with this one. A prose-only entry (one with no ritual-changes block) or an entry whose prose and events are out of step cannot be merged.',
   'admin.history.discardTitle': 'Discard unsaved changes?',
   'admin.history.discardMessage': 'Your edits to this change history will be lost.',
   'admin.history.discardConfirm': 'Discard',

@@ -458,7 +458,7 @@ Every list has an append-only `<name>.changes.md` file recording its card change
 - **The block is authoritative.** Ritual reads only the `ritual-changes` block. The prose lines are for people (and translated for display on the sites) and are never parsed.
 - **Hand-written text is preserved.** Prose you add after an entry's block travels with that entry through the [`history`](/commands/history/) editor and is written back verbatim.
 - **It is a data format.** The prose is always English whatever the UI locale, and the file is git-diffable. Edit it with `history` or the admin [Change History](/admin/history/) page rather than by hand.
-- **Legacy entries** written before the block existed are never converted. They keep their prose, yield zero events, and are named by an advisory.
+- **Prose-only entries**, ones with no block (written by hand, or before the block existed), are never converted. They keep their prose, yield zero events, and are named by an advisory.
 
 ## The `.sha256` files
 

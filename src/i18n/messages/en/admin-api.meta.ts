@@ -584,7 +584,7 @@ export const adminApiMeta = {
   },
   'admin.api.history.eventCountMismatch': {
     description:
-      'Refusal of a change-history rewrite with a change set whose events do not pair one-to-one with its change lines. A "legacy set" is one written before events were recorded.',
+      'Refusal of a change-history rewrite with a change set whose events do not pair one-to-one with its change lines. A "prose-only set" is one whose change lines carry no recorded events (written by hand, or before events were recorded).',
   },
   'admin.api.history.trailingInvalid': {
     description:

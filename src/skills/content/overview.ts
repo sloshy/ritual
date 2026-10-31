@@ -29,8 +29,8 @@ describes every command, the advanced ones (\`migrate\`, \`detect-changes\`,
 - \`<name>.changes.md\` — append-only changelog next to each list (auto-maintained;
   each entry is prose \`- \` lines plus a fenced \`ritual-changes\` block of JSON-Lines
   events — the block is what Ritual reads back, the prose is rendered only and is
-  always English whatever the UI locale; an entry with no block is legacy and shows
-  no events until \`ritual cleanup\` converts it)
+  always English whatever the UI locale; an entry with no block is prose-only: its
+  prose is kept, and it shows no events)
 - \`<name>.md.sha256\` — a hash of the list as Ritual last wrote it, which lets
   \`ritual detect-changes\` tell Ritual's own writes from hand edits and log the
   hand edits; commit it with the list (the first command that creates one in a

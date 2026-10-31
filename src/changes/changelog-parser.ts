@@ -20,8 +20,8 @@
  * ```
  * ```
  *
- * The parser reads **only** the block. An entry without one (a legacy entry,
- * written before the block existed) yields zero events and one advisory —
+ * The parser reads **only** the block. An entry without one (a prose-only
+ * entry, written by hand or before the block existed) yields zero events and one advisory —
  * there is no prose fallback, and nothing in Ritual converts such entries.
  *
  * **Persistence fence — this module must never import `src/i18n`.**
@@ -43,7 +43,7 @@ export type ParsedChangelog = {
   /** Pages sorted most-recent-first. Entries that yielded no events are omitted. */
   pages: ChangelogPage[]
   /**
-   * One advisory per legacy (block-less) entry and per undecodable block line.
+   * One advisory per prose-only (block-less) entry and per undecodable block line.
    * Never silent: a writer/parser drift would otherwise render an emptier
    * history with no error. Structured records, never baked into site data.
    */

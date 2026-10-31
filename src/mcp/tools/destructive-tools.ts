@@ -71,7 +71,7 @@ const changeSetSchema = z.object({
     .array(z.record(z.string(), z.unknown()))
     .describe(
       'The set’s typed change events, one per line in the same order — echo them back from ' +
-        'get_history. Empty only for a legacy set that had none.',
+        'get_history. Empty only for a prose-only set that had none.',
     ),
   trailing: z
     .array(z.string())

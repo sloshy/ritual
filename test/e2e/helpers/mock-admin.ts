@@ -1256,10 +1256,10 @@ const HISTORY_DETAIL = {
 /** Options for {@link mockChangeHistoryApi}. */
 export type MockChangeHistoryOptions = {
   /**
-   * Make the older set a legacy (block-less) one: prose lines but no events.
-   * It cannot combine with the modern set, so the Combine dialog is empty.
+   * Make the older set a prose-only (block-less) one: prose lines but no events.
+   * It cannot combine with the set that has events, so the Combine dialog is empty.
    */
-  legacyOlderSet?: boolean
+  proseOnlyOlderSet?: boolean
 }
 
 /**
@@ -1269,11 +1269,11 @@ export type MockChangeHistoryOptions = {
 export async function mockChangeHistoryApi(
   page: Page,
   onSave?: (body: unknown) => void,
-  { legacyOlderSet = false }: MockChangeHistoryOptions = {},
+  { proseOnlyOlderSet = false }: MockChangeHistoryOptions = {},
 ): Promise<void> {
   await fulfillJson(page, '**/api/lists', HISTORY_LISTS)
 
-  const detail = legacyOlderSet
+  const detail = proseOnlyOlderSet
     ? {
         ...HISTORY_DETAIL,
         sets: [HISTORY_DETAIL.sets[0], { ...HISTORY_DETAIL.sets[1], events: [] }],

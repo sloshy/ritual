@@ -890,7 +890,7 @@ GET /api/history/:type/:slug
 
 Returns the parsed change sets of a list's change log (newest first) plus the typed change events a "rewrite with defaults" would produce. `:type` is `deck`, `collection`, or `wanted`.
 
-- Each set carries its prose `lines` and its `events`: the typed events from the entry's [`ritual-changes` block](/list-format/#the-changesmd-changelog), one per line in the same order (empty for a legacy entry with no block).
+- Each set carries its prose `lines` and its `events`: the typed events from the entry's [`ritual-changes` block](/list-format/#the-changesmd-changelog), one per line in the same order (empty for a prose-only entry with no block).
 - The list file and its [`.categories.json` sidecar](/list-format/#categories-namecategoriesjson) are read only to derive `defaultEvents`. A list with no change log yet returns an empty `sets` array.
 - A sidecar that exists but cannot be read contributes no category events and is reported in a `categoryWarnings` array (absent otherwise).
 - A set followed by hand-written non-change text carries it in a `trailing` array (absent otherwise). The text survives an edit-and-save round trip: each line is kept as written and re-emitted after the set's change lines; blank lines between them are not kept.
@@ -933,7 +933,7 @@ Overwrite the list's change log with the supplied change sets. Each set needs:
 
 - a valid ISO-8601 `timestamp`;
 - a `lines` array of strings, each starting with `- `;
-- an `events` array of typed change events, one per line in the same order, echoed back from `GET` (empty only for a legacy set that had none). An event that does not decode is a `400` naming it (`Set #1 event #2 is missing its "id".`), keyed `domain.changes.problem.*` with the event nested as its `subject`.
+- an `events` array of typed change events, one per line in the same order, echoed back from `GET` (empty only for a prose-only set that had none). An event that does not decode is a `400` naming it (`Set #1 event #2 is missing its "id".`), keyed `domain.changes.problem.*` with the event nested as its `subject`.
 - optionally a `trailing` array of preserved hand-written lines. These must **not** start with `- ` or `## ` (they would be re-parsed as change lines or set headers on the next load) and are written back verbatim after the set's change lines.
 
 Only the `.changes.md` file is written; the list's own `.md` is never touched, and the existing header is preserved. When git auto-commit is enabled, the change log is committed (`Rewrite change history for <slug>`).

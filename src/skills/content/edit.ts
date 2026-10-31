@@ -614,14 +614,14 @@ ritual history "Winota Stax" --show --output json
 \`--output json\` returns \`{ header, sets }\`; each set is \`{ timestamp, lines, events,
 trailing? }\` — \`lines\` are the prose \`- \` lines verbatim and \`events\` the typed change
 events from the entry's fenced \`ritual-changes\` block (one per line, in order; empty
-for a legacy entry that has no block — \`ritual cleanup\` converts those). Read
+for a prose-only entry that has no block, which nothing converts). Read
 \`events\`, not the prose.
 
 Combining two change sets orders the merged lines oldest-set-first (newest changes
 at the bottom) and cancels opposite changes — an add and a later remove of the same
 card annihilate, decided on the typed events — mirroring the card editor's live
-change log. Two legacy sets (no events) combine as opaque prose with no cancellation;
-a legacy set never combines with a set that has events, and a set whose prose and
+change log. Two prose-only sets (no events) combine as opaque prose with no cancellation;
+a prose-only set never combines with a set that has events, and a set whose prose and
 events are out of step is not offered at all.
 `,
 }

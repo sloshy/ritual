@@ -24,8 +24,8 @@
  * their exact original text — only cancelled pairs are dropped, prose line and
  * event together.
  *
- * An entry with no `ritual-changes` block is a **legacy** entry (written
- * before the block existed): its prose is carried verbatim, it yields zero
+ * An entry with no `ritual-changes` block is a **prose-only** entry (one
+ * written by hand, or before the block existed): its prose is carried verbatim, it yields zero
  * events, and the parse reports one {@link ChangelogAdvisory} for it — never
  * silence. Nothing here parses prose.
  *
@@ -48,7 +48,7 @@ export type ChangeSet = {
   lines: string[]
   /**
    * The entry's typed events, from its `ritual-changes` block, in prose-line
-   * order. Empty for a legacy entry (no block); otherwise the same length as
+   * order. Empty for a prose-only entry (no block); otherwise the same length as
    * `lines` unless a hand edit desynchronized the two.
    */
   events: ChangeEvent[]
@@ -81,7 +81,7 @@ export type Changelog = {
  */
 export type ChangelogAdvisory =
   | {
-      /** The entry has prose lines but no `ritual-changes` block — a legacy entry, yielding zero events. */
+      /** The entry has prose lines but no `ritual-changes` block — a prose-only entry, yielding zero events. */
       kind: 'missing-block'
       timestamp: string
     }
@@ -150,8 +150,8 @@ export function changeSetFromEvents(timestamp: string, events: readonly ChangeEv
   return { timestamp, lines: events.map(formatChangelogLine), events: [...events] }
 }
 
-/** A legacy entry: prose lines and no block. Its events live only in the prose. */
-export function isLegacyChangeSet(set: ChangeSet): boolean {
+/** A prose-only entry: prose lines and no block. Its events live only in the prose. */
+export function isProseOnlyChangeSet(set: ChangeSet): boolean {
   return set.events.length === 0 && set.lines.length > 0
 }
 
@@ -162,13 +162,13 @@ function isSynchronized(set: ChangeSet): boolean {
 
 /**
  * Whether two sets can be combined by {@link combineSetsInto}. Two well-formed
- * sets merge in lockstep (prose line i with event i); two legacy sets merge as
- * opaque prose. A legacy set and a modern one — or a hand-desynchronized set —
- * cannot: the merged prose and events would no longer pair, and the migration
- * could no longer tell which lines the block covers.
+ * sets merge in lockstep (prose line i with event i); two prose-only sets merge
+ * as opaque prose. A prose-only set and one with a block — or a
+ * hand-desynchronized set — cannot: the merged prose and events would no
+ * longer pair, so no reader could tell which lines the block covers.
  */
 export function canCombineSets(a: ChangeSet, b: ChangeSet): boolean {
-  if (isLegacyChangeSet(a) && isLegacyChangeSet(b)) return true
+  if (isProseOnlyChangeSet(a) && isProseOnlyChangeSet(b)) return true
   return isSynchronized(a) && isSynchronized(b)
 }
 
@@ -209,7 +209,7 @@ export function parseChangeSets(content: string, fallbackName: string): ParsedCh
   const closeSet = (): void => {
     if (!current || current.lines.length === 0) return
     // An entry that yields no events is never silent: a block-less entry is a
-    // legacy one, and an empty block is reported apart from it (an undecodable
+    // prose-only one, and an empty block is reported apart from it (an undecodable
     // block already raises `invalid-event` per line).
     if (!sawBlock) {
       advisories.push({ kind: 'missing-block', timestamp: current.timestamp })
@@ -429,7 +429,7 @@ function itemsOf(set: ChangeSet): CompactItem[] {
  * changes sit above the newer source set's — newest changes always end up at the
  * bottom, regardless of which set was the combine target. Opposite typed events
  * across the two sets then cancel out (see {@link compactItems}), mirroring the
- * live changelog in the card editor. Two legacy (block-less) sets merge as opaque
+ * live changelog in the card editor. Two prose-only (block-less) sets merge as opaque
  * prose with nothing cancelled. The other set is removed; if compaction empties
  * the merged set, it is dropped too. Returns a new array. A no-op copy if the
  * indices are equal or out of range, or if the two sets cannot be combined
@@ -451,7 +451,7 @@ export function combineSetsInto(
   const mergedTrailing = [...(older.trailing ?? []), ...(newer.trailing ?? [])]
   let mergedLines: string[]
   let mergedEvents: ChangeEvent[]
-  if (isLegacyChangeSet(older)) {
+  if (isProseOnlyChangeSet(older)) {
     mergedLines = [...older.lines, ...newer.lines]
     mergedEvents = []
   } else {

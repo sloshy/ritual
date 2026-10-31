@@ -78,7 +78,7 @@ With `--output json`, the output is the admin site's `GET /api/history/:type/:sl
 ```
 
 - `header` is everything before the first change set in the `.changes.md` file.
-- `sets` holds the change sets newest first (truncated to `--limit`), each `{ timestamp, lines, events }`. `lines` are the raw `- ` lines verbatim. `events` are the set's typed change events from its [`ritual-changes` block](/list-format/#the-changesmd-changelog), one per line, in order, and empty for a legacy entry with no block. A `trailing` array is present when hand-written text follows the set's change lines (see [Lossless editing](#lossless-editing)). An empty history emits `"sets": []`.
+- `sets` holds the change sets newest first (truncated to `--limit`), each `{ timestamp, lines, events }`. `lines` are the raw `- ` lines verbatim. `events` are the set's typed change events from its [`ritual-changes` block](/list-format/#the-changesmd-changelog), one per line, in order, and empty for a prose-only entry with no block. A `trailing` array is present when hand-written text follows the set's change lines (see [Lossless editing](#lossless-editing)). An empty history emits `"sets": []`.
 
 `--show` is the only path available to a script. Running `--show` without a `[listName]`, or running the editor at all, when [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) is a usage error (exit `2`) rather than a hang. The list picker only runs on a TTY, and the editor exits `2` with `Input required: the interactive history editor is unavailable …`.
 
@@ -115,7 +115,7 @@ These appear below the change sets, in this order:
 
 When two sets are combined, their lines are interleaved by age, older set on top, so newer changes always end up at the bottom whichever set you combined into which. The result is then compacted the same way the card editor's live change log is. An **add** and a later **remove** of the same card (matching printing, finish, condition, board, and ID) cancel out, as do set/unset-commander and add/remove-section pairs. This is decided on the sets' typed events, never by re-reading the prose. A combine that cancels everything drops the set.
 
-Surviving lines keep their exact original text, including `&N` card IDs, and their events. Two well-formed sets combine in lockstep (prose line _i_ with event _i_). A legacy set with no events block can only be combined with another legacy set; the two merge as opaque prose and nothing cancels. A legacy set is never offered a set that carries a block, and a set whose prose and events are out of step is not offered at all.
+Surviving lines keep their exact original text, including `&N` card IDs, and their events. Two well-formed sets combine in lockstep (prose line _i_ with event _i_). A prose-only set (one with no events block) can only be combined with another prose-only set; the two merge as opaque prose and nothing cancels. A prose-only set is never offered a set that carries a block, and a set whose prose and events are out of step is not offered at all.
 
 ### Lossless editing
 

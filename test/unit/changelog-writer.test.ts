@@ -297,19 +297,19 @@ describe('appendChangelog', () => {
       expect(content.endsWith('```\n\nNOTE: the FNM tuning session.\n')).toBe(true)
     })
 
-    test('starts a new block beneath a legacy (block-less) final entry instead of merging', async () => {
-      // A legacy entry's prose has no events to pair the new ones with, so it
+    test('starts a new block beneath a prose-only (block-less) final entry instead of merging', async () => {
+      // A prose-only entry's prose has no events to pair the new ones with, so it
       // is left exactly as written and the session opens a fresh entry.
-      const legacy =
+      const proseOnly =
         '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Lightning Bolt"\n'
-      await fs.writeFile(changelogPath, legacy)
+      await fs.writeFile(changelogPath, proseOnly)
 
       await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
         continueSession: true,
       })
 
       const content = await fs.readFile(changelogPath, 'utf-8')
-      expect(content.startsWith(legacy)).toBe(true)
+      expect(content.startsWith(proseOnly)).toBe(true)
       expect(countBlocks(content)).toBe(2)
     })
 

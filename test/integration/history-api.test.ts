@@ -169,7 +169,7 @@ describe('history API', () => {
     expect(reloaded.body.sets[1]!.trailing).toEqual(['NOTE: FNM tuning session.'])
   })
 
-  test('a legacy (block-less) set loads with no events and echoes back verbatim', async () => {
+  test('a prose-only (block-less) set loads with no events and echoes back verbatim', async () => {
     await writeBinder()
     const loaded = await load('collection', 'binder')
     expect(loaded.body.sets.map((s) => s.events)).toEqual([[], []])

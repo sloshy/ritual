@@ -139,6 +139,10 @@ https://cyclonedx.org/bom`). The Docker
   deck save no longer strips `name:` or `created:`. Either is now an unknown key, kept as
   written and otherwise ignored. A deck that still names itself only in `name:` is titled
   after its file name; add the `# Title` heading by hand.
+- A changelog entry with no `ritual-changes` block is now called a **prose-only** entry
+  (it was a "legacy" entry) in the admin Change History page, the history API's
+  refusals, the MCP tool descriptions and the docs. Nothing about how such an entry is
+  read, kept or combined changed, and no JSON key was renamed.
 - **The admin site refuses requests sent from other websites.** Any `/api/*` request a
   browser sends from another site, a sibling port or subdomain included, now answers `403`
   (`admin.api.server.crossSite`) before any route runs: `/api/setup` and `/api/login`,

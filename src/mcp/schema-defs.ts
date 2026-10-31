@@ -475,7 +475,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
       events: arr(
         ref('ChangeEvent'),
         'The set’s typed events, one per line in the same order (from its ritual-changes block). ' +
-          'Empty for a legacy set that has no block.',
+          'Empty for a prose-only set that has no block.',
       ),
       trailing: arr(
         str(),

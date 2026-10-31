@@ -128,7 +128,7 @@ function parseSets(raw: RawSaveBody, listType: ListType): ChangeSet[] | SyncMess
     }
     // `events` is the set's typed record — one per change line, in order — and
     // is judged by the same decoder every other JSON-authored event goes
-    // through. An empty array is a legacy (block-less) set echoed back as-is.
+    // through. An empty array is a prose-only (block-less) set echoed back as-is.
     if (!Array.isArray(events)) return apiMessage('admin.api.history.eventsMissing')
     const decoded: ChangeEvent[] = []
     for (const [eventIndex, rawEvent] of (events as unknown[]).entries()) {
