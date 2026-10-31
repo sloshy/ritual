@@ -55,6 +55,8 @@ export default [
       'coverage/**',
       'docs-site/**',
       'research/**',
+      // Scratch folders unit tests create and delete; lint runs beside them.
+      'test/temp/**',
       '.admin-dist/**',
       'src/generated/**',
       'src/site/app.compiled.js',
