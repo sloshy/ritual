@@ -21,7 +21,7 @@ This project uses **SolidJS 1.9.x** (see `package.json`). There are two SolidJS 
 
 - **Public site** (`src/site/`): read-only display of decks, collections, wanted lists, and trade pages. Components include `DeckPage`, `CollectionPage`, `WantedListPage`, `TradePage`, `CardSection`, `CardItem`, `ChangelogModal`, `ThemeEditor`, etc. Data is loaded via `useSiteData` and `useTradeData`.
 - **Shared list-view layer** (`src/list-view/`), used by both sites: `CardModal`, `useFetchJson`, `useCardSelection`, and the price/printing/selection helpers.
-- **Admin site** (`src/admin/site/`): card list editors with full CRUD. Components in `components/` and `pages/`, admin-only hooks in `hooks/` (e.g. `useDeckChanges`).
+- **Admin site** (`src/admin/site/`): card list editors with full CRUD. Components in `components/` and `pages/`, admin-only hooks in `hooks/` (e.g. `useCardArt`).
 - **Shared editor layer** (`src/editor/`), used by both sites — notably:
   - `useCardChanges` — generic hook managing a linear undo stack (`UndoEntry[]`) for card list edits. Undo of a removal reclaims the original card ID.
   - `useEditor` — composes `useCardChanges` with editor UI state.
