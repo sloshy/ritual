@@ -46,7 +46,7 @@ CSV import is also available on the [admin site](/admin/import/#import-csv) (**I
 | `--output <format>`             | all        | Output format: `text` (default), `json`, or `ndjson`                                                                                                       |
 | `--quiet`                       | all        | Suppress progress and confirmation lines for every source kind                                                                                             |
 
-`--quiet` never suppresses: the structured payload, errors, conflict messages and prompts, the `Overwriting <file>...` notice, advisories, the header-row warning, or the skipped-line report.
+`--quiet` never suppresses: the JSON output, errors, conflict messages and prompts, the `Overwriting <file>...` notice, advisories, the header-row warning, or the skipped-line report.
 
 Flags are checked against the resolved source. A CSV-only flag on a URL or text import, or `--moxfield-user-agent` / `--sync-printings` / `--no-sync-printings` on a CSV or text import, is a usage error (exit `2`) naming the flag. Those three apply to URL imports only; a local file's printings are the file's own data.
 
@@ -132,7 +132,7 @@ Archidekt and Moxfield state each card's exact printing: set code, collector num
 - **`--no-sync-printings`**: drop them, without asking. Use this for scripts and agents that must not block on a prompt.
 - **`--no-input`** (with neither flag): keeps the printings and says so: `Keeping the exact printings the source lists (pass --no-sync-printings to import bare card names).` Without a terminal and without `--no-input`, the unanswerable prompt is a usage error naming both flags.
 
-The JSON payload records the decision as `syncPrintings` on URL imports.
+The JSON output records the decision as `syncPrintings` on URL imports.
 
 [`import-account`](/commands/import-account/) takes the same pair of flags, asked once for the whole run. The admin site's Import Deck page has the same choice as a checkbox (ticked by default), and the MCP `import_deck` tool requires a `syncPrintings` boolean on every URL import.
 
@@ -156,7 +156,7 @@ To keep a deck's categories in step with Archidekt after the import, use [`deck-
 
 `-n, --dry-run` previews an import. The source is fetched or read, every card is resolved and validated, and the summary reports exactly what would be written, but **nothing on disk changes**. A dry run does not even create the `decks/`, `collections/`, or `wanted/` directory it would have written into.
 
-A dry run that would replace an existing list says so: `[dry-run] Would overwrite deck: <path>` (or `... collection: <path>`) instead of `[dry-run] Would save deck to: <path>`, and the JSON payload's `action` is `overwritten`.
+A dry run that would replace an existing list says so: `[dry-run] Would overwrite deck: <path>` (or `... collection: <path>`) instead of `[dry-run] Would save deck to: <path>`, and the JSON output's `action` is `overwritten`.
 
 Warnings still surface and still affect the exit code. See [Partial Failures](#partial-failures).
 
@@ -209,7 +209,7 @@ With `--output json` (or `ndjson`), a URL or text-file import emits a summary on
   }
   ```
 
-- A URL import's payload also carries `syncPrintings`: whether the deck kept the [exact printings the source listed](#printings-from-a-url-import).
+- A URL import's JSON output also carries `syncPrintings`: whether the deck kept the [exact printings the source listed](#printings-from-a-url-import).
 
 A CSV import emits a different result:
 
@@ -239,7 +239,7 @@ A CSV import emits a different result:
 - `advisories` carries non-fatal notices about rows that **did** import: category values the grammar refused, category values that named a board and became the row's section, and a categories sidecar that could not be written. Each is a message object, as on a text import. In text mode these print on stderr as `Warning: ...` (even under `--quiet`). They never change the exit code.
 - A CSV import has no `warnings` key. On a URL or text-file import that key means content was **lost**, which exits `1`.
 
-Errors are emitted on stderr as `{ "error": { "code", "message" } }` in JSON modes, with `messageKey`/`messageParams` when the refusal has a catalog entry (a bad `--columns` spec, an unparseable CSV, an unsupported URL, or a deck service answering an error: `cli.import.failed`, whose `reason` is the service's failure, such as `Failed to fetch Archidekt deck 123456 (HTTP 404): Not found.` for an Archidekt deck that does not exist or is private). A partial failure still exits `1` even though the payload was emitted.
+Errors are emitted on stderr as `{ "error": { "code", "message" } }` in JSON modes, with `messageKey`/`messageParams` when the refusal has a catalog entry (a bad `--columns` spec, an unparseable CSV, an unsupported URL, or a deck service answering an error: `cli.import.failed`, whose `reason` is the service's failure, such as `Failed to fetch Archidekt deck 123456 (HTTP 404): Not found.` for an Archidekt deck that does not exist or is private). A partial failure still exits `1` even though the output was printed.
 
 ## Deck Format
 
@@ -268,7 +268,7 @@ The wizard asks for the list type, a name (and deck format for decks), whether t
 
 In a **deck**, rows naming the same card **and** the same printing merge into one line with summed quantities, in every mode, so the same file produces the same list either way. A different printing (set, collector number, finish, or condition) stays its own line. **Collections and wanted lists** keep one bullet line per physical copy in every mode, so N rows of the same printing stay N lines, each with its own `&N` id.
 
-Replacing an existing list prints `Overwriting <file>...` on stderr, even under `--quiet`, for every source kind. Under `--dry-run` the preview line says it instead (`[dry-run] Would overwrite collection 'Red Binder' with 12 cards: ...`), and the JSON payload carries `replacesExisting: true`.
+Replacing an existing list prints `Overwriting <file>...` on stderr, even under `--quiet`, for every source kind. Under `--dry-run` the preview line says it instead (`[dry-run] Would overwrite collection 'Red Binder' with 12 cards: ...`), and the JSON output carries `replacesExisting: true`.
 
 By default the import **creates** a new list and refuses to touch an existing one, including a list whose name merely [folds onto](/list-resolution/#names-that-would-collide-are-refused-at-creation) the imported one. Pass `--overwrite` to replace it or `--append` to add the cards to it; the two are mutually exclusive. `--yes` auto-answers the conflict with overwrite. Interactively, the wizard asks whether to append, overwrite, or cancel; cancelling exits `2` with `Cancelled.` on stderr. In a scripted run (prompts unavailable, or any run with `--columns`) the conflict is a usage error (exit `2`) naming `--append`, `--overwrite`, and `--yes`.
 

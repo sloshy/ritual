@@ -36,8 +36,8 @@ Rules:
 - Without `--random`, a search query is required.
 - `--random` cannot be combined with `--pages` or `--output csv`, and `--count` requires `--random`. Either combination is a usage error.
 - `--pages` and `--count` must be positive integers within their caps (20 and 50). Any other value is a usage error.
-- `--output csv` is an extra format for the same payload, rendered by Scryfall server-side.
-- There is no `--quiet`: the results are the payload, and the truncation notice below warns about lost content, so [the convention](/cli-conventions/#scripting) lets `--quiet` hide neither. Everything else follows the [shared scripting conventions](/cli-conventions/#scripting).
+- `--output csv` is an extra format for the same data, rendered by Scryfall server-side.
+- There is no `--quiet`: the results are the whole output, and the truncation notice below warns about lost content, so [the convention](/cli-conventions/#scripting) lets `--quiet` hide neither. Everything else follows the [shared scripting conventions](/cli-conventions/#scripting).
 
 ## Text output
 

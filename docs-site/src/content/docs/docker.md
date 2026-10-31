@@ -3,41 +3,41 @@ title: 'Docker'
 description: Run Ritual in a container, for a cache server or a hosted public site.
 ---
 
-Ritual can run inside a Docker container. This is most useful for self-hosting the [cache server](/commands/cache/#server) or the [public site with a live backend](/public-site/hosted/). The provided Dockerfile uses Alpine Linux with the CLI as its entrypoint, so you pass any command directly to `docker run` or set it in `docker-compose.yml`.
+Ritual is published as a Docker image. It is most useful for self-hosting the [cache server](/commands/cache/#server) or the [public site with a live backend](/public-site/hosted/), but any command works. The image's entry point is `ritual`, so whatever you put after the image name is the command.
+
+## Quick Start
+
+Pull the image:
+
+```sh
+docker pull ghcr.io/sloshy/ritual
+```
+
+Run a command against the [workspace](/workspace/) in the current folder by mounting it at `/app`, the container's working folder:
+
+```sh
+docker run --rm -it -v "$PWD:/app" ghcr.io/sloshy/ritual lists
+```
+
+The container runs as a user named `ritual`, not as root. If it cannot write to your folder, add `-u "$(id -u):$(id -g)"` so it runs as you. In the container the card cache is `/app/cache`, so with the whole workspace mounted it lands in the workspace's `cache/` folder (see [Directory Mounts](#directory-mounts)).
+
+To serve a built site on port 3000:
+
+```sh
+docker run --rm -p 3000:3000 -v "$PWD:/app" ghcr.io/sloshy/ritual serve
+```
+
+## Image Tags
+
+Each release publishes an image for `linux/amd64` and `linux/arm64` to the GitHub Container Registry, `ghcr.io/sloshy/ritual`:
+
+- `latest` is the newest stable release. Prereleases never move it.
+- Every release is also tagged with its version (`0.1.0`, or `0.2.0-rc1` for a prerelease).
+- A stable release is also tagged with its minor line (`0.1`), and from 1.0 on its major line (`1`), so you can pin as tightly as you like. There is no bare `0` tag, because a 0.x minor release may break things (see [Upgrading](/reference/upgrading/#what-0x-means)).
 
 ## Updating
 
-The image, not the binary inside it, is what you update: pull a newer image (`docker pull ghcr.io/sloshy/ritual`) or rebuild your own. The image sets `RITUAL_INSTALL=docker`, so [`ritual self-update`](/commands/self-update/) refuses inside a container (`--check` included) and says so, and no [update notice](/commands/self-update/#update-notice) is ever shown. The [releases page](https://github.com/sloshy/ritual/releases) lists what is available.
-
-## Pulling the Image
-
-Each release publishes a multi-platform image (`linux/amd64`, `linux/arm64`) to the GitHub Container Registry:
-
-```sh
-docker pull ghcr.io/sloshy/ritual:latest
-```
-
-`latest` is the newest stable release. Every release is also tagged with its version (`1.2.3`, or `1.3.0-rc1` for a prerelease), and a stable release with its `1.2` and `1` lines too (no bare major tag while the version is 0.x), so you can pin as tightly as you like. Prereleases never move `latest`.
-
-## Building the Image
-
-To build your own image from a checkout, use the provided script so the image build injects `GIT_VERSION` from the current git ref:
-
-```sh
-sh scripts/build-docker.sh
-```
-
-By default it builds `ghcr.io/sloshy/ritual:<git-ref>`. You can override the image and tag, and optionally push:
-
-```sh
-IMAGE=ghcr.io/<owner>/ritual TAG=v1.2.3 PUSH=true sh scripts/build-docker.sh
-```
-
-If git metadata is unavailable, the script falls back to a short commit SHA, then `unknown`. A fork sets `RITUAL_SOURCE_URL` to its repository so the image's [source offer](/attribution/#source-code) links to it, and `GIT_VERSION` pins the version it reports:
-
-```sh
-RITUAL_SOURCE_URL=https://github.com/you/ritual sh scripts/build-docker.sh
-```
+The image, not the binary inside it, is what you update: pull a newer image (`docker pull ghcr.io/sloshy/ritual`). The image sets `RITUAL_INSTALL=docker`, so [`ritual self-update`](/commands/self-update/) refuses inside a container (`--check` included) and says so, and no [update notice](/commands/self-update/#update-notice) is ever shown. The [releases page](https://github.com/sloshy/ritual/releases) lists what is available. After pulling a newer image, run [`ritual migrate`](/commands/migrate/) in it if your workspace has pending updates.
 
 ## Docker Compose
 
@@ -48,8 +48,7 @@ This example runs the [cache server](/commands/cache/#server) with common option
 ```yaml
 services:
   ritual:
-    image: ritual
-    build: .
+    image: ghcr.io/sloshy/ritual
     ports:
       - '127.0.0.1:4000:4000'
     volumes:
@@ -72,8 +71,7 @@ To self-host the [hosted public site](/public-site/hosted/) (live list data plus
 ```yaml
 services:
   ritual:
-    image: ritual
-    build: .
+    image: ghcr.io/sloshy/ritual
     ports:
       - '3000:3000'
     volumes:
@@ -110,3 +108,25 @@ Mount these directories to keep your data and work with the files Ritual uses:
 Outside a container, the [card cache](/card-cache/) lives in one per-user folder every workspace shares. The image instead sets `RITUAL_CACHE_DIR=/app/cache`, so the cache is the `/app/cache` mount and survives the container being recreated; a `cacheDir` in a mounted `ritual.config.json` does not move it, because the variable outranks the key. Set `RITUAL_CACHE_DIR` (`-e` or `environment:`) to keep it somewhere else. Several containers can mount the same cache directory: cache refreshes take a lock in it, so they wait for one another.
 
 Without the last two mounts, deleted lists and migration backups live in the container's own filesystem and are lost when the container is recreated. Mount directories rather than single files: Ritual saves a file by writing a new copy and renaming it into place, which a single-file bind mount does not allow, so such a file is written in place instead, without that protection.
+
+## Building the Image
+
+To build your own image from a checkout, for example for a fork, use the provided script so the image build injects `GIT_VERSION` from the current git ref:
+
+```sh
+sh scripts/build-docker.sh
+```
+
+By default it builds `ghcr.io/sloshy/ritual:<git-ref>`. You can override the image and tag, and optionally push:
+
+```sh
+IMAGE=ghcr.io/<owner>/ritual TAG=v1.2.3 PUSH=true sh scripts/build-docker.sh
+```
+
+If git metadata is unavailable, the script falls back to a short commit SHA, then `unknown`. A fork sets `RITUAL_SOURCE_URL` to its repository so the image's [source offer](/attribution/#source-code) links to it, and `GIT_VERSION` pins the version it reports:
+
+```sh
+RITUAL_SOURCE_URL=https://github.com/you/ritual sh scripts/build-docker.sh
+```
+
+To use your own image in the Compose examples above, replace the `image:` line with `build: .` (run from the checkout) or with your image's name.

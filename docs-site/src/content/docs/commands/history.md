@@ -33,7 +33,7 @@ ritual history [listName] [options]
 | `--limit <n>`       | With `--show`: print only the newest `<n>` change sets (positive integer) |
 | `--output <format>` | Output format for `--show`: `text` (default), `json`, or `ndjson`         |
 
-`history` has no `--quiet`: `--show` prints its payload and the editor needs a terminal ([shared convention](/cli-conventions/#scripting)).
+`history` has no `--quiet`: `--show` prints its results and the editor needs a terminal ([shared convention](/cli-conventions/#scripting)).
 
 `--deck`, `--collection`, and `--wanted` are mutually exclusive. `--limit` and `--output json`/`ndjson` both require `--show`.
 
@@ -51,7 +51,7 @@ Text output starts with a header line, `Change history for Deck 'my-deck' — 4 
 
 `--limit <n>` keeps only the newest `n` sets.
 
-With `--output json`, the payload is the admin site's `GET /api/history/:type/:slug` response minus its `success` and `defaultEvents` fields:
+With `--output json`, the output is the admin site's `GET /api/history/:type/:slug` response minus its `success` and `defaultEvents` fields:
 
 ```json
 {

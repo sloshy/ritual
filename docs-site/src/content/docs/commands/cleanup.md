@@ -76,7 +76,7 @@ It exits 1 when any file would be rewritten or renamed, would have its categorie
 
 ## Scripted Output
 
-With `--output json` (or `ndjson`), the text report is replaced by a single payload on stdout containing the per-file results (only files with something to report) and every warning, with the file it is about:
+With `--output json` (or `ndjson`), the text report is replaced by a single JSON document on stdout containing the per-file results (only files with something to report) and every warning, with the file it is about:
 
 ```json
 {

@@ -8,7 +8,7 @@ How to set up the project for local development and contribute to the codebase.
 ## Prerequisites
 
 - [Bun](https://bun.sh) 1.4.4, the version `.bun-version` pins for CI and the Docker build
-- Node.js 22.12 or newer (for the Starlight docs site)
+- Node.js 22.23.4 or newer, the minimum the docs site's Astro version accepts (CI uses Node 24)
 
 ## Setup
 
@@ -29,7 +29,7 @@ bun run index.ts --help
 bun run index.ts new deck "Test Deck"
 ```
 
-When run this way (via `bun` rather than the compiled `ritual` binary), [`admin`](/commands/admin/) and [`serve --build`](/commands/serve/) rebuild their SPA bundles from `src/` on startup. No flag is needed. The compiled binary serves the pre-bundled assets baked into it.
+When run this way (via `bun` rather than the compiled `ritual` binary), [`admin`](/commands/admin/) and [`serve --build`](/commands/serve/) rebuild their browser code from `src/` on startup. No flag is needed. The compiled binary serves the pre-bundled assets baked into it.
 
 ## Dev Workflow
 
@@ -44,8 +44,8 @@ This launches `scripts/dev.ts`, which:
 
 - Spawns `bun index.ts <subcommand>` as a child process. For `serve`, it appends `--build` when absent.
 - Watches `src/` (TypeScript, TSX, CSS, SVG) and, for `serve`, `decks/`, `collections/`, and `wanted/` (Markdown).
-- Fully restarts the child on any change, so edits to **any** part of the codebase (core logic, server handlers, parsers, SPA, themes) take effect on the next request. Running from source, `admin` and `serve --build` rebuild their CSS and SPA bundle on each start. There is no separate compile step; the gitignored `*.compiled.*` artifacts are only used by the compiled binary.
-- **Live-reloads the browser** (`admin` only, source mode). The page holds an `EventSource` to a dev-only `/__dev_reload` endpoint carrying the server's boot id, and reloads when that id changes (a real restart), not on every reconnect. The restarted server rebuilds `styles.css`/`app.js`, and the reload refetches them.
+- Fully restarts the child on any change, so edits to **any** part of the codebase (core logic, server handlers, parsers, the sites' browser code, themes) take effect on the next request. Running from source, `admin` and `serve --build` rebuild their CSS and browser bundle on each start. There is no separate compile step; the gitignored `*.compiled.*` artifacts are only used by the compiled binary.
+- **Live-reloads the browser** (`admin` only, source mode). The page holds an `EventSource` to a dev-only `/__dev_reload` endpoint carrying an id the server picks at each start, and reloads when that id changes (a real restart), not on every reconnect. The restarted server rebuilds `styles.css`/`app.js`, and the reload refetches them.
 - Catches changes the OS file watcher drops. `fs.watch` can miss events under bursts (a formatter touching many files, "save all", atomic-rename saves). The orchestrator snapshots the watched tree at each build launch and re-checks it in a ~1s background scan; if any file drifted, the child restarts.
 
 Extra arguments are forwarded to the underlying command:
@@ -134,30 +134,27 @@ bun run test:e2e
 
 ```
 ritual/
-├── index.ts              # CLI entry point
+├── index.ts            # CLI entry point
 ├── src/
-│   ├── cli/              # CLI framework: program, options, output, prompts
-│   ├── commands/         # CLI command implementations (registry.ts is the command table)
-│   │   └── session/      # Interactive card-session TUI: loop, menus, prompts, per-list strategies
-│   ├── card/             # Card-line grammar, printings, finishes, labels
-│   ├── list/             # Deck / collection / wanted list files and sidecars
-│   ├── changes/          # Change events and the .changes.md changelog
-│   ├── pricing/          # Price and sell reports
-│   ├── config/           # ritual.config.json schema and base directory
-│   ├── scryfall/, cache/ # Scryfall API integration and the card cache
-│   ├── importers/        # Deck importers
-│   ├── list-view/, editor/, ui/  # Shared SPA model, editor, and component kit
-│   ├── site/, admin/     # Public site and admin site (+ HTTP API)
-│   └── mcp/, skills/     # Agent-facing surfaces
-├── test/
-│   ├── unit/             # Unit tests
-│   ├── integration/      # Integration tests
-│   └── e2e/              # Playwright tests
-├── scripts/              # Build, dev, install, lint, and release scripts
-├── docs-site/            # This documentation (Starlight)
-├── .github/workflows/    # CI (ci.yml, build-binaries.yml), release.yml, docs deploy
-├── decks/                # Deck files (Markdown)
-└── dist/                 # Generated static site
+│   ├── commands/       # One module per CLI command (registry.ts is the command table)
+│   ├── cli/            # Shared CLI plumbing: options, output, prompts
+│   ├── card/, list/    # Card-line grammar and the list files
+│   ├── changes/        # Change events and the .changes.md changelog
+│   ├── scryfall/, cache/, cache-server/, cache-feed/   # Card data and the card cache
+│   ├── pricing/, cardkingdom/, buylist/                # Prices and selling
+│   ├── importers/, export/, deck-sync/, collection-sync/
+│   ├── site/, site-build/, admin/, editor/, ui/        # The public and admin sites
+│   ├── mcp/, skills/   # Agent-facing surfaces
+│   ├── migrate/, update/  # Workspace migrations and self-update
+│   └── i18n/           # Message catalog and t()
+├── test/               # unit/, integration/, e2e/ (Playwright)
+├── demo/               # The live demo's workspace
+├── docs-site/          # This documentation (Starlight)
+├── locales/            # Translations of the message catalog
+├── eslint-rules/       # The project's own lint rules
+├── scripts/            # Build, dev, install, lint and release scripts
+├── vendor/             # Patched third-party code
+└── .github/workflows/  # CI, release, and the docs deploy
 ```
 
 ## Code Style
@@ -204,7 +201,7 @@ How the three modes differ:
 
 ## Demo Site
 
-The [live demo](https://ritual.rpeters.dev/demo/) is built from `demo/`, a Ritual workspace committed to the repository: a few made-up decks, a trade binder collection, and a wanted list, using real cards. Everything in it was written by Ritual's own commands (`import`, `add-card`, `set-card`, `set-list-image`, `metadata`), so the card lines, `&N` ids, front matter, `.changes.md` histories and `.sha256` sidecars are all in canonical form. Change it the same way, with `--base-dir demo`, rather than by hand.
+The [live demo](https://ritual.rpeters.dev/demo/) is built from `demo/`, a Ritual workspace committed to the repository: a few made-up decks, a trade binder collection, and a wanted list, using real cards. Everything in it was written by Ritual's own commands (`import`, `add-card`, `set-card`, `set-list-image`, `metadata`), so the card lines, `&N` ids, front matter, `.changes.md` histories and `.sha256` files are all in canonical form. Change it the same way, with `--base-dir demo`, rather than by hand.
 
 To rebuild it locally from the repository root:
 

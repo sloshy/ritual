@@ -62,7 +62,7 @@ Capture the created list as JSON:
 ritual new deck "Burn" --output json
 ```
 
-The JSON payload is `{ type, slug, name, filePath }`.
+The JSON output is `{ type, slug, name, filePath }`.
 
 ## Output
 

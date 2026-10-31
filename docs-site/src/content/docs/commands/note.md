@@ -126,7 +126,7 @@ When both a name and `--card-id` are given they must agree. A disagreement is a 
 
 ### Dry Runs
 
-`--dry-run` resolves the list, the card, and the note text, then reports what the note _would_ become. Nothing is written: no list file, changelog, `.sha256` sidecar, or card-ID backfill. There is no `-n` short form, since `-n` is `--note`. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`. The idempotent `--clear` no-op reports `cleared: false` and `previousNote: null` whether or not it is a dry run.
+`--dry-run` resolves the list, the card, and the note text, then reports what the note _would_ become. Nothing is written: no list file, changelog, `.sha256` file, or card-ID backfill. There is no `-n` short form, since `-n` is `--note`. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`. The idempotent `--clear` no-op reports `cleared: false` and `previousNote: null` whether or not it is a dry run.
 
 ### Quantity Behavior
 

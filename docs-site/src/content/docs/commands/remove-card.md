@@ -64,7 +64,7 @@ Remove a collection entry and capture the result as JSON:
 ritual remove-card --collection main "Mana Crypt" --output json
 ```
 
-The JSON payload is `{ type, list, cardName, cardId, removed, remaining }`. `removed` is the number of copies taken off. `remaining` is what is left on the deck line: `0` once the line is gone, and always `0` for collections and wanted lists.
+The JSON output is `{ type, list, cardName, cardId, removed, remaining }`. `removed` is the number of copies taken off. `remaining` is what is left on the deck line: `0` once the line is gone, and always `0` for collections and wanted lists.
 
 ## Behavior
 
@@ -80,7 +80,7 @@ When both a name and `--card-id` are given they must agree. A disagreement is a 
 
 ### Dry Runs
 
-`-n` / `--dry-run` resolves the list and the card, runs every validation, and reports the removal it _would_ perform. Nothing is written: no list file, changelog, or `.sha256` sidecar, and no card-ID backfill. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`. Use it before a fuzzy-name removal, which otherwise deletes on a single unique substring match with no confirmation.
+`-n` / `--dry-run` resolves the list and the card, runs every validation, and reports the removal it _would_ perform. Nothing is written: no list file, changelog, or `.sha256` file, and no card-ID backfill. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`. Use it before a fuzzy-name removal, which otherwise deletes on a single unique substring match with no confirmation.
 
 ### Deck Quantities
 

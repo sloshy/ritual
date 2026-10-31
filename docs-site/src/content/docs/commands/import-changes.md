@@ -133,7 +133,7 @@ The CLI never creates git commits; applied changes stay in the working tree for 
 
 ## Scripted Output
 
-With `--output json` (or `ndjson`), the preview and glyph lines are replaced by a single payload on stdout after the apply. It is byte-for-byte the response body of the admin `POST /api/import-changes` route, so a script can consume the CLI, admin API, and MCP tool identically (the MCP tool returns the same fields minus the constant `success` key). `--yes` is required; without it a structured usage error goes to stderr and the command exits `2`.
+With `--output json` (or `ndjson`), the preview and glyph lines are replaced by a single JSON document on stdout after the apply. It is byte-for-byte the response body of the admin `POST /api/import-changes` route, so a script can consume the CLI, admin API, and MCP tool identically (the MCP tool returns the same fields minus the constant `success` key). `--yes` is required; without it a structured usage error goes to stderr and the command exits `2`.
 
 ```json
 {

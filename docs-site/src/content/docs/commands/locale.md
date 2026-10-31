@@ -93,7 +93,7 @@ Nothing is written without that yes. When prompting is impossible (`--no-input`,
 Not offering to save it (prompts are disabled by --no-input / RITUAL_NO_INPUT). To apply it, run: ritual config set uiLocale de-DE
 ```
 
-Under `--output json`/`ndjson` there is no prompt and no prose. The payload's `suggestedUiLocale` **is** the offer; act on it with `config set uiLocale`.
+Under `--output json`/`ndjson` there is no prompt and no prose. The output's `suggestedUiLocale` **is** the offer; act on it with `config set uiLocale`.
 
 The probe findings print under `--quiet` too.
 

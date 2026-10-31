@@ -196,7 +196,7 @@ Under `ask`, a prompt that can't be answered (see [When prompts are unavailable]
 
 ### Dry Runs
 
-`-n` / `--dry-run` resolves the list and card, runs every validation (printing pin, finish availability, flag applicability), reports the line that _would_ be written, then stops. No list file, changelog, or `.sha256` sidecar is written, no missing list is created, and the card-ID backfill is skipped, so the workspace is left byte-for-byte as it was. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`.
+`-n` / `--dry-run` resolves the list and card, runs every validation (printing pin, finish availability, flag applicability), reports the line that _would_ be written, then stops. No list file, changelog, or `.sha256` file is written, no missing list is created, and the card-ID backfill is skipped, so the workspace is left byte-for-byte as it was. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`.
 
 ### Change Tracking
 

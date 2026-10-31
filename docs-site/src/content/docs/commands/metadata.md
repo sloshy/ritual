@@ -87,7 +87,7 @@ ritual metadata list my-deck
 
 - `set` reports the property's new stored value (`Set labels = ["sale","trade"] on collection 'trade-binder'`). A value that cleared the key reports `Cleared`.
 - `get` prints the raw value, arrays as JSON, and exits `3` with a `not_found` error when the property is unset.
-- `list` prints every property for the list's type, `(unset)` included, and the non-settable `image` among them. With `--output json` the payload is `{ type, list, frontMatter }`, where `frontMatter` is the **full** mapping, including non-settable keys (`lastSynced`, `sourceUpdatedAt`) and hand-authored unknown keys. This is the same shape the admin route returns.
+- `list` prints every property for the list's type, `(unset)` included, and the non-settable `image` among them. With `--output json` the output is `{ type, list, frontMatter }`, where `frontMatter` is the **full** mapping, including non-settable keys (`lastSynced`, `sourceUpdatedAt`) and hand-authored unknown keys. This is the same shape the admin route returns.
 
 Under `--output json`/`ndjson`, errors are emitted on stderr as `{ "error": { "code", "messageKey", "messageParams", "message" } }` per the [scripting conventions](/cli-conventions/#scripting).
 

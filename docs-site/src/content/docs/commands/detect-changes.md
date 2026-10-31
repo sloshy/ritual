@@ -2,17 +2,17 @@
 title: 'detect-changes'
 ---
 
-Record changelog entries for hand-edited lists, and manage the `.sha256` sidecar files that decide what still needs recording.
+Record changelog entries for hand-edited lists, and manage the `.sha256` files that decide what still needs recording. This page calls each one a **sidecar**, as the command's output does; see [The `.sha256` files](/list-format/#the-sha256-files) for what they are.
 
 The command has three modes:
 
-| Mode                         | What it does                                                                                  | Needs git |
-| ---------------------------- | --------------------------------------------------------------------------------------------- | --------- |
-| `detect-changes <commit>`    | Diff git history, append `.changes.md` entries for hand edits, refresh sidecars               | Yes       |
-| `detect-changes --hash-only` | Stamp every list file's `.sha256` sidecar from its current content — **no changelog entries** | No        |
-| `detect-changes --verify`    | Report each list file's sidecar status and write nothing                                      | No        |
+| Mode                         | What it does                                                                               | Needs git |
+| ---------------------------- | ------------------------------------------------------------------------------------------ | --------- |
+| `detect-changes <commit>`    | Diff git history, append `.changes.md` entries for hand edits, refresh sidecars            | Yes       |
+| `detect-changes --hash-only` | Stamp every list file's `.sha256` file from its current content — **no changelog entries** | No        |
+| `detect-changes --verify`    | Report each list file's sidecar status and write nothing                                   | No        |
 
-## What a `.sha256` sidecar means
+## What a `.sha256` file means
 
 Every time Ritual writes a list file (the admin UI, `edit`, `add-card`, `move`, `deck-sync`, …) it writes a `<name>.md.sha256` sidecar holding the hash of exactly what it wrote, and records the matching changelog entry. So a sidecar means one thing:
 
@@ -40,13 +40,13 @@ Passing `<commit>` with `--hash-only` or `--verify` is a usage error; neither mo
 
 ## Options
 
-| Option              | Description                                                                  | Default |
-| ------------------- | ---------------------------------------------------------------------------- | ------- |
-| `--hash-only`       | Stamp `.sha256` sidecars from current content (no git, no changelog entries) | `false` |
-| `--verify`          | Report each list file's sidecar status and write nothing                     | `false` |
-| `-n, --dry-run`     | Preview what would change without writing files (not valid with `--verify`)  | `false` |
-| `--output <format>` | Output format: `text`, `json`, or `ndjson`                                   | `text`  |
-| `--quiet`           | Suppress progress and status messages — never the data-loss warning          | `false` |
+| Option              | Description                                                                 | Default |
+| ------------------- | --------------------------------------------------------------------------- | ------- |
+| `--hash-only`       | Stamp `.sha256` files from current content (no git, no changelog entries)   | `false` |
+| `--verify`          | Report each list file's sidecar status and write nothing                    | `false` |
+| `-n, --dry-run`     | Preview what would change without writing files (not valid with `--verify`) | `false` |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson`                                  | `text`  |
+| `--quiet`           | Suppress progress and status messages — never the data-loss warning         | `false` |
 
 `--hash-only` and `--verify` are mutually exclusive (usage error, exit `2`).
 
@@ -117,7 +117,7 @@ The sidecar is refreshed only for a file whose diff produced changelog entries. 
 
 This makes the command idempotent: running it twice over the same range is a no-op the second time, and a repository can freely mix Ritual edits with raw git edits.
 
-The [card-ID backfill](/cli-conventions/#the-card-id-backfill) cooperates from the other side. When a list-writing command persists missing `&N` IDs into a hand-edited file, it refreshes the `.sha256` sidecar only if the sidecar already matched the file, so a hand edit keeps its stale or absent sidecar and detection still records it. `detect-changes` itself never runs the backfill, in any mode, since it must see the working tree exactly as you committed it.
+The [card-ID backfill](/cli-conventions/#the-card-id-backfill) cooperates from the other side. When a list-writing command persists missing `&N` IDs into a hand-edited file, it refreshes the `.sha256` file only if the sidecar already matched the file, so a hand edit keeps its stale or absent sidecar and detection still records it. `detect-changes` itself never runs the backfill, in any mode, since it must see the working tree exactly as you committed it.
 
 > **Limitation:** the sidecar reflects a file's _final_ state across the diff range, not its per-commit history. If one range mixes a Ritual edit and a raw edit to the **same** file, only the final content is compared: a range ending in a raw edit re-records the whole diff (including the part Ritual already logged), and a range ending in a Ritual edit is skipped entirely (dropping the raw edit's changelog). To keep changelogs exact, avoid mixing both kinds of edit to one file within a single detection range. In the CI workflow, that range is one push.
 
@@ -131,7 +131,7 @@ With `-n`/`--dry-run` the command prints what it would do without modifying any 
 ritual detect-changes --hash-only
 ```
 
-Rewrites every list file's `.sha256` sidecar from the file's current content. It needs no git repository, writes no changelog entries, and never modifies list file content. Because `detect-changes` is exempt from the [card-ID backfill](/cli-conventions/#the-card-id-backfill), a `--dry-run` preview always shows exactly the hashes a real run would write.
+Rewrites every list file's `.sha256` file from the file's current content. It needs no git repository, writes no changelog entries, and never modifies list file content. Because `detect-changes` is exempt from the [card-ID backfill](/cli-conventions/#the-card-id-backfill), a `--dry-run` preview always shows exactly the hashes a real run would write.
 
 Deck, collection, and wanted **list files** are stamped, together with their [`.categories.json`](/list-format/#categories-namecategoriesjson) sidecars. Never `.changes.md` changelogs, `.primer.md` primers, `.art.json` custom art, or anything else.
 
@@ -192,11 +192,11 @@ The default mode only clears drift for files whose edits produced changelog entr
 
 ## Scripted Output
 
-With `--output json` (or `ndjson`), progress lines are suppressed and stdout carries a single payload. Warnings and errors stay on stderr. Each mode has its own shape, tagged by `mode`.
+With `--output json` (or `ndjson`), progress lines are suppressed and stdout carries a single JSON document. Warnings and errors stay on stderr. Each mode has its own shape, tagged by `mode`.
 
 ### Default mode
 
-The changelogs are still updated (or previewed under `--dry-run`) exactly as in text mode; only the reporting changes. File paths are repo-relative, as git emits them. Warnings print on stderr _and_ appear in the payload's `warnings` array.
+The changelogs are still updated (or previewed under `--dry-run`) exactly as in text mode; only the reporting changes. File paths are repo-relative, as git emits them. Warnings print on stderr _and_ appear in the output's `warnings` array.
 
 ```json
 {

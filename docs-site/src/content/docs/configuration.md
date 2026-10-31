@@ -391,7 +391,7 @@ The `cardkingdom` entry of [`priceSources`](#price-stores-pricesources) uses the
 The key governs **every** surface, the admin site included:
 
 - [`build-site`](/commands/build-site/#sell-mode---sell-mode) refreshes the buylist under the run's `--refresh` policy and writes each list's buy prices into its JSON, so a fully static site offers sell mode with no backend.
-- [`serve`](/commands/serve/) includes the same quotes in its live payloads. `serve --api` reads the key at startup to decide whether to refresh a day-old buylist, so turning it on for a running server leaves that process's feed unrefreshed until it restarts.
+- [`serve`](/commands/serve/) includes the same quotes in its live list data. `serve --api` reads the key at startup to decide whether to refresh a day-old buylist, so turning it on for a running server leaves that process's feed unrefreshed until it restarts.
 - [`admin`](/commands/admin/) refreshes the buylist at startup, offers the editors' sell toggle and the **Refresh buylist** card, and answers its `/api/sell/*` and `/api/buylist/*` routes. With the key off those routes answer `404` and the UI hides the surfaces that call them. Both follow a change to this key immediately; no restart or page reload is needed.
 - [`cache preload-all`](/commands/cache/#preload-all) refreshes the buylist alongside the card cache.
 

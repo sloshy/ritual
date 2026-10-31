@@ -35,7 +35,7 @@ The flag is enable-only. There is no `--no-sell-mode`; omit it to follow the con
 
 ### No backend required
 
-The build writes quotes **into each list's JSON** (and [`serve`](/commands/serve/#live-api-mode---api) computes them the same way for its live payloads), so a fully static site on a CDN offers sell mode exactly as a [hosted](/public-site/hosted/) one does. The site never calls the quotes API; that API exists for other clients, such as the admin editors.
+The build writes quotes **into each list's JSON** (and [`serve`](/commands/serve/#live-api-mode---api) computes them the same way for its live list data), so a fully static site on a CDN offers sell mode exactly as a [hosted](/public-site/hosted/) one does. The site never calls the quotes API; that API exists for other clients, such as the admin editors.
 
 A static site's quotes are as fresh as its build. Card Kingdom regenerates the pricelist daily, so rebuild to refresh them. A [live server](/public-site/hosted/) recomputes on request, so refreshing its feed (from the admin site or a CLI run) updates its lists without a rebuild.
 

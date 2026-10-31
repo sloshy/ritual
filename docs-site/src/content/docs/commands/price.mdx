@@ -40,7 +40,7 @@ The name is matched across all three list types; see [List Names](/list-resoluti
 | `--summary`            | Print the price summary instead of opening the browser                                                                                                                                                                             |
 | `--refresh <mode>`     | Card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`; see [Price Freshness](#price-freshness)                                                                                                                 |
 | `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                                                                                                                                        |
-| `--quiet`              | Suppress progress lines, the marker legend, and the price disclaimer; never the payload or the parser warnings                                                                                                                     |
+| `--quiet`              | Suppress progress lines, the marker legend, and the price disclaimer; never the results or the parser warnings                                                                                                                     |
 
 ## The Interactive Browser
 
@@ -138,7 +138,7 @@ Prices are for the whole line (quantity × one copy); 'lowest' is the line at it
 
 `--quiet` leaves out the legend along with the disclaimer.
 
-Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). Every structured payload names its `source` (the store) and `currency` (that store's). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, grand totals, and a `warnings` array. The single-list and card-search payloads carry the same `warnings` field. Card listings include per-entry prices, lowest prices, and unpriced reasons.
+Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). Every JSON result names its `source` (the store) and `currency` (that store's). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, grand totals, and a `warnings` array. The single-list and card-search results carry the same `warnings` field. Card listings include per-entry prices, lowest prices, and unpriced reasons.
 
 `warnings` holds lines the list parsers could not read (prose, comments, malformed card lines). Such lines are not priced, so the totals exclude them. The warnings **also** print to stderr in every output mode, including under `--quiet`.
 

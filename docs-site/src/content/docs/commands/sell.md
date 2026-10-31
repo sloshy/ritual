@@ -42,7 +42,7 @@ Names resolve as for every list-taking command; see [List Names](/list-resolutio
 | `--out <file>`        | Write the output to a file instead of stdout (`-` for stdout); relative paths resolve against the base directory                                                                                                                     |
 | `--refresh <mode>`    | Buylist + card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`; see [Feed Freshness](#feed-freshness)                                                                                                           |
 | `--output <format>`   | Output format: `text`, `json`, `ndjson`, or `csv`                                                                                                                                                                                    |
-| `--quiet`             | Suppress progress lines and the disclaimer; never the payload or parser warnings                                                                                                                                                     |
+| `--quiet`             | Suppress progress lines and the disclaimer; never the results or parser warnings                                                                                                                                                     |
 
 ## How Cards Are Matched
 
@@ -116,7 +116,7 @@ The advice prints in the CLI's language. Under `--output json` its error envelop
 ritual sell --min 0.25 --output csv --out to-sell.csv
 ```
 
-With nothing to sell the payload is empty. Upload the file on their CSV import page and the sell cart fills itself. Two caveats:
+With nothing to sell the file is empty. Upload the file on their CSV import page and the sell cart fills itself. Two caveats:
 
 - Their importer caps one upload at 500 unique titles or 5,000 cards. The command warns when the file exceeds either.
 - The format cannot express etched foils. Etched-quoted entries export as foil, with a warning to adjust the cart by hand.
@@ -156,7 +156,7 @@ ritual sell --sets dsk,fdn --min 0.50 --output json
 ritual sell --output ndjson
 ```
 
-`--output json` emits the full report payload: `feedCreatedAt`, `feedRetrievedAt`, the active `filters`, per-list summaries, every entry, grand totals, and parser `warnings`. `ndjson` emits one entry per line. Text reports sort each list's offers by value, best first.
+`--output json` emits the full report: `feedCreatedAt`, `feedRetrievedAt`, the active `filters`, per-list summaries, every entry, grand totals, and parser `warnings`. `ndjson` emits one entry per line. Text reports sort each list's offers by value, best first.
 
 ## Exit Codes
 

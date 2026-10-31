@@ -255,7 +255,7 @@ A recorded collection state that exists but cannot be read is reported as such, 
 Collection: sync state unreadable (the file is not valid JSON).
 ```
 
-The reason lands in `collectionStateError` under `--output json`, and as a `{"kind":"collection-state-error","reason":...}` row under `--output ndjson`. The listing is the whole payload, so `status` has no `--quiet` ([shared convention](/cli-conventions/#scripting)).
+The reason lands in `collectionStateError` under `--output json`, and as a `{"kind":"collection-state-error","reason":...}` row under `--output ndjson`. The listing is the whole output, so `status` has no `--quiet` ([shared convention](/cli-conventions/#scripting)).
 
 The same data backs the admin Sync Decks page and the MCP `get_sync_status` tool.
 

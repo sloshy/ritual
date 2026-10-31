@@ -87,9 +87,9 @@ ritual login status --output json
 }
 ```
 
-The admin API serves the same payload at `GET /api/login/archidekt`, and the MCP `get_sync_status` tool carries it as its `archidekt` section.
+The admin API serves the same data at `GET /api/login/archidekt`, and the MCP `get_sync_status` tool carries it as its `archidekt` section.
 
-The status line is the command's entire payload, so `status` has no `--quiet` ([shared convention](/cli-conventions/#scripting)). To branch purely on the exit code, redirect stdout:
+The status line is the command's entire output, so `status` has no `--quiet` ([shared convention](/cli-conventions/#scripting)). To branch purely on the exit code, redirect stdout:
 
 ```bash
 ritual login status > /dev/null && echo "ready to sync" || echo "sign in first"
@@ -105,7 +105,7 @@ ritual login status > /dev/null && echo "ready to sync" || echo "sign in first"
 
 ## `login logout`
 
-Deletes the stored Archidekt token file. It reports the username that was logged out, or that there was nothing to clear. Both cases exit `0`. It takes the same `--output` flag as `status`, plus `--quiet`, which drops the text confirmation while still emitting the structured payload under `--output json`/`ndjson`.
+Deletes the stored Archidekt token file. It reports the username that was logged out, or that there was nothing to clear. Both cases exit `0`. It takes the same `--output` flag as `status`, plus `--quiet`, which drops the text confirmation while still emitting the JSON output under `--output json`/`ndjson`.
 
 ```bash
 ritual login logout
@@ -121,7 +121,7 @@ ritual login logout --output json
 }
 ```
 
-With nothing stored the payload is `{ "loggedOut": false }`.
+With nothing stored the output is `{ "loggedOut": false }`.
 
 ## Notes
 

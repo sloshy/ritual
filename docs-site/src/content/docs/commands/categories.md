@@ -121,7 +121,7 @@ Nothing in this command prunes. Pruning happens on the list's own save (an [edit
 
 `-n` / `--dry-run` resolves the list, validates the arguments, computes the edit, reports it, and stops. Nothing is written: no categories file, no `.sha256`, no changelog. `wouldWrite` says whether a real run would touch the categories file. It is `false` for a no-op edit, in which case a real run writes nothing at all, changelog included. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true` alongside the usual fields.
 
-### JSON payloads
+### JSON output
 
 `categories list`:
 
