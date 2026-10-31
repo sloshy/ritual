@@ -4,7 +4,7 @@ title: 'sell'
 
 Check what [Card Kingdom's buylist](https://www.cardkingdom.com/purchasing/mtg_singles) ("Sell us your cards") is currently paying for the cards in your lists.
 
-The report uses Card Kingdom's public pricelist feed: one ~70 MB download covering their whole singles catalog, cached as `cardkingdom.json` in the [card cache folder](/commands/cache/#where-the-cache-lives) and considered fresh for a day. Every check after that is a local join, with no scraping and no per-card requests. The same engine backs the [MCP](/commands/mcp/) `get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, and `refresh_buylist` tools, the [admin sell endpoints](/admin/api/#sell-report), and [sell mode](/public-site/sell/) on the sites. A quote is the same wherever you read it.
+The report uses Card Kingdom's public pricelist feed: one ~70 MB download covering their whole singles catalog, cached as `cardkingdom.json` in the [card cache folder](/commands/cache/#where-the-cache-lives) and considered fresh for a day. Every check after that is a local join, with no scraping and no per-card requests. The same engine backs the [MCP](/commands/mcp/) `get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, and `refresh_buylist` tools, the [admin sell endpoints](/admin/api/prices/#sell-report), and [sell mode](/public-site/sell/) on the sites. A quote is the same wherever you read it.
 
 :::note[Not gated on `site.sellMode`]
 Every _other_ buylist surface (sell mode on the sites, the admin's sell routes and startup buylist refresh, the buylist part of [`cache preload-all`](/commands/cache/#the-buylist-rides-along-under-sell-mode)) is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. `ritual sell` ignores both keys. Running it is itself the request for Card Kingdom prices, so it downloads, refreshes, and quotes regardless. A feed downloaded this way is also what a later `--sell-mode` build uses.
@@ -123,7 +123,7 @@ With nothing to sell the payload is empty. Upload the file on their CSV import p
 
 The warnings print on stderr in the CLI's language, even under `--quiet`; the CSV itself is the same bytes in every language.
 
-The same rendering is available as [`GET /api/sell/cart`](/admin/api/#sell-cart) and the MCP `get_sell_cart` tool.
+The same rendering is available as [`GET /api/sell/cart`](/admin/api/prices/#sell-cart) and the MCP `get_sell_cart` tool.
 
 ### Selling a Hand-Picked Batch
 

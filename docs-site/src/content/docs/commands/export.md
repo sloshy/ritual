@@ -81,7 +81,7 @@ Notes:
 
 The rendered export goes to stdout (or `--out`) raw, with no envelope. `export` has no scripting `--output` flag because its stdout payload _is_ the export.
 
-The same engine backs the admin API's [`POST /api/export`](/admin/api/#export-cards). That route returns the export inline by default, or, with `write: true`, writes it to a server-named file under a gitignored `exports/` directory in the base dir and returns the relative path. Files written that way are byte-identical to `--out` output.
+The same engine backs the admin API's [`POST /api/export`](/admin/api/imports/#export-cards). That route returns the export inline by default, or, with `write: true`, writes it to a server-named file under a gitignored `exports/` directory in the base dir and returns the relative path. Files written that way are byte-identical to `--out` output.
 
 ## Formats
 

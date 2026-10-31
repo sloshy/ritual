@@ -92,7 +92,7 @@ With `--output json` the payload is `{ type, list, mode, image }`. `mode` is `de
 ## Behavior
 
 - **The card-ID backfill is conditional.** This command [backfills `&N` ids](/cli-conventions/#the-card-id-backfill) only when the run consumes one: `--card`, or the wizard's card picker. A `--file`, `--url`, or `--default` run writes nothing but the front matter and triggers no backfill, and neither does any `--dry-run`.
-- **One validator, three surfaces.** The card-id check, the path rules, and the URL rule are shared with the [admin route](/admin/api/#list-metadata), the MCP `set_list_metadata` tool, and the admin editors, so all of them refuse the same values in the same words.
+- **One validator, three surfaces.** The card-id check, the path rules, and the URL rule are shared with the [admin route](/admin/api/lists/#list-metadata), the MCP `set_list_metadata` tool, and the admin editors, so all of them refuse the same values in the same words.
 - **The `.sha256` content hash** is refreshed only when it matched the file before the write. A hand-edited file keeps its stale hash, so [`detect-changes`](/commands/detect-changes/) still records the edit.
 - **Wanted lists are in scope**, as they are for [`metadata`](/commands/metadata/): `image` and `description` are the two front-matter keys they carry.
 

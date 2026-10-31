@@ -2,7 +2,7 @@
 title: 'diff'
 ---
 
-Compare two lists, in any mix of deck, collection, and wanted list. The report shows what is only in one side, only in the other, and where quantities differ. The same engine backs the admin [`GET /api/diff`](/admin/api/#diff-lists) endpoint and the [MCP](/commands/mcp/) `diff_lists` tool.
+Compare two lists, in any mix of deck, collection, and wanted list. The report shows what is only in one side, only in the other, and where quantities differ. The same engine backs the admin [`GET /api/diff`](/admin/api/lists/#diff-lists) endpoint and the [MCP](/commands/mcp/) `diff_lists` tool.
 
 ## Usage
 
@@ -122,4 +122,4 @@ A diff that finds differences is still a successful diff and exits `0`.
 
 - [`export`](/commands/export/) — the flattened per-entry view the diff is computed over.
 - [MCP `diff_lists`](/commands/mcp/#read-read-only) — the same comparison as an MCP tool.
-- [Admin API: Diff Lists](/admin/api/#diff-lists) — the underlying HTTP endpoint.
+- [Admin API: Diff Lists](/admin/api/lists/#diff-lists) — the underlying HTTP endpoint.

@@ -88,7 +88,7 @@ Notes on the fields:
 - `cardBulkType` is `null` when no bulk ingest has recorded which bulk it used: an empty cache, or one filled before this was recorded (necessarily `default_cards`).
 - A `bulkTypeStale` cache needs a full redownload, which the freshness checks on other commands offer.
 
-The same report is available over HTTP as [`GET /api/cache/status`](/admin/api/#cache-status).
+The same report is available over HTTP as [`GET /api/cache/status`](/admin/api/site/#cache-status).
 
 ### preload-set
 
@@ -137,7 +137,7 @@ Printings that no list should ever reference are dropped during ingestion and ne
 
 Every preload **replaces** the card cache rather than merging into it. An entry the new data no longer produces (a printing an exclusion now drops, a doubled name now folded) is gone once `preload-all` finishes.
 
-A failed preload exits `1`. The same refresh over HTTP ([`POST /api/cache/refresh`](/admin/api/#refresh-cache), and the MCP `refresh_cache` tool that reuses it) also reports the failure, and honours cancellation from an in-process caller (the MCP tool): the download stops, nothing is written, the previous cache stands, and the cache lock is released.
+A failed preload exits `1`. The same refresh over HTTP ([`POST /api/cache/refresh`](/admin/api/site/#refresh-cache), and the MCP `refresh_cache` tool that reuses it) also reports the failure, and honours cancellation from an in-process caller (the MCP tool): the download stops, nothing is written, the previous cache stands, and the cache lock is released.
 
 #### The buylist rides along under sell mode
 

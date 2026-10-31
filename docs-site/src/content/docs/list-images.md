@@ -52,7 +52,7 @@ A _valid_ `image:` survives every save on all three list types.
 | CLI        | [`ritual set-list-image`](/commands/set-list-image/) — `--card`, `--file`, `--url`, `--default`, or no flag for a wizard |
 | Admin site | The **Cover Image** button in the deck, collection, and wanted-list editors                                              |
 | MCP        | The `image` field on the `set_list_metadata` tool (`null` clears it)                                                     |
-| HTTP       | [`PUT /api/metadata/:type/:slug`](/admin/api/#list-metadata) — the same body shape                                       |
+| HTTP       | [`PUT /api/metadata/:type/:slug`](/admin/api/lists/#list-metadata) — the same body shape                                 |
 | By hand    | Edit the front matter                                                                                                    |
 
 [`ritual metadata`](/commands/metadata/) does **not** write it: a cover is a mapping, which that command's scalar `<value…>` arguments cannot spell. `metadata list` reports the stored mapping; `set`, `unset` and `get` refuse the key (exit `2`) with a message naming `ritual set-list-image`.

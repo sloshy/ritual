@@ -181,7 +181,7 @@ admin.gitEnabled = false (default)
 
 `(default)` marks keys whose value **equals** the built-in default; `(unset)` marks optional keys with no value. The marker compares values against the defaults, not against what is in `ritual.config.json`: any write puts the defaulted keys on disk, so file presence says nothing about whether you customized a value. The `site.*` selection lists compare against their effective defaults (`["*"]` for include lists, `[]` for exclude lists).
 
-`--output json` emits the effective config as one JSON object, the same payload the admin server's [`GET /api/config`](/admin/api/#get-config) and the MCP `get_config` tool report as `config`. Those two can also report an `overrides` object when the running server was started with a session flag such as `--sell-mode`. A CLI run is a fresh process with no overrides to report.
+`--output json` emits the effective config as one JSON object, the same payload the admin server's [`GET /api/config`](/admin/api/site/#get-config) and the MCP `get_config` tool report as `config`. Those two can also report an `overrides` object when the running server was started with a session flag such as `--sell-mode`. A CLI run is a fresh process with no overrides to report.
 
 ## config unset
 

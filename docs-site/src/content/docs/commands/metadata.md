@@ -8,7 +8,7 @@ Every list type takes `description`, the prose the [built site](/commands/build-
 
 Every list type also carries a cover [`image`](/list-images/), but that key is **out of scope here**. It is a mapping rather than a scalar, so [`set-list-image`](/commands/set-list-image/) writes it. `set`, `unset`, and `get` all point you there; only `list` reports it.
 
-Writes use the same engine as the admin [List Metadata](/admin/api/#list-metadata) route and the MCP `set_list_metadata` tool, so validation is identical on every surface. Card lines (`&N` ids, label overrides, notes) survive byte for byte. Only the front-matter block is rewritten; comments and quoting style there are not preserved, though every key and value is.
+Writes use the same engine as the admin [List Metadata](/admin/api/lists/#list-metadata) route and the MCP `set_list_metadata` tool, so validation is identical on every surface. Card lines (`&N` ids, label overrides, notes) survive byte for byte. Only the front-matter block is rewritten; comments and quoting style there are not preserved, though every key and value is.
 
 ## Usage
 
@@ -114,4 +114,4 @@ Under `--output json`/`ndjson`, errors are emitted on stderr as `{ "error": { "c
 - [`config`](/commands/config/) — the same subcommand shape for the ritual configuration file
 - [`set-list-image`](/commands/set-list-image/) — the cover `image:` key, on all three list types
 - [List cover images](/list-images/) — what the key means and how the site resolves it
-- [Admin API — List Metadata](/admin/api/#list-metadata) and the MCP `set_list_metadata` tool — the same engine over HTTP (that route _does_ write `image`)
+- [Admin API — List Metadata](/admin/api/lists/#list-metadata) and the MCP `set_list_metadata` tool — the same engine over HTTP (that route _does_ write `image`)

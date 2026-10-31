@@ -486,7 +486,7 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
 ```
 
 - `into` is the list a pull adds to, and `null` on a push.
-- `cancelled` is always `false` on the CLI. The [admin API](/admin/api/#sync-collection) and the MCP `sync_collection` tool set it when a client cancels between lists; the lists never reached are then `skipped`, and no `lastSynced` is recorded.
+- `cancelled` is always `false` on the CLI. The [admin API](/admin/api/sync/#sync-collection) and the MCP `sync_collection` tool set it when a client cancels between lists; the lists never reached are then `skipped`, and no `lastSynced` is recorded.
 - Each list's `status` is `synced`, `failed`, or `skipped`. `added`, `removed`, and `pending` count **copies**, not lines. A printing held in several lists counts for each of them.
 - `outcome` is the code to branch on: `changed` (written, or pushed — including copies a push wrote to a `--csv-file` for upload), `unchanged` (already matched), `dry-run` (a preview, which `reason` summarizes), `cancelled` (the run was cancelled before reaching it) or `not-run` (the run refused before reaching it). It is absent on a failed list. Scripts should read `outcome`, not the text of `reason`.
 - A run that refuses before reaching its lists (a bad `--into` or `--removal-priority`, an [unresolved ambiguous removal](#ambiguous-removals), the [empty-side guard](#empty-side-guard), or additions a push would not send) reports those lists `skipped` with the outcome `not-run` and the reason `not synced: the run stopped before this list`. The run's own error is in `errors`.

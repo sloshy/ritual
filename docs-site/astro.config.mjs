@@ -186,7 +186,11 @@ export default defineConfig({
             'admin/history',
             'admin/sync-decks',
             'admin/sync-collection',
-            'admin/api',
+            {
+              label: 'Admin API',
+              collapsed: true,
+              items: [{ autogenerate: { directory: 'admin/api' } }],
+            },
           ],
         },
         { label: 'Hosting', items: ['docker'] },

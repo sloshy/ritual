@@ -143,5 +143,5 @@ A list's [cover image](/list-images/) shares all of this. A `file` cover is copi
 - [`edit` → Custom Art](/commands/edit/#custom-art) — the interactive editor's action and its art-directory file browser
 - [Admin editors → Custom Art](/admin/editors/#custom-art) — the dialog
 - [Card labels](/list-format/#card-labels) — the `proxy` label; neither implies the other, but both mean the card carries no price
-- [Admin API → Card Art](/admin/api/#card-art) — `PUT /api/art/:type/:slug`
+- [Admin API → Card Art](/admin/api/lists/#card-art) — `PUT /api/art/:type/:slug`
 - [MCP → `set_card_art`](/commands/mcp/) — the agent-facing writer

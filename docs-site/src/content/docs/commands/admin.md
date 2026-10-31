@@ -57,7 +57,7 @@ With sell mode **off**, and [`priceSources`](/configuration/#price-stores-prices
 - answers `404` on `/api/sell/report`, `/api/sell/cart`, `/api/sell/refresh`, `/api/buylist/status`, and `/api/buylist/quotes`. The setting is read per request, so a `config set` takes effect without a restart;
 - hides the surfaces that call them: the editors' **Sell mode** toggle and buyer selector (see [Editors](/admin/editors/)), the **Refresh buylist** card on the [Refresh Cache](/admin/dashboard/#refresh-cache) page, and the sell controls on all three panes of [Move Cards](/admin/move-cards/).
 
-The admin UI learns the **effective** value from [`GET /api/status`](/admin/api/#server-status), so `--sell-mode` shows the surfaces even with nothing in the config file.
+The admin UI learns the **effective** value from [`GET /api/status`](/admin/api/auth/#server-status), so `--sell-mode` shows the surfaces even with nothing in the config file.
 
 The [Settings](/admin/dashboard/#settings) page has an **Offer sell mode** checkbox for `site.sellMode` and **Price Stores** checkboxes for [`priceSources`](/configuration/#price-stores-pricesources). Checking the box stores `site.sellMode: true`. Unchecking removes the key, so `config get site.sellMode` reports it unset rather than an explicit `false`.
 

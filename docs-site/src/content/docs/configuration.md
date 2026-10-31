@@ -399,7 +399,7 @@ The key governs **every** surface, the admin site included:
 
 A single run can opt in without a config write: `--sell-mode` on `build-site`, `serve`, `admin`, or [`mcp`](/commands/mcp/#sell-tools-need-sell-mode) (see [Sell mode](/commands/build-site/#sell-mode---sell-mode)). The flag is enable-only and lasts for that process, so `config get site.sellMode` keeps reporting the stored value, and an `admin --sell-mode` server keeps offering sell mode even after its Settings checkbox is unticked and saved.
 
-A **running** server started with the flag reports it: [`GET /api/config`](/admin/api/#get-config) and the MCP [`get_config`](/commands/mcp/#stored-config-vs-what-this-server-runs-with) tool answer with the stored config as `config` plus `overrides: {"site.sellMode": true}`. The CLI never reports overrides, since each command is a fresh process.
+A **running** server started with the flag reports it: [`GET /api/config`](/admin/api/site/#get-config) and the MCP [`get_config`](/commands/mcp/#stored-config-vs-what-this-server-runs-with) tool answer with the stored config as `config` plus `overrides: {"site.sellMode": true}`. The CLI never reports overrides, since each command is a fresh process.
 
 ### Choosing which lists to publish
 
@@ -450,7 +450,7 @@ A field missing from the file takes its default.
 
 Invalid values are rejected where they are entered. [`config set`](/commands/config/) refuses them with an error. Saving from the admin **Settings** page (`PUT /api/config`) rejects the whole update, including unknown top-level keys and wrong-typed fields, before anything is persisted.
 
-Values edited into the file by hand are validated when the config loads. A malformed field (or an invalid `admin`, `site`, or `managed` object) is ignored with a warning, and its default applies for that run. Fix the file to clear the warning. The warning, like `config set`'s refusals, is in the CLI's language. The admin Settings page shows a refused save in the reader's language; the API answers it in English with the message's `domain.config.*` key (`domain.export.problem.*` for an `exportPresets` refusal; see [`PUT /api/config`](/admin/api/#update-config)), and the MCP `update_config` tool with the English alone. A file whose **JSON itself** is broken fails the command outright; see [Malformed files are a hard error](#malformed-files-are-a-hard-error).
+Values edited into the file by hand are validated when the config loads. A malformed field (or an invalid `admin`, `site`, or `managed` object) is ignored with a warning, and its default applies for that run. Fix the file to clear the warning. The warning, like `config set`'s refusals, is in the CLI's language. The admin Settings page shows a refused save in the reader's language; the API answers it in English with the message's `domain.config.*` key (`domain.export.problem.*` for an `exportPresets` refusal; see [`PUT /api/config`](/admin/api/site/#update-config)), and the MCP `update_config` tool with the English alone. A file whose **JSON itself** is broken fails the command outright; see [Malformed files are a hard error](#malformed-files-are-a-hard-error).
 
 ## When the file is created
 

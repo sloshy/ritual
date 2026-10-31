@@ -47,7 +47,7 @@ ok    Up to date as of the last update check, 3 hours, 12 minutes ago
 Paste this into a bug report: https://github.com/sloshy/ritual/issues
 ```
 
-`--output json` prints the same report as one JSON document: the facts each check read (`ritual`, `workspace`, `config`, `migrations`, `cache`, `update`, with absolute paths), the verdicts as `checks` (each with `id`, `status`, `summary`, `hint` and `details`, every text an English `message`, plus its `messageKey`/`messageParams` when it has a catalog entry), and `ok`. `cache.status` is the [`cache status`](/commands/cache/) report, or `null` with a cache server or when the cache could not be read (`cache.problem` then says why, and the cache check is a `warn`). The same report is [`GET /api/doctor`](/admin/api/#setup-diagnostics) on the admin server and the [`get_diagnostics`](/commands/mcp/) MCP tool.
+`--output json` prints the same report as one JSON document: the facts each check read (`ritual`, `workspace`, `config`, `migrations`, `cache`, `update`, with absolute paths), the verdicts as `checks` (each with `id`, `status`, `summary`, `hint` and `details`, every text an English `message`, plus its `messageKey`/`messageParams` when it has a catalog entry), and `ok`. `cache.status` is the [`cache status`](/commands/cache/) report, or `null` with a cache server or when the cache could not be read (`cache.problem` then says why, and the cache check is a `warn`). The same report is [`GET /api/doctor`](/admin/api/site/#setup-diagnostics) on the admin server and the [`get_diagnostics`](/commands/mcp/) MCP tool.
 
 ## Exit codes
 
