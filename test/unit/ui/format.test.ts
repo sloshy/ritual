@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { formatDateTime, formatNumber } from '../../../src/ui/format'
+import { formatChangeTimestamp, formatDateTime, formatNumber } from '../../../src/ui/format'
 import { resetI18nRuntime, setLocale } from '../../../src/i18n/runtime'
 import { localeTag } from '../../../src/i18n/locale-tag-message'
 
@@ -47,6 +47,21 @@ describe('formatDateTime', () => {
     // `toLocaleString()` returns a sentinel; call sites keep the old behavior.
     // eslint-disable-next-line ritual/no-bare-intl-locale -- the bare call is the baseline under test
     expect(formatDateTime('not a date')).toBe(new Date('not a date').toLocaleString())
+  })
+})
+
+describe('formatChangeTimestamp', () => {
+  test('words a change-set stamp as a date and clock time', () => {
+    setLocale(localeTag('en'))
+    // Midday UTC, so no host time zone moves the date.
+    const text = formatChangeTimestamp('2026-08-07T12:00:00.000Z')
+    expect(text).toContain('August 7, 2026')
+    expect(text).not.toContain('2026-08-07')
+  })
+
+  test('a hand-written heading that is not a date is shown as written', () => {
+    setLocale(localeTag('en'))
+    expect(formatChangeTimestamp('Before FNM')).toBe('Before FNM')
   })
 })
 

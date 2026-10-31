@@ -6,6 +6,14 @@ type SaveBody = {
   sets: { timestamp: string; lines: string[]; events: unknown[]; trailing?: string[] }[]
 }
 
+// The mocked sets are stamped at midnight UTC; pinning the zone keeps their
+// rendered dates from sliding a day under a host west of Greenwich.
+test.use({ timezoneId: 'UTC' })
+
+/** The mocked sets' headings as the page renders them (en-US, UTC). */
+const JAN = 'January 1, 2026'
+const FEB = 'February 1, 2026'
+
 test.describe('Change History page', () => {
   test.beforeEach(async ({ page }) => {
     await gotoAdminDashboard(page)
@@ -18,17 +26,30 @@ test.describe('Change History page', () => {
     await expect(page.locator('.history-set')).toHaveCount(2)
   }
 
+  test('shows each set’s time in words, keeping the exact stamp in its tooltip', async ({
+    page,
+  }) => {
+    await mockChangeHistoryApi(page)
+    await openDeckHistory(page)
+
+    const newest = page.locator('.history-set-time').first()
+    // The connector between date and time varies by ICU version.
+    await expect(newest).toHaveText(/^February 1, 2026\b.*12:00\sAM$/)
+    await expect(newest).toHaveAttribute('title', '2026-02-01T00:00:00.000Z')
+    await expect(page.locator('.history-sets')).not.toContainText('T00:00:00')
+  })
+
   test('deletes a change set, then undo restores it', async ({ page }) => {
     await mockChangeHistoryApi(page)
     await openDeckHistory(page)
 
     // Delete the older set; one row remains and the summary reflects 2 → 1.
     await page
-      .locator('.history-set', { hasText: '2026-01-01' })
+      .locator('.history-set', { hasText: JAN })
       .locator('button:has-text("Delete")')
       .click()
     await expect(page.locator('.history-set')).toHaveCount(1)
-    await expect(page.locator('.history-set')).toContainText('2026-02-01')
+    await expect(page.locator('.history-set')).toContainText(FEB)
     await expect(page.locator('.history-summary')).toContainText('2 → 1')
 
     // Undo brings the deleted set back.
@@ -44,7 +65,7 @@ test.describe('Change History page', () => {
     await openDeckHistory(page)
 
     await page
-      .locator('.history-set', { hasText: '2026-01-01' })
+      .locator('.history-set', { hasText: JAN })
       .locator('button:has-text("Delete")')
       .click()
     await page.locator('.btn-save').click()
@@ -66,7 +87,7 @@ test.describe('Change History page', () => {
     await openDeckHistory(page)
 
     // Expanding the older set shows its change lines and its preserved prose.
-    const older = page.locator('.history-set', { hasText: '2026-01-01' })
+    const older = page.locator('.history-set', { hasText: JAN })
     await older.locator('.history-set-main').click()
     await expect(older.locator('.history-trailing-line')).toHaveText([
       'NOTE: the FNM tuning session.',
@@ -74,7 +95,7 @@ test.describe('Change History page', () => {
 
     // An unrelated edit (delete the other set) then save must echo the prose back.
     await page
-      .locator('.history-set', { hasText: '2026-02-01' })
+      .locator('.history-set', { hasText: FEB })
       .locator('button:has-text("Delete")')
       .click()
     await page.locator('.btn-save').click()
@@ -88,7 +109,7 @@ test.describe('Change History page', () => {
     await openDeckHistory(page)
 
     await page
-      .locator('.history-set', { hasText: '2026-02-01' })
+      .locator('.history-set', { hasText: FEB })
       .locator('button:has-text("Combine")')
       .click()
     await expect(page.locator('.history-combine-option')).toHaveCount(0)
@@ -105,14 +126,14 @@ test.describe('Change History page', () => {
 
     // Combine into the 2026-02-01 set; it absorbs the 2026-01-01 set's entries.
     await page
-      .locator('.history-set', { hasText: '2026-02-01' })
+      .locator('.history-set', { hasText: FEB })
       .locator('button:has-text("Combine")')
       .click()
-    await page.locator('.history-combine-option', { hasText: '2026-01-01' }).click()
+    await page.locator('.history-combine-option', { hasText: JAN }).click()
 
     const remaining = page.locator('.history-set')
     await expect(remaining).toHaveCount(1)
-    await expect(remaining).toContainText('2026-02-01')
+    await expect(remaining).toContainText(FEB)
     await expect(remaining).toContainText('2 changes')
 
     // Expanding shows both merged change lines, ordered oldest-set-first: the
@@ -153,13 +174,13 @@ test.describe('Change History page', () => {
     await openDeckHistory(page)
 
     await page
-      .locator('.history-set', { hasText: '2026-01-01' })
+      .locator('.history-set', { hasText: JAN })
       .locator('button:has-text("Edit time")')
       .click()
     await page.locator('#text-prompt-input').fill('2026-03-01T00:00:00.000Z')
     await page.locator('.text-prompt button:has-text("Update")').click()
 
     // The retimed set sorts to the top (newest first).
-    await expect(page.locator('.history-set').first()).toContainText('2026-03-01')
+    await expect(page.locator('.history-set').first()).toContainText('March 1, 2026')
   })
 })

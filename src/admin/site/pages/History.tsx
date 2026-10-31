@@ -1,6 +1,7 @@
 import { type JSX, Show, For, createSignal, createMemo, onCleanup } from 'solid-js'
 import { canCombineSets, isValidIso8601 } from '../../../changes/changelog-blocks'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
+import { formatChangeTimestamp } from '../../../ui/format'
 import { groupListsByType, listInfoId, type ListId } from '../list-grouping'
 import { useHistorySession } from '../hooks/useHistorySession'
 import { useApiText } from '../hooks/useApiAction'
@@ -299,7 +300,9 @@ export function History(): JSX.Element {
                           <span class="history-set-caret">
                             {expanded().has(index()) ? '▾' : '▸'}
                           </span>
-                          <span class="history-set-time">{set.timestamp}</span>
+                          <span class="history-set-time" title={set.timestamp}>
+                            {formatChangeTimestamp(set.timestamp)}
+                          </span>
                           <span class="history-set-count">
                             {t('domain.count.changes', { count: set.lines.length })}
                           </span>

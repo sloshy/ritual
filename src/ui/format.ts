@@ -66,6 +66,24 @@ export function formatDateTimeOr(
   return Number.isNaN(date.getTime()) ? fallback : formatDateTime(date, options)
 }
 
+/** The change-set heading form shared by the public changelog modal and the admin history views. */
+const CHANGE_TIMESTAMP_OPTIONS: Intl.DateTimeFormatOptions = {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+}
+
+/**
+ * A change set's timestamp (a `.changes.md` heading) as the history views show
+ * it: the date in words plus the clock time, in the active UI locale. A heading
+ * that is not a date (hand-written) is shown as written.
+ */
+export function formatChangeTimestamp(timestamp: string): string {
+  return formatDateTimeOr(timestamp, timestamp, CHANGE_TIMESTAMP_OPTIONS)
+}
+
 /** Render a number with the active UI locale's grouping and decimal separators. */
 export function formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
   return numberFormat(currentLocale(), options).format(value)

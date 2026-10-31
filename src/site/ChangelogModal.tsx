@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, Show, For } from 'solid-js'
 import { Modal } from '../ui/Modal'
-import { formatDateTimeOr } from '../ui/format'
+import { formatChangeTimestamp } from '../ui/format'
 import type { ChangelogPage } from '../changes/changelog-parser'
 import type { ScryfallCard } from '../scryfall/types'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -41,14 +41,7 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
   const formattedTimestamp = createMemo(() => {
     const cp = currentPage()
     if (!cp) return ''
-    // A heading that is not a date (hand-written) is shown as written.
-    return formatDateTimeOr(cp.timestamp, cp.timestamp, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return formatChangeTimestamp(cp.timestamp)
   })
 
   const cardModalCard = createMemo((): ScryfallCard | null => {

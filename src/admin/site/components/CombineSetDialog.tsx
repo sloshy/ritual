@@ -1,6 +1,7 @@
 import { type Component, For, Show } from 'solid-js'
 import { Modal } from '../../../ui/Modal'
 import { useT } from '../../../ui/i18n'
+import { formatChangeTimestamp } from '../../../ui/format'
 
 /** A candidate change set to combine into, paired with its index in the full set list. */
 export type CombineCandidate = {
@@ -29,7 +30,7 @@ export const CombineSetDialog: Component<CombineSetDialogProps> = (props) => {
     <Modal open={props.open} onClose={props.onCancel} size="md" panelClass="modal-panel--prompt">
       <h3>{t('admin.combine.title')}</h3>
       <p class="dialog-message">
-        {t('admin.combine.message', { timestamp: props.targetTimestamp })}
+        {t('admin.combine.message', { timestamp: formatChangeTimestamp(props.targetTimestamp) })}
       </p>
       <div class="history-combine-list">
         <Show
@@ -43,7 +44,9 @@ export const CombineSetDialog: Component<CombineSetDialogProps> = (props) => {
                 class="history-combine-option"
                 onClick={() => props.onSelect(candidate.index)}
               >
-                <span class="history-set-time">{candidate.timestamp}</span>
+                <span class="history-set-time" title={candidate.timestamp}>
+                  {formatChangeTimestamp(candidate.timestamp)}
+                </span>
                 <span class="history-set-count">
                   {t('domain.count.changes', { count: candidate.changeCount })}
                 </span>
