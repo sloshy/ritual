@@ -11,7 +11,7 @@ function add(id: string, timestamp: number, cardName: string): ChangeEvent {
 }
 
 function bundle(lists: ChangeBundle['lists'], moves: ChangeBundleMove[] = []): ChangeBundle {
-  return { format: 'ritual-change-bundle', version: 3, exportedAt: 'now', lists, moves }
+  return { format: 'ritual-change-bundle', version: 1, exportedAt: 'now', lists, moves }
 }
 
 describe('planImportBatches', () => {

@@ -184,7 +184,7 @@ POST /api/import-changes
 
 Apply a change bundle exported from the site editor to the underlying lists. Used by the admin site's **Import Changes** page and exposed as the MCP `import_change_bundle` tool; shares its apply engine with the [`import-changes`](/commands/import-changes/) CLI command.
 
-**Request Body:** the exported JSON, verbatim — a version-3 `ritual-change-bundle` covering one or more lists. Each list's own edits sit in `lists[].changes`. Cross-list moves are normalized into the top-level `moves` array and never appear as `move-from`/`move-to` inside a list's `changes`. Each move is one copy, naming its source and destination list by kind + name (the slug is a best-effort hint), and carries:
+**Request Body:** the exported JSON, verbatim — a version-1 `ritual-change-bundle` covering one or more lists. Each list's own edits sit in `lists[].changes`. Cross-list moves are normalized into the top-level `moves` array and never appear as `move-from`/`move-to` inside a list's `changes`. Each move is one copy, naming its source and destination list by kind + name (the slug is a best-effort hint), and carries:
 
 - the copy's printing fields (`set`, `collectorNumber`, `finish`, `condition`, `language`);
 - optional `tags` (the card's [tags](/list-format/#card-tags), canonical and without the `#`), landing on the destination line;
@@ -195,7 +195,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 ```json
 {
   "format": "ritual-change-bundle",
-  "version": 3,
+  "version": 1,
   "exportedAt": "2026-06-04T00:00:00.000Z",
   "lists": [
     {

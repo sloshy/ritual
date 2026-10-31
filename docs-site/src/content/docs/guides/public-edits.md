@@ -57,7 +57,7 @@ If a visitor is sending you their edits, ask them to export with **Download chan
 
 ## 3. What the Bundle Contains
 
-A bundle is a `ritual-change-bundle` JSON, currently version 3. It records **what you did**, not the resulting list:
+A bundle is a `ritual-change-bundle` JSON, format version 1. It records **what you did**, not the resulting list:
 
 - `lists`: one entry per edited list (its kind, slug and name), each with its ordered changes: adds, removals, quantity, printing, finish, label and category changes, and so on.
 - `moves`: every card moved between two lists, one entry per copy, with its printing, tags, note, and labels.

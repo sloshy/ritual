@@ -33,12 +33,12 @@ ritual import-changes <file>
 
 ## Format
 
-The file is a **`ritual-change-bundle`** JSON (format version **3**) covering one or more lists. Version 3 is the first whose card labels [adjust the list default](/list-format/#card-labels); a version-2 bundle is refused as an unsupported version. The Export panel's **This list** scope produces a one-list bundle. Its **All lists** scope (offered when edit mode has changes across several lists) covers every edited list in one envelope.
+The file is a **`ritual-change-bundle`** JSON (format version **1**; any other version is refused) covering one or more lists. Card labels in a bundle are signed and [adjust the list default](/list-format/#card-labels). The Export panel's **This list** scope produces a one-list bundle. Its **All lists** scope (offered when edit mode has changes across several lists) covers every edited list in one envelope.
 
 ```json
 {
   "format": "ritual-change-bundle",
-  "version": 3,
+  "version": 1,
   "exportedAt": "2026-06-04T00:00:00.000Z",
   "lists": [
     {

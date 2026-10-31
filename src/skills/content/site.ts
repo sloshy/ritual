@@ -581,7 +581,7 @@ are auto-committed to git (\`admin.gitAutoPush\` also pushes). CLI commands neve
 auto-commit.
 
 The admin's **Import Changes** page applies a change-list JSON exported from the
-public site's edit mode (a version-3 bundle covering one or more lists, with
+public site's edit mode (a version-1 bundle covering one or more lists, with
 cross-list moves normalized into a top-level \`moves\` array) with a per-list
 preview — moves listed in their own group — before applying; each move is written
 to both its lists. It is the same operation as \`ritual import-changes\` (see the

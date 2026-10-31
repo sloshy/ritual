@@ -31,7 +31,7 @@ export function problemEnglish(problem: ChangeProblem): string {
  */
 export const MALFORMED_MOVE_BUNDLE = {
   format: 'ritual-change-bundle',
-  version: 3,
+  version: 1,
   exportedAt: '2026-06-04T00:00:00.000Z',
   lists: [],
   moves: [

@@ -1521,7 +1521,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     // and the per-list result shape.
     const bundle = {
       format: 'ritual-change-bundle',
-      version: 3,
+      version: 1,
       moves: [],
       exportedAt: '2026-06-04T00:00:00.000Z',
       lists: [
@@ -1579,7 +1579,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     // into an isError whose payload carries none of it.
     const bundle = {
       format: 'ritual-change-bundle',
-      version: 3,
+      version: 1,
       moves: [],
       exportedAt: '2026-06-04T00:00:00.000Z',
       lists: [
@@ -1633,7 +1633,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     const bundle = {
       format: 'ritual-change-bundle',
-      version: 3,
+      version: 1,
       exportedAt: '2026-06-04T00:00:00.000Z',
       lists: [],
       moves: [

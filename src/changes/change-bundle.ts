@@ -37,7 +37,7 @@ import {
 export const CHANGE_BUNDLE_FORMAT = 'ritual-change-bundle'
 
 /** The bundle shape version. Bump only on incompatible shape changes. */
-export const CHANGE_BUNDLE_VERSION = 3
+export const CHANGE_BUNDLE_VERSION = 1
 
 /**
  * One list's worth of changes inside a {@link ChangeBundle}. A single-list

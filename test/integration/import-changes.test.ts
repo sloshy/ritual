@@ -29,7 +29,7 @@ import {
 
 const BUNDLE = {
   format: 'ritual-change-bundle',
-  version: 3,
+  version: 1,
   exportedAt: '2026-06-04T00:00:00.000Z',
   moves: [],
   lists: [
@@ -228,7 +228,7 @@ describe('import-changes command (Integration)', () => {
       // send the user hunting for it.
       const bundle = {
         format: 'ritual-change-bundle',
-        version: 3,
+        version: 1,
         exportedAt: '2026-06-04T00:00:00.000Z',
         moves: [],
         lists: [
@@ -548,7 +548,7 @@ describe('import-changes command (Integration)', () => {
       const bundle = parseChangeBundle(
         JSON.stringify({
           format: 'ritual-change-bundle',
-          version: 3,
+          version: 1,
           exportedAt: '2026-06-04T00:00:00.000Z',
           moves: [],
           lists: [
@@ -616,7 +616,7 @@ describe('import-changes command (Integration)', () => {
       const bundle = parseChangeBundle(
         JSON.stringify({
           format: 'ritual-change-bundle',
-          version: 3,
+          version: 1,
           exportedAt: '2026-06-04T00:00:00.000Z',
           moves: [],
           lists: [
@@ -712,12 +712,12 @@ describe('import-changes command (Integration)', () => {
   })
 })
 
-/** A v2 bundle from its lists and moves, parsed through the real validator. */
+/** A bundle from its lists and moves, parsed through the real validator. */
 function bundleOf(lists: unknown[], moves: unknown[]): ChangeBundle {
   const bundle = parseChangeBundle(
     JSON.stringify({
       format: 'ritual-change-bundle',
-      version: 3,
+      version: 1,
       exportedAt: '2026-06-04T00:00:00.000Z',
       lists,
       moves,

@@ -757,7 +757,7 @@ describe('pseudo-locale (Integration)', () => {
       // text mode re-renders the key, so it is bracketed like the rest.
       const bundle = {
         format: 'ritual-change-bundle',
-        version: 3,
+        version: 1,
         exportedAt: '2026-06-04T00:00:00.000Z',
         moves: [],
         lists: [

@@ -4,7 +4,7 @@ import { mockImportChangesApi } from '../helpers/mock-admin'
 
 const BUNDLE = {
   format: 'ritual-change-bundle',
-  version: 3,
+  version: 1,
   moves: [],
   exportedAt: '2026-06-04T00:00:00.000Z',
   lists: [

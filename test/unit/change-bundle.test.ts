@@ -342,9 +342,7 @@ describe('parseChangeBundle validation', () => {
       },
       'Move #1: "tags" must be an array of tags',
     ],
-    ['version 1 (pre-normalized moves)', { ...sampleBundle(), version: 1 }, 'version'],
-    // Version 2 labels replaced the list default; version 3 labels adjust it.
-    ['version 2 (replace-semantics labels)', { ...sampleBundle(), version: 2 }, 'version'],
+    ['any version but 1', { ...sampleBundle(), version: 2 }, 'version'],
     ['a non-array lists field', { ...sampleBundle(), lists: 'nope' }, '"lists"'],
     ['a missing moves array', { ...sampleBundle(), moves: undefined }, '"moves"'],
     [

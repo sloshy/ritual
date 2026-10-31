@@ -777,9 +777,11 @@ JSON object`).
   place only when the copy's labels match it, so a pin never turns a proxy real or the reverse). A line whose labels token conflicts
   (`[sale,keep]`, `[sale,no-sale]`) now keeps its card (with the labels dropped and the usual
   warning), so `set-card --label` can find and repair it.
-- Change bundles are now format version 3 (labels adjust the list default). A version-2
-  bundle is refused as an unsupported version, and an edit session an older site saved in
-  the browser is not restored; re-export it from an up-to-date site.
+- **Change bundles start over at format version 1 for 0.1.0**, a one-time reset like the
+  migration numbering (labels adjust the list default). Only version 1 is accepted: a
+  bundle a 0.1.0 release candidate exported (version 2 or 3) is refused as an unsupported
+  version, and an edit session an older site saved in the browser is not restored;
+  re-export it from an up-to-date site.
 - Deleting a list (`ritual delete`, the admin site, or the MCP `delete_list` tool) moves its
   files into the workspace's `.trash/` folder instead of erasing them, so a deletion can be
   undone by moving them back. The JSON and API results name the folder in a new `trashDir`.
