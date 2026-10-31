@@ -1802,6 +1802,16 @@ body {
   margin-inline: auto;
 }
 
+/* Phone width (no data-fold) with the cross-list selection button showing: the
+   button is too wide to leave the centered trigger any room, so the trigger
+   goes back in flow the same way, between the logo and the button. The row
+   wraps before anything overlaps. */
+.site-header:not([data-fold]) .site-header-main:has(> .selection-menu) .quick-switch-trigger {
+  position: static;
+  transform: none;
+  margin-inline: auto;
+}
+
 /* Nothing fits even at the icon level (a long translation on a narrow tablet):
    the nav gives way and scrolls sideways within itself rather than pushing the
    page wider. useHeaderFit reads its scroll width, so the squeeze never feeds

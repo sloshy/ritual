@@ -302,6 +302,35 @@ test.describe('Touch selection mode', () => {
     await expect(page.locator('.card-modal')).toBeVisible()
   })
 
+  test('the header’s selection button never overlaps the quick switch', async ({ page }) => {
+    const quickSwitch = page.locator('.quick-switch-trigger')
+    const selectionButton = page.locator('.selection-menu-btn--navbar')
+
+    await page.locator('.toolbar .toolbar-toggle', { hasText: 'Select' }).click()
+    const cards = page.locator('.card-item .card-binder')
+    for (const i of [0, 1]) await cards.nth(i).click()
+    await expect(selectionButton).toContainText('(2)')
+
+    await expect(selectionButton).toContainText('All Selected')
+    await expect(quickSwitch).toBeInViewport()
+
+    // Absolutely centered, the trigger sat under the button's left edge.
+    const [trigger, button] = await Promise.all([
+      quickSwitch.boundingBox(),
+      selectionButton.boundingBox(),
+    ])
+    expect(trigger).not.toBeNull()
+    expect(button).not.toBeNull()
+    const overlaps =
+      trigger!.x < button!.x + button!.width &&
+      button!.x < trigger!.x + trigger!.width &&
+      trigger!.y < button!.y + button!.height &&
+      button!.y < trigger!.y + trigger!.height
+    expect(overlaps, `trigger ${JSON.stringify(trigger)} vs button ${JSON.stringify(button)}`).toBe(
+      false,
+    )
+  })
+
   test('the corner checkbox rides on selection mode and the trade bookmark stays gone', async ({
     page,
   }) => {
