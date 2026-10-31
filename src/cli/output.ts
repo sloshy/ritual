@@ -273,6 +273,23 @@ export function emitError(
 }
 
 /**
+ * The `--output` a run of a text-by-default command (`card`, `scry`) resolves
+ * to: `--fields` names fields of the JSON payload, so asking for fields without
+ * choosing an output asks for JSON. An explicit `--output` always wins — an
+ * explicit `--output text` with `--fields` is still refused by
+ * {@link rejectFieldsWithTextOutput}.
+ *
+ * @param outputGiven Whether `--output` was typed (commander's value source is `cli`).
+ */
+export function resolveFieldsOutput<T extends string>(
+  output: T,
+  fields: readonly string[] | undefined,
+  outputGiven: boolean,
+): T | 'json' {
+  return !outputGiven && fields !== undefined && fields.length > 0 ? 'json' : output
+}
+
+/**
  * The `--fields` projection only applies to structured output. When `--fields`
  * was given alongside `--output text`, emit the shared usage error, set the
  * usage exit code, and return true so the caller can bail out.

@@ -23,13 +23,13 @@ ritual scry [query] --random [options]
 
 ## Options
 
-| Option              | Description                                        | Default                                    |
-| ------------------- | -------------------------------------------------- | ------------------------------------------ |
-| `--pages <number>`  | Fetch up to this many pages, without prompting     | `1` when interactive paging is unavailable |
-| `--random`          | Fetch random cards instead of searching            | `false`                                    |
-| `--count <number>`  | Number of random cards to fetch (`--random` only)  | `1`                                        |
-| `--fields <list>`   | Comma-separated fields for `json`/`ndjson` output  | -                                          |
-| `--output <format>` | Output format (`json`, `ndjson`, `text`, or `csv`) | `json`                                     |
+| Option              | Description                                                                                                                                                    | Default                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `--pages <number>`  | Fetch up to this many pages, without prompting                                                                                                                 | `1` when interactive paging is unavailable |
+| `--random`          | Fetch random cards instead of searching                                                                                                                        | `false`                                    |
+| `--count <number>`  | Number of random cards to fetch (`--random` only)                                                                                                              | `1`                                        |
+| `--fields <list>`   | Comma-separated fields for `json`/`ndjson` output; implies `--output json` when `--output` is not given (with an explicit `--output text` it is a usage error) | -                                          |
+| `--output <format>` | Output format (`text`, `json`, `ndjson`, or `csv`)                                                                                                             | `text`                                     |
 
 Rules:
 
@@ -38,6 +38,17 @@ Rules:
 - `--pages` and `--count` must be positive integers within their caps (20 and 50). Any other value is a usage error.
 - `--output csv` is an extra format for the same payload, rendered by Scryfall server-side.
 - There is no `--quiet`: the results are the payload, and the truncation notice below warns about lost content, so [the convention](/cli-conventions/#scripting) lets `--quiet` hide neither. Everything else follows the [shared scripting conventions](/cli-conventions/#scripting).
+
+## Text output
+
+By default each card is one line: its name, printing (`SET:number`), type line and price.
+
+```text
+Goblin Guide · 2XM:127 · Creature — Goblin Scout · $1.25
+Legion Loyalist · GTC:97 · Creature — Goblin Soldier · $4.17
+```
+
+The price is Scryfall's, in the currency of your [`defaultPriceSource`](/configuration/) store (a `cardkingdom` default shows TCGplayer's USD price, since Card Kingdom's feed is not read here); `N/A` means Scryfall lists none for that printing. **Scripts:** pass `--output json` (or `ndjson`, or `--fields`) for the Scryfall card objects. The text layout is for people and may change.
 
 ## Paging
 
@@ -57,17 +68,17 @@ Use the global `--no-input` flag to guarantee no prompting, and `--pages <n>` to
 
 ### Output across pages
 
-A scripted `--output json` run (the default) always emits **one** JSON array of cards, whether it walked one page or five and whether it found matches or none. The pages are collected and written once at the end. A run that fails partway still emits the cards that arrived, and a run that found nothing emits `[]` (with the error on stderr and a non-zero exit code).
+A scripted `--output json` run always emits **one** JSON array of cards, whether it walked one page or five and whether it found matches or none. The pages are collected and written once at the end. A run that fails partway still emits the cards that arrived, and a run that found nothing emits `[]` (with the error on stderr and a non-zero exit code).
 
 Interactive paging is the exception: those runs print each page as it arrives, so you can see it before asking for the next.
 
-`--output ndjson` streams one document per card as each page arrives. `--output text` prints one `Name (SET)` line per card as each page arrives. `--output csv` concatenates the pages' rows, writing the header once.
+`--output ndjson` streams one document per card as each page arrives. Text output prints one line per card as each page arrives. `--output csv` concatenates the pages' rows, writing the header once.
 
 ## Random Cards
 
 `--random` fetches random cards instead of running a search. The query, when given, filters the selection: each pick is a random card matching it. Cards are fetched one request at a time (Scryfall rate limiting applies), so large `--count` values take proportionally longer.
 
-A single pick (`--count 1`, the default) emits a bare card object. `--count` greater than 1 emits an array (one line per card with `--output ndjson`). `--output text` prints one `Name (SET)` line per card. `--fields` works as with searches. If any fetch fails or a pick comes back empty, nothing is printed and the command exits non-zero.
+Text output prints one line per pick. Under `--output json`, a single pick (`--count 1`, the default) emits a bare card object and `--count` greater than 1 emits an array (one line per card with `--output ndjson`). `--fields` works as with searches. If any fetch fails or a pick comes back empty, nothing is printed and the command exits non-zero.
 
 Get a completely random card:
 
@@ -87,10 +98,10 @@ Get five random cards under $1:
 ritual scry "usd<1" --random --count 5
 ```
 
-Get text output for shell scripts:
+Get the random card as a Scryfall JSON object:
 
 ```bash
-ritual scry --random --output text
+ritual scry --random --output json
 ```
 
 ## Examples
@@ -113,10 +124,10 @@ Export search results to CSV:
 ritual scry "set:mh2 type:creature" --output csv > creatures.csv
 ```
 
-Force text output:
+Get the results as one JSON array of Scryfall card objects:
 
 ```bash
-ritual scry "type:artifact" --output text
+ritual scry "type:artifact" --output json
 ```
 
 Stream projected card fields as NDJSON:

@@ -101,7 +101,6 @@ export const cliCardsMessages = {
   // ── add-card ──────────────────────────────────────────────────────────
   'cli.addCard.collectorNumberEmpty': 'Collector number cannot be empty.',
   'cli.addCard.cacheUnavailable': 'Card cache is not available.',
-  'cli.addCard.loadedFromCache': 'Loaded {count} cards from cache.',
   'cli.addCard.wantedOnlyFlags':
     '{nameOnlyFlag} and {specificFlag} apply only to wanted list targets.',
   'cli.addCard.deckOnlyFlags': '{sectionFlag} and {commanderFlag} apply only to deck targets.',
@@ -269,6 +268,8 @@ export const cliCardsMessages = {
     'Provide a card name argument or use {stdinFlag}/{fromFileFlag} for batch input.',
   'cli.card.fetchFailed': "Failed to fetch card '{name}': {reason}",
   'cli.card.notFound': "Card '{name}' not found.",
+  'cli.card.notFoundHint':
+    'Check the spelling, or re-run with {flag} to match a partial or misspelled name.',
 
   // ── scry ──────────────────────────────────────────────────────────────
   'cli.scry.pagesWithRandom': '{pagesFlag} cannot be used with {randomFlag}.',

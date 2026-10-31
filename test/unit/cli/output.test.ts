@@ -11,6 +11,7 @@ import {
   parseFields,
   projectFields,
   rejectFieldsWithTextOutput,
+  resolveFieldsOutput,
   writeStdout,
 } from '../../../src/cli/output'
 import { ExitCode } from '../../../src/util/errors'
@@ -237,5 +238,18 @@ describe('writeStdout after a broken pipe', () => {
       emitOutput([{ a: 1 }, { a: 2 }], { output: 'ndjson', quiet: false })
     })
     expect(stdout).toBe('before\n')
+  })
+})
+
+describe('resolveFieldsOutput', () => {
+  test.each([
+    ['no fields keeps the default', 'text', undefined, false, 'text'],
+    ['an empty field list keeps the default', 'text', [], false, 'text'],
+    ['fields with no --output typed ask for JSON', 'text', ['name'], false, 'json'],
+    ['an explicit --output text stays text (and is refused later)', 'text', ['name'], true, 'text'],
+    ['an explicit --output ndjson stays ndjson', 'ndjson', ['name'], true, 'ndjson'],
+    ['an explicit --output csv stays csv', 'csv', ['name'], true, 'csv'],
+  ] as const)('%s', (_label, output, fields, outputGiven, expected) => {
+    expect(resolveFieldsOutput(output, fields, outputGiven)).toBe(expected)
   })
 })

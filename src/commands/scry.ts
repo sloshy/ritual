@@ -11,6 +11,7 @@ import {
   projectFields,
   projectFieldsArray,
   rejectFieldsWithTextOutput,
+  resolveFieldsOutput,
   writeStderr,
   writeStdout,
   type CsvOutputFormat,
@@ -19,7 +20,8 @@ import {
 import { fail, failWithMessage } from '../cli/action'
 import { syncMessage } from '../sync/message'
 import { ExitCode, getErrorMessage } from '../util/errors'
-import { renderCardSummary } from './card'
+import { renderCardLine } from './card-text'
+import { getDefaultPriceCurrency } from '../config/ritual-config'
 import { parsePositiveInteger } from '../util/parse-number'
 import { ask } from '../cli/prompts'
 import type { MessageKey } from '../i18n/messages/en'
@@ -136,10 +138,14 @@ export function registerScryCommand(program: Command): void {
         ),
     ),
     SCRY_OUTPUT_FORMATS,
-    'json',
-  ).action(async (query: string | undefined, options: ScryCommandOptions) => {
-    const format: ScryOutputFormat = options.output ?? 'json'
-    const scriptingOptions = scryScriptingOptions(options)
+    'text',
+  ).action(async (query: string | undefined, options: ScryCommandOptions, command: Command) => {
+    const format: ScryOutputFormat = resolveFieldsOutput(
+      options.output ?? 'text',
+      options.fields,
+      command.getOptionValueSource('output') === 'cli',
+    )
+    const scriptingOptions = scryScriptingOptions({ output: format })
     const usageError = validateScryUsage({
       query,
       random: options.random,
@@ -203,6 +209,7 @@ export function registerScryCommand(program: Command): void {
      * per page.
      */
     const jsonCards: unknown[] = []
+    const currency = getDefaultPriceCurrency()
     const bufferJson = format === 'json' && !interactivePaging
 
     /** Report a page that could not be fetched, and set the runtime exit code. */
@@ -257,10 +264,10 @@ export function registerScryCommand(program: Command): void {
           emittedCards += data.data.length
           totalCards = data.total_cards ?? totalCards
           if (format === 'text') {
-            // The documented text rendering: one `Name (SET)` line per card,
-            // the same summary the --random path prints.
+            // The documented text rendering: one compact line per card, the
+            // same line the --random path prints.
             for (const card of data.data) {
-              emitOutput(renderCardSummary(card), scriptingOptions)
+              emitOutput(renderCardLine(card, currency), scriptingOptions)
             }
           } else if (bufferJson) {
             jsonCards.push(...projectFieldsArray(data.data, options.fields))
@@ -375,8 +382,9 @@ async function runRandom(
   }
 
   if (scriptingOptions.output === 'text') {
+    const currency = getDefaultPriceCurrency()
     for (const card of cards) {
-      emitOutput(renderCardSummary(card), scriptingOptions)
+      emitOutput(renderCardLine(card, currency), scriptingOptions)
     }
     return
   }

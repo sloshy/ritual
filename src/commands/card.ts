@@ -1,6 +1,8 @@
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
 import { classifyFetchCard, scryfallClient } from '../scryfall'
+import { getDefaultPriceCurrency } from '../config/ritual-config'
+import { renderCardDetail } from './card-text'
 import { getErrorMessage, ExitCode } from '../util/errors'
 import { t, type MessageParams } from '../i18n/t'
 import { addFieldsOption, addOutputOption } from '../cli/options'
@@ -12,19 +14,13 @@ import {
   OUTPUT_FORMATS,
   projectFields,
   rejectFieldsWithTextOutput,
+  resolveFieldsOutput,
+  writeStderr,
   type OutputFormat,
 } from '../cli/output'
 import { fail } from '../cli/action'
 import { envelopeRef, renderSyncMessage, syncMessage } from '../sync/message'
 import { FLAG } from '../util/cli-tokens'
-
-/** The card fields {@link renderCardSummary} needs for its one-line summary. */
-export type CardSummary = { name: string; set: string }
-
-/** The shared one-line text rendering for a fetched card: `Name (SET)`. */
-export function renderCardSummary(card: CardSummary): string {
-  return t('cli.card.summary', { name: card.name, set: card.set.toUpperCase() })
-}
 
 type CardCommandOptions = {
   fuzzy: boolean
@@ -41,11 +37,7 @@ async function readLinesFromStdin(): Promise<string[]> {
     chunks.push(String(chunk))
   }
 
-  return chunks
-    .join('')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
+  return parseInputNames(chunks.join(''))
 }
 
 function parseInputNames(raw: string): string[] {
@@ -56,8 +48,9 @@ function parseInputNames(raw: string): string[] {
 }
 
 export function registerCardCommand(program: Command): void {
-  // `--output` only: every line `card` prints is payload or an error, so there
-  // is no non-essential chatter for `--quiet` to suppress.
+  // `--output` only: every line `card` prints is payload or an error (with a
+  // not-found's retry hint), so there is no non-essential chatter for `--quiet`
+  // to suppress.
   addOutputOption(
     addFieldsOption(
       program
@@ -70,9 +63,15 @@ export function registerCardCommand(program: Command): void {
         .option('--from-file <path>', t('help.card.fromFile')),
     ),
     OUTPUT_FORMATS,
-    'json',
-  ).action(async (name: string | undefined, options: CardCommandOptions) => {
-    const scriptingOptions = normalizeScriptingOptions(options, 'json')
+    'text',
+  ).action(async (name: string | undefined, options: CardCommandOptions, command: Command) => {
+    const scriptingOptions = normalizeScriptingOptions({
+      output: resolveFieldsOutput(
+        options.output ?? 'text',
+        options.fields,
+        command.getOptionValueSource('output') === 'cli',
+      ),
+    })
     if (rejectFieldsWithTextOutput(options.fields, scriptingOptions)) {
       return
     }
@@ -112,6 +111,7 @@ export function registerCardCommand(program: Command): void {
     }
 
     const batchMode = names.length > 1
+    const currency = getDefaultPriceCurrency()
     /**
      * `--output json` emits ONE document, batch or not — the same contract
      * `scry` documents. A batch buffers its cards into a single array so the
@@ -123,6 +123,7 @@ export function registerCardCommand(program: Command): void {
     const jsonCards: unknown[] = []
     let hadMissing = false
     let hadFailure = false
+    let printedText = false
 
     for (const cardName of names) {
       const outcome = classifyFetchCard(
@@ -156,6 +157,11 @@ export function registerCardCommand(program: Command): void {
           key: 'cli.card.notFound',
           params,
         })
+        // A person reading the miss gets the cheap next step; the envelope
+        // stays exactly the key above.
+        if (scriptingOptions.output === 'text' && !options.fuzzy) {
+          writeStderr(`${t('cli.card.notFoundHint', { flag: FLAG.fuzzy })}\n`)
+        }
         hadMissing = true
         continue
       }
@@ -163,7 +169,10 @@ export function registerCardCommand(program: Command): void {
       const card = outcome.card
 
       if (scriptingOptions.output === 'text') {
-        emitOutput(renderCardSummary(card), scriptingOptions)
+        // A batch separates its cards with a blank line.
+        if (printedText) emitOutput('', scriptingOptions)
+        emitOutput(renderCardDetail(card, currency), scriptingOptions)
+        printedText = true
         continue
       }
 

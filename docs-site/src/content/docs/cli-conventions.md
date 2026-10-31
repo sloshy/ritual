@@ -95,7 +95,6 @@ Interactive-only surfaces refuse to open and point at their headless equivalent:
 
 Where a question has a documented default, that default is used instead of failing. The general rule is that `--refresh ask` is **declined** wherever it would prompt. A few commands differ, and their pages say so:
 
-- [`build-site`](/commands/build-site/#card-cache-refresh) bulk-downloads an empty or stale card cache without asking, since it cannot build without card data.
 - [`sell`](/commands/sell/#feed-freshness) redownloads an already-downloaded Card Kingdom buylist once it is a day old. [`admin`](/commands/admin/), [`serve --api`](/commands/serve/#live-api-mode---api), and a [sell-mode `build-site`](/commands/build-site/#sell-mode---sell-mode) do the same. Only the _first_ buylist download prompts.
 - [`collection-sync`](/commands/collection-sync/#cache-freshness) fails the run instead of skipping.
 - A text `import` without `--type` falls back to a deck **under an explicit `--no-input`**. A merely piped run still errors, since nothing said which type was meant.
@@ -146,7 +145,7 @@ A few habits make scripts robust:
 
 ### `--output` always means the scripting format
 
-`--output text|json|ndjson` selects the format the command writes to stdout. It never means a file format or a destination. `json` emits exactly one document per run, so a batch of card lookups or a multi-page search is still one array. `ndjson` streams one JSON object per line. `text` is the human rendering.
+`--output text|json|ndjson` selects the format the command writes to stdout. It never means a file format or a destination. `json` emits exactly one document per run, so a batch of card lookups or a multi-page search is still one array. `ndjson` streams one JSON object per line. `text` is the human rendering, and the default everywhere, `card` and `scry` included: a script that parses their output passes `--output json` (or `--fields`, which implies it for those two).
 
 Three commands differ:
 

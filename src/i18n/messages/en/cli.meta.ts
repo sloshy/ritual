@@ -359,9 +359,21 @@ export const cliMeta = {
     description:
       'Key line of the multiple-choice instructions. {keys} is the key names ("enter/return"), which stay English: they accept the ticked rows.',
   },
-  'cli.card.summary': {
+  'cli.card.text.nameWithCost': {
     description:
-      'One-line rendering of a fetched card. {name} is the card name and {set} its set code, already uppercased; neither is translated. Only the punctuation around them is.',
+      'First line of a card (or of one face) in `ritual card`: the card name, then its mana cost in Scryfall symbols such as {R}{1}. Neither value is translated; only the spacing between them is.',
+  },
+  'cli.card.text.printing': {
+    description:
+      'Line of `ritual card`: which printing is shown. {printing} is the set code and collector number (e.g. "LEA:161"), {setName} the set\'s English name from Scryfall; neither is translated.',
+  },
+  'cli.card.text.price': {
+    description:
+      'Line of `ritual card`: the printing\'s price. {price} is the formatted price (or the "N/A" stand-in), {store} the store it comes from (e.g. "TCGplayer").',
+  },
+  'cli.scry.line': {
+    description:
+      'One search result of `ritual scry`, one per line: {name} the card name, {printing} the set code and collector number (e.g. "LEA:161"), {typeLine} the card type line from Scryfall, {price} the formatted price (or "N/A"). Only the separators are translated.',
   },
 
   'cli.menu.saveAndExit': {

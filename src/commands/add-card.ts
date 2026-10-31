@@ -298,7 +298,6 @@ async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise
       { key: 'cli.addCard.cacheUnavailable' },
     )
   }
-  info(t('cli.addCard.loadedFromCache', { count: cacheResult.cardCount }), scripting)
 
   const target = await resolveAddCardTarget(listArg.name, type)
   if (type === undefined) validateTargetFlags(target.type, pin, options)

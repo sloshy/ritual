@@ -18,24 +18,43 @@ ritual card [name] [options]
 
 ## Options
 
-| Option               | Description                                       |
-| -------------------- | ------------------------------------------------- |
-| `--fuzzy`            | Use fuzzy matching instead of exact               |
-| `--set <code>`       | Filter by set code                                |
-| `--stdin`            | Read card names from stdin (one per line)         |
-| `--from-file <path>` | Read card names from a file (one per line)        |
-| `--fields <list>`    | Comma-separated fields for `json`/`ndjson` output |
-| `--output <format>`  | Output format (`json`, `ndjson`, or `text`)       |
+| Option               | Description                                                                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--fuzzy`            | Use fuzzy matching instead of exact                                                                                                                            |
+| `--set <code>`       | Filter by set code                                                                                                                                             |
+| `--stdin`            | Read card names from stdin (one per line)                                                                                                                      |
+| `--from-file <path>` | Read card names from a file (one per line)                                                                                                                     |
+| `--fields <list>`    | Comma-separated fields for `json`/`ndjson` output; implies `--output json` when `--output` is not given (with an explicit `--output text` it is a usage error) |
+| `--output <format>`  | Output format: `text` (default), `json`, or `ndjson`                                                                                                           |
 
 There is no `--quiet`: everything the command prints is either a card or an error ([shared convention](/cli-conventions/#scripting)).
+
+## Text output
+
+By default the card is printed for a person to read: its name and mana cost, type line and rules text (each face in turn for a double-faced, split or adventure card), then the printing shown and its price:
+
+```text
+Lightning Bolt  {R}
+Instant
+Lightning Bolt deals 3 damage to any target.
+
+Printing: LEA:161 (Limited Edition Alpha)
+Price: $450.00 (TCGplayer)
+```
+
+The printing is the one Scryfall returns for the name (narrow it with `--set`). The price is Scryfall's, in the currency of your [`defaultPriceSource`](/configuration/) store: TCGplayer (USD), Cardmarket (EUR) or Cardhoarder (tix). Card Kingdom's prices come from its own feed, which `card` does not read, so a `cardkingdom` default shows TCGplayer's USD price. `N/A` means Scryfall lists no price for that printing.
+
+A name Scryfall does not know prints `Card '…' not found.` and, unless `--fuzzy` was already given, a hint to retry with it, and the command exits `3`.
+
+**Scripts:** pass `--output json` (or `ndjson`) to get the full Scryfall card object. The text layout is for people and may change; the JSON is Scryfall's own.
 
 ## Batch output shape
 
 `--stdin` and `--from-file` look up every name in the input.
 
-- **`--output json`** (the default): an input of two or more names emits **one** JSON array for the whole batch, like a multi-page [`scry`](/commands/scry/) search. Cards that were found are still emitted when some lookups fail (failures go to stderr and set the exit code); if all fail, the output is `[]`. A single name, as an argument or a one-line batch, emits a bare card object.
+- **`--output json`**: an input of two or more names emits **one** JSON array for the whole batch, like a multi-page [`scry`](/commands/scry/) search. Cards that were found are still emitted when some lookups fail (failures go to stderr and set the exit code); if all fail, the output is `[]`. A single name, as an argument or a one-line batch, emits a bare card object.
 - **`--output ndjson`** streams one JSON object per card as it arrives. Use this for large inputs.
-- **`--output text`** prints one `Name (SET)` line per card.
+- **Text** (the default) prints each card's block, separated by a blank line.
 
 ## Examples
 
@@ -43,6 +62,12 @@ Look up a card by exact name:
 
 ```bash
 ritual card "Sol Ring"
+```
+
+Get the full Scryfall card object as JSON:
+
+```bash
+ritual card "Sol Ring" --output json
 ```
 
 Use fuzzy matching for approximate names:
@@ -57,16 +82,16 @@ Look up a specific printing by set:
 ritual card "Lightning Bolt" --set lea
 ```
 
-Get plain text output:
-
-```bash
-ritual card "Sol Ring" --output text
-```
-
 Batch lookup from stdin as one JSON array:
 
 ```bash
 printf "Sol Ring\nArcane Signet\n" | ritual card --stdin --output json
+```
+
+Project a few fields (JSON, since `--fields` implies it):
+
+```bash
+ritual card "Sol Ring" --fields name,set,prices.usd
 ```
 
 Stream a large batch as NDJSON instead:

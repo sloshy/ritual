@@ -159,9 +159,6 @@ export const cliCardsMeta = {
     description:
       'Lead sentence of the empty-cache refusal; the shared advice about preloading is appended to it.',
   },
-  'cli.addCard.loadedFromCache': {
-    description: 'Progress line naming how many cards the local cache holds.',
-  },
   'cli.addCard.wantedOnlyFlags': {
     description:
       'Refusal when --name-only/--specific are used on a deck or collection. {nameOnlyFlag} is the `--name-only` flag; {specificFlag} is the `--specific` flag. Each is typed or matched exactly by the user, so never translate them.',
@@ -455,6 +452,10 @@ export const cliCardsMeta = {
   },
   'cli.card.fetchFailed': { description: "Scryfall's lookup failed. {reason} is its own text." },
   'cli.card.notFound': { description: 'Scryfall knows no card by that name.' },
+  'cli.card.notFoundHint': {
+    description:
+      'Printed under "Card … not found." when the lookup was exact. {flag} is the `--fuzzy` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
 
   // ── scry ──────────────────────────────────────────────────────────────
   'cli.scry.pagesWithRandom': {

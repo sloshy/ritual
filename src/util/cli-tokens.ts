@@ -78,6 +78,7 @@ export const FLAG = {
   format: '--format',
   from: '--from',
   fromFile: '--from-file',
+  fuzzy: '--fuzzy',
   global: '--global',
   hashOnly: '--hash-only',
   host: '--host',

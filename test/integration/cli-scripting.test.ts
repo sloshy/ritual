@@ -626,13 +626,33 @@ describe('scry paging (Integration)', () => {
   })
 
   // The search path renders text itself rather than dumping the raw Scryfall
-  // list envelope; the random path's rendering is pinned in scry-random.test.ts.
-  test('--output text renders one `Name (SET)` line per card', async () => {
-    const { code, stdout } = await runScry(['type:creature', '--output', 'text'])
+  // list envelope — by default; the line's wording is pinned in card-text.test.ts.
+  test('renders one compact line per card by default', async () => {
+    const { code, stdout } = await runScry(['type:creature'])
 
-    expect(stdout.trim()).toBe('Page 1 Card (TST)')
-    expect(stdout).not.toContain('"object"')
+    expect(stdout.trim()).toBe('Page 1 Card · TST:1 · Artifact · N/A')
     expect(code).toBe(0)
+  })
+
+  test('--output json emits the cards as one array', async () => {
+    const { code, stdout } = await runScry(['type:creature', '--output', 'json'])
+
+    const cards = JSON.parse(stdout) as { name: string }[]
+    expect(cards.map((card) => card.name)).toEqual(['Page 1 Card'])
+    expect(code).toBe(0)
+  })
+
+  // `--fields` names JSON fields, so without an explicit --output it asks for
+  // JSON; an explicit text output is still refused.
+  test('--fields without --output projects the JSON array', async () => {
+    const { code, stdout } = await runScry(['type:creature', '--fields', 'name'])
+
+    expect(JSON.parse(stdout)).toEqual([{ name: 'Page 1 Card' }])
+    expect(code).toBe(0)
+
+    const refused = await runScry(['type:creature', '--fields', 'name', '--output', 'text'])
+    expect(refused.code).toBe(ExitCode.UsageError)
+    expect(refused.stdout).toBe('')
   })
 
   test('--output csv asks Scryfall for CSV and writes it through unchanged', async () => {
@@ -670,6 +690,9 @@ const SLOW_CARD = 'Slow Card'
 const SLOW_REASON =
   'Scryfall request timed out after 15 seconds: https://api.scryfall.com/cards/named?exact=Slow+Card'
 
+/** A card the Scryfall stub does not know. */
+const MISSING_CARD = 'Missing Card'
+
 describe('card batch output (Integration)', () => {
   let scryfall: StubbedFetch
 
@@ -680,6 +703,7 @@ describe('card batch output (Integration)', () => {
         const name = params.get('exact') ?? params.get('fuzzy') ?? 'Unknown'
         // What `fetch` rejects with once the client's `AbortSignal.timeout` fires.
         if (name === SLOW_CARD) throw new DOMException('The operation timed out.', 'TimeoutError')
+        if (name === MISSING_CARD) return new Response('not found', { status: 404 })
         return Response.json(makeScryfallCard({ name }))
       },
     })
@@ -698,16 +722,28 @@ describe('card batch output (Integration)', () => {
     return captureStream('stdout', () => program.parseAsync(['card', ...args], { from: 'user' }))
   }
 
+  test('prints a readable card by default, not the Scryfall object', async () => {
+    const stdout = await runCard(['Sol Ring'])
+
+    expect(stdout).toStartWith('Sol Ring\nArtifact\n')
+    expect(stdout).toContain('Printing: TST:1 (Test Set)')
+    expect(stdout).not.toContain('"object"')
+  })
+
   test('--output json emits one array for a batch and a bare object for one name', async () => {
     await withTempDir(async (dir) => {
       const namesPath = path.join(dir, 'names.txt')
       await Bun.write(namesPath, 'Sol Ring\nCounterspell\n')
 
-      const batch = JSON.parse(await runCard(['--from-file', namesPath])) as { name: string }[]
+      const batch = JSON.parse(await runCard(['--from-file', namesPath, '--output', 'json'])) as {
+        name: string
+      }[]
       expect(Array.isArray(batch)).toBeTrue()
       expect(batch.map((card) => card.name)).toEqual(['Sol Ring', 'Counterspell'])
 
-      const single = JSON.parse(await runCard(['Sol Ring'])) as { name: string }
+      const single = JSON.parse(await runCard(['Sol Ring', '--output', 'json'])) as {
+        name: string
+      }
       expect(Array.isArray(single)).toBeFalse()
       expect(single.name).toBe('Sol Ring')
     })
@@ -724,6 +760,52 @@ describe('card batch output (Integration)', () => {
       expect(lines).toHaveLength(2)
       expect((JSON.parse(lines[1] ?? '{}') as { name: string }).name).toBe('Counterspell')
     })
+  })
+
+  test('a name Scryfall does not know is a sentence with a hint, or the envelope under json', async () => {
+    let stdout = ''
+    const text = await captureStream('stderr', async () => {
+      stdout = await runCard([MISSING_CARD])
+    })
+    expect(process.exitCode).toBe(ExitCode.NotFound)
+    expect(stdout).toBe('')
+    expect(text).toBe(
+      `Card '${MISSING_CARD}' not found.\n` +
+        'Check the spelling, or re-run with --fuzzy to match a partial or misspelled name.\n',
+    )
+
+    process.exitCode = 0
+    const json = await captureStream('stderr', () => runCard([MISSING_CARD, '--output', 'json']))
+    expect(process.exitCode).toBe(ExitCode.NotFound)
+    expect((JSON.parse(json) as { error: ErrorEnvelope }).error).toMatchObject({
+      code: 'not_found',
+      messageKey: 'cli.card.notFound',
+      messageParams: { name: MISSING_CARD },
+    })
+  })
+
+  test('a text batch separates its cards with one blank line, skipping a miss', async () => {
+    await withTempDir(async (dir) => {
+      const namesPath = path.join(dir, 'names.txt')
+      await Bun.write(namesPath, `Sol Ring\n${MISSING_CARD}\nCounterspell\n`)
+
+      let stdout = ''
+      await captureStream('stderr', async () => {
+        stdout = await runCard(['--from-file', namesPath])
+      })
+
+      const blocks = stdout.trimEnd().split('\n\n\n')
+      expect(blocks).toHaveLength(1)
+      expect(stdout).toStartWith('Sol Ring\n')
+      expect(stdout).toContain('Price: N/A (TCGplayer)\n\nCounterspell\n')
+      expect(stdout).not.toContain(MISSING_CARD)
+    })
+  })
+
+  test('a --fuzzy miss gets no hint to retry with --fuzzy', async () => {
+    const stderr = await captureStream('stderr', () => runCard([MISSING_CARD, '--fuzzy']))
+
+    expect(stderr).toBe(`Card '${MISSING_CARD}' not found.\n`)
   })
 
   test('a missing --from-file is a not-found naming the file', async () => {

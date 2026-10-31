@@ -93,8 +93,11 @@ export const cliMessages = {
   'cli.prompt.instructions.filter': '{keys}: Filter choices',
   'cli.prompt.instructions.complete': '{keys}: Complete answer',
 
-  // ── Card summaries ────────────────────────────────────────────────────
-  'cli.card.summary': '{name} ({set})',
+  // ── Card text (`card` and `scry` without --output json) ──────────────
+  'cli.card.text.nameWithCost': '{name}  {manaCost}',
+  'cli.card.text.printing': 'Printing: {printing} ({setName})',
+  'cli.card.text.price': 'Price: {price} ({store})',
+  'cli.scry.line': '{name} · {printing} · {typeLine} · {price}',
 
   'cli.menu.saveAndExit': 'Save and exit',
   'cli.menu.exitWithoutSaving': 'Exit without saving',
