@@ -30,34 +30,10 @@ export function registerNewCommand(program: Command): void {
     'text',
   ).action(async (rawType: string, nameParts: string[], options: NewOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
-    const typed = joinTwoWordType(rawType, nameParts)
     await runCommandAction(scripting, () =>
-      runNew(typed.rawType, typed.nameParts.join(' ').trim(), options.format, scripting),
+      runNew(rawType, nameParts.join(' ').trim(), options.format, scripting),
     )
   })
-}
-
-/** The `<type>` argument and the name words, after {@link joinTwoWordType}. */
-type TypedNameArgs = { rawType: string; nameParts: string[] }
-
-/**
- * `ritual new wanted list Grails` types the two-word type unquoted, so the
- * shell hands `list` over as the name's first word. A bare `list`/`lists` word
- * after `wanted`, followed by more name, is read back into the type: no one
- * names a wanted list "list Grails" on purpose, and a quoted name (`"List of
- * Grails"`) arrives as one word and is never split.
- */
-export function joinTwoWordType(rawType: string, nameParts: readonly string[]): TypedNameArgs {
-  const [first, ...rest] = nameParts
-  if (
-    rawType.toLowerCase() === 'wanted' &&
-    first !== undefined &&
-    /^lists?$/i.test(first) &&
-    rest.length > 0
-  ) {
-    return { rawType: `${rawType} ${first}`, nameParts: rest }
-  }
-  return { rawType, nameParts: [...nameParts] }
 }
 
 async function runNew(

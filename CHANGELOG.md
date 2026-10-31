@@ -117,8 +117,7 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
   deck) starts a deck whose format has a command zone (Commander, Oathbreaker, Brawl and
   the other Commander variants) with an empty `## Commander` section above `## Main`.
 - `ritual new` and `import --type` accept the plural and two-word list types: `decks`,
-  `collections`, `"wanted lists"`, `wanted-list`; `ritual new wanted list Grails` works
-  unquoted.
+  `collections`, `wanted-list`, `wanted-lists`, or a quoted `"wanted list"`.
 - `add-card` names the list in its result instead of the file:
   `Added '1 Llanowar Elves' to Pauper Elves (Main)`, and
   `Added to Trade Binder: - Sol Ring (FDC:286) &12` for a collection or wanted list (which

@@ -17,7 +17,7 @@ ritual new <type> <name...> [options]
 | `<type>`    | List type: `deck`, `collection`, `wanted` | Yes      |
 | `<name...>` | Name of the list                          | Yes      |
 
-`<type>` also accepts the plural and two-word spellings, in any case: `decks`, `collections`, `wanted-list`, `"wanted lists"`. Unquoted, `ritual new wanted list Grails` works too: a bare `list` or `lists` right after `wanted` is read as part of the type, not the name. Anything else is a usage error that names the accepted types.
+`<type>` also accepts the plural and two-word spellings, in any case: `decks`, `collections`, `wanted-list`, `wanted-lists`, `"wanted lists"`. `<type>` is one argument, so quote a spelling with a space: `ritual new wanted list Grails` creates a wanted list named `list Grails`. Anything else is a usage error that names the accepted types.
 
 ## Options
 

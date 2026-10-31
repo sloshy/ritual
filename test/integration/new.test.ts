@@ -26,13 +26,14 @@ describe('new CLI (Integration)', () => {
     })
   })
 
-  test('accepts a plural type, and an unquoted two-word one', async () => {
+  test('accepts a plural type, and reads a word after `wanted` as part of the name', async () => {
     await withWorkspace(async (dir) => {
       expect((await runCli(['new', 'decks', 'Stompy'], dir)).exitCode).toBe(0)
-      expect((await runCli(['new', 'wanted', 'list', 'Grails'], dir)).exitCode).toBe(0)
+      // `<type>` is one token: an unquoted "List" starts the name, as typed.
+      expect((await runCli(['new', 'wanted', 'List', 'of', 'Grails'], dir)).exitCode).toBe(0)
 
       expect(await fs.readdir(path.join(dir, 'decks'))).toContain('Stompy.md')
-      expect(await fs.readdir(path.join(dir, 'wanted'))).toContain('Grails.md')
+      expect(await fs.readdir(path.join(dir, 'wanted'))).toContain('List of Grails.md')
     })
   })
 

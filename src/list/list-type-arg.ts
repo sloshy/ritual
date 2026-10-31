@@ -1,8 +1,9 @@
 /**
  * The one parser for a list type typed by a person — `ritual new <type>`,
  * `import --type` — which accepts the plural and the two-word spellings a
- * newcomer reaches for (`decks`, `collections`, `wanted lists`) as well as the
- * canonical tokens.
+ * newcomer reaches for (`decks`, `collections`, `wanted-lists`, a quoted
+ * `"wanted lists"`) as well as the canonical tokens. It parses one token: the
+ * words after an unquoted `wanted` belong to the list's name, never the type.
  *
  * Machine surfaces (the admin API's `type` fields, MCP `listType`, the
  * `deck:` / `collection:` / `wanted:` name prefix) keep the strict
