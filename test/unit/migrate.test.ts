@@ -4,6 +4,7 @@ import path from 'node:path'
 import {
   applyMigration,
   checkPendingWork,
+  hasPendingMigrations,
   hasPendingWork,
   planMigration,
   type BuildIdentity,
@@ -27,6 +28,7 @@ import { fileExists } from '../../src/util/fs'
 import { bindWorkspace, snapshotTree, type BoundWorkspace } from '../helpers/workspace'
 import { renderSyncParam, syncRef } from '../../src/sync/message'
 import { DEFAULT_LOCALE } from '../../src/i18n/runtime'
+import { LOGINS_GITIGNORE, LOGINS_GITIGNORE_CONTENT } from '../../src/auth/logins-dir'
 
 const DEV_BUILD: BuildIdentity = { version: '0.0.0-dev.abc', release: false }
 
@@ -106,13 +108,14 @@ describe('migration 1: drop site.version', () => {
       [1, [{ type: 'config-delete', path: ['site', 'version'] }]],
       [2, []],
       [3, []],
+      [4, []],
     ])
     expect(hasPendingWork(pending)).toBeTrue()
 
     const { backupDir } = await applyMigration(pending)
 
     // A config-only migration backs up just the config, in a folder named after
-    // the last migration that had ops (1), not the last one planned (3).
+    // the last migration that had ops (1), not the last one planned (4).
     if (backupDir === null) throw new Error('expected a backup folder')
     expect(backupDir).toMatch(/-migration-1$/)
     expect(await snapshotTree(backupDir)).toEqual({ 'ritual.config.json': original })
@@ -129,7 +132,7 @@ describe('migration 1: drop site.version', () => {
   test('an already-satisfied migration plans zero ops even with the counter at 0', async () => {
     await workspace({ site: { includeDecks: ['*'] } })
     const pending = await plan()
-    expect(pending.migrations.map((m) => m.ops)).toEqual([[], [], []])
+    expect(pending.migrations.map((m) => m.ops)).toEqual([[], [], [], []])
     // No deploy config means nothing is managed, so there is nothing to do.
     expect(pending.refresh).toBeNull()
     expect(hasPendingWork(pending)).toBeFalse()
@@ -152,6 +155,7 @@ describe('migration 2: drop site.prerelease', () => {
       expect(pending.migrations.map((m) => [m.migration.id, m.ops])).toEqual([
         [2, [{ type: 'config-delete', path: ['site', 'prerelease'] }]],
         [3, []],
+        [4, []],
       ])
     },
   )
@@ -161,7 +165,47 @@ describe('migration 2: drop site.prerelease', () => {
     expect((await plan()).migrations.map((m) => [m.migration.id, m.ops])).toEqual([
       [2, []],
       [3, []],
+      [4, []],
     ])
+  })
+})
+
+describe('migration 4: a .gitignore inside .logins/', () => {
+  const ADD_IGNORE: MigrationOp = {
+    type: 'write',
+    path: LOGINS_GITIGNORE,
+    content: LOGINS_GITIGNORE_CONTENT,
+  }
+
+  test('adds the ignore file to a .logins/ folder made before it, and re-plans to nothing', async () => {
+    const dir = await workspace({ managed: { migration: 3 } })
+    await fs.mkdir(path.join(dir, '.logins'))
+    await fs.writeFile(path.join(dir, '.logins', 'admin-auth.json'), '{}\n')
+
+    const pending = await plan()
+    expect(pending.migrations.map((m) => [m.migration.id, m.ops])).toEqual([[4, [ADD_IGNORE]]])
+    await applyMigration(pending)
+
+    // The sign-ins themselves are left exactly as they were.
+    expect(await fs.readFile(path.join(dir, '.logins', 'admin-auth.json'), 'utf-8')).toBe('{}\n')
+    expect(await fs.readFile(path.join(dir, LOGINS_GITIGNORE), 'utf-8')).toBe(
+      '# Written by Ritual: sign-ins never belong in git.\n*\n',
+    )
+    expect(hasPendingWork(await plan())).toBeFalse()
+  })
+
+  test('keeps an existing .logins/.gitignore as the user wrote it', async () => {
+    const dir = await workspace({ managed: { migration: 3 } })
+    await fs.mkdir(path.join(dir, '.logins'))
+    await fs.writeFile(path.join(dir, LOGINS_GITIGNORE), 'admin-audit.log\n')
+
+    expect((await plan()).migrations.map((m) => [m.migration.id, m.ops])).toEqual([[4, []]])
+  })
+
+  test('has nothing to do without a .logins/ folder', async () => {
+    const dir = await workspace({ managed: { migration: 3 } })
+    expect(MIGRATIONS.find((m) => m.id === 4)?.applies({ config: {}, baseDir: dir })).toBeFalse()
+    expect((await plan()).migrations.map((m) => [m.migration.id, m.ops])).toEqual([[4, []]])
   })
 })
 
@@ -452,6 +496,29 @@ describe('checkPendingWork', () => {
     const outcome = await planMigration({ build })
     const pending = outcome.kind === 'plan' && hasPendingWork(outcome)
     expect(pending).toBe(expected === 'maybe-pending')
+  })
+
+  // Migration 4 reads the folder, not the config: the pre-command gate must
+  // see an unignored `.logins/` as pending, and agree with the plan.
+  test.each<[string, (dir: string) => Promise<void>, 'current' | 'maybe-pending']>([
+    [
+      'a .logins/ folder without its .gitignore',
+      (dir) => fs.mkdir(path.join(dir, '.logins')),
+      'maybe-pending',
+    ],
+    [
+      'a .logins file that is not a folder',
+      (dir) => fs.writeFile(path.join(dir, '.logins'), 'not a folder'),
+      'current',
+    ],
+  ])('%s', async (_label, seed, expected) => {
+    const dir = await workspace({ managed: { migration: 3 } })
+    await seed(dir)
+    expect(await checkPendingWork({ build: DEV_BUILD })).toEqual({ kind: expected })
+    const outcome = await planMigration({ build: DEV_BUILD })
+    expect(outcome.kind === 'plan' && hasPendingMigrations(outcome)).toBe(
+      expected === 'maybe-pending',
+    )
   })
 })
 

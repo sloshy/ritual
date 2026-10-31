@@ -27,6 +27,7 @@ import {
 import { writeFileAtomic } from '../util/atomic-write'
 import { BACKUPS_DIR, TRASH_DIR } from '../util/safekeeping'
 import { ENV_VAR } from '../util/cli-tokens'
+import { LOGINS_DIR } from '../auth/logins-dir'
 
 /**
  * The `if:` guard stamped on every build/deploy step of the detect-changes
@@ -271,7 +272,7 @@ export function generateGitignoreEntries(config?: InitSiteConfig): string {
     'dist/',
     'exports/',
     '.admin-dist/',
-    '.logins/',
+    `${LOGINS_DIR}/`,
     `${TRASH_DIR}/`,
     `${BACKUPS_DIR}/`,
     'all-cards.md',

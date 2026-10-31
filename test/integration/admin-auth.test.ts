@@ -11,6 +11,7 @@ import {
   setTotpSecret,
 } from '../../src/admin/auth'
 import { startAdminServer } from '../../src/admin/server'
+import { getSetupToken } from '../../src/admin/setup-token'
 import { handleSetup } from '../../src/admin/api/setup'
 import { handleLogin } from '../../src/admin/api/auth-login'
 import { handleTotpVerifySetup } from '../../src/admin/api/totp'
@@ -298,6 +299,105 @@ describe('admin server refusals (Integration)', () => {
     } finally {
       await server.stop(true)
     }
+  })
+
+  // A browser's API request from another site is refused before any route
+  // runs — `/api/setup` included, which needs no session — while the admin
+  // page's own requests and non-browser clients reach the route. The rule's
+  // cases are pinned in test/unit/admin/same-origin.test.ts.
+  describe('cross-site requests', () => {
+    /** A setup request carrying the real setup token: reaching the route creates the account. */
+    const setup = (base: string, headers: Record<string, string>): Promise<Response> =>
+      fetch(`${base}/api/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({
+          username: 'mallory',
+          password: 'test1234',
+          setupToken: getSetupToken(),
+        }),
+      })
+
+    // One per header the check reads.
+    test.each<Record<string, string>>([
+      { 'Sec-Fetch-Site': 'cross-site', Origin: 'https://evil.example' },
+      { Origin: 'https://evil.example' },
+    ])('are refused with 403 before the route: %p', async (headers) => {
+      await using server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+      const resp = await setup(`http://127.0.0.1:${server.port}`, headers)
+
+      expect(resp.status).toBe(403)
+      expect(((await resp.json()) as ApiErrorResponse).messageKey).toBe(
+        'admin.api.server.crossSite',
+      )
+      // The request carried the real token, so only the refusal kept the account from existing.
+      expect(await adminUserExists()).toBe(false)
+    })
+
+    test('the same setup from the admin page itself creates the account', async () => {
+      await using server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+      const resp = await setup(`http://127.0.0.1:${server.port}`, {
+        'Sec-Fetch-Site': 'same-origin',
+      })
+
+      expect(resp.status).toBe(200)
+      expect(await adminUserExists()).toBe(true)
+    })
+
+    test('a same-origin write and a non-browser one reach the route', async () => {
+      await createAdminUser('admin', 'test1234')
+      await using server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+      const origin = `http://127.0.0.1:${server.port}`
+      // A signed-in sign-out, each with a session of its own: 200 means the
+      // write reached its route.
+      const reached = async (headers: Record<string, string>): Promise<boolean> => {
+        const { token } = createSession('admin', '127.0.0.1')
+        const resp = await fetch(`${origin}/api/logout`, {
+          method: 'POST',
+          headers: { Cookie: `${getSessionCookieName()}=${token}`, ...headers },
+        })
+        return resp.status === 200
+      }
+      // `Origin` alone proves the host Bun sees is the one a browser addressed.
+      expect(await reached({ Origin: origin })).toBeTrue()
+      expect(await reached({})).toBeTrue()
+    })
+
+    // A few GET routes act (the sync, cache-refresh and build streams), so an
+    // API read from another site is refused too; the site's own files are not.
+    test('an API read from another site is refused, a page load is not', async () => {
+      await fs.writeFile(path.join(ws.dir, 'index.html'), '<!DOCTYPE html><title>Admin</title>')
+      await using server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+      const foreign = { 'Sec-Fetch-Site': 'cross-site' }
+
+      const api = await fetch(`http://127.0.0.1:${server.port}/api/status`, { headers: foreign })
+      expect(api.status).toBe(403)
+      const page = await fetch(`http://127.0.0.1:${server.port}/`, { headers: foreign })
+      expect(page.status).toBe(200)
+    })
+
+    // Behind a proxy, the browser addressed the proxy's host: `admin.trustProxy`
+    // is what lets the check read it from `X-Forwarded-Host`.
+    test('admin.trustProxy reaches the check', async () => {
+      const proxied = {
+        Origin: 'https://admin.example.com',
+        'X-Forwarded-Host': 'admin.example.com',
+      }
+
+      await writeConfig(ws.dir, { admin: { trustProxy: true } })
+      await using trusting = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+      expect((await setup(`http://127.0.0.1:${trusting.port}`, proxied)).status).toBe(200)
+    })
+
+    test('without admin.trustProxy the forwarded host is ignored', async () => {
+      const proxied = {
+        Origin: 'https://admin.example.com',
+        'X-Forwarded-Host': 'admin.example.com',
+      }
+
+      await using server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+      expect((await setup(`http://127.0.0.1:${server.port}`, proxied)).status).toBe(403)
+    })
   })
 
   // The Bun `error` hook's 500 answers with the same envelope

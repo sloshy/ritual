@@ -9,14 +9,14 @@ Ritual runs on your computer and works on files you own. It has **no telemetry a
 
 ## What Ritual sends where
 
-| Service                                     | When                                                                                                                                              | What it sends                                                                                          |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [Scryfall](https://scryfall.com)            | Downloading or refreshing the [card cache](/card-cache/); looking up a card the cache lacks; `ritual scry`; fetching card and mana images         | The card names, set codes and search terms the lookup needs.                                           |
-| [Card Kingdom](https://www.cardkingdom.com) | When you run [`ritual sell`](/commands/sell/), or when Card Kingdom prices or [sell mode](/public-site/sell/) are turned on                       | A download of its public price list. Nothing about your cards: matching happens on your computer.      |
-| [Archidekt](https://archidekt.com)          | [Importing](/commands/import/) an Archidekt deck, [logging in](/commands/login/), and [syncing](/guides/archidekt-sync/) decks or your collection | When you log in, your username and password. When you sync, the cards you chose to sync.               |
-| Moxfield, MTGGoldfish                       | When you import a deck or primer from them, or build a site that lists a deck by its URL                                                          | The deck address you gave.                                                                             |
-| [GitHub](https://github.com/sloshy/ritual)  | `ritual self-update`, and the daily [update check](#the-update-check)                                                                             | A request for the list of Ritual releases.                                                             |
-| A cache server or cache feed                | Only when you set one up ([`--cache-server`](/commands/cache/#client-configuration), [`cacheSource: feed`](/configuration/#cache-source))         | Card names and printings to look up (cache server); BitTorrent traffic for the card data (cache feed). |
+| Service                                     | When                                                                                                                                                            | What it sends                                                                                          |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| [Scryfall](https://scryfall.com)            | Downloading or refreshing the [card cache](/card-cache/); looking up a card the cache lacks; `ritual scry`; fetching card and mana images                       | The card names, set codes and search terms the lookup needs.                                           |
+| [Card Kingdom](https://www.cardkingdom.com) | When you run [`ritual sell`](/commands/sell/), or when Card Kingdom prices or [sell mode](/public-site/sell/) are turned on                                     | A download of its public price list. Nothing about your cards: matching happens on your computer.      |
+| [Archidekt](https://archidekt.com)          | [Importing](/commands/import/) an Archidekt deck, [logging in](/commands/login/), and [syncing](/guides/archidekt-sync/) decks or your collection               | When you log in, your username and password. When you sync, the cards you chose to sync.               |
+| Moxfield, MTGGoldfish                       | When you import a deck or primer from them, or build a site that lists a deck by its URL                                                                        | The deck address you gave.                                                                             |
+| [GitHub](https://github.com/sloshy/ritual)  | `ritual self-update`, and the daily [update check](#the-update-check)                                                                                           | A request for the list of Ritual releases.                                                             |
+| A cache server or cache feed                | Only when you set one up ([`--cache-server`](/commands/cache/#client-configuration), [`cacheSource: feed`](/configuration/#cache-source) with a `cacheFeedUrl`) | Card names and printings to look up (cache server); BitTorrent traffic for the card data (cache feed). |
 
 Nothing else is contacted. Apart from the update check, commands that work on your files alone, such as `edit`, `lists` or `history`, make no network requests without asking you first once the card cache holds the cards they need. See [Offline use](/card-cache/#offline-use).
 
@@ -46,11 +46,18 @@ A site built with [`ritual build-site`](/commands/build-site/) is static files. 
   - `archidekt.json`: your Archidekt sign-in tokens. Your Archidekt password is sent to Archidekt to log in and never stored.
   - `collection-sync.json`: when you last synced your collection, and with which Archidekt user.
 
-The files in `.logins/` are readable only by you (mode `0600`, in a `0700` folder), but they are not encrypted. Anyone who can read your workspace can read them. **Never commit `.logins/`**: the `.gitignore` that [`ritual init-site`](/commands/init-site/) writes leaves it out. `ritual login logout` deletes the Archidekt tokens.
+The files in `.logins/` are readable only by you (mode `0600`, in a `0700` folder), but they are not encrypted. Anyone who can read your workspace can read them. **Never commit `.logins/`**. Ritual keeps it out of git for you: whenever it writes into the folder, it also writes a `.logins/.gitignore` that ignores everything in it, so this holds even in a workspace [`ritual init-site`](/commands/init-site/) never set up. [`ritual migrate`](/commands/migrate/#numbered-migrations) adds that file to a folder an older Ritual made (a workspace with no `ritual.config.json` gets it the next time Ritual writes a sign-in). The file keeps git from adding the folder; if you already committed it, `git rm -r --cached .logins` stops tracking it, and the sign-ins in your history stay there until you change them. `ritual login logout` deletes the Archidekt tokens.
 
 ## Running servers
 
 `ritual admin`, `ritual serve`, `ritual mcp` and `ritual cache server` start servers. Some listen on every network interface by default, and some have no sign-in at all. Before you open any of them to a network, read [`SECURITY.md`](https://github.com/sloshy/ritual/blob/main/SECURITY.md#deployment-assumptions): it lists each server's default address and how it checks who is connecting.
+
+A few protections apply whatever you expose:
+
+- **Every server caps the size of a request.** An oversized one is refused before it can fill the server's memory.
+- **The admin site refuses requests sent from other websites.** A page on another site, even another port of the same computer, cannot make your browser save, delete, sync, sign in or create the admin account, even while you are signed in: the admin refuses any API request a browser sends from another site, on top of its `SameSite` sign-in cookie.
+- **The cache server and the cache feed host do not reveal their errors.** When something goes wrong, the reply says only that it did; the details go to the server's own console.
+- **`serve --api` has no sign-in and no write routes**, so there is nothing for another site to forge. Its `POST` routes only look up prices and buylist quotes.
 
 ## Checking a download
 

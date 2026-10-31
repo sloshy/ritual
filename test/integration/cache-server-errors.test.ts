@@ -6,18 +6,18 @@ import {
   setCacheServerAddressOverride,
 } from '../../src/cache/config'
 import { createCacheServerFetchHandler } from '../../src/cache-server/server'
+import { cacheServerRuntime } from '../helpers/cache-server-runtime'
+import { endlessBody } from '../helpers/body-streams'
+import {
+  MAX_BULK_BODY_SIZE,
+  MAX_ENTRY_BODY_SIZE,
+  MAX_STREAM_BODY_SIZE,
+} from '../../src/cache-server/constants'
 import { en } from '../../src/i18n/messages/en'
-import { ScryfallClient } from '../../src/scryfall'
 import { syncRef } from '../../src/sync/message'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { pseudoCatalog, withGuardedLocaleAsync } from '../helpers/sync-text'
-import {
-  MemoryFileSystemClient,
-  MemoryLogger,
-  MockHttpClient,
-  resetLogger,
-  setLogger,
-} from '../test-utils'
+import { MemoryLogger, MockHttpClient, resetLogger, setLogger } from '../test-utils'
 
 /**
  * A cache server's failures cross the wire as English plus their key.
@@ -72,21 +72,7 @@ describe('a Ritual cache server’s failures, as its client reports them', () =>
       'https://api.scryfall.com/cards/collection',
       () => new Response('down', { status: 503, statusText: 'Service Unavailable' }),
     )
-    const localCardCache = new FileCacheManager(getCacheFile, 'cards', 0)
-    const handler = createCacheServerFetchHandler(
-      {
-        localCardCache,
-        localPriceCache: new FileCacheManager(getCacheFile, 'prices'),
-        localScryfallClient: new ScryfallClient(
-          http,
-          localCardCache,
-          new MemoryFileSystemClient(),
-          0,
-        ),
-        priceRefreshScheduler: null,
-      },
-      false,
-    )
+    const handler = createCacheServerFetchHandler(cacheServerRuntime(http), false)
     server = Bun.serve({ port: 0, hostname: '127.0.0.1', fetch: handler })
     setCacheServerAddressOverride(`127.0.0.1:${server.port}`)
   })
@@ -212,5 +198,75 @@ describe('a reply from something that is not a cache server', () => {
       messageKey: 'domain.cache.serverRequestFailedWithBody',
       messageParams: { status: 502, method: 'GET', url, body: page },
     })
+  })
+})
+
+describe('the cache server’s own refusals', () => {
+  let consoleError: Mock<typeof console.error>
+
+  beforeEach(() => {
+    consoleError = spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    consoleError.mockRestore()
+  })
+
+  // An exception's own text can name the server's files; the operator's log
+  // gets it, the reply does not.
+  test('an unexpected failure answers a generic 500 and logs the detail', async () => {
+    const failure = new Error('EACCES: permission denied, open /srv/private/cache.json')
+    const cards = new FileCacheManager(getCacheFile, 'cards', 0)
+    cards.keys = () => Promise.reject(failure)
+    const handler = createCacheServerFetchHandler(
+      cacheServerRuntime(new MockHttpClient(), cards),
+      false,
+    )
+
+    const response = await handler(new Request('http://cache.test/cache/cards/keys'))
+
+    expect(response.status).toBe(500)
+    expect((await response.json()) as unknown).toEqual({
+      success: false,
+      message: en['domain.cache.serverReply.internalError'],
+      messageKey: 'domain.cache.serverReply.internalError',
+    })
+    expect(consoleError.mock.calls.some((call) => call.includes(failure))).toBeTrue()
+  })
+
+  // Each write route holds its own budget. A declared size past it is refused
+  // before a byte is read, with the route's JSON refusal naming the budget.
+  test.each([
+    ['PUT', '/cache/cards/bulk', MAX_BULK_BODY_SIZE],
+    ['PUT', '/cache/cards/Sol%20Ring', MAX_ENTRY_BODY_SIZE],
+    ['POST', '/cache/prices/stream', MAX_STREAM_BODY_SIZE],
+  ])('%s %s refuses a body past its budget', async (method, route, budget) => {
+    const handler = createCacheServerFetchHandler(cacheServerRuntime(new MockHttpClient()), false)
+
+    const response = await handler(
+      new Request(`http://cache.test${route}`, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'Content-Length': String(budget + 1) },
+        body: '{}',
+      }),
+    )
+
+    expect(response.status).toBe(413)
+    expect(((await response.json()) as ApiErrorResponse).message).toContain(`limit ${budget} bytes`)
+  })
+
+  // No declared size (a chunked upload): the route's own budget still applies,
+  // counted as the bytes arrive.
+  test('a chunked body is refused past its route’s budget', async () => {
+    const handler = createCacheServerFetchHandler(cacheServerRuntime(new MockHttpClient()), false)
+
+    const response = await handler(
+      new Request('http://cache.test/cache/prices/stream', { method: 'POST', body: endlessBody() }),
+    )
+
+    expect(response.status).toBe(413)
+    expect(((await response.json()) as ApiErrorResponse).message).toContain(
+      `limit ${MAX_STREAM_BODY_SIZE} bytes`,
+    )
   })
 })

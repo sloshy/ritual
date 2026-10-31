@@ -9,13 +9,27 @@ import { ScryfallClient } from '../scryfall'
 import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
 import { ExitCode } from '../util/errors'
-import { caughtMessage, keyedRefusal, nestedRefusal } from '../api/http'
-import { syncMessage, SyncMessageError } from '../sync/message'
+import {
+  disclosedMessage,
+  keyedRefusal,
+  nestedRefusal,
+  readBodyText,
+  type JsonObjectBody,
+} from '../api/http'
+import { syncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
 import { t, type SelectBranch } from '../i18n/t'
 import { isRecord, isStringArray } from '../util/json'
 import type { CacheServerStreamError } from '../cache/http-cache'
 import { resolveRefreshCadence, resolveRefreshMs, scheduleRecurringTask } from './cadence'
-import { CACHE_SERVER_LOG_PREFIX, PRICE_REFRESH_STAGGER_MS, WEEKLY_REFRESH_MS } from './constants'
+import {
+  CACHE_SERVER_LOG_PREFIX,
+  MAX_BULK_BODY_SIZE,
+  MAX_CACHE_SERVER_REQUEST_BODY_SIZE,
+  MAX_ENTRY_BODY_SIZE,
+  MAX_STREAM_BODY_SIZE,
+  PRICE_REFRESH_STAGGER_MS,
+  WEEKLY_REFRESH_MS,
+} from './constants'
 import {
   createFileSystemClient,
   decodePathSegment,
@@ -37,7 +51,7 @@ import {
 import { tryStartServer } from '../util/start-server'
 import { PriceRefreshScheduler } from './scheduler'
 import type { CacheServerCommandOptions, PriceReadThroughResult } from './types'
-import { FLAG } from '../util/cli-tokens'
+import { CONFIG_KEY, FLAG } from '../util/cli-tokens'
 
 interface PriceStreamTaskResult {
   key: string
@@ -76,17 +90,18 @@ function createPriceRefreshScheduler(
   )
 }
 
-/** A request's JSON object body, or the refusal to answer instead. */
-type ObjectBody = { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
-
 /**
- * The request's body as a JSON object. Read whole: a bulk write carries the
- * entire card cache, so no budget short of the server's own applies.
+ * The request's body as a JSON object, refused with 413 once it passes
+ * `maxBytes` (counted as it arrives, per `readBodyText`). Each route passes its
+ * own budget: a bulk write carries the entire card cache, an entry one name's
+ * printings.
  */
-async function readObjectBody(request: Request): Promise<ObjectBody> {
+async function readObjectBody(request: Request, maxBytes: number): Promise<JsonObjectBody> {
+  const read = await readBodyText(request, maxBytes)
+  if (!read.ok) return read
   let raw: unknown
   try {
-    raw = await request.json()
+    raw = JSON.parse(read.text)
   } catch {
     return { ok: false, response: keyedRefusal('domain.cache.serverReply.bodyNotJson', 400) }
   }
@@ -97,12 +112,20 @@ async function readObjectBody(request: Request): Promise<ObjectBody> {
 }
 
 /**
- * A price-stream `error` event: the failure as English plus its key (what
- * `caughtMessage` gives every route), so the client reading this stream — another
- * Ritual process, whose UI language need not be this server's — can nest it.
+ * A failure the server answers with — a `500`, or a price stream's `error`
+ * event — logged in full for the operator. The reply carries a keyed failure as
+ * English plus its key (another Ritual process reads it, and its UI language
+ * need not be this server's), and anything else as a generic message: an
+ * exception's own text can name the server's files and internals.
  */
+function failureReply(error: unknown): SyncMessage {
+  console.error(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.requestFailed')}`, error)
+  return disclosedMessage(error, 'domain.cache.serverReply.internalError')
+}
+
+/** A price-stream `error` event: the failure per {@link failureReply}, naming the key it was resolving. */
 function streamError(error: unknown, key?: string): CacheServerStreamError {
-  const message = caughtMessage(error)
+  const message = failureReply(error)
   return key === undefined ? message : { key, ...message }
 }
 
@@ -245,7 +268,7 @@ export function createCacheServerFetchHandler(
       }
 
       if (parts[2] === 'bulk' && request.method === 'PUT') {
-        const read = await readObjectBody(request)
+        const read = await readObjectBody(request, MAX_BULK_BODY_SIZE)
         if (!read.ok) return respond(read.response)
         const { entries, replace } = read.body
         if (!isRecord(entries)) {
@@ -278,7 +301,7 @@ export function createCacheServerFetchHandler(
       }
 
       if (section === 'prices' && parts[2] === 'stream' && request.method === 'POST') {
-        const read = await readObjectBody(request)
+        const read = await readObjectBody(request, MAX_STREAM_BODY_SIZE)
         if (!read.ok) return respond(read.response)
         const requested = read.body.keys
         if (!isStringArray(requested)) {
@@ -375,7 +398,7 @@ export function createCacheServerFetchHandler(
       }
 
       if (request.method === 'PUT') {
-        const read = await readObjectBody(request)
+        const read = await readObjectBody(request, MAX_ENTRY_BODY_SIZE)
         if (!read.ok) return respond(read.response)
         if (!('value' in read.body)) {
           return respond(keyedRefusal('domain.cache.serverReply.valueExpected', 400))
@@ -409,14 +432,33 @@ export function createCacheServerFetchHandler(
         }),
       )
     } catch (error) {
-      console.error(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.requestFailed')}`, error)
-      return respond(nestedRefusal(caughtMessage(error), 500))
+      return respond(nestedRefusal(failureReply(error), 500))
     } finally {
       if (verbose) {
         logVerboseRequest(request, responseStatus, Date.now() - startedAt)
       }
     }
   }
+}
+
+/** Where {@link serveCacheServer} listens, and whether it logs every request. */
+export type CacheServerListen = { hostname: string; port: number; verbose: boolean }
+
+/**
+ * Start the cache server's listener over `runtime`, with its body ceiling.
+ * Exported as a test seam, like {@link createCacheServerFetchHandler}: a suite
+ * starts the real listener without the refresh schedulers around it.
+ */
+export function serveCacheServer(
+  runtime: CacheServerRuntime,
+  listen: CacheServerListen,
+): Bun.Server<undefined> {
+  return Bun.serve({
+    hostname: listen.hostname,
+    port: listen.port,
+    maxRequestBodySize: MAX_CACHE_SERVER_REQUEST_BODY_SIZE,
+    fetch: createCacheServerFetchHandler(runtime, listen.verbose),
+  })
 }
 
 /** The `cache server` action: start the cache server and its refresh schedulers. */
@@ -469,10 +511,18 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
   // seeding its artifacts between refreshes, so every always-on cache
   // server is a permanent swarm member.
   const cacheSource: CacheSource = options.cacheSource ?? getCacheSource()
+  // The command refuses `--cache-source feed` without a URL, so a missing one
+  // here came from the config: say so once, and refresh from Scryfall.
+  const feedUrl = cacheSource === 'feed' ? resolveFeedUrl(options.url) : undefined
+  if (cacheSource === 'feed' && feedUrl === undefined) {
+    console.warn(
+      `${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.feedUrlMissing', { urlKey: CONFIG_KEY.cacheFeedUrl, flag: FLAG.url })}`,
+    )
+  }
   const feedClient: CacheFeedClient | null =
-    cacheSource === 'feed' && !options.denyHttp
+    feedUrl !== undefined && !options.denyHttp
       ? new CacheFeedClient({
-          feedUrl: resolveFeedUrl(options.url),
+          feedUrl,
           dataDir: getFeedClientDataDir(),
           http: httpClient,
           ingest: (files) => localScryfallClient.preloadCacheFromFiles(files),
@@ -579,10 +629,10 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
 
   // Most likely failure is a port already in use.
   const started = tryStartServer(() =>
-    Bun.serve({
+    serveCacheServer(runtime, {
       hostname: options.host,
       port: options.port,
-      fetch: createCacheServerFetchHandler(runtime, options.verbose ?? false),
+      verbose: options.verbose ?? false,
     }),
   )
   if (!started.ok) {

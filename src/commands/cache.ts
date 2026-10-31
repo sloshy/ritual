@@ -5,7 +5,7 @@ import { refreshCardCache } from '../cache/refresh-source'
 import { collectCacheStatus, type CacheStatusResult } from '../cache/status'
 import {
   addFeedUrlOption,
-  rejectFeedUrlSourceConflict,
+  rejectFeedSourceFlags,
   parseCacheSourceFlag,
 } from '../cache-server/cadence'
 import { ensureCardKingdomFeed } from '../cardkingdom'
@@ -205,7 +205,7 @@ export function registerCacheCommand(program: Command): void {
   )
     .option('--force', t('help.cache.preloadAllForce'), false)
     .action(async (options: CachePreloadAllOptions) => {
-      if (rejectFeedUrlSourceConflict(options.source, options.url)) return
+      if (rejectFeedSourceFlags(options.source, options.url)) return
       try {
         await refreshCardCache({
           ...(options.source !== undefined ? { source: options.source } : {}),

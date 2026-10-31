@@ -77,7 +77,7 @@ export const helpInfraMessages = {
   'help.cacheFeed.fetch':
     'Experimental: sync the card cache from a cache feed, then stay open seeding the artifacts to other peers (Ctrl+C to stop)',
   'help.cacheFeed.fetchFeedUrl':
-    'Feed URL (defaults to the {configKey} config key, then the built-in default)',
+    'Feed URL (defaults to the {configKey} config key; required when that is unset)',
   'help.cacheFeed.fetchNoP2p': 'Download over plain HTTP instead of BitTorrent',
   'help.cacheFeed.fetchNoSeed': 'Exit after ingesting instead of staying open to seed',
   'help.cacheFeed.fetchForce': 'Re-download and re-ingest even when the feed is unchanged',

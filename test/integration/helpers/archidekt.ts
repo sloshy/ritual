@@ -28,7 +28,7 @@ import {
   record,
   TEST_ACCOUNT,
 } from '../../fixtures/archidekt'
-import { writeCollectionFile } from '../../helpers/workspace'
+import { writeCollectionFile, writeLoginFile } from '../../helpers/workspace'
 import {
   stubFetch,
   type StubbedFetch,
@@ -73,9 +73,7 @@ export async function signIn(base: string, user?: ArchidektToken['user']): Promi
     refresh_token: tokenValidForAnHour(),
     ...(user ? { user } : {}),
   }
-  const loginsDir = path.join(base, '.logins')
-  await fs.mkdir(loginsDir, { recursive: true })
-  await fs.writeFile(path.join(loginsDir, 'archidekt.json'), JSON.stringify(token))
+  await writeLoginFile(base, 'archidekt.json', JSON.stringify(token))
 }
 
 /** The data rows (header excluded) of the CSV a run uploaded, or `[]` if it uploaded none. */

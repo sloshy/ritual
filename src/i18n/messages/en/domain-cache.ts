@@ -129,6 +129,7 @@ export const domainCacheMessages = {
   'domain.cache.serverReply.replaceNotBoolean': "Expected 'replace' to be a boolean.",
   'domain.cache.serverReply.keysExpected': "Expected JSON body with 'keys' string array.",
   'domain.cache.serverReply.valueExpected': "Expected JSON body with 'value'.",
+  'domain.cache.serverReply.internalError': 'Internal server error.',
   'domain.cache.serverReply.httpDenied':
     'HTTP requests are denied ({flag}). Pre-populate the cache for testing.',
 
@@ -142,4 +143,5 @@ export const domainCacheMessages = {
   'domain.cache.feedReply.pathMalformed': 'The requested name is not validly URL-encoded.',
   'domain.cache.feedReply.notGenerated': 'The feed has not been generated yet.',
   'domain.cache.feedReply.rangeNotSatisfiable': 'The requested byte range cannot be served.',
+  'domain.cache.feedReply.internalError': 'Internal server error.',
 } as const satisfies MessageCatalogShape

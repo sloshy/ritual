@@ -869,7 +869,7 @@ export const adminMessages = {
   'admin.settings.cacheSourceScryfall': 'Scryfall (direct bulk download)',
   'admin.settings.cacheSourceFeed': 'Cache feed (peer-to-peer)',
   'admin.settings.cacheFeedUrl': 'Cache Feed URL',
-  'admin.settings.cacheFeedUrlPlaceholder': '{url} (uses the built-in default when empty)',
+  'admin.settings.cacheFeedUrlPlaceholder': '{url} (required for the feed source)',
   'admin.settings.cacheDir': 'Card Cache Folder',
   'admin.settings.cacheDirPlaceholder': 'Empty: the per-user cache every workspace shares',
   'admin.settings.cacheDirHint':

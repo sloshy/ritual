@@ -36,12 +36,18 @@ properties to know before you expose any of it to a network. The
   through to Scryfall when the cache lacks a card or a price is stale, so an anonymous
   caller can cause outbound Scryfall requests and cache writes. Request bodies are capped,
   and batch routes are capped (500 names or printings, 200 card IDs). There is no rate limiting; put a reverse proxy
-  in front of a public deployment if you need it.
+  in front of a public deployment if you need it. With no cookies and no write routes, it has
+  nothing for another site to forge, so it has no cross-site check (its `POST` routes only
+  look up prices and quotes).
 - **Never expose `cache server` to an untrusted network.** It can clear and replace cache
   sections without authentication. Bind it to loopback (its default) or a private
   network, and point `serve --api` or clients at it from there.
-- **Every server that accepts a request body caps it** (Bun's `maxRequestBodySize` plus a streaming byte
-  count) except `cache server`, whose bulk-upload routes are meant for trusted peers.
+- **Every server that accepts a request body caps it**: Bun's `maxRequestBodySize` plus a
+  per-route budget counted as the body streams in. `cache server`'s bulk-upload route allows
+  1 GiB, because a client's full card refresh sends the whole card cache in one request; its
+  other routes allow 16 MiB or less.
+- **`cache server` and `cache feed host` keep unexpected errors to themselves.** A `500`
+  carries a generic message; the error itself goes to the server's console.
 
 ### The admin site
 
@@ -54,7 +60,15 @@ properties to know before you expose any of it to a network. The
 - **Sessions** are random 256-bit tokens in an `HttpOnly`, `SameSite=Strict` cookie,
   held in memory for 24 hours (a restart logs everyone out). Set `admin.secureCookies`
   when the admin is served over HTTPS so the cookie is also `Secure`.
-- **Cross-site requests** are refused by the `SameSite=Strict` cookie; there is no
+- **Cross-site requests** are refused twice over. The `SameSite=Strict` cookie keeps a
+  browser from sending the session with them, and every `/api/*` request a browser sends
+  from another site (a sibling port or subdomain included) is refused with `403` before any
+  route runs, including `/api/setup` and `/api/login`, which need no session, and the `GET`
+  streams that sync, refresh or build. The check reads the browser's
+  `Sec-Fetch-Site` header (only `same-origin` passes, or `none` for a request the user made
+  directly), or, from a browser that does not send it, requires the `Origin` host to match
+  the `Host` header (`X-Forwarded-Host` under `admin.trustProxy`). A request with neither
+  header is not from a browser and is let through to the usual session check. There is no
   separate CSRF token. Responses carry a `default-src 'self'` Content Security Policy and
   `X-Frame-Options: DENY`.
 - **Failed logins** are delayed, rate-limited per IP (5 failures within 5 minutes locks
@@ -90,8 +104,11 @@ a directory created `0700`:
 - `collection-sync.json`: the last collection sync's time and Archidekt user.
 
 Anyone who can read the workspace can read these, so keep `.logins/` out of version
-control. `ritual init-site` writes a `.gitignore` that excludes it; if you version a
-workspace without running it, add `.logins/` yourself.
+control. Ritual does that for you: whenever it writes into `.logins/` it also writes
+`.logins/.gitignore`, which ignores the whole folder, so a workspace `ritual init-site` never
+set up is covered too. `ritual migrate` adds the file to a `.logins/` folder made by an older
+Ritual. It only keeps git from adding the folder: if `.logins/` was committed before,
+`git rm -r --cached .logins` stops tracking it. The `.gitignore` that `init-site` writes excludes `.logins/` as well.
 
 ### What Ritual sends where
 
@@ -106,8 +123,9 @@ asked, identifying itself as `Ritual/<version>`:
 - **GitHub**: the releases API for `self-update` and, at most once a day, the update
   notice. Turn the notice off with the `updateCheck: false` config key or
   `RITUAL_NO_UPDATE_CHECK`; it never runs in CI, in Docker, or in a non-release build.
-- **The cache feed** (opt-in, `cacheSource: feed`): BitTorrent peers and the feed host,
-  with every file checked against the feed's SHA-256.
+- **The cache feed** (opt-in, `cacheSource: feed` plus a `cacheFeedUrl` you set; there is
+  no public feed): BitTorrent peers and the feed host, with every file checked against the
+  feed's SHA-256.
 
 ### Releases and the Docker image
 

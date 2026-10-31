@@ -37,7 +37,7 @@ The one thing a sync refuses outright is removing **everything**: when the side 
 ritual login archidekt
 ```
 
-Ritual asks for your username (or email) and password and stores the session tokens in `.logins/` in your workspace. The `.gitignore` that [`init-site`](/commands/init-site/) writes keeps that folder out of git. Check the session at any time, offline:
+Ritual asks for your username (or email) and password and stores the session tokens in `.logins/` in your workspace. Ritual keeps a `.gitignore` inside that folder, so it stays out of git with or without [`init-site`](/commands/init-site/). Check the session at any time, offline:
 
 ```bash
 ritual login status

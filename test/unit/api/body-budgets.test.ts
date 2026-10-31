@@ -10,6 +10,12 @@ import {
 } from '../../../src/admin/validation'
 import { MAX_SITE_REQUEST_BODY_SIZE } from '../../../src/serve/server'
 import { MAX_MCP_REQUEST_BODY_SIZE } from '../../../src/mcp/run'
+import {
+  MAX_BULK_BODY_SIZE,
+  MAX_CACHE_SERVER_REQUEST_BODY_SIZE,
+  MAX_ENTRY_BODY_SIZE,
+  MAX_STREAM_BODY_SIZE,
+} from '../../../src/cache-server/constants'
 
 /**
  * Each server's hard `maxRequestBodySize` must sit strictly above every route
@@ -33,6 +39,20 @@ describe('server body ceilings', () => {
     ['MAX_PRICE_BODY_BYTES', MAX_PRICE_BODY_BYTES],
   ])('the public-site ceiling is above %s', (_name, budget) => {
     expect(MAX_SITE_REQUEST_BODY_SIZE).toBeGreaterThan(budget)
+  })
+
+  test.each([
+    ['MAX_BULK_BODY_SIZE', MAX_BULK_BODY_SIZE],
+    ['MAX_ENTRY_BODY_SIZE', MAX_ENTRY_BODY_SIZE],
+    ['MAX_STREAM_BODY_SIZE', MAX_STREAM_BODY_SIZE],
+  ])('the cache-server ceiling is above %s', (_name, budget) => {
+    expect(MAX_CACHE_SERVER_REQUEST_BODY_SIZE).toBeGreaterThan(budget)
+  })
+
+  // A client's full card refresh is one bulk write of the whole card cache —
+  // about 450 MB for the English-only data, past Bun's 128 MB default ceiling.
+  test('the cache-server bulk budget fits an English-only card cache', () => {
+    expect(MAX_BULK_BODY_SIZE).toBeGreaterThan(450 * 1024 * 1024)
   })
 
   // A file-sized tool argument arrives as an escaped JSON string inside the

@@ -188,6 +188,9 @@ export const domainCacheMeta = {
   'domain.cache.serverReply.valueExpected': {
     description: `${REPLY_CONTEXT} A write of one cache entry had no value to store. 'value' is a JSON field name and stays literal.`,
   },
+  'domain.cache.serverReply.internalError': {
+    description: `${REPLY_CONTEXT} The cache server hit an unexpected error handling the request. The details stay in the cache server's own console log; the reply deliberately says nothing more.`,
+  },
   'domain.cache.serverReply.httpDenied': {
     description: `${REPLY_CONTEXT} The cache server was started with --deny-http (a test mode that forbids it from downloading anything), and a price read needed a download — a price not in its cache. "Pre-populate" means fill the cache in advance. {flag} is the \`--deny-http\` flag. It is typed or matched exactly by the user, so never translate it.`,
   },
@@ -211,6 +214,9 @@ export const domainCacheMeta = {
   },
   'domain.cache.feedReply.rangeNotSatisfiable': {
     description: `${FEED_REPLY_CONTEXT} The request asked for part of a file (an HTTP range request, which BitTorrent web seeding uses) with a byte range that is malformed or lies past the end of the file.`,
+  },
+  'domain.cache.feedReply.internalError': {
+    description: `${FEED_REPLY_CONTEXT} The feed host hit an unexpected error answering the request. The details stay in the feed host's own console log; the reply deliberately says nothing more.`,
   },
   'domain.cache.refresh.fetchingMetadata': {
     description: `${PROGRESS_CONTEXT} The first step: asking Scryfall which bulk files exist and where to download them.`,

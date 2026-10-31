@@ -33,13 +33,6 @@ import {
 import { streamToFile } from './feed-download'
 import { COMMAND, CONFIG_KEY, FLAG, bareCommandLine, flagValue } from '../util/cli-tokens'
 
-/**
- * Default feed URL consulted when neither `--url` nor the `cacheFeedUrl`
- * config key is set. Placeholder until an official community feed is hosted —
- * point your own host's URL at it via `config set cacheFeedUrl <url>`.
- */
-export const DEFAULT_FEED_URL = 'https://feed.ritual-mtg.example/feed.json'
-
 const STATE_FILENAME = 'state.json'
 
 /** The three requests a feed client makes, each failure worded by a pair of keys. */

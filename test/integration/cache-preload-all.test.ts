@@ -34,6 +34,24 @@ describe('cache preload-all CLI (Integration)', () => {
       expect(result.stderr).toContain("--url only applies when the cache source is 'feed'")
     })
   })
+
+  // There is no public feed: asking for one by flag with no URL anywhere is
+  // refused before any download or listener starts, and `cache feed fetch`
+  // is the same request.
+  test.each([
+    [['cache', 'preload-all', '--source', 'feed']],
+    [['cache', 'feed', 'fetch', '--no-seed']],
+    [['cache', 'server', '--cache-source', 'feed', '--port', '65000']],
+  ])('%p with no feed URL set is a usage error naming cacheFeedUrl', async (args) => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(args, dir)
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain(
+        'The cache feed needs a feed URL: pass --url or set cacheFeedUrl',
+      )
+    })
+  })
 })
 
 /**

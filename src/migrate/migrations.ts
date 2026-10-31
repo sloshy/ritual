@@ -4,14 +4,16 @@
  * `managed.migration` in every workspace records how far it got.
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { syncRef, type SyncMessageRef } from '../sync/message'
 import { isRecord } from '../util/json'
 import type { Migration, MigrationContext, MigrationOp } from './types'
 import {
+  COMMAND,
   CONFIG_KEY,
   ENV_VAR,
+  commandLine,
   FILE,
   RETIRED_CONFIG_KEY,
   type RetiredConfigKey,
@@ -28,6 +30,7 @@ import { hasCacheDataSync } from '../cache/cache-entries'
 import { legacyCacheAction } from '../cache/relocate'
 import { pathsOverlap } from '../util/path-validation'
 import { PROCESS_ENVIRONMENT, type UserDirsEnvironment } from '../util/user-dirs'
+import { LOGINS_DIR, LOGINS_GITIGNORE, LOGINS_GITIGNORE_CONTENT } from '../auth/logins-dir'
 
 /** A migration that removes one retired key from the `site` block, when present. */
 function dropSiteKey(
@@ -133,6 +136,40 @@ export function sharedCacheMigration(id: number, environment?: UserDirsEnvironme
   }
 }
 
+/** Whether `relative` (to the workspace) is a directory. */
+function isDirectory(baseDir: string, relative: string): boolean {
+  return statSync(path.join(baseDir, relative), { throwIfNoEntry: false })?.isDirectory() ?? false
+}
+
+/**
+ * Migration 4: a `.logins/` folder keeps a `.gitignore` of its own, so sign-ins
+ * stay out of git in a workspace that never ran `init-site` (whose root
+ * `.gitignore` is the only other thing that ignored them). Ritual now writes it
+ * whenever it writes into the folder; this adds it to a folder made before.
+ * An existing `.logins/.gitignore` is left as it is, and a workspace with no
+ * `.logins/` folder has nothing to do.
+ */
+function loginsGitignoreMigration(id: number): Migration {
+  const needed = (ctx: MigrationContext): boolean =>
+    isDirectory(ctx.baseDir, LOGINS_DIR) && !existsSync(path.join(ctx.baseDir, LOGINS_GITIGNORE))
+  return {
+    id,
+    description: syncRef('cli.migrate.migration.loginsGitignore', {
+      dir: `${LOGINS_DIR}/`,
+      file: LOGINS_GITIGNORE,
+      gitignore: FILE.gitignore,
+      command: commandLine(COMMAND.initSite),
+    }),
+    applies: needed,
+    plan: (ctx: MigrationContext): Promise<MigrationOp[]> =>
+      Promise.resolve(
+        needed(ctx)
+          ? [{ type: 'write', path: LOGINS_GITIGNORE, content: LOGINS_GITIGNORE_CONTENT }]
+          : [],
+      ),
+  }
+}
+
 export const MIGRATIONS: readonly Migration[] = [
   // `site.version` recorded the Ritual that last ran `init-site`. The
   // `managed` block (migration counter, output hash, release pin) replaces it.
@@ -157,6 +194,7 @@ export const MIGRATIONS: readonly Migration[] = [
     }),
   ),
   sharedCacheMigration(SHARED_CACHE_MIGRATION_ID),
+  loginsGitignoreMigration(4),
 ]
 
 /** The highest migration id in a list, or 0 for none. */

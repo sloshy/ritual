@@ -31,6 +31,8 @@ Each line is `ok`, `warn` or `fail`. A line that found a problem ends with a one
 
 **"This workspace was last updated by a newer Ritual."** Someone ran a newer Ritual on this workspace. Install that release with the `ritual self-update --tag …` command the message names. See [A workspace from a newer Ritual](/commands/migrate/#a-workspace-from-a-newer-ritual).
 
+**The admin says "Refused a request sent from another site."** The request came from a page that is not the admin site itself: a bookmarklet, another local app, the admin opened under a different address or port. Use the admin site directly. Behind a reverse proxy that rewrites the `Host` header, turn on `admin.trustProxy`. See [Cross-site requests](/commands/admin/#cross-site-requests).
+
 **`ritual.config.json` is broken.** A file that is not valid JSON stops every command except `ritual doctor`, which shows the parser's complaint. A setting with a wrong value is ignored with a warning, and its default is used. Fix the file, or reset one setting with `ritual config unset <key>`.
 
 ## The card cache

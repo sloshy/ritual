@@ -9,6 +9,7 @@ import { accessLogFields } from '../cache-server/helpers'
 import {
   addFeedUrlOption,
   addTorrentPortOption,
+  feedUrlOrFail,
   parseRefreshCadence,
   resolveRefreshMs,
   scheduleRecurringTask,
@@ -29,7 +30,7 @@ import {
   type CardFeedKind,
 } from '../cache/feed'
 import type { FeedSyncResult } from '../cache/feed-client'
-import { createCacheFeedClient, resolveFeedUrl } from '../cache/refresh-source'
+import { createCacheFeedClient } from '../cache/refresh-source'
 import { CONFIG_KEY, ENV_VAR, EXAMPLE, FLAG } from '../util/cli-tokens'
 
 type CacheFeedFetchCommandOptions = {
@@ -251,7 +252,8 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       parseRefreshCadence,
     )
     .action(async (options: CacheFeedFetchCommandOptions) => {
-      const feedUrl = resolveFeedUrl(options.url)
+      const feedUrl = feedUrlOrFail(options.url)
+      if (feedUrl === undefined) return
       const client = createCacheFeedClient({
         url: feedUrl,
         p2p: options.p2p,

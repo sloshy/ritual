@@ -160,6 +160,10 @@ export const adminApiMeta = {
     description:
       'Error body (HTTP 403) when the admin server refuses a request because of its IP or User-Agent allow/deny lists. The standard HTTP reason phrase; translate it as your language’s usual wording for "Forbidden".',
   },
+  'admin.api.server.crossSite': {
+    description:
+      'Error body (HTTP 403) when the admin server refuses a request that would change something (save, delete, sign in) because the browser sent it from a page on another website — the protection against cross-site request forgery. "the admin site itself" is the Ritual admin web page the user signs in to.',
+  },
   'admin.api.server.setupRequired': {
     description:
       'Error body (HTTP 403) when a signed-in route is called before the first admin account exists.',

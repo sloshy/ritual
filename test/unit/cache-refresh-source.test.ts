@@ -2,13 +2,22 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { refreshCardCache, resolveFeedUrl } from '../../src/cache/refresh-source'
-import { DEFAULT_FEED_URL } from '../../src/cache/feed-client'
 import { refreshRitualConfig } from '../../src/config/ritual-config'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
 
 let ws: BoundWorkspace
 let configPath: string
+
+const FEED_URL = 'https://feed.example/feed.json'
+
+/** Whether the logger holds a warning whose text includes `text`. */
+function warned(logger: MemoryLogger, text: string): boolean {
+  return logger.entries.some(
+    (entry) =>
+      entry.level === 'warn' && typeof entry.args[0] === 'string' && entry.args[0].includes(text),
+  )
+}
 
 describe('resolveFeedUrl', () => {
   beforeEach(async () => {
@@ -20,9 +29,10 @@ describe('resolveFeedUrl', () => {
     await ws.dispose()
   })
 
-  test('falls back to the built-in default when neither explicit nor config is set', async () => {
+  // There is no public feed, so there is no built-in default to fall back to.
+  test('is undefined when neither explicit nor config is set', async () => {
     await refreshRitualConfig()
-    expect(resolveFeedUrl()).toBe(DEFAULT_FEED_URL)
+    expect(resolveFeedUrl()).toBeUndefined()
   })
 
   test('uses the configured cacheFeedUrl when no explicit URL is given', async () => {
@@ -76,6 +86,7 @@ describe('refreshCardCache', () => {
     const calls: string[] = []
     await refreshCardCache({
       source: 'feed',
+      url: FEED_URL,
       feedRefresh: async () => {
         calls.push('feed')
         return 'unchanged'
@@ -109,6 +120,7 @@ describe('refreshCardCache', () => {
     const forcedFlags: (boolean | undefined)[] = []
     await refreshCardCache({
       source: 'feed',
+      url: FEED_URL,
       force: true,
       feedRefresh: async (_url, force) => {
         forcedFlags.push(force)
@@ -125,6 +137,7 @@ describe('refreshCardCache', () => {
     const calls: string[] = []
     await refreshCardCache({
       source: 'feed',
+      url: FEED_URL,
       feedRefresh: async () => {
         calls.push('feed')
         throw new Error('feed is down')
@@ -134,13 +147,31 @@ describe('refreshCardCache', () => {
       },
     })
     expect(calls).toEqual(['feed', 'scryfall'])
-    expect(
-      logger.entries.some(
-        (entry) =>
-          entry.level === 'warn' &&
-          typeof entry.args[0] === 'string' &&
-          entry.args[0].includes('feed is down'),
-      ),
-    ).toBeTrue()
+    expect(warned(logger, 'feed is down')).toBeTrue()
+  })
+
+  // A config that names the feed but no URL used to try a placeholder host and
+  // fall back with a DNS error; now it says what is missing.
+  test('a feed source with no URL anywhere warns, naming cacheFeedUrl, and uses Scryfall', async () => {
+    ws = await bindWorkspace({ dirs: [], config: { cacheSource: 'feed' } })
+    await refreshRitualConfig()
+    try {
+      const logger = new MemoryLogger()
+      setLogger(logger)
+      const calls: string[] = []
+      await refreshCardCache({
+        feedRefresh: async () => {
+          calls.push('feed')
+          return 'ingested'
+        },
+        scryfallPreload: async () => {
+          calls.push('scryfall')
+        },
+      })
+      expect(calls).toEqual(['scryfall'])
+      expect(warned(logger, 'cacheFeedUrl is not set')).toBeTrue()
+    } finally {
+      await ws.dispose()
+    }
   })
 })

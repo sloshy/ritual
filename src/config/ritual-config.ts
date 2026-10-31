@@ -254,7 +254,10 @@ export interface RitualConfig {
    * Scryfall when the feed is unreachable). Always present, defaulting to 'scryfall'.
    */
   cacheSource: CacheSource
-  /** Cache feed URL used when `cacheSource` is 'feed'; the built-in default when absent. */
+  /**
+   * Cache feed URL used when `cacheSource` is 'feed'. There is no public feed:
+   * absent means no feed to sync from (see `resolveFeedUrl`).
+   */
   cacheFeedUrl?: string
   /**
    * Where the card cache lives, as written: an absolute path, or one relative
@@ -1034,8 +1037,8 @@ export function parseCacheSource(value: unknown): CacheSource | ConfigParseError
 
 /**
  * Parse a `cacheFeedUrl` value. Returns the URL when it is a valid http(s)
- * URL, or a parse error when malformed. Absence means "use the built-in
- * default" and is the caller's concern: check for `undefined` before parsing —
+ * URL, or a parse error when malformed. Absence means "no feed URL" and is
+ * the caller's concern: check for `undefined` before parsing —
  * an `undefined` input is malformed here.
  */
 export function parseCacheFeedUrl(value: unknown): string | ConfigParseError {
@@ -1253,7 +1256,7 @@ const warnAndDefault: FieldPolicy = (parsed, key, fallback) => {
 }
 
 function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
-  // Absence means "use the built-in default", so cacheFeedUrl only parses when
+  // Absence means "no feed URL", so cacheFeedUrl only parses when
   // present; a malformed value falls back to absent.
   const cacheFeedUrl =
     parsed.cacheFeedUrl !== undefined
@@ -1723,7 +1726,7 @@ export function getCollectionSyncPullTarget(config: RitualConfig = getRitualConf
   return config.collectionSync.pullTarget
 }
 
-/** The configured cache feed URL, or undefined to use the built-in default. */
+/** The configured cache feed URL, or undefined when none is set. */
 export function getCacheFeedUrl(config: RitualConfig = getRitualConfig()): string | undefined {
   return config.cacheFeedUrl
 }

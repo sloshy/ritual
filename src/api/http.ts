@@ -181,10 +181,34 @@ export function statusForError(error: unknown): number {
  */
 export function caughtMessage(error: unknown): SyncMessage {
   if (error instanceof SyncMessageError) return pickMessage(error.syncMessage)
-  if (error instanceof CardCommandError && error.messageRef !== undefined) {
+  if (isKeyedCommandError(error)) {
     return apiMessageOf(error.messageRef.key, error.messageRef.params)
   }
   return plainMessage(getErrorMessage(error))
+}
+
+/** A {@link CardCommandError} raised from a catalog key (`localizedCommandError`). */
+type KeyedCommandError = CardCommandError & {
+  messageRef: NonNullable<CardCommandError['messageRef']>
+}
+
+function isKeyedCommandError(error: unknown): error is KeyedCommandError {
+  return error instanceof CardCommandError && error.messageRef !== undefined
+}
+
+/**
+ * An unexpected failure's message for a server that answers callers it does not
+ * authenticate (the cache server, the cache-feed host). A keyed failure — a
+ * {@link SyncMessageError}, or a {@link CardCommandError} raised from a catalog
+ * key — was worded for its reader, and goes out as {@link caughtMessage} gives
+ * it (its params are the engine's choice: a nested cause's own text rides
+ * along where the engine nested one). Anything else is an exception's raw text, which can name file paths and
+ * internals, so the reply carries `fallback` instead; the caller logs the error
+ * itself, where only the operator reads it.
+ */
+export function disclosedMessage(error: unknown, fallback: ParameterlessKey): SyncMessage {
+  const keyed = error instanceof SyncMessageError || isKeyedCommandError(error)
+  return keyed ? caughtMessage(error) : syncMessage(fallback)
 }
 
 /**

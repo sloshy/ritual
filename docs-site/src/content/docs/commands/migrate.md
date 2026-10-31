@@ -74,11 +74,12 @@ The same file caches the [update notice](/commands/self-update/#update-notice)'s
 
 Each migration is a numbered, one-time change. `migrate` records the highest one applied as `managed.migration` in `ritual.config.json` (see [the `managed` block](/configuration/#ritual-bookkeeping-managed-key)). Every migration checks the workspace itself rather than trusting that counter, so one whose change is already in place does nothing.
 
-| Migration | What it does                                                                                                     |
-| --------- | ---------------------------------------------------------------------------------------------------------------- |
-| 1         | Removes `site.version`. The `managed` block replaced it as the record of what set up the workspace.              |
-| 2         | Removes `site.prerelease`. The deploy workflow now downloads the [pinned release](#the-ci-pin).                  |
-| 3         | Moves the workspace's `cache/` folder into the [shared per-user card cache](#migration-3-the-shared-card-cache). |
+| Migration | What it does                                                                                                                                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1         | Removes `site.version`. The `managed` block replaced it as the record of what set up the workspace.                                                                                                           |
+| 2         | Removes `site.prerelease`. The deploy workflow now downloads the [pinned release](#the-ci-pin).                                                                                                               |
+| 3         | Moves the workspace's `cache/` folder into the [shared per-user card cache](#migration-3-the-shared-card-cache).                                                                                              |
+| 4         | Adds `.logins/.gitignore` to a workspace's `.logins/` folder, so git ignores your sign-ins even in a workspace whose `.gitignore` `init-site` never wrote. An existing `.logins/.gitignore` is left as it is. |
 
 #### Migration 3: the shared card cache
 

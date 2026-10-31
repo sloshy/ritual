@@ -467,6 +467,29 @@ describe('CacheFeedHost', () => {
     })
   })
 
+  // An exception's own text can name the host's files: the operator's log gets
+  // it, the reply carries the generic message.
+  test('answers an unexpected failure with a generic 500, logging the detail', async () => {
+    const logged: string[] = []
+    const failing = makeHost({ log: (line) => logged.push(line) })
+    // The feed's entries are the first thing `/health` reads; a broken read
+    // stands in for any failure a route did not expect.
+    Object.assign(failing, {
+      feed: {
+        get entries(): never {
+          throw new Error('EACCES: permission denied, open /srv/private/feed')
+        },
+      },
+    })
+
+    const answer = () => failing.handleRequest(new Request('http://localhost/health'))
+    expect(await pseudoRefusal(answer)).toEqual(
+      refused(500, 'domain.cache.feedReply.internalError'),
+    )
+    expect((await answer()).headers.get('cache-control')).toBe('no-store')
+    expect(logged.some((line) => line.includes('/srv/private/feed'))).toBeTrue()
+  })
+
   test('answers 503 for the feed document before the first one is generated', async () => {
     const answer = () => host.handleRequest(new Request('http://localhost/feed.json'))
     expect((await answer()).headers.get('retry-after')).toBe('60')

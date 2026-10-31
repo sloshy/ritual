@@ -11,6 +11,11 @@ import { MAX_PRICE_BODY_BYTES } from '../../src/api/card-prices'
 import { MAX_EDIT_BODY_SIZE } from '../../src/admin/validation'
 import { MAX_SITE_REQUEST_BODY_SIZE, startSiteServer } from '../../src/serve/server'
 import type { StaticSiteServer } from '../../src/serve/static'
+import { serveCacheServer } from '../../src/cache-server/server'
+import { MAX_CACHE_SERVER_REQUEST_BODY_SIZE } from '../../src/cache-server/constants'
+import { MockHttpClient } from '../test-utils'
+import { cacheServerRuntime } from '../helpers/cache-server-runtime'
+import { chunkedBody, endlessBody } from '../helpers/body-streams'
 import {
   bindWorkspace,
   snapshotTree,
@@ -60,36 +65,6 @@ function repinEveryCard(): WireChange[] {
       }),
     ),
   )
-}
-
-/**
- * An endless body of `x` bytes, streamed with no declared size. Only a reader
- * that counts what it reads can ever finish with it.
- */
-function endlessBody(): ReadableStream<Uint8Array> {
-  const chunk = new Uint8Array(64 * 1024).fill(0x78)
-  return new ReadableStream<Uint8Array>({
-    pull(controller): void {
-      controller.enqueue(chunk)
-    },
-  })
-}
-
-/** A finite stream of `bytes` bytes, so `fetch` sends it chunked. */
-function chunkedBody(bytes: number): ReadableStream<Uint8Array> {
-  const chunkSize = 64 * 1024
-  let sent = 0
-  return new ReadableStream<Uint8Array>({
-    pull(controller): void {
-      if (sent >= bytes) {
-        controller.close()
-        return
-      }
-      const size = Math.min(chunkSize, bytes - sent)
-      controller.enqueue(new Uint8Array(size).fill(0x78))
-      sent += size
-    },
-  })
 }
 
 beforeEach(async () => {
@@ -162,7 +137,7 @@ describe('admin request-body budgets', () => {
 })
 
 describe('server body ceiling', () => {
-  let server: StaticSiteServer | undefined
+  let server: StaticSiteServer | Bun.Server<undefined> | undefined
 
   afterEach(async () => {
     await server?.stop(true)
@@ -206,6 +181,22 @@ describe('server body ceiling', () => {
     expect(await statusForDeclaredBody(Number(server.port), MAX_SITE_REQUEST_BODY_SIZE + 1)).toBe(
       413,
     )
+  })
+
+  // Without its own ceiling the cache server would sit on Bun's 128 MB default,
+  // which refuses a full card refresh; with it, the ceiling is still a ceiling.
+  test('the cache server refuses a declared body past its ceiling', async () => {
+    server = serveCacheServer(cacheServerRuntime(new MockHttpClient()), {
+      hostname: '127.0.0.1',
+      port: 0,
+      verbose: false,
+    })
+    const port = Number(server.port)
+
+    expect(await statusForDeclaredBody(port, MAX_CACHE_SERVER_REQUEST_BODY_SIZE + 1)).toBe(413)
+    // Under the ceiling the request reaches the server's own routing: `/` is
+    // not a cache route, so it answers 404 from the declared headers alone.
+    expect(await statusForDeclaredBody(port, MAX_CACHE_SERVER_REQUEST_BODY_SIZE)).toBe(404)
   })
 })
 

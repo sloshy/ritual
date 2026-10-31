@@ -65,7 +65,7 @@ Change admin settings. Each maps to a key on the [Configuration](/configuration/
 - **Default Language**: the Scryfall language code stamped on newly added cards. A non-English value switches cache downloads to the much larger `all_cards` bulk (default `en`; see [Configuration](/configuration/#default-language))
 - **Interface Language**: the language the admin and CLI **speak**, as a BCP-47 tag. This is not the card language. The list offers every locale this build ships, each named in its own language (default `en`; see [Configuration](/configuration/#interface-language)). Saving relabels the admin immediately with no rebuild; the public site picks it up on its next [build-site](/commands/build-site/#localized-builds). The header also has a language switcher that changes the language for this browser only, without touching the config; see [Localization](/localization/#admin-site)
 - **Cache Source**: where cache refreshes download from, Scryfall directly or a peer-to-peer cache feed (default `scryfall`; see [Configuration](/configuration/#cache-source))
-- **Cache Feed URL**: the feed URL used when the cache source is the feed (empty = the built-in default)
+- **Cache Feed URL**: the feed URL used when the cache source is the feed. There is no public feed, so the feed source needs one: left empty, a feed refresh warns and downloads from Scryfall instead (see [Configuration](/configuration/#cache-source))
 - **Card Cache Folder**: where this workspace's card cache lives, absolute or relative to the workspace (`cache` keeps a folder inside it). Empty = the per-user cache every workspace shares. `RITUAL_CACHE_DIR` overrides it, and changing it does not move the existing cache (see [Configuration](/configuration/#cache-directory-cachedir))
 - **Cache Lock Timeout**: seconds a cache refresh waits for another process's cache-write lock before failing (default `300`; see [Configuration](/configuration/#cache-lock-timeout))
 - **Card Search Debounce (ms)**: how long the editors' add-card search waits after a keystroke before querying autocomplete; `0` disables the wait (default `500`; see [Configuration](/configuration/#search-debounce)). Applies to the public site the next time it is built
@@ -79,7 +79,7 @@ The headed groups below them:
 
 **Network Security**
 
-- **Trust reverse proxy headers**: parse `X-Forwarded-For` when running behind a reverse proxy (nginx, Caddy, etc.). Leave off for direct connections
+- **Trust reverse proxy headers**: parse `X-Forwarded-For` (the client address) and `X-Forwarded-Host` (for the [cross-site check](/commands/admin/#cross-site-requests)) when running behind a reverse proxy (nginx, Caddy, etc.). Leave off for direct connections
 - **Secure cookies (HTTPS only)**: set the `Secure` flag on session cookies. Enable when using TLS or a TLS-terminating reverse proxy
 
 **Two-Factor Authentication (TOTP)**

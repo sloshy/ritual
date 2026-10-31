@@ -7,7 +7,8 @@ import { fail } from '../cli/action'
 import { TEXT_ONLY } from '../cli/output'
 import type { RefreshCadence } from './types'
 import { parsePort } from '../cli/options'
-import { FLAG } from '../util/cli-tokens'
+import { COMMAND, CONFIG_KEY, FLAG, commandLine } from '../util/cli-tokens'
+import { resolveFeedUrl } from '../cache/refresh-source'
 
 export function parseRefreshCadence(value: string): RefreshCadence {
   const normalized = value.trim().toLowerCase()
@@ -97,4 +98,48 @@ export function rejectFeedUrlSourceConflict(
   // Neither command takes `--output`: the refusal is text on stderr.
   fail(TEXT_ONLY, 'usage_error', 'cli.cache.feedUrlNeedsFeedSource', { flag: FLAG.url })
   return true
+}
+
+/**
+ * The feed URL — `--url`, else the `cacheFeedUrl` config key — for a command
+ * that was asked, by flag, to use the cache feed. With neither, there is no
+ * public feed to fall back to: reports the usage error (exit 2) and returns
+ * `undefined`, and the caller stops.
+ */
+export function feedUrlOrFail(url: string | undefined): string | undefined {
+  const resolved = resolveFeedUrl(url)
+  if (resolved !== undefined) return resolved
+  // Neither command takes `--output`: the refusal is text on stderr.
+  fail(TEXT_ONLY, 'usage_error', 'cli.cache.feedUrlRequired', {
+    flag: FLAG.url,
+    configKey: CONFIG_KEY.cacheFeedUrl,
+    command: commandLine(COMMAND.cacheFeedHost),
+  })
+  return undefined
+}
+
+/**
+ * Refuse a feed source asked for by flag (`--source feed`, `--cache-source
+ * feed`) when no feed URL is set, per {@link feedUrlOrFail}; returns `true`
+ * when it did, and the caller stops. A feed source that comes from the config
+ * alone is not refused here: that refresh warns and uses Scryfall.
+ */
+export function rejectFeedSourceWithoutUrl(
+  source: CacheSource | undefined,
+  url: string | undefined,
+): boolean {
+  return source === 'feed' && feedUrlOrFail(url) === undefined
+}
+
+/**
+ * The feed-flag checks a command with a cache-source flag runs, in order: a
+ * `--url` beside a non-feed source ({@link rejectFeedUrlSourceConflict}), then
+ * a feed source with no URL ({@link rejectFeedSourceWithoutUrl}). Returns `true`
+ * when one refused, and the caller stops.
+ */
+export function rejectFeedSourceFlags(
+  source: CacheSource | undefined,
+  url: string | undefined,
+): boolean {
+  return rejectFeedUrlSourceConflict(source, url) || rejectFeedSourceWithoutUrl(source, url)
 }

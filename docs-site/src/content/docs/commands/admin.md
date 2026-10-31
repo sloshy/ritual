@@ -204,7 +204,7 @@ Auto-commit covers the admin web UI and the [MCP server](/commands/mcp/) only. C
 
 ### Network options
 
-`admin.trustProxy` makes the server take the client address from the last `X-Forwarded-For` entry, the one a reverse proxy appends, instead of the connection's own address. Turn it on only behind a proxy you control. `admin.secureCookies` marks the session cookie `Secure`, so browsers send it over HTTPS only.
+`admin.trustProxy` makes the server take the client address from the last `X-Forwarded-For` entry, the one a reverse proxy appends, instead of the connection's own address, and the address the browser used from the last `X-Forwarded-Host` entry for the [cross-site check](#cross-site-requests). Turn it on only behind a proxy you control. `admin.secureCookies` marks the session cookie `Secure`, so browsers send it over HTTPS only.
 
 ### Failed Login Delay
 
@@ -238,6 +238,10 @@ TOTP (Time-based One-Time Password) adds a second factor. When enabled, login re
 The login form shows an additional code field. For API access, include the `totpCode` field in the `POST /api/login` request body.
 
 The TOTP secret is stored in `.logins/admin-auth.json` alongside the password hash.
+
+### Cross-site requests
+
+A page on another website cannot make your browser act on the admin. Any API request a browser sends from another site, including a sibling site on another port or subdomain of the same host, is refused with `403 Forbidden` before any route runs, answered in the API's shared [error envelope](/admin/api/#error-responses) (`messageKey: admin.api.server.crossSite`). That covers creating the first account and signing in, which need no session, and the streams that sync or rebuild. The admin site's own requests always pass, and so do scripts that send no `Origin` or `Sec-Fetch-Site` header. Behind a reverse proxy that rewrites the `Host` header, turn on `admin.trustProxy` so older browsers that send only `Origin` are judged against the address they used. See [Authentication](/admin/api/#authentication) for the exact rule.
 
 ### IP Allow/Deny Lists
 

@@ -40,7 +40,7 @@ A few responses build their sentence from counted nouns — an import's "Applied
 
 ## Error responses
 
-Every route refuses a request with the same body, whatever the status — and so does the server itself when it refuses a request before any route runs (an address or User-Agent its allow/deny lists turn away, a signed-in route before the first account exists or without a session, a path with no route or file when no admin site is built, an unexpected failure):
+Every route refuses a request with the same body, whatever the status — and so does the server itself when it refuses a request before any route runs (an address or User-Agent its allow/deny lists turn away, an API request a browser sent from another site, a signed-in route before the first account exists or without a session, a path with no route or file when no admin site is built, an unexpected failure):
 
 ```json
 {
@@ -92,5 +92,6 @@ Beneath the per-route caps, the server refuses any body larger than 16 MiB plus 
 The admin uses **session-based authentication**. Send `POST /api/login` with your credentials (and a TOTP code if TOTP is enabled). The response sets a session cookie in a `Set-Cookie` header, and later requests authenticate with that cookie.
 
 - Sessions expire after 24 hours. `POST /api/logout` ends one early.
+- Any `/api/*` request a browser sends from another site gets `403` (`admin.api.server.crossSite`) before any route runs, `/api/setup` and `/api/login` included, and `GET` routes too (the sync, cache-refresh and build streams act on their query). The server reads `Sec-Fetch-Site` (only `same-origin` or `none` pass, so a sibling site on another port or subdomain is refused), or, without it, requires the `Origin` host to equal the `Host` header (the last `X-Forwarded-Host` entry under `admin.trustProxy`). A request with neither header, such as a script or `curl`, is not affected.
 - Unauthenticated requests to protected routes receive `401` with the shared [error envelope](#error-responses) (`messageKey: admin.api.server.unauthorized`). Before the first admin account exists they receive `403` (`admin.api.server.setupRequired`).
 - Rate-limited sign-ins receive `429 Too Many Requests`: the shared error envelope (`messageKey: admin.api.login.rateLimited`) plus `retryAfterSeconds`, the remaining lockout, which the `Retry-After` header also carries.

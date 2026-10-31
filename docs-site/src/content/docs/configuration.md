@@ -248,7 +248,7 @@ Only release builds check, never development or Docker builds. Set it to `false`
 | `cacheSource`  | `scryfall` | Where card-cache refreshes download from: `scryfall` (Scryfall's bulk API directly) or `feed` (an experimental peer-to-peer [cache feed](/commands/cache/#feed-fetch)). |
 | `cacheFeedUrl` | —          | The feed URL used when `cacheSource` is `feed`, and by `cache feed fetch` without `--url`. Must be an http(s) URL.                                                      |
 
-With `feed`, a refresh checks the feed's infohashes and downloads only when they changed. It falls back to Scryfall when the feed is unreachable. There is no public feed yet, so set `cacheFeedUrl` to a feed you host (see [`cache feed host`](/commands/cache/#feed-host)); without it, a feed refresh finds no feed and falls back to Scryfall.
+With `feed`, a refresh checks the feed's infohashes and downloads only when they changed. It falls back to Scryfall when the feed is unreachable. There is no public feed yet, so `feed` needs `cacheFeedUrl` set to a feed you host (see [`cache feed host`](/commands/cache/#feed-host)). Without it, a refresh the config sends to the feed warns that `cacheFeedUrl` is not set and downloads from Scryfall, and asking for the feed by flag (`cache preload-all --source feed`, `cache server --cache-source feed`, or `cache feed fetch`) with no `--url` either is a usage error (exit `2`).
 
 ## Collection sync
 

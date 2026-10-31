@@ -575,6 +575,10 @@ export const cliInfraMeta = {
   'cli.cacheStore.feedUnchanged': {
     description: 'A cache refresh from the peer-to-peer cache feed found nothing new.',
   },
+  'cli.cacheStore.feedUrlMissing': {
+    description:
+      'Warning before a card-cache refresh: the settings say to refresh from the peer-to-peer cache feed, but give no address for it, so the refresh downloads straight from Scryfall. "feed" is the literal setting value. {sourceKey} is the `cacheSource` setting and {urlKey} the `cacheFeedUrl` setting; never translate them.',
+  },
   'cli.cacheStore.feedFallback': {
     description:
       'A cache refresh from the peer-to-peer cache feed failed, so the cache is downloaded straight from Scryfall instead. {reason} is the error, already worded.',
@@ -719,6 +723,10 @@ export const cliInfraMeta = {
     description:
       "Usage error: a refresh-interval flag (`cache server --cards-refresh`/`--prices-refresh`, `cache feed host`/`fetch --refresh`) or its environment variable named an unknown interval. 'daily', 'weekly' and 'monthly' are the literal values the flag accepts.",
   },
+  'cli.cache.feedUrlRequired': {
+    description:
+      "Usage error: the peer-to-peer cache feed (an experimental way to download Ritual's card data) was asked for, but no address for it is set. {flag} is the `--url` flag, {configKey} the `cacheFeedUrl` setting, and {command} the `ritual cache feed host` command that runs a feed. Each is typed exactly by the user, so never translate them.",
+  },
   'cli.cache.feedUrlNeedsFeedSource': {
     description:
       "Usage error: --url (a cache feed's address) was combined with a cache source other than the feed, so it would be ignored. 'feed' (the cache-source value) is literal. {flag} is the `--url` flag. It is typed or matched exactly by the user, so never translate it.",
@@ -733,6 +741,9 @@ export const cliInfraMeta = {
   },
   'cli.cacheServer.feedSyncFailed': {
     description: `${CACHE_SERVER_LOG} Refreshing the card cache from the cache feed (a BitTorrent/HTTP distribution of Scryfall's card data) failed, so the server downloads from Scryfall (the card database) directly instead.`,
+  },
+  'cli.cacheServer.feedUrlMissing': {
+    description: `${CACHE_SERVER_LOG} At startup: the settings say card refreshes come from the peer-to-peer cache feed, but no address for it is set, so the server refreshes from Scryfall instead. "feed" is the literal setting value. {urlKey} is the \`cacheFeedUrl\` setting and {flag} the \`--url\` flag; never translate them.`,
   },
   'cli.cacheServer.feedUnchanged': {
     description: `${CACHE_SERVER_LOG} The cache feed has not published anything new since the last refresh, so the cached cards are already up to date.`,
@@ -1339,6 +1350,10 @@ export const cliInfraMeta = {
   'cli.migrate.migration.sharedCache': {
     description:
       'What migration 3 does: the downloaded card data used to live in a folder inside each workspace (project folder); it now lives in one per-user folder all workspaces share. {dir} is the old folder name ("cache/"); {envVar} is the RITUAL_CACHE_DIR environment variable and {configKey} the cacheDir setting, either of which can name another folder. Never translate them.',
+  },
+  'cli.migrate.migration.loginsGitignore': {
+    description:
+      'What migration 4 does: the workspace folder holding sign-ins (the admin account, Archidekt tokens) gets a .gitignore file of its own, so the git version-control tool never commits them. {file} is that file\'s path (".logins/.gitignore"), {dir} the folder (".logins/"), {gitignore} the workspace\'s own ".gitignore" file name and {command} the `ritual init-site` command that writes it. Never translate any of them.',
   },
   'cli.migrate.migration.dropSitePrerelease': {
     description:

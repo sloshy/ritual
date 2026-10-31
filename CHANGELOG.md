@@ -115,6 +115,25 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
 
 ### Changed
 
+- **The admin site refuses requests sent from other websites.** Any `/api/*` request a
+  browser sends from another site, a sibling port or subdomain included, now answers `403`
+  (`admin.api.server.crossSite`) before any route runs: `/api/setup` and `/api/login`,
+  which need no session, and the `GET` streams that sync, refresh or build included. It
+  reads the browser's `Sec-Fetch-Site` header, or compares the `Origin` host with the
+  request's host (`X-Forwarded-Host` under `admin.trustProxy`). The admin site itself,
+  scripts and other non-browser clients are unaffected.
+- **A feed cache source needs a feed URL.** There is no public cache feed, and the
+  built-in placeholder URL is gone. `cache preload-all --source feed`,
+  `cache server --cache-source feed` and `cache feed fetch` with neither `--url` nor `cacheFeedUrl` set
+  are now usage errors (exit 2). With `cacheSource: feed` in the config but no
+  `cacheFeedUrl`, refreshes warn that `cacheFeedUrl` is not set and download from Scryfall
+  (they used to try the placeholder and fall back with a network error).
+- **`.logins/` keeps its own `.gitignore`.** Whenever Ritual writes into `.logins/` (the
+  admin account, the admin audit log, Archidekt tokens, collection-sync state) it also
+  writes `.logins/.gitignore`, which ignores the whole folder, so sign-ins stay out of git
+  even in a workspace `init-site` never set up. **Run `ritual migrate`** (Ritual reminds
+  you): migration 4 adds the file to a `.logins/` folder an older Ritual made, and leaves
+  an existing `.logins/.gitignore` alone.
 - **A shorter `ritual --help`.** It now describes the dozen commands a newcomer needs,
   grouped as Get started (`new`, `import`, `add-card`, `edit`, `admin`), Look up and price
   (`lists`, `card`, `scry`, `price`) and Publish (`build-site`, `serve`), and names the
@@ -1136,6 +1155,15 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
 
 ### Fixed
 
+- `cache server` caps request bodies: 1 GiB for a bulk write, 16 MiB for one entry and
+  4 MiB for a price-stream request, each answered over its limit with a `413` naming it. A
+  client's full English card refresh through a cache server (about 450 MB) is no longer
+  refused by the runtime's 128 MB default.
+- `cache server` and `cache feed host` no longer send an unexpected error's own text (which
+  could name the server's files) in a `500`: the reply is a generic
+  `domain.cache.serverReply.internalError` / `domain.cache.feedReply.internalError`, and the
+  error is logged on the server's console. Refusals Ritual words for its reader still carry
+  their message and key.
 - The copy count on a card image ("4x") is readable on every theme. On light themes it
   was dark purple on a dark backdrop and almost disappeared. It now has its own two
   theme editor colors, Quantity badge background and Quantity badge text.

@@ -74,6 +74,8 @@ import { apiMessage } from '../api/result'
 import { t } from '../i18n/t'
 import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
 import { startServerOrThrow } from '../util/start-server'
+import { isCrossSiteRequest } from './same-origin'
+import { lastForwarded } from './forwarded'
 
 const COLLECTION_CFG: ListLifecycleConfig = {
   kind: 'collection',
@@ -409,16 +411,8 @@ export const routes: Route[] = [
 ]
 
 export function getClientIp(req: Request, server: RequestIPServer, trustProxy: boolean): string {
-  if (trustProxy) {
-    const forwarded = req.headers.get('X-Forwarded-For')
-    if (forwarded) {
-      // Trust the rightmost entry (appended by the reverse proxy),
-      // not the leftmost (which is client-controlled)
-      const parts = forwarded.split(',')
-      const last = parts[parts.length - 1]?.trim()
-      if (last) return last
-    }
-  }
+  const forwarded = trustProxy ? lastForwarded(req.headers.get('X-Forwarded-For')) : null
+  if (forwarded !== null) return forwarded
   if (server.requestIP) {
     const ip = server.requestIP(req)
     if (ip) return ip.address
@@ -588,6 +582,13 @@ async function handleRequest(
       !matchesList(userAgent, config.admin.userAgentAllowList))
   ) {
     return apiError(apiMessage('admin.api.server.forbidden'), 403)
+  }
+
+  // A browser's API request from another site, refused before any route — the
+  // session-free ones (setup, login) and the acting streams included. See
+  // `./same-origin.ts`.
+  if (url.pathname.startsWith('/api/') && isCrossSiteRequest(req, config.admin.trustProxy)) {
+    return apiError(apiMessage('admin.api.server.crossSite'), 403)
   }
 
   // Match API routes

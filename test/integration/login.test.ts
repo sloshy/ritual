@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
-import { createWorkspace, removeWorkspace } from '../helpers/workspace'
+import { createWorkspace, removeWorkspace, writeLoginFile } from '../helpers/workspace'
 
 type LoginStatusPayload = {
   loggedIn: boolean
@@ -37,10 +36,9 @@ async function seedStoredLogin(
   username: string,
   options: SeedOptions = {},
 ): Promise<void> {
-  const loginsDir = path.join(workspace, '.logins')
-  await fs.mkdir(loginsDir, { recursive: true })
-  await fs.writeFile(
-    path.join(loginsDir, 'archidekt.json'),
+  await writeLoginFile(
+    workspace,
+    'archidekt.json',
     JSON.stringify({
       access_token: jwtExpiringIn(options.accessIn ?? 3600),
       refresh_token: jwtExpiringIn(options.refreshIn ?? 86_400),
@@ -166,9 +164,9 @@ describe('login CLI headless paths (Integration)', () => {
     // The one command whose job is diagnosing a broken login must not be the one
     // that crashes on one: `ArchidektToken` declares both tokens, but the store
     // JSON-parses whatever is on disk.
-    await fs.mkdir(path.join(dir, '.logins'), { recursive: true })
-    await fs.writeFile(
-      path.join(dir, '.logins', 'archidekt.json'),
+    await writeLoginFile(
+      dir,
+      'archidekt.json',
       JSON.stringify({ user: { username: 'tester', id: 1 }, refresh_token: 'a.b.c' }),
     )
 
@@ -189,9 +187,9 @@ describe('login CLI headless paths (Integration)', () => {
   })
 
   test('status names the account-less case rather than printing "as null"', async () => {
-    await fs.mkdir(path.join(dir, '.logins'), { recursive: true })
-    await fs.writeFile(
-      path.join(dir, '.logins', 'archidekt.json'),
+    await writeLoginFile(
+      dir,
+      'archidekt.json',
       JSON.stringify({ access_token: 'a.b.c', refresh_token: 'a.b.c' }),
     )
 

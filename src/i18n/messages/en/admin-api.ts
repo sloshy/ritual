@@ -161,6 +161,8 @@ export const adminApiMessages = {
 
   // ── Requests the server refuses before a route runs ───────────────────
   'admin.api.server.forbidden': 'Forbidden',
+  'admin.api.server.crossSite':
+    'Refused a request sent from another site. Use the admin site itself to make changes.',
   'admin.api.server.setupRequired': 'Setup required. Create an admin account first.',
   'admin.api.server.unauthorized': 'Unauthorized',
   'admin.api.server.notFound': 'Not found',

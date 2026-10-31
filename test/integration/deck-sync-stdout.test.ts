@@ -20,7 +20,7 @@ import { resetLogger } from '../../src/util/logger'
 import { captureConsole, captureStream } from '../helpers/capture'
 import { runInProcess } from '../helpers/cli'
 import type { StubbedFetch } from '../helpers/stub-fetch'
-import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { bindWorkspace, writeLoginFile, type BoundWorkspace } from '../helpers/workspace'
 import { stubArchidekt, tokenValidForAnHour } from './helpers/archidekt'
 
 const REFRESH_URL = 'https://archidekt.com/api/rest-auth/token/refresh/'
@@ -48,9 +48,7 @@ async function storeExpiredLogin(): Promise<void> {
     refresh_token: tokenValidForAnHour(),
     user: { id: 1, username: 'tester' },
   }
-  const loginsDir = path.join(ws.dir, '.logins')
-  await fs.mkdir(loginsDir, { recursive: true })
-  await fs.writeFile(path.join(loginsDir, 'archidekt.json'), JSON.stringify(token))
+  await writeLoginFile(ws.dir, 'archidekt.json', JSON.stringify(token))
 }
 
 async function storedAccessToken(): Promise<string> {

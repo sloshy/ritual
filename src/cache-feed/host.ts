@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, readdir, unlink } from 'node:fs/promises'
 import { createDefaultFileSystemClient, type HttpClient } from '../util/interfaces'
 import { writeFileAtomic } from '../util/atomic-write'
-import { caughtMessage, keyedRefusal, nestedRefusal } from '../api/http'
+import { disclosedMessage, keyedRefusal, nestedRefusal } from '../api/http'
 import { t, type ParameterlessKey } from '../i18n/t'
 import {
   errorParam,
@@ -348,7 +348,9 @@ export class CacheFeedHost {
   /**
    * HTTP handler for `/feed.json`, `/files/<name>`, `/torrents/<name>`, `/health`.
    * Always answers: an unexpected failure is logged and answered as a keyed
-   * `500`, so the caller's access log records every request.
+   * `500`, so the caller's access log records every request. The reply names a
+   * keyed failure; anything else (an exception's raw text, which can name the
+   * host's files) stays in the log, and the reply is a generic message.
    */
   async handleRequest(req: Request): Promise<Response> {
     try {
@@ -357,7 +359,9 @@ export class CacheFeedHost {
       this.log(
         renderSyncMessage(syncRef('cli.cacheFeed.requestFailed', { error: errorParam(error) })),
       )
-      return nestedRefusal(caughtMessage(error), 500, { 'Cache-Control': 'no-store' })
+      return nestedRefusal(disclosedMessage(error, 'domain.cache.feedReply.internalError'), 500, {
+        'Cache-Control': 'no-store',
+      })
     }
   }
 

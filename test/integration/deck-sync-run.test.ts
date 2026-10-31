@@ -11,7 +11,12 @@ import {
   type StubbedRequest,
   type StubRoute,
 } from './helpers/archidekt'
-import { bindWorkspace, writeDeckFile, type BoundWorkspace } from '../helpers/workspace'
+import {
+  bindWorkspace,
+  writeDeckFile,
+  writeLoginFile,
+  type BoundWorkspace,
+} from '../helpers/workspace'
 import { captureStream } from '../helpers/capture'
 import { runInProcess } from '../helpers/cli'
 import type { Card } from '../../src/card/card'
@@ -384,9 +389,9 @@ describe('deck-sync status (Integration)', () => {
     await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring' }], {
       lastSynced: '2026-08-01T00:00:00.000Z',
     })
-    await fs.mkdir(path.join(dir, '.logins'), { recursive: true })
-    await fs.writeFile(
-      path.join(dir, '.logins', 'collection-sync.json'),
+    await writeLoginFile(
+      dir,
+      'collection-sync.json',
       JSON.stringify({ lastSynced: '2026-07-30T00:00:00.000Z', userId: 42, username: 'tester' }),
     )
 
@@ -419,8 +424,7 @@ describe('deck-sync status (Integration)', () => {
   })
 
   test('an unreadable state file is reported as such, not as "never synced"', async () => {
-    await fs.mkdir(path.join(dir, '.logins'), { recursive: true })
-    await fs.writeFile(path.join(dir, '.logins', 'collection-sync.json'), '{ truncated')
+    await writeLoginFile(dir, 'collection-sync.json', '{ truncated')
 
     const stdout = await captureStream('stdout', async () => {
       expect(await runDeckSync(['status'])).toBe(0)

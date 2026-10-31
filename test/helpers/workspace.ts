@@ -18,6 +18,7 @@ import { DEFAULT_SECTION, type DeckSection } from '../../src/list/deck'
 import type { Card } from '../../src/card/card'
 import type { Condition, Finish } from '../../src/card/finish-condition'
 import type { ScryfallCard } from '../../src/scryfall/types'
+import { ensureLoginsDir, LOGINS_DIR } from '../../src/auth/logins-dir'
 
 /**
  * Shared temp-workspace setup and list-file fixture builders for the
@@ -204,6 +205,18 @@ export function initGitRepo(dir: string): void {
   execSync('git config user.email test@example.com', { cwd: dir })
   execSync('git config user.name "Ritual Test"', { cwd: dir })
   execSync('git config commit.gpgsign false', { cwd: dir })
+}
+
+/**
+ * Seed `name` in the workspace's `.logins/` folder with `content`, as Ritual
+ * leaves the folder: private, with its own `.gitignore` — so a seeded
+ * workspace has no migration pending. Returns the file's path.
+ */
+export async function writeLoginFile(dir: string, name: string, content: string): Promise<string> {
+  await ensureLoginsDir(dir)
+  const file = path.join(dir, LOGINS_DIR, name)
+  await fs.writeFile(file, content, { mode: 0o600 })
+  return file
 }
 
 // ── List-file fixtures ─────────────────────────────────────────────────────────

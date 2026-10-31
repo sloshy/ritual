@@ -272,6 +272,8 @@ export const cliInfraMessages = {
     'Over {threshold} cards not found in cache. Triggering bulk cache refresh...',
   'cli.cacheStore.feedUnchanged': 'Cache feed is unchanged; card cache is current.',
   'cli.cacheStore.feedFallback': 'Feed refresh failed ({reason}); falling back to Scryfall.',
+  'cli.cacheStore.feedUrlMissing':
+    '{sourceKey} is "feed" but {urlKey} is not set, so there is no feed to refresh from; refreshing from Scryfall instead. Set {urlKey} to the feed you host.',
   'cli.cacheStore.provenanceNotObject': 'Invalid card-bulk provenance: expected an object',
   'cli.cacheStore.provenanceUnknownBulk':
     "Invalid card-bulk provenance: unknown bulkType '{bulkType}'",
@@ -380,6 +382,8 @@ export const cliInfraMessages = {
   'cli.cache.refreshIntervalInvalid':
     "Refresh interval must be one of: 'daily', 'weekly', 'monthly'.",
   'cli.cache.feedUrlNeedsFeedSource': "{flag} only applies when the cache source is 'feed'.",
+  'cli.cache.feedUrlRequired':
+    'The cache feed needs a feed URL: pass {flag} or set {configKey}. There is no public feed yet; host one with `{command}`.',
 
   // ── cache server (operator log) ───────────────────────────────────────
   //
@@ -389,6 +393,8 @@ export const cliInfraMessages = {
   'cli.cacheServer.cacheUpdate': 'cache update: {fields}',
   'cli.cacheServer.requestFailed': 'Cache server request failed:',
   'cli.cacheServer.feedSyncFailed': 'Feed sync failed; falling back to Scryfall:',
+  'cli.cacheServer.feedUrlMissing':
+    'The cache source is "feed" but {urlKey} is not set and no {flag} was given; card refreshes use Scryfall.',
   'cli.cacheServer.feedUnchanged': 'Cache feed is unchanged; cards are current.',
   'cli.cacheServer.seedFailed': 'Seeding feed artifacts failed (cards already ingested):',
   'cli.cacheServer.scryfallRefreshFailed': 'Refreshing cards from Scryfall failed:',
@@ -718,6 +724,8 @@ export const cliInfraMessages = {
     'Remove {sitePrereleaseConfigKey} from {file} (the deploy workflow now downloads the release pinned in {managedVersionConfigKey})',
   'cli.migrate.migration.sharedCache':
     "Move the card cache from the workspace's {dir} folder to the per-user cache every workspace shares (or the one {envVar} or {configKey} names)",
+  'cli.migrate.migration.loginsGitignore':
+    'Add {file}, so git ignores the sign-ins in {dir} even without the {gitignore} that `{command}` writes',
   'cli.migrate.opConfigSet': '  set {path} = {value} in {file}',
   'cli.migrate.opConfigDelete': '  remove {path} from {file}',
   'cli.migrate.opWrite': '  write {path}',

@@ -45,7 +45,7 @@ Returns server health, whether first-time setup is needed, and which optional ca
 POST /api/setup
 ```
 
-No session is required. Instead the request carries the one-time setup token `ritual admin` printed when it started (see [First-Time Setup](/commands/admin/#first-time-setup)). A missing or wrong token returns `403 Forbidden`. Only works when no admin user exists; returns `409 Conflict` otherwise.
+No session is required. Instead the request carries the one-time setup token `ritual admin` printed when it started (see [First-Time Setup](/commands/admin/#first-time-setup)). A missing or wrong token returns `403 Forbidden`. A browser request from another site is refused first, with `403` (`admin.api.server.crossSite`; see [Authentication](/admin/api/#authentication)). Only works when no admin user exists; returns `409 Conflict` otherwise.
 
 **Request body:**
 
@@ -72,7 +72,7 @@ No session is required. Instead the request carries the one-time setup token `ri
 POST /api/login
 ```
 
-No authentication is required.
+No authentication is required, but a browser request from another site is refused with `403` (`admin.api.server.crossSite`).
 
 Authenticate with username, password, and optionally a TOTP code. On success, the response sets a session cookie.
 

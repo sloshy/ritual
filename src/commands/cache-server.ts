@@ -2,7 +2,7 @@ import type { Command } from 'commander'
 import {
   addFeedUrlOption,
   addTorrentPortOption,
-  rejectFeedUrlSourceConflict,
+  rejectFeedSourceFlags,
   parseCacheSourceFlag,
   parseRefreshCadence,
 } from '../cache-server/cadence'
@@ -44,7 +44,7 @@ export function registerCacheServerSubcommand(cache: Command): void {
     .option('-v, --verbose', t('help.cacheServer.verbose'), false)
     .option('--deny-http', t('help.cacheServer.denyHttp'), false)
     .action(async (options: CacheServerCommandOptions) => {
-      if (rejectFeedUrlSourceConflict(options.cacheSource, options.url)) return
+      if (rejectFeedSourceFlags(options.cacheSource, options.url)) return
       await runCacheServer(options)
     })
 }

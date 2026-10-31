@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
-import { createWorkspace, removeWorkspace } from '../helpers/workspace'
+import { execFileSync } from 'node:child_process'
+import { createWorkspace, initGitRepo, removeWorkspace, writeLoginFile } from '../helpers/workspace'
 
 type AdminSetupJson = {
   username: string
@@ -38,9 +39,7 @@ async function readAuthFile(dir: string): Promise<StoredCredentials> {
 }
 
 async function seedAuthFile(dir: string, credentials: StoredCredentials): Promise<void> {
-  const loginsDir = path.join(dir, '.logins')
-  await fs.mkdir(loginsDir, { recursive: true, mode: 0o700 })
-  await fs.writeFile(authFilePath(dir), JSON.stringify(credentials, null, 2), { mode: 0o600 })
+  await writeLoginFile(dir, 'admin-auth.json', JSON.stringify(credentials, null, 2))
 }
 
 let dir: string
@@ -75,6 +74,32 @@ describe('admin setup CLI (Integration)', () => {
 
     const audit = await fs.readFile(path.join(dir, '.logins', 'admin-audit.log'), 'utf-8')
     expect(audit).toContain('Admin account created via CLI')
+  })
+
+  // No `init-site` ran here, so no root `.gitignore` covers `.logins/`: the
+  // folder's own `.gitignore` is what keeps the credentials out of git.
+  test('keeps the credentials out of git in a workspace init-site never set up', async () => {
+    const result = await runCli(
+      ['admin', 'setup', '--username', 'ops', '--password-stdin'],
+      dir,
+      undefined,
+      'hunter2222\n',
+    )
+    expect(result.exitCode).toBe(0)
+
+    initGitRepo(dir)
+    // `core.excludesFile` cleared: a developer's global excludes must not be what hides it.
+    const untracked = execFileSync(
+      'git',
+      ['-c', 'core.excludesFile=', 'status', '--porcelain', '--untracked-files=all'],
+      {
+        cwd: dir,
+        encoding: 'utf8',
+      },
+    )
+    expect(untracked).not.toContain('.logins')
+    // The premise: git does see the rest of the workspace.
+    expect(untracked).toContain('ritual.config.json')
   })
 
   test('second setup fails with a runtime error (exit 1)', async () => {

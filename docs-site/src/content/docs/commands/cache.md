@@ -126,11 +126,11 @@ Download and cache the full Scryfall bulk card data. This also downloads the **o
 ritual cache preload-all [options]
 ```
 
-| Option              | Description                                                                                                      | Default                                             |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `--source <source>` | Where to download from: `scryfall` or `feed` (experimental; overrides the `cacheSource` config key for this run) | `cacheSource` config key                            |
-| `--url <feedUrl>`   | Feed URL for a feed-sourced refresh; implies `--source feed`                                                     | `cacheFeedUrl` config (there is no public feed yet) |
-| `--force`           | Re-download and re-ingest even when the feed is unchanged (feed source only)                                     | off                                                 |
+| Option              | Description                                                                                                      | Default                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `--source <source>` | Where to download from: `scryfall` or `feed` (experimental; overrides the `cacheSource` config key for this run) | `cacheSource` config key                                                                           |
+| `--url <feedUrl>`   | Feed URL for a feed-sourced refresh; implies `--source feed`                                                     | `cacheFeedUrl` config (there is no public feed yet; `--source feed` with neither is a usage error) |
+| `--force`           | Re-download and re-ingest even when the feed is unchanged (feed source only)                                     | off                                                                                                |
 
 `--url` combined with `--source scryfall` is a usage error. `--force` has no effect on a Scryfall refresh, which always downloads the full bulk.
 
@@ -185,18 +185,18 @@ Start a local cache server for card and pricing cache data. Other Ritual command
 ritual cache server [options]
 ```
 
-| Option                        | Description                                                                | Default                                                 |
-| ----------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `-p, --port <number>`         | Port for the cache server                                                  | `4000`                                                  |
-| `--host <hostname>`           | Host interface for the cache server                                        | `127.0.0.1`                                             |
-| `--cards-refresh <interval>`  | Run a full cards cache refresh on a cadence (`daily`, `weekly`, `monthly`) | env `RITUAL_CACHE_SERVER_CARDS_REFRESH`, else disabled  |
-| `--prices-refresh <interval>` | Run price cache refreshes on a cadence (`daily`, `weekly`, `monthly`)      | env `RITUAL_CACHE_SERVER_PRICES_REFRESH`, else disabled |
-| `--cache-source <source>`     | Where card refreshes download from: `scryfall` or `feed` (experimental)    | `cacheSource` config key                                |
-| `--url <feedUrl>`             | Cache feed URL for feed-sourced refreshes                                  | `cacheFeedUrl` config (there is no public feed yet)     |
-| `--torrent-port <n>`          | Fixed TCP port for incoming torrent peers while seeding feed artifacts     | random                                                  |
-| `--no-seed`                   | With a feed source, sync without seeding the artifacts back to the swarm   | seeding on                                              |
-| `-v, --verbose`               | Log every incoming cache-server request                                    | disabled                                                |
-| `--deny-http`                 | Reject all outgoing HTTP requests (for testing)                            | disabled                                                |
+| Option                        | Description                                                                | Default                                                                                                  |
+| ----------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `-p, --port <number>`         | Port for the cache server                                                  | `4000`                                                                                                   |
+| `--host <hostname>`           | Host interface for the cache server                                        | `127.0.0.1`                                                                                              |
+| `--cards-refresh <interval>`  | Run a full cards cache refresh on a cadence (`daily`, `weekly`, `monthly`) | env `RITUAL_CACHE_SERVER_CARDS_REFRESH`, else disabled                                                   |
+| `--prices-refresh <interval>` | Run price cache refreshes on a cadence (`daily`, `weekly`, `monthly`)      | env `RITUAL_CACHE_SERVER_PRICES_REFRESH`, else disabled                                                  |
+| `--cache-source <source>`     | Where card refreshes download from: `scryfall` or `feed` (experimental)    | `cacheSource` config key                                                                                 |
+| `--url <feedUrl>`             | Cache feed URL for feed-sourced refreshes                                  | `cacheFeedUrl` config (there is no public feed yet; `--cache-source feed` with neither is a usage error) |
+| `--torrent-port <n>`          | Fixed TCP port for incoming torrent peers while seeding feed artifacts     | random                                                                                                   |
+| `--no-seed`                   | With a feed source, sync without seeding the artifacts back to the swarm   | seeding on                                                                                               |
+| `-v, --verbose`               | Log every incoming cache-server request                                    | disabled                                                                                                 |
+| `--deny-http`                 | Reject all outgoing HTTP requests (for testing)                            | disabled                                                                                                 |
 
 `--url` with `--cache-source scryfall` is a usage error, since that source never reads it. See [The cache server](#the-cache-server) for behavior details and the HTTP API.
 
@@ -237,14 +237,14 @@ Sync the card cache from a cache feed, then stay open **seeding** the files back
 ritual cache feed fetch --url https://feed.example.com/feed.json
 ```
 
-| Option                 | Description                                                                                     | Default                                             |
-| ---------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `--url <feedUrl>`      | Feed URL                                                                                        | `cacheFeedUrl` config (there is no public feed yet) |
-| `--no-p2p`             | Download over plain HTTP (from the feed's file URLs) instead of BitTorrent                      | BitTorrent with web-seed fallback                   |
-| `--no-seed`            | Exit after ingesting instead of staying open to seed                                            | seeding on                                          |
-| `--torrent-port <n>`   | Fixed TCP port for incoming torrent peers                                                       | random                                              |
-| `--force`              | Re-download and re-ingest even when the feed is unchanged                                       | off                                                 |
-| `--refresh <interval>` | Re-check the feed while seeding (`daily`, `weekly`, `monthly`; env `RITUAL_CACHE_FEED_REFRESH`) | `daily`                                             |
+| Option                 | Description                                                                                     | Default                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `--url <feedUrl>`      | Feed URL                                                                                        | `cacheFeedUrl` config (there is no public feed yet; with neither, a usage error) |
+| `--no-p2p`             | Download over plain HTTP (from the feed's file URLs) instead of BitTorrent                      | BitTorrent with web-seed fallback                                                |
+| `--no-seed`            | Exit after ingesting instead of staying open to seed                                            | seeding on                                                                       |
+| `--torrent-port <n>`   | Fixed TCP port for incoming torrent peers                                                       | random                                                                           |
+| `--force`              | Re-download and re-ingest even when the feed is unchanged                                       | off                                                                              |
+| `--refresh <interval>` | Re-check the feed while seeding (`daily`, `weekly`, `monthly`; env `RITUAL_CACHE_FEED_REFRESH`) | `daily`                                                                          |
 
 Behavior:
 
@@ -261,7 +261,7 @@ ritual config set cacheSource feed
 ritual config set cacheFeedUrl https://feed.example.com/feed.json
 ```
 
-Refreshes then check the feed's infohashes instead of re-downloading from Scryfall, fall back to Scryfall with a warning when the feed is unreachable, and seed to peers for the duration of any download.
+Refreshes then check the feed's infohashes instead of re-downloading from Scryfall, fall back to Scryfall with a warning when the feed is unreachable, and seed to peers for the duration of any download. Set both keys: with `cacheSource: feed` but no `cacheFeedUrl`, a refresh warns that `cacheFeedUrl` is not set and downloads from Scryfall, and a cache server logs the same at startup.
 
 For an always-on swarm member, run a [cache server](#server) with `--cache-source feed`. It syncs from the feed on its refresh cadence and keeps seeding between refreshes.
 
@@ -283,6 +283,8 @@ The tag lookup is stored in `tags.json` in the cache folder. The [`sell`](/comma
 - Startup and scheduled full preloads take the exclusive cache-write lock (`.ritual-cache-lock` in the cache folder), so they never interleave with another process's refresh. See [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
 - With a `feed` cache source (experimental), card refreshes sync from a peer-to-peer [cache feed](#feed-host) instead of Scryfall. Unchanged feeds are a cheap infohash check, and feed failures fall back to a direct Scryfall preload. Unless `--no-seed` is given, the server **keeps seeding** the feed's files between refreshes. In feed-seeding mode the startup refresh always runs (it is what starts the seeding), even when the local cache is fresh.
 - `--deny-http` also disables feed syncing and seeding.
+- Request bodies are capped. A body is counted as it arrives, and one past its route's budget is refused with `413` and a JSON refusal naming the limit: 1 GiB for `PUT /cache/<section>/bulk` (a client's full card refresh sends the whole card cache in one request), 16 MiB for one entry's `PUT`, and 4 MiB for `POST /cache/prices/stream`. A body past 1 GiB plus 64 KiB is refused before it is read, by the runtime, with no JSON body. The 1 GiB bulk budget fits the English-only card cache; the every-language cache a non-English `defaultLanguage` needs can be larger, and a client's full refresh of it through a cache server is then refused.
+- An unexpected failure answers `500` with `domain.cache.serverReply.internalError` and a generic message; the error itself is written to the server's console, not sent to the client. A failure Ritual words for its reader (Scryfall refusing a price lookup, the `--deny-http` refusal below) is sent as English plus its message key, as every refusal is. A price stream's `error` events follow the same rule.
 - On cache misses, it fetches from Scryfall and stores the results back into the local cache.
 - Price entries can be grouped into cadence buckets and refreshed on schedule.
 - Price refresh scheduling is game-format-aware: USD/EUR refreshes are skipped for cards without paper printings, and TIX refreshes for cards without MTGO printings.
@@ -347,7 +349,7 @@ data: {"key":"Sol Ring:usd","message":"Failed to fetch batch prices: 503 Service
 
 #### Error replies
 
-Every HTTP error the server answers (`400`, `404`, `405`, `500`) has the same body as an [admin API refusal](/admin/api/): `success: false`, the reason in English as `message`, and `messageKey` / `messageParams` beside it. For example:
+Every HTTP error the server answers (`400`, `404`, `405`, `413`, `500`) has the same body as an [admin API refusal](/admin/api/): `success: false`, the reason in English as `message`, and `messageKey` / `messageParams` beside it. For example:
 
 ```json
 {
@@ -357,7 +359,7 @@ Every HTTP error the server answers (`400`, `404`, `405`, `500`) has the same bo
 }
 ```
 
-A request the server refuses carries a `domain.cache.serverReply.*` key: a path outside `/cache/`, an unknown section, route or method, a missing or badly `%`-encoded key, a body that is not a JSON object, or a body missing its `entries`, `keys` or `value`. A request that fails outright (`500`) carries the failure itself, such as a failed Scryfall price batch (`domain.cache.scryfall.pricesFailed`).
+A request the server refuses carries a `domain.cache.serverReply.*` key: a path outside `/cache/`, an unknown section, route or method, a missing or badly `%`-encoded key, a body that is not a JSON object, or a body missing its `entries`, `keys` or `value`. A body over its route's budget is a `413` keyed `admin.api.body.tooLarge`, with the limit in bytes as `messageParams.count`. A request that fails outright (`500`) carries the failure itself when Ritual worded it, such as a failed Scryfall price batch (`domain.cache.scryfall.pricesFailed`) or `domain.cache.serverReply.httpDenied`; any other failure carries the generic `domain.cache.serverReply.internalError`, and the error is logged on the server's console.
 
 A Ritual client nests the reply into its own error, worded in the client's language, and keeps the server's English when the key or a param is one it does not know. Through the admin API that error is English plus the keys; [MCP](/commands/mcp/) tool errors carry its English `message` without them. A reply that is not such a body (a proxy's error page, an older server's) is quoted as text, cut to about 1,000 characters and stripped of control characters; the text params of a nested reply are cut and stripped the same way.
 
@@ -399,6 +401,7 @@ A request the host refuses is answered with the same JSON body a [cache server](
 | `405`  | A method other than `GET` or `HEAD` (the `Allow` header names both)                                       | `domain.cache.feedReply.methodNotAllowed`                                |
 | `416`  | A malformed `Range`, or one past the end of the file (`Content-Range: bytes */<length>` gives the length) | `domain.cache.feedReply.rangeNotSatisfiable`                             |
 | `503`  | `/feed.json` before the first feed is generated (`Retry-After: 60`)                                       | `domain.cache.feedReply.notGenerated`                                    |
+| `500`  | An unexpected failure (the error goes to the host's console, not the reply)                               | `domain.cache.feedReply.internalError`                                   |
 
 `HEAD` answers with the headers `GET` would, and ignores `Range`. A `ritual cache feed fetch` (or feed-backed refresh) that a host refuses reports the host's reason in its own UI language, after the URL and the status.
 

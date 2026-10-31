@@ -27,6 +27,8 @@ interface StartServerOptions {
   cardsRefresh?: 'daily' | 'weekly' | 'monthly'
   pricesRefresh?: 'daily' | 'weekly' | 'monthly'
   denyHttp?: boolean
+  /** A `ritual.config.json` for the server's workspace. */
+  config?: Record<string, unknown>
 }
 
 const testCard: ScryfallCard = {
@@ -100,6 +102,10 @@ async function startServer(options: StartServerOptions = {}): Promise<RunningSer
       2,
     ),
   )
+
+  if (options.config) {
+    await Bun.write(path.join(cwd, 'ritual.config.json'), JSON.stringify(options.config))
+  }
 
   const args: string[] = []
   if (options.verbose) {
@@ -243,6 +249,19 @@ describe('cache server command (Integration)', () => {
     expect(logs.stdout).toContain("cache update: section=prices action=delete key='Arcane Signet'")
     expect(logs.stdout).toContain('Scheduled cards cache refresh enabled: monthly')
     expect(logs.stdout).toContain('Scheduled prices cache refresh enabled: weekly')
+  }, 20000)
+
+  // There is no public feed: a config that names the feed source but no URL is
+  // reported at startup, and the server refreshes from Scryfall instead.
+  test('warns at startup when the config names the feed but no feed URL', async () => {
+    const server = await startServer({ config: { cacheSource: 'feed' } })
+    runningServers.push(server)
+    expect((await fetch(`http://127.0.0.1:${server.port}/health`)).status).toBe(200)
+
+    const logs = await stopServer(server)
+    expect(logs.stderr).toContain(
+      'The cache source is "feed" but cacheFeedUrl is not set and no --url was given',
+    )
   }, 20000)
 
   test('returns cache timestamps for keys and sections', async () => {

@@ -593,12 +593,16 @@ ritual cache preload-set khm      # cache all cards of one set (exit 3 = unknown
 ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards (exit 1 when the download fails)
 ritual cache server               # host a shared cache server (default 127.0.0.1:4000)
 ritual cache feed host            # host a P2P feed of the raw Scryfall bulk files
-ritual cache feed fetch           # sync the cache from a feed, then seed to peers
+ritual cache feed fetch --url <feedUrl>  # sync the cache from a feed, then seed to peers
+ritual config set cacheFeedUrl <feedUrl>  # the feed to use (there is no public one)
 ritual config set cacheSource feed  # make all cache refreshes sync via the feed
 \`\`\`
 
 The cache feed is **experimental** (it may change or go away in any release); the default
-\`cacheSource: scryfall\` is the supported path. \`cache server\` has no authentication and
+\`cacheSource: scryfall\` is the supported path. A feed needs a URL: \`--source feed\`,
+\`--cache-source feed\` and \`cache feed fetch\` with neither \`--url\` nor \`cacheFeedUrl\`
+are usage errors (exit 2), and \`cacheSource: feed\` without \`cacheFeedUrl\` warns and
+refreshes from Scryfall. \`cache server\` has no authentication and
 unauthenticated write routes: keep it on loopback or a trusted private network.
 
 \`ritual.config.json\` is created only by a genuine write — \`config set\`/\`unset\`,

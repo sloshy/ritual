@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  disclosedMessage,
   errorResponse,
   readBodyText,
   readJsonObjectBody,
@@ -7,7 +8,7 @@ import {
   type BodyText,
 } from '../../../src/api/http'
 
-import { ExitCode, localizedCommandError } from '../../../src/util/errors'
+import { CardCommandError, ExitCode, localizedCommandError } from '../../../src/util/errors'
 import { CacheLockTimeoutError } from '../../../src/cache/lock'
 import type { SyncMessage } from '../../../src/sync/message'
 import { keyedMessage } from '../../helpers/api-message'
@@ -262,5 +263,44 @@ describe('errorResponse', () => {
     const resp = errorResponse(new Error('disk on fire'))
     expect(resp.status).toBe(500)
     expect(await resp.json()).toEqual({ success: false, message: 'disk on fire' })
+  })
+})
+
+describe('disclosedMessage', () => {
+  const GENERIC: SyncMessage = {
+    message: 'Internal server error.',
+    messageKey: 'domain.cache.serverReply.internalError',
+  }
+
+  // A keyed failure was worded for its reader; anything else is an exception's
+  // own text, which can name a server's files and internals.
+  test.each<[string, () => unknown, SyncMessage]>([
+    [
+      'a keyed command error',
+      () => localizedCommandError('usage_error', ExitCode.UsageError, 'admin.api.setup.userExists'),
+      { message: 'Admin user already exists', messageKey: 'admin.api.setup.userExists' },
+    ],
+    [
+      'an unkeyed command error',
+      () => new CardCommandError('runtime_error', 'open /srv/private/x', ExitCode.RuntimeError),
+      GENERIC,
+    ],
+    [
+      'a plain error',
+      () => new Error('EACCES: permission denied, open /srv/private/cache.json'),
+      GENERIC,
+    ],
+  ])('%s', (_name, thrown, expected) => {
+    expect(disclosedMessage(thrown(), 'domain.cache.serverReply.internalError')).toEqual(expected)
+  })
+
+  test('keeps a SyncMessageError with its nested params', () => {
+    const thrown = new CacheLockTimeoutError(
+      { pid: 7, hostname: 'build-box', createdAt: 0, operation: 'tag refresh' },
+      5 * 60_000,
+    )
+    const disclosed = disclosedMessage(thrown, 'domain.cache.serverReply.internalError')
+    expect(disclosed.messageKey).toBe('domain.cache.lockTimedOut')
+    expect(disclosed.messageParams).toMatchObject({ timeout: { durationMs: 300_000 } })
   })
 })
