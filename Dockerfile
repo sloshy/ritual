@@ -45,6 +45,11 @@ RUN apk add --no-cache libstdc++ libgcc
 # Copy the binary from builder
 COPY --from=builder /app/ritual /usr/local/bin/ritual
 
+# The health check (scripts/docker-healthcheck.sh): probes the server the
+# container runs — `serve`, `admin`, `cache server` or `cache feed host`, on
+# the port its command line gives — and passes for any other command.
+COPY --chmod=755 scripts/docker-healthcheck.sh /usr/local/bin/ritual-healthcheck
+
 # The image, not the binary inside it, is the unit of update: `ritual
 # self-update` sees this and tells the user to pull a newer image instead.
 ENV RITUAL_INSTALL=docker
@@ -66,6 +71,12 @@ USER ritual
 
 # The default ports of `serve` (3000), `cache server` (4000) and `admin` (8080).
 EXPOSE 3000 4000 8080
+
+# `serve --api` may build the site before it listens, hence the long start
+# period; it is checked every 5 seconds until then, so a ready server turns
+# healthy quickly. Override with `--health-cmd` or Compose's `healthcheck:`.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5m --start-interval=5s --retries=3 \
+  CMD ["ritual-healthcheck"]
 
 # Set the default command
 ENTRYPOINT ["ritual"]

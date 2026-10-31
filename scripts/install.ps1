@@ -43,8 +43,7 @@ switch ($osArch) {
         $assetName = "ritual-windows-x86_64.exe"
     }
     "Arm64" {
-        Write-Warning "ARM64 detected; installing x86_64 binary."
-        $assetName = "ritual-windows-x86_64.exe"
+        $assetName = "ritual-windows-arm64.exe"
     }
     default {
         throw "Unsupported architecture: $osArch"
@@ -69,39 +68,80 @@ $baseUrl = if ($Version) {
     "https://github.com/$repoOwner/$repoName/releases/latest/download"
 }
 
-$downloadUrl = "$baseUrl/$assetName"
-$checksumUrl = "$downloadUrl.sha256"
+# Each release publishes the binary compressed (<asset>.zip, holding just
+# ritual.exe) and bare (<asset>.exe); the zip is the smaller download. A release
+# from before 0.1.0 has only the bare binary.
+$archiveName = [System.IO.Path]::ChangeExtension($assetName, ".zip")
 $installPath = Join-Path $installDir "ritual.exe"
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ritual-" + [Guid]::NewGuid().ToString())
-$tempPath = Join-Path $tempDir $assetName
-$tempChecksumPath = Join-Path $tempDir "$assetName.sha256"
+
+# Download the release's <name> and check it against <name>.sha256, which
+# hashes that file as published. Returns the downloaded path.
+function Get-VerifiedAsset {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $path = Join-Path $tempDir $Name
+    Invoke-WebRequest -Uri "$baseUrl/$Name" -OutFile $path
+    Invoke-WebRequest -Uri "$baseUrl/$Name.sha256" -OutFile "$path.sha256"
+
+    Write-Host "Verifying checksum..."
+    $expectedHash = (Get-Content "$path.sha256" -Raw).Trim().Split(" ")[0]
+    $actualHash = (Get-FileHash -Path $path -Algorithm SHA256).Hash.ToLower()
+    if ($actualHash -ne $expectedHash) {
+        throw "Checksum mismatch for ${Name}!`n  expected: $expectedHash`n  actual:   $actualHash"
+    }
+    return $path
+}
 
 try {
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
-
-    Write-Host "Downloading $assetName..."
     $ProgressPreference = 'SilentlyContinue'
+
+    $binaryPath = $null
+    $archivePath = $null
+    Write-Host "Downloading $archiveName..."
     try {
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath
+        $archivePath = Get-VerifiedAsset -Name $archiveName
     }
     catch {
-        if (-not $Version) {
-            Write-Warning "If $repoOwner/$repoName has only prereleases so far, re-run with -Prerelease."
+        # An HTTP error (the release has no archive) falls back to the bare
+        # binary; anything else, a checksum mismatch included, stops here.
+        # (StrictMode forbids reading a property an exception does not have.)
+        $response = $_.Exception.PSObject.Properties["Response"]
+        if (-not ($response -and $response.Value)) {
+            throw
         }
-        throw
+        $archivePath = $null
     }
-    Invoke-WebRequest -Uri $checksumUrl -OutFile $tempChecksumPath
 
-    Write-Host "Verifying checksum..."
-    $expectedHash = (Get-Content $tempChecksumPath -Raw).Trim().Split(" ")[0]
-    $actualHash = (Get-FileHash -Path $tempPath -Algorithm SHA256).Hash.ToLower()
-
-    if ($actualHash -ne $expectedHash) {
-        throw "Checksum mismatch!`n  expected: $expectedHash`n  actual:   $actualHash"
+    if ($archivePath) {
+        $unpacked = Join-Path $tempDir "unpacked"
+        Expand-Archive -LiteralPath $archivePath -DestinationPath $unpacked
+        # The archive must hold exactly ritual.exe, and nothing else.
+        $entries = @(Get-ChildItem -LiteralPath $unpacked -Force -Recurse)
+        if ($entries.Count -ne 1 -or $entries[0].Name -ne "ritual.exe" -or $entries[0].PSIsContainer) {
+            throw "$archiveName does not hold just ritual.exe."
+        }
+        $binaryPath = $entries[0].FullName
+    }
+    else {
+        Write-Host "No $archiveName in this release; downloading $assetName..."
+        try {
+            $binaryPath = Get-VerifiedAsset -Name $assetName
+        }
+        catch {
+            if (-not $Version) {
+                Write-Warning "If $repoOwner/$repoName has only prereleases so far, re-run with -Prerelease."
+            }
+            throw
+        }
     }
 
     New-Item -ItemType Directory -Path $installDir -Force | Out-Null
-    Move-Item -Path $tempPath -Destination $installPath -Force
+    Move-Item -Path $binaryPath -Destination $installPath -Force
 }
 finally {
     if (Test-Path -LiteralPath $tempDir) {

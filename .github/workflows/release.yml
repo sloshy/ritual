@@ -9,12 +9,16 @@ name: Release
 #              release notes
 #   ci         the same gates a pull request gets (ci.yml)
 #   binaries   the six binaries, stamped with the tag's version and each
-#              smoke-tested on its own OS (build-binaries.yml)
-#   publish    a draft release gets every binary, its .sha256 and a provenance
-#              attestation, and only then is published, so `install.sh`,
-#              `ritual self-update` and the deploy workflows never resolve a
-#              release whose binaries are not there yet
-#   docker     the image, tagged with the version (and `latest` for a stable
+#              smoke-tested on its own OS, their compressed archives, and the
+#              CycloneDX SBOM (build-binaries.yml)
+#   publish    a draft release gets every binary and archive, each with its
+#              .sha256, and the SBOM; the binaries and archives get a provenance
+#              attestation and an SBOM attestation; only then is it published,
+#              so `install.sh`, `ritual self-update` and the deploy workflows
+#              never resolve a release whose binaries are not there yet
+#   docker     the image, built natively on an amd64 and an arm64 runner, each
+#              pushed by digest with its SBOM and provenance, then joined into
+#              one multi-arch tag: the version (and `latest` for a stable
 #              release only), pushed only once the release is out
 #   docs       starts deploy-docs.yml, which publishes the docs and demo from
 #              the latest stable release (so a prerelease leaves them as they
@@ -93,6 +97,11 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
+          name: sbom
+          path: assets
+
+      - uses: actions/download-artifact@v8
+        with:
           name: release-notes
 
       - name: Verify the checksums
@@ -102,6 +111,18 @@ jobs:
       - uses: actions/attest-build-provenance@v4
         with:
           subject-path: assets/*
+
+      # Binds the SBOM to every binary and archive it describes, so
+      # `gh attestation verify --predicate-type https://cyclonedx.org/bom`
+      # finds it from a download. Exactly the files with a .sha256 (just
+      # verified), outside assets/ so it is not uploaded.
+      - name: List the binaries and archives
+        run: cat assets/*.sha256 > subjects.sha256
+
+      - uses: actions/attest@v4
+        with:
+          subject-checksums: subjects.sha256
+          sbom-path: assets/ritual-sbom.cdx.json
 
       - name: Draft, upload, publish
         env:
@@ -132,23 +153,35 @@ jobs:
           fi
           gh release view "$TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
 
+  # Each architecture builds on a runner of its own (no emulation) and is
+  # pushed by digest only; `docker-manifest` then tags the pair as one image.
   docker:
-    name: Publish the image
+    name: Build the ${{ matrix.platform }} image
     needs: [check, publish]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { platform: linux/amd64, runner: ubuntu-latest, arch: amd64 }
+          - { platform: linux/arm64, runner: ubuntu-24.04-arm, arch: arm64 }
     steps:
       - uses: actions/checkout@v7
 
       # GHCR wants a lowercase repository path; github.repository keeps the
       # owner's casing.
-      - id: image
+      - &image-name
+        id: image
         run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
-      - id: meta
+      # The same metadata both jobs use (the anchor keeps them one): here for
+      # the image's labels, in docker-manifest for its tags.
+      - &docker-meta
+        id: meta
         uses: docker/metadata-action@v6
         with:
           images: ${{ steps.image.outputs.name }}
@@ -164,7 +197,6 @@ jobs:
             type=semver,pattern={{major}},enable=${{ !startsWith(github.ref_name, 'v0.') }}
             type=raw,value=latest,enable=${{ needs.check.outputs.prerelease == 'false' }}
 
-      - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
 
       - uses: docker/login-action@v4
@@ -173,20 +205,85 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v7
+      - id: build
+        uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
+          platforms: ${{ matrix.platform }}
           # The tag itself, so the binary reports the release's version (not
           # a `-dev.` build of it), and may pin a workspace like any release.
           build-args: |
             GIT_VERSION=${{ env.TAG }}
             RITUAL_RELEASE=true
-          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=release
-          cache-to: type=gha,mode=max,scope=release
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
+          # An SBOM of the image (its Alpine packages and the binary) and full
+          # build provenance, attached as attestations the merge carries over.
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.arch }}
+
+      - name: Record the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p digests
+          touch "digests/${DIGEST#sha256:}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  docker-manifest:
+    name: Publish the image
+    needs: [check, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - *image-name
+
+      - *docker-meta
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag both architectures as one image
+        working-directory: digests
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+        run: |
+          mapfile -t tags < <(jq -r '.tags[] | "--tag=" + .' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          sources=()
+          for digest in *; do sources+=("$IMAGE@sha256:$digest"); done
+          if [ "${#sources[@]}" -ne 2 ]; then
+            echo "::error::expected 2 image digests, found ${#sources[@]}" >&2
+            exit 1
+          fi
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
+
+      - name: Inspect
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: docker buildx imagetools inspect "$IMAGE:$VERSION"
 
   # The docs site deploys from the latest release (see deploy-docs.yml). A
   # release published with GITHUB_TOKEN starts no `release`-triggered

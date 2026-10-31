@@ -837,6 +837,7 @@ export const cliInfraMessages = {
     'The downloaded {asset} is {actual} bytes, but the release lists {expected}; nothing was installed.',
   'cli.selfUpdate.error.checksumMismatch':
     'Checksum mismatch for {asset} (expected {expected}, got {actual}); nothing was installed.',
+  'cli.selfUpdate.error.badArchive': 'Could not unpack {asset} ({error}); nothing was installed.',
   'cli.selfUpdate.error.smokeTest':
     'The downloaded binary did not report version {expected} ({detail}); nothing was installed.',
   'cli.selfUpdate.error.swapStranded':
@@ -859,6 +860,14 @@ export const cliInfraMessages = {
   'cli.selfUpdate.release.fieldNotVersion': "{field} '{value}' is not a release version",
   'cli.selfUpdate.checksum.malformed': 'expected a SHA-256 digest followed by a file name',
   'cli.selfUpdate.checksum.otherFile': 'the digest is for {file}, not {asset}',
+  'cli.selfUpdate.archive.damaged': 'the archive is damaged',
+  'cli.selfUpdate.archive.tooLarge': 'it unpacks to more than {size}',
+  'cli.selfUpdate.archive.unexpectedEntry': 'it holds {entry}, which is not {member}',
+  'cli.selfUpdate.archive.extraEntry': 'it holds more than one file (also {entry})',
+  'cli.selfUpdate.archive.notAFile': '{member} in it is not a regular file',
+  'cli.selfUpdate.archive.missingMember': 'it does not hold {member}',
+  'cli.selfUpdate.archive.unsupportedZip':
+    'it uses a zip feature Ritual does not read (encryption, zip64, or an unknown compression method)',
 
   // ── why an install step failed ────────────────────────────────────────
   'cli.selfUpdate.install.diskFull': 'the disk accepted no more bytes',

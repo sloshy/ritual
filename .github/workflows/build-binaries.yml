@@ -1,12 +1,14 @@
 name: Build binaries
 
 # Builds the six release binaries and smoke-tests each on a runner of its own
-# OS and architecture. ci.yml calls it on every pull request and push to main;
-# release.yml calls it with the release tag and attaches exactly the binaries
-# that passed here. Each binary is cross-compiled on Linux, as the release has
-# always done, and uploaded as the artifact `binary-<asset name>` together with
-# its `.sha256`. The asset names are what src/update/release-source.ts, the
-# install scripts and the generated deploy workflow download.
+# OS and architecture, and writes the release's SBOM. ci.yml calls it on every
+# pull request and push to main; release.yml calls it with the release tag and
+# attaches exactly what passed here. Each binary is cross-compiled on Linux, as
+# the release has always done, packed into its compressed archive
+# (scripts/archive-binary.sh), and uploaded as the artifact
+# `binary-<asset name>`: the bare binary and the archive, each with its
+# `.sha256`. The asset and archive names are what src/update/release-source.ts,
+# the install scripts and the generated deploy workflow download.
 
 on:
   workflow_call:
@@ -32,12 +34,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { target: bun-linux-x64, asset: ritual-linux-x86_64 }
-          - { target: bun-linux-arm64, asset: ritual-linux-arm64 }
-          - { target: bun-darwin-x64, asset: ritual-macos-x86_64 }
-          - { target: bun-darwin-arm64, asset: ritual-macos-arm64 }
-          - { target: bun-windows-x64, asset: ritual-windows-x86_64.exe }
-          - { target: bun-windows-arm64, asset: ritual-windows-arm64.exe }
+          - {
+              target: bun-linux-x64,
+              asset: ritual-linux-x86_64,
+              archive: ritual-linux-x86_64.tar.gz,
+            }
+          - {
+              target: bun-linux-arm64,
+              asset: ritual-linux-arm64,
+              archive: ritual-linux-arm64.tar.gz,
+            }
+          - {
+              target: bun-darwin-x64,
+              asset: ritual-macos-x86_64,
+              archive: ritual-macos-x86_64.tar.gz,
+            }
+          - {
+              target: bun-darwin-arm64,
+              asset: ritual-macos-arm64,
+              archive: ritual-macos-arm64.tar.gz,
+            }
+          - {
+              target: bun-windows-x64,
+              asset: ritual-windows-x86_64.exe,
+              archive: ritual-windows-x86_64.zip,
+            }
+          - {
+              target: bun-windows-arm64,
+              asset: ritual-windows-arm64.exe,
+              archive: ritual-windows-arm64.zip,
+            }
+    env:
+      ASSET: ${{ matrix.asset }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -59,9 +87,12 @@ jobs:
           BUILD_OUTFILE: ${{ matrix.asset }}
 
       - name: Checksum
-        env:
-          ASSET: ${{ matrix.asset }}
         run: sha256sum "$ASSET" > "$ASSET.sha256"
+
+      # The archive (.tar.gz, or .zip for Windows) beside the bare binary, with
+      # its own .sha256 of the archive file.
+      - name: Archive
+        run: bash scripts/archive-binary.sh "$ASSET"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -69,6 +100,8 @@ jobs:
           path: |
             ${{ matrix.asset }}
             ${{ matrix.asset }}.sha256
+            ${{ matrix.archive }}
+            ${{ matrix.archive }}.sha256
           if-no-files-found: error
           retention-days: 7
 
@@ -81,12 +114,46 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { asset: ritual-linux-x86_64, runner: ubuntu-latest }
-          - { asset: ritual-linux-arm64, runner: ubuntu-24.04-arm }
-          - { asset: ritual-macos-x86_64, runner: macos-15-intel }
-          - { asset: ritual-macos-arm64, runner: macos-latest }
-          - { asset: ritual-windows-x86_64.exe, runner: windows-latest }
-          - { asset: ritual-windows-arm64.exe, runner: windows-11-arm }
+          - {
+              asset: ritual-linux-x86_64,
+              archive: ritual-linux-x86_64.tar.gz,
+              member: ritual,
+              runner: ubuntu-latest,
+            }
+          - {
+              asset: ritual-linux-arm64,
+              archive: ritual-linux-arm64.tar.gz,
+              member: ritual,
+              runner: ubuntu-24.04-arm,
+            }
+          - {
+              asset: ritual-macos-x86_64,
+              archive: ritual-macos-x86_64.tar.gz,
+              member: ritual,
+              runner: macos-15-intel,
+            }
+          - {
+              asset: ritual-macos-arm64,
+              archive: ritual-macos-arm64.tar.gz,
+              member: ritual,
+              runner: macos-latest,
+            }
+          - {
+              asset: ritual-windows-x86_64.exe,
+              archive: ritual-windows-x86_64.zip,
+              member: ritual.exe,
+              runner: windows-latest,
+            }
+          - {
+              asset: ritual-windows-arm64.exe,
+              archive: ritual-windows-arm64.zip,
+              member: ritual.exe,
+              runner: windows-11-arm,
+            }
+    env:
+      ASSET: ${{ matrix.asset }}
+      ARCHIVE: ${{ matrix.archive }}
+      MEMBER: ${{ matrix.member }}
     defaults:
       run:
         shell: bash
@@ -100,9 +167,60 @@ jobs:
         with:
           name: binary-${{ matrix.asset }}
 
+      # Unpacked with the tool the install script for this OS uses.
+      - name: Unpack the archive
+        if: runner.os != 'Windows'
+        run: mkdir unpacked && tar -xzf "$ARCHIVE" -C unpacked
+      - name: Unpack the archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Expand-Archive -LiteralPath $env:ARCHIVE -DestinationPath unpacked
+
+      # Before the smoke test, which sets the executable bit on what it runs.
+      - name: Check the archive
+        run: |
+          contents="$(ls -A unpacked)"
+          if [ "$contents" != "$MEMBER" ]; then
+            echo "::error::$ARCHIVE holds '$contents', not just $MEMBER" >&2
+            exit 1
+          fi
+          if [ "$RUNNER_OS" != Windows ] && [ ! -x "unpacked/$MEMBER" ]; then
+            echo "::error::$MEMBER in $ARCHIVE is not executable" >&2
+            exit 1
+          fi
+          cmp "unpacked/$MEMBER" "$ASSET"
+
       - name: Smoke test
         env:
-          ASSET: ${{ matrix.asset }}
           VERSION: ${{ inputs.version }}
-        # A tagged build must report the tag's version, without its `v`.
+        # A tagged build must report the tag's version, without its `v`. The
+        # archive's copy is byte for byte this one (checked above).
         run: bash scripts/smoke-binary.sh "./$ASSET" "${VERSION#v}"
+
+  # The CycloneDX SBOM a release publishes (scripts/sbom.sh), built here so
+  # every pull request proves it still can be.
+  sbom:
+    name: SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - run: bun install --frozen-lockfile
+
+      - name: Generate
+        env:
+          VERSION: ${{ inputs.version }}
+        # Without a tag, package.json's version.
+        run: bash scripts/sbom.sh ritual-sbom.cdx.json ${VERSION:+"${VERSION#v}"}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sbom
+          path: ritual-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 7

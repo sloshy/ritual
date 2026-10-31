@@ -19,6 +19,7 @@ import {
   type UpdatePlan,
 } from '../../../src/update/self-update'
 import { ExitCode } from '../../../src/util/errors'
+import { tarGz } from '../../helpers/archives'
 import {
   FAKE_ASSET,
   fakeBinary,
@@ -311,7 +312,7 @@ describe('installUpdate', () => {
     ],
     ['a download longer than listed', { listedSize: 3 }, 'cli.selfUpdate.error.sizeMismatch'],
     ['a download shorter than listed', { listedSize: 9999 }, 'cli.selfUpdate.error.sizeMismatch'],
-    ['a failed download', { binaryStatus: 404 }, 'cli.selfUpdate.error.http'],
+    ['a failed download', { downloadStatus: 404 }, 'cli.selfUpdate.error.http'],
   ])(
     '%s is caught before the smoke test, and the temp file removed',
     async (_label, options, key) => {
@@ -480,6 +481,84 @@ describe('installUpdate', () => {
       layered.restore()
     }
     expect(await fs.readFile(binary, 'utf8')).toBe(bytes)
+  })
+
+  describe('from an archive', () => {
+    const LINUX_ARCHIVE = `${FAKE_ASSET}.tar.gz`
+    /** Whether any request went to exactly `name`'s download URL (its `.sha256` aside). */
+    const fetched = (name: string): boolean =>
+      server?.sent.some((sent) => sent.url.endsWith(`/${name}`)) ?? false
+
+    test.each<[string, Partial<SelfUpdateEnv>, FakeReleaseOptions]>([
+      ['a .tar.gz on Linux', {}, { archived: true }],
+      [
+        'a .zip on Windows',
+        { platform: 'win32' },
+        { archived: true, asset: 'ritual-windows-x86_64.exe' },
+      ],
+    ])(
+      'installs the binary unpacked from %s, never the bare one',
+      async (_label, overrides, options) => {
+        // The fake's bare binary reports another version, so installing it
+        // would fail the smoke test.
+        const { binary, plan, env } = await setUp('v1.1.0', options, overrides)
+
+        await installUpdate(env, plan, binary)
+
+        expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.1.0'))
+        expect(fetched(options.asset ?? FAKE_ASSET)).toBeFalse()
+        expect((await filesBeside(binary)).filter((name) => !name.endsWith('.old'))).toEqual([
+          'ritual',
+        ])
+      },
+    )
+
+    test('an archive that does not match its .sha256 is refused before it is unpacked', async () => {
+      // Unpacking it would be refused too (badArchive); the checksum comes first.
+      const { binary, plan, env, runs } = await setUp('v1.1.0', {
+        archive: tarGz([{ name: '../ritual', data: fakeBinary('6.6.6') }]),
+        checksum: `${sha256Hex('other')}  ${LINUX_ARCHIVE}`,
+      })
+
+      const error = await commandFailure(installUpdate(env, plan, binary))
+
+      expect({ key: error.messageKey, asset: error.messageParams?.asset }).toEqual({
+        key: 'cli.selfUpdate.error.checksumMismatch',
+        asset: LINUX_ARCHIVE,
+      })
+      expect(runs.smokeTests).toEqual([])
+      expect(await filesBeside(binary)).toEqual(['ritual'])
+    })
+
+    test('an archive without its .sha256 is refused, not swapped for the bare binary', async () => {
+      const { binary, plan, env } = await setUp('v1.1.0', { archived: true, checksum: null })
+
+      const error = await commandFailure(installUpdate(env, plan, binary))
+
+      expect({ key: error.messageKey, asset: error.messageParams?.asset }).toEqual({
+        key: 'cli.selfUpdate.error.missingChecksum',
+        asset: LINUX_ARCHIVE,
+      })
+      expect(fetched(FAKE_ASSET)).toBeFalse()
+    })
+
+    test('a verified archive whose entry climbs out of its directory is refused', async () => {
+      const archive = tarGz([{ name: '../ritual', data: fakeBinary('6.6.6') }])
+      const { binary, plan, env, runs } = await setUp('v1.1.0', { archive })
+
+      const error = await commandFailure(installUpdate(env, plan, binary))
+
+      expect({ key: error.messageKey, params: error.messageParams }).toEqual({
+        key: 'cli.selfUpdate.error.badArchive',
+        params: {
+          asset: LINUX_ARCHIVE,
+          error: 'it holds ../ritual, which is not ritual',
+        },
+      })
+      expect(runs.smokeTests).toEqual([])
+      expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.0.0'))
+      expect(await filesBeside(binary)).toEqual(['ritual'])
+    })
   })
 
   describe('on Windows', () => {

@@ -5,7 +5,7 @@ sidebar:
   label: 'self-update'
 ---
 
-Replace the running Ritual binary with a newer release from GitHub. `self-update` downloads the binary for your platform, checks it against the release's published SHA-256 checksum, runs it once to confirm it reports the expected version, and only then swaps it into place. Ritual never updates itself on its own; this command is the only way it does.
+Replace the running Ritual binary with a newer release from GitHub. `self-update` downloads the compressed binary for your platform, checks it against the release's published SHA-256 checksum, unpacks it, runs it once to confirm it reports the expected version, and only then swaps it into place. Ritual never updates itself on its own; this command is the only way it does.
 
 ## Usage
 
@@ -67,12 +67,13 @@ Ritual 0.2.0 is older than the installed 0.3.0; installing it would downgrade 0.
 
 ## What happens when it installs
 
-1. The release's `.sha256` file for your platform's binary (`ritual-linux-x86_64`, `ritual-macos-arm64`, `ritual-windows-x86_64.exe`, …) is downloaded first. A release without a binary for your platform, or without its checksum file, is refused before anything is written.
-2. The binary is downloaded straight into a temporary file next to the current one (`.ritual.<random>.new`). The download must match the size GitHub lists and the published checksum; a download that runs past the listed size is cut off. The file is flushed to disk and given the current binary's permissions.
-3. The new binary is run once with `--version`, from a temporary directory, and must report exactly the release's version.
-4. It replaces the current binary. On macOS and Linux this is a single atomic rename. Windows cannot overwrite a running program, so the current binary is renamed to `ritual.exe.old` first and the new one takes its name; the next Ritual run deletes the `.old` file. If an earlier `ritual.exe.old` is still running (a `ritual serve` started before the last update), the current binary steps aside to `ritual.exe.<random>.old` instead, and later runs delete every such file once it is no longer in use. Ctrl+C is ignored for the moment the two renames take.
+1. The release's `.sha256` file for your platform's archive (`ritual-linux-x86_64.tar.gz`, `ritual-macos-arm64.tar.gz`, `ritual-windows-x86_64.zip`, …) is downloaded first. A release from before 0.1.0 has no archives, so for one of those (an older `--tag`) Ritual uses the bare binary (`ritual-linux-x86_64`, `ritual-windows-x86_64.exe`, …) and its `.sha256` instead. A release without either for your platform, or without the checksum file for the one it uses, is refused before anything is written.
+2. The archive is downloaded into memory. It must match the size GitHub lists and the published checksum, which covers the archive file itself; a download that runs past the listed size is cut off. Only then is it unpacked: it must hold exactly one file, a regular file named `ritual` (`ritual.exe` on Windows). Anything else (another file, a directory, a link, a path such as `../ritual`) is refused, so nothing the archive names is ever written, and a damaged archive is caught by the tarball's header checksums or the zip's CRC-32.
+3. The binary is written to a temporary file next to the current one (`.ritual.<random>.new`), flushed to disk, and given the current binary's permissions. (A bare binary is streamed straight there instead, checked the same way as an archive.)
+4. The new binary is run once with `--version`, from a temporary directory, and must report exactly the release's version.
+5. It replaces the current binary. On macOS and Linux this is a single atomic rename. Windows cannot overwrite a running program, so the current binary is renamed to `ritual.exe.old` first and the new one takes its name; the next Ritual run deletes the `.old` file. If an earlier `ritual.exe.old` is still running (a `ritual serve` started before the last update), the current binary steps aside to `ritual.exe.<random>.old` instead, and later runs delete every such file once it is no longer in use. Ctrl+C is ignored for the moment the two renames take.
 
-If any step fails, the temporary file is deleted and the current Ritual is left exactly as it was. When the executable is a symbolic link (for example `~/.local/bin/ritual` pointing elsewhere), the file it points to is replaced and the link stays. A temporary file left by an interrupted run (Ctrl+C during the download) is removed by the next `self-update` once it is an hour old.
+If any step fails, the temporary file is deleted and the current Ritual is left exactly as it was. When the executable is a symbolic link (for example `~/.local/bin/ritual` pointing elsewhere), the file it points to is replaced and the link stays. A temporary file left by an interrupted run (Ctrl+C while the new binary is being written) is removed by the next `self-update` once it is an hour old.
 
 On Windows, if the new binary cannot take the old one's name and the old one cannot be moved back either (rare; usually antivirus holding a file), `self-update` keeps both and says where they are. Rename either one to `ritual.exe` to recover.
 
@@ -132,10 +133,10 @@ Replacing the Ritual binary is maintenance, like logging in or migrating a works
 
 ## Exit codes
 
-| Code | Meaning                                                                                                                                                                                                                                           |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Updated, already up to date, or the named release is already installed                                                                                                                                                                            |
-| `1`  | The download, verification, or swap failed (nothing was changed); the release has no binary or checksum for this platform; no binary exists for this OS/CPU; GitHub could not be reached or answered with an error; or the directory is read-only |
-| `2`  | Not a release build, inside Docker, the prompt was declined, `--yes` was needed, a bad `--tag`, or conflicting flags                                                                                                                              |
-| `3`  | No release matches: no stable release yet, no release published at all (prerelease channel), or no release has the `--tag` tag                                                                                                                    |
-| `4`  | `--check` found an update                                                                                                                                                                                                                         |
+| Code | Meaning                                                                                                                                                                                                                                                      |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Updated, already up to date, or the named release is already installed                                                                                                                                                                                       |
+| `1`  | The download, verification, unpacking, or swap failed (nothing was changed); the release has no binary or checksum for this platform; no binary exists for this OS/CPU; GitHub could not be reached or answered with an error; or the directory is read-only |
+| `2`  | Not a release build, inside Docker, the prompt was declined, `--yes` was needed, a bad `--tag`, or conflicting flags                                                                                                                                         |
+| `3`  | No release matches: no stable release yet, no release published at all (prerelease channel), or no release has the `--tag` tag                                                                                                                               |
+| `4`  | `--check` found an update                                                                                                                                                                                                                                    |

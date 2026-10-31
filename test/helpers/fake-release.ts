@@ -11,11 +11,18 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import type { BinaryRunResult, ReleaseApiEnv, SelfUpdateEnv } from '../../src/update/env'
+import { archiveFor } from '../../src/update/release-source'
+import { tarGz, zip } from './archives'
 import { stubFetch, type StubbedFetch, type StubRoute } from './stub-fetch'
 
 /** `sha256sum`'s digest of the exact bytes, as a release's `.sha256` file holds it. */
 export function sha256Hex(data: string | Uint8Array): string {
   return createHash('sha256').update(data).digest('hex')
+}
+
+/** A release's `.sha256` file for `name`: one `sha256sum` line. */
+export function sha256Line(name: string, bytes: string | Uint8Array): string {
+  return `${sha256Hex(bytes)}  ${name}\n`
 }
 
 export const FAKE_API = 'https://api.github.test/repos/sloshy/ritual'
@@ -29,20 +36,36 @@ export function fakeBinary(version: string): string {
   return `fake ritual ${version}`
 }
 
-/** How a fake release differs from a well-formed one. */
+/**
+ * How a fake release differs from a well-formed one. A release carries the bare
+ * binary, and with `archived` its archive too; the download options
+ * (`checksum`, `listedSize`, `downloadStatus`) apply to the file `self-update`
+ * downloads — the archive when there is one, else the bare binary.
+ */
 export type FakeReleaseOptions = {
   prerelease?: boolean
   draft?: boolean
   /** The binary's bytes; defaults to {@link fakeBinary} of the tag's version. */
   binary?: string
-  /** The `.sha256` file's text; defaults to a correct `sha256sum` line. `null` omits the asset. */
+  /** Also publish the binary's archive (`.tar.gz`, or `.zip` for a `.exe` asset). */
+  archived?: boolean
+  /** The archive's bytes; defaults to one holding just the binary. Implies `archived`. */
+  archive?: Uint8Array
+  /** The download's `.sha256` text; defaults to a correct `sha256sum` line. `null` omits it. */
   checksum?: string | null
-  /** The size the release lists for the binary; defaults to its real size. */
+  /** The size the release lists for the download; defaults to its real size. */
   listedSize?: number
   /** The binary's asset name; defaults to {@link FAKE_ASSET}. */
   asset?: string
-  /** Serve the binary's download with this HTTP status instead of its bytes. */
-  binaryStatus?: number
+  /** Serve the download with this HTTP status instead of its bytes. */
+  downloadStatus?: number
+}
+
+/** The archive a well-formed release publishes for `binary` under `asset`'s name. */
+export function fakeArchive(asset: string, binary: string): Uint8Array {
+  const { format, member } = archiveFor(asset)
+  const entries = [{ name: member, data: binary }]
+  return format === 'zip' ? zip(entries) : tarGz(entries)
 }
 
 /** A release as the API serves it, plus the download routes behind its assets. */
@@ -53,31 +76,39 @@ export type FakeRelease = {
 
 export function fakeRelease(tag: string, options: FakeReleaseOptions = {}): FakeRelease {
   const binary = options.binary ?? fakeBinary(tag.replace(/^v/, ''))
-  const assetName = options.asset ?? FAKE_ASSET
-  const binaryUrl = `${DOWNLOADS}/${tag}/${assetName}`
-  const checksumUrl = `${binaryUrl}.sha256`
-  const checksum =
-    options.checksum === undefined ? `${sha256Hex(binary)}  ${assetName}\n` : options.checksum
-  const assets: Record<string, unknown>[] = [
-    {
-      name: assetName,
-      browser_download_url: binaryUrl,
-      size: options.listedSize ?? Buffer.byteLength(binary),
-    },
-  ]
-  const routes: Record<string, StubRoute> = {
-    [binaryUrl]: () =>
-      options.binaryStatus === undefined
-        ? new Response(binary)
-        : new Response('', { status: options.binaryStatus }),
-  }
-  if (checksum !== null) {
+  const binaryName = options.asset ?? FAKE_ASSET
+  const archived = options.archived === true || options.archive !== undefined
+  const assets: Record<string, unknown>[] = []
+  const routes: Record<string, StubRoute> = {}
+
+  /** Publish `name` with its `.sha256`; `isDownload` applies the download options to it. */
+  const publish = (name: string, bytes: string | Uint8Array, isDownload: boolean): void => {
+    const url = `${DOWNLOADS}/${tag}/${name}`
+    const status = isDownload ? options.downloadStatus : undefined
     assets.push({
-      name: `${assetName}.sha256`,
-      browser_download_url: checksumUrl,
+      name,
+      browser_download_url: url,
+      size: (isDownload ? options.listedSize : undefined) ?? Buffer.byteLength(bytes),
+    })
+    routes[url] = () =>
+      status === undefined ? new Response(Buffer.from(bytes)) : new Response('', { status })
+    const checksum =
+      isDownload && options.checksum !== undefined ? options.checksum : sha256Line(name, bytes)
+    if (checksum === null) return
+    assets.push({
+      name: `${name}.sha256`,
+      browser_download_url: `${url}.sha256`,
       size: Buffer.byteLength(checksum),
     })
-    routes[checksumUrl] = () => new Response(checksum)
+    routes[`${url}.sha256`] = () => new Response(checksum)
+  }
+
+  // Beside an archive, the bare binary reports another version, so a test can
+  // tell which one was installed.
+  publish(binaryName, archived ? fakeBinary('0.0.0-bare') : binary, !archived)
+  if (archived) {
+    const archive = options.archive ?? fakeArchive(binaryName, binary)
+    publish(archiveFor(binaryName).name, archive, true)
   }
   return {
     json: {

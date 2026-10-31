@@ -15,6 +15,9 @@ const RELEASE_FIELD =
 const CHECKSUM_REASON =
   'Each Ritual release binary comes with a .sha256 checksum file that proves the download is intact. This phrase says why that file could not be read; it starts lowercase with no closing period, and is shown as {error} inside cli.selfUpdate.error.badChecksumFile.'
 
+const ARCHIVE_REASON =
+  'Ritual releases also publish each binary compressed, in a .tar.gz or .zip archive that must hold just the one binary. This phrase says why that archive could not be unpacked; it starts lowercase with no closing period, and is shown as {error} inside cli.selfUpdate.error.badArchive. "it" is the archive.'
+
 /** Shared context for why the new binary's version check failed. */
 const SMOKE_REASON =
   'Before installing it, `ritual self-update` runs the downloaded binary with --version as a test. This phrase says why the test got no version back; it starts lowercase with no closing period, and is shown in parentheses as {detail} inside cli.selfUpdate.error.smokeTest.'
@@ -1629,6 +1632,10 @@ export const cliInfraMeta = {
     description:
       'The download does not match its published SHA-256 checksum. {asset} is the file name; {expected}/{actual} are hex digests.',
   },
+  'cli.selfUpdate.error.badArchive': {
+    description:
+      "The downloaded archive (already checked against its .sha256 file) could not be unpacked, so nothing was installed. {asset} is the archive's file name; {error} says why — one of the cli.selfUpdate.archive.* phrases, already in the reader's language.",
+  },
   'cli.selfUpdate.error.smokeTest': {
     description:
       "The downloaded binary was run with --version as a test and did not answer with the expected version. {expected} is that version; {detail} is the version it printed instead (untranslated), or why it printed none — one of the cli.selfUpdate.smoke.* phrases, already in the reader's language.",
@@ -1684,6 +1691,27 @@ export const cliInfraMeta = {
   },
   'cli.selfUpdate.checksum.otherFile': {
     description: `${CHECKSUM_REASON} The digest names a different file than the binary being installed. {file} is the name the checksum file gives; {asset} the binary's file name. Never translate either.`,
+  },
+  'cli.selfUpdate.archive.damaged': {
+    description: `${ARCHIVE_REASON} Its contents are corrupt: a header, checksum or the compressed data does not read back correctly.`,
+  },
+  'cli.selfUpdate.archive.tooLarge': {
+    description: `${ARCHIVE_REASON} It would unpack to more than a safety limit, so it was not unpacked. {size} is that limit, already formatted (e.g. 512 MB).`,
+  },
+  'cli.selfUpdate.archive.unexpectedEntry': {
+    description: `${ARCHIVE_REASON} It holds a file other than the binary (an entry not named exactly like it, such as ../ritual), which is refused, so nothing it names is ever written. {entry} is that entry's path as the archive gives it; {member} the binary's file name (ritual or ritual.exe). Never translate either.`,
+  },
+  'cli.selfUpdate.archive.extraEntry': {
+    description: `${ARCHIVE_REASON} It holds a second entry after the binary (another file, or the binary again), which is refused. {entry} is that second entry's path as the archive gives it; never translate it.`,
+  },
+  'cli.selfUpdate.archive.notAFile': {
+    description: `${ARCHIVE_REASON} The entry with the binary's name is a directory, link or other special entry, not an ordinary file. {member} is the binary's file name (ritual or ritual.exe); never translate it.`,
+  },
+  'cli.selfUpdate.archive.missingMember': {
+    description: `${ARCHIVE_REASON} It is empty: the binary is not in it. {member} is the binary's file name (ritual or ritual.exe); never translate it.`,
+  },
+  'cli.selfUpdate.archive.unsupportedZip': {
+    description: `${ARCHIVE_REASON} The zip archive uses a feature Ritual does not read. "zip" and "zip64" are literal format names.`,
   },
   'cli.selfUpdate.install.diskFull': {
     description:

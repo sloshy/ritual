@@ -1,8 +1,16 @@
 /**
  * Installing a release over the running binary for `ritual self-update`:
- * mapping the platform to its release asset, downloading it into a temporary
- * file beside the binary while verifying it (listed size, `.sha256`), a
+ * mapping the platform to its release asset, downloading it while verifying it
+ * (listed size, `.sha256`), unpacking the binary when the release publishes it
+ * compressed, writing it into a temporary file beside the binary, a
  * `--version` smoke test, and swapping it into place.
+ *
+ * A release publishes each binary twice: bare (`ritual-linux-x86_64`) and
+ * compressed (`ritual-linux-x86_64.tar.gz`, `ritual-windows-x86_64.zip`), each
+ * with its own `.sha256` of the file as published. The compressed one is
+ * preferred; the bare one is the fallback for a release from before archives
+ * were published (an older `--tag`). Either way, what is hashed is exactly what
+ * was downloaded, checked before anything is unpacked.
  *
  * The rules throughout: nothing outside the temporary file is touched until
  * the new binary is fully written, flushed, verified, and has answered
@@ -34,7 +42,8 @@ import {
 import { quotedReply, readBoundedText } from '../util/reply-text'
 import type { BinaryRunResult, SelfUpdateEnv } from './env'
 import { httpError, networkError, request, type Release, type ReleaseAsset } from './release'
-import { assetNameFor } from './release-source'
+import { extractBinary } from './archive'
+import { archiveFor, assetNameFor, type ReleaseArchive } from './release-source'
 import { renameWithRetry } from '../util/atomic-write'
 
 /** How long the `.sha256` file may take to arrive. */
@@ -93,34 +102,53 @@ function findAsset(release: Release, name: string): ReleaseAsset | undefined {
   return release.assets.find((asset) => asset.name === name)
 }
 
-/** The two assets an install needs: the binary and its `.sha256` file. */
-type InstallAssets = {
-  name: string
-  binary: ReleaseAsset
+/**
+ * The two assets an install needs: the file downloaded (the archive, or the
+ * bare binary) and its `.sha256` file, which hashes that file as published.
+ */
+type InstallAssets = BareAssets | ArchivedAssets
+
+/** The download is the bare binary. */
+type BareAssets = {
+  kind: 'bare'
+  download: ReleaseAsset
   checksum: ReleaseAsset
 }
 
+/** The download is the archive, unpacked as `archive` says. */
+type ArchivedAssets = {
+  kind: 'archive'
+  download: ReleaseAsset
+  checksum: ReleaseAsset
+  archive: ReleaseArchive
+}
+
+/** The archive when the release publishes one, else the bare binary; refused without its `.sha256`. */
 function requireAssets(env: SelfUpdateEnv, release: Release): InstallAssets {
-  const name = requireAssetName(env)
-  const binary = findAsset(release, name)
-  if (binary === undefined) {
+  const binaryName = requireAssetName(env)
+  const archive = archiveFor(binaryName)
+  const archived = findAsset(release, archive.name)
+  const download = archived ?? findAsset(release, binaryName)
+  if (download === undefined) {
     throw localizedCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
       'cli.selfUpdate.error.missingAsset',
-      { tag: release.tag, asset: name },
+      { tag: release.tag, asset: binaryName },
     )
   }
-  const checksum = findAsset(release, `${name}.sha256`)
+  const checksum = findAsset(release, `${download.name}.sha256`)
   if (checksum === undefined) {
     throw localizedCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
       'cli.selfUpdate.error.missingChecksum',
-      { tag: release.tag, asset: name },
+      { tag: release.tag, asset: download.name },
     )
   }
-  return { name, binary, checksum }
+  return archived === undefined
+    ? { kind: 'bare', download, checksum }
+    : { kind: 'archive', download, checksum, archive }
 }
 
 /** Download and parse the release's `.sha256` file for the binary. */
@@ -134,13 +162,13 @@ async function fetchExpectedDigest(env: SelfUpdateEnv, assets: InstallAssets): P
   )
   if (!response.ok) throw httpError(response, url)
   const text = await readBody(url, () => readBoundedText(response, CHECKSUM_MAX_BYTES))
-  const expected = parseChecksumFile(text, assets.name)
+  const expected = parseChecksumFile(text, assets.download.name)
   if (isMessageParseError(expected)) {
     throw messageCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
       syncMessage('cli.selfUpdate.error.badChecksumFile', {
-        asset: assets.name,
+        asset: assets.download.name,
         error: nestSync(expected.error),
       }),
     )
@@ -251,37 +279,117 @@ async function installMode(target: string): Promise<number> {
 }
 
 /**
- * Stream the binary into `temporary` (created exclusively), hashing and
- * counting as it arrives: a body larger than the listed size is cut off rather
- * than buffered, and the file is flushed to disk before it can be swapped in.
+ * Request the download and check what the response announces, before any file
+ * is created: a failed request or a size other than the listed one is refused.
  */
-async function downloadInto(
+async function openDownload(
   env: SelfUpdateEnv,
   assets: InstallAssets,
-  expectedDigest: string,
-  temporary: string,
-  mode: number,
-  onCreated: () => void,
-): Promise<void> {
-  const { binary, name } = assets
+): Promise<ReadableStreamDefaultReader<Uint8Array> | undefined> {
+  const { download } = assets
+  const { name } = download
   const response = await request(
     env,
-    binary.url,
+    download.url,
     'application/octet-stream',
     AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
   )
-  if (!response.ok) throw httpError(response, binary.url)
+  if (!response.ok) throw httpError(response, download.url)
   // A compressed body's Content-Length counts encoded bytes; the streamed count
-  // below enforces the size either way.
+  // in receiveVerified enforces the size either way.
   const announced = response.headers.get('content-length')
   if (
     announced !== null &&
     response.headers.get('content-encoding') === null &&
-    Number(announced) !== binary.size
+    Number(announced) !== download.size
   ) {
-    throw sizeMismatch(name, Number(announced), binary.size)
+    throw sizeMismatch(name, Number(announced), download.size)
   }
+  return response.body?.getReader()
+}
 
+/**
+ * Pass the download to `write` as it arrives, hashing and counting it: a body
+ * larger than the listed size is cut off rather than buffered, and a body whose
+ * size or SHA-256 is not the published one is refused once it has all arrived.
+ * Returns the byte count.
+ */
+async function receiveVerified(
+  assets: InstallAssets,
+  reader: ReadableStreamDefaultReader<Uint8Array> | undefined,
+  expectedDigest: string,
+  write: (chunk: Uint8Array) => Promise<void> | void,
+): Promise<number> {
+  const { download } = assets
+  const { name } = download
+  const hash = createHash('sha256')
+  let received = 0
+  while (reader !== undefined) {
+    const chunk = await readBody(download.url, () => reader.read())
+    if (chunk.done) break
+    received += chunk.value.byteLength
+    if (received > download.size) {
+      await reader.cancel()
+      throw sizeMismatch(name, received, download.size)
+    }
+    hash.update(chunk.value)
+    await write(chunk.value)
+  }
+  if (received !== download.size) throw sizeMismatch(name, received, download.size)
+  const actual = hash.digest('hex')
+  if (actual !== expectedDigest) {
+    throw localizedCommandError(
+      'runtime_error',
+      ExitCode.RuntimeError,
+      'cli.selfUpdate.error.checksumMismatch',
+      { asset: name, expected: expectedDigest, actual },
+    )
+  }
+  return received
+}
+
+/**
+ * Download and verify the archive in memory, then unpack the binary from it.
+ * Nothing is written to disk until both the archive's `.sha256` and the
+ * unpacking succeed.
+ */
+async function downloadArchived(
+  env: SelfUpdateEnv,
+  assets: ArchivedAssets,
+  expectedDigest: string,
+): Promise<Uint8Array> {
+  const { archive } = assets
+  const reader = await openDownload(env, assets)
+  const chunks: Uint8Array[] = []
+  await receiveVerified(assets, reader, expectedDigest, (chunk) => {
+    chunks.push(chunk)
+  })
+  const binary = extractBinary(Buffer.concat(chunks), archive.format, archive.member)
+  if (isMessageParseError(binary)) {
+    throw messageCommandError(
+      'runtime_error',
+      ExitCode.RuntimeError,
+      syncMessage('cli.selfUpdate.error.badArchive', {
+        asset: archive.name,
+        error: nestSync(binary.error),
+      }),
+    )
+  }
+  return binary
+}
+
+/**
+ * Create `temporary` exclusively and let `fill` write the new binary into it
+ * (returning how many bytes it wrote); then flush it to disk, prove every byte
+ * reached it, and give it `mode`. `file` names what is written in a refusal.
+ */
+async function writeNewBinary(
+  file: string,
+  temporary: string,
+  mode: number,
+  onCreated: () => void,
+  fill: (write: (chunk: Uint8Array) => Promise<void>) => Promise<number>,
+): Promise<void> {
   let handle: fs.FileHandle
   try {
     // `wx`: never follow or clobber something that already sits at the name.
@@ -290,37 +398,13 @@ async function downloadInto(
     throw installFailed(temporary, error)
   }
   onCreated()
-  const hash = createHash('sha256')
-  let received = 0
   let failure: unknown
   try {
-    const reader = response.body?.getReader()
-    while (reader !== undefined) {
-      const chunk = await readBody(binary.url, () => reader.read())
-      if (chunk.done) break
-      received += chunk.value.byteLength
-      if (received > binary.size) {
-        await reader.cancel()
-        throw sizeMismatch(name, received, binary.size)
-      }
-      hash.update(chunk.value)
-      await writeFully(handle, chunk.value)
-    }
-    if (received !== binary.size) throw sizeMismatch(name, received, binary.size)
-    const actual = hash.digest('hex')
-    if (actual !== expectedDigest) {
-      throw localizedCommandError(
-        'runtime_error',
-        ExitCode.RuntimeError,
-        'cli.selfUpdate.error.checksumMismatch',
-        { asset: name, expected: expectedDigest, actual },
-      )
-    }
+    const expected = await fill((chunk) => writeFully(handle, chunk))
     // Without this, a crash after the rename could leave an empty binary.
     await handle.sync()
-    // The hash covers the bytes received; this proves they all reached the disk.
     const written = (await handle.stat()).size
-    if (written !== binary.size) throw sizeMismatch(name, written, binary.size)
+    if (written !== expected) throw sizeMismatch(file, written, expected)
   } catch (error) {
     failure = error instanceof CardCommandError ? error : installFailed(temporary, error)
   }
@@ -336,6 +420,40 @@ async function downloadInto(
     await fs.chmod(temporary, mode)
   } catch (error) {
     throw installFailed(temporary, error)
+  }
+}
+
+/**
+ * Put the verified new binary at `temporary`: streamed straight there when the
+ * release's download is the bare binary, unpacked from the verified archive
+ * otherwise.
+ */
+async function downloadInto(
+  env: SelfUpdateEnv,
+  assets: InstallAssets,
+  expectedDigest: string,
+  temporary: string,
+  mode: number,
+  onCreated: () => void,
+): Promise<void> {
+  if (assets.kind === 'archive') {
+    const binary = await downloadArchived(env, assets, expectedDigest)
+    await writeNewBinary(assets.archive.member, temporary, mode, onCreated, async (write) => {
+      await write(binary)
+      return binary.byteLength
+    })
+    return
+  }
+  const reader = await openDownload(env, assets)
+  try {
+    await writeNewBinary(assets.download.name, temporary, mode, onCreated, (write) =>
+      receiveVerified(assets, reader, expectedDigest, write),
+    )
+  } catch (error) {
+    // A write that failed before the body was read to its end leaves the
+    // connection open; release it rather than wait out the timeout.
+    await reader?.cancel().catch(() => undefined)
+    throw error
   }
 }
 

@@ -39,6 +39,21 @@ Each release publishes an image for `linux/amd64` and `linux/arm64` to the GitHu
 
 The image, not the binary inside it, is what you update: pull a newer image (`docker pull ghcr.io/sloshy/ritual`). The image sets `RITUAL_INSTALL=docker`, so [`ritual self-update`](/commands/self-update/) refuses inside a container (`--check` included) and says so, and no [update notice](/commands/self-update/#update-notice) is ever shown. The [releases page](https://github.com/sloshy/ritual/releases) lists what is available. After pulling a newer image, run [`ritual migrate`](/commands/migrate/) in it if your workspace has pending updates.
 
+## Health Check
+
+The image has a `HEALTHCHECK`, so `docker ps` shows a server container as `healthy` once it answers, and Compose's `depends_on: condition: service_healthy` can wait for it. It reads the container's own command line to find what to check, so it follows a `--port` or `--host` you pass:
+
+| Command           | It checks                                    |
+| :---------------- | :------------------------------------------- |
+| `serve`           | `GET /` on the serve port (default 3000)     |
+| `admin`           | `GET /api/status` on its port (default 8080) |
+| `cache server`    | `GET /health` on its port (default 4000)     |
+| `cache feed host` | `GET /health` on its port (default 4010)     |
+
+Any other command passes without being checked: a one-shot such as `lists`, and the [MCP server](/commands/mcp/), which has no health route (give it a `--health-cmd` of your own if you want one). A server is checked every 30 seconds; for the first five minutes, while `serve --api` may still be building the site, a failure does not count against it, and on Docker 25 or newer it is checked every 5 seconds meanwhile.
+
+An `admin` container with an [`ipAllowList`](/commands/admin/) that leaves out `127.0.0.1` refuses the check's own request and reports `unhealthy`; add `127.0.0.1` to the list, or replace the check. To check something else, replace it: `docker run --health-cmd '…'`, or a `healthcheck:` in Compose. To turn it off, `--no-healthcheck` or `healthcheck: { disable: true }`.
+
 ## Docker Compose
 
 ### Example `docker-compose.yml`
@@ -59,6 +74,8 @@ services:
       - ./.logins:/app/.logins
     command: cache server --host 0.0.0.0 --port 4000 --verbose --cards-refresh weekly --prices-refresh weekly
 ```
+
+Both examples report their health through the image's [health check](#health-check), so another service can wait for them with `depends_on: { ritual: { condition: service_healthy } }`.
 
 ### Hosting the public site with a live backend
 

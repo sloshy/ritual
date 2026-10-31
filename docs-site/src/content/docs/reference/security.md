@@ -61,7 +61,18 @@ A few protections apply whatever you expose:
 
 ## Checking a download
 
-Every release binary has a `.sha256` checksum and a build provenance record. The install scripts and `ritual self-update` check the checksum before they install. To check a binary yourself, see [Other Methods](/start/install/#other-methods).
+Every release binary, and the compressed archive each is also published in, has a `.sha256` checksum of that file and a build provenance record. The install scripts, `ritual self-update` and the deploy workflow [`init-site`](/commands/init-site/) generates check the checksum of what they download before they unpack or install it. To check a binary yourself, see [Other Methods](/start/install/#other-methods).
+
+## Software Bill of Materials
+
+Each release publishes `ritual-sbom.cdx.json`, a [CycloneDX](https://cyclonedx.org/) JSON software bill of materials: every package in Ritual's lockfile, with its version, license and package URL. It includes the development dependencies, because the binary bundles many of them (the site's UI framework, the command-line parser), so it lists a little more than ships (the test and lint tools too). The release attests it against every binary and archive, so you can check it belongs to the file you downloaded:
+
+```sh
+gh attestation verify ritual-linux-x86_64.tar.gz --repo sloshy/ritual \
+  --predicate-type https://cyclonedx.org/bom
+```
+
+The [Docker image](/docker/) carries its own SBOM and build provenance as registry attestations, covering its Alpine packages; `docker buildx imagetools inspect ghcr.io/sloshy/ritual --format '{{ json .SBOM }}'` prints it.
 
 ## Reporting a security problem
 

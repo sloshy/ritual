@@ -129,9 +129,15 @@ asked, identifying itself as `Ritual/<version>`:
 
 ### Releases and the Docker image
 
-- Every release binary is published with a SHA-256 checksum and a build provenance
+- Every release binary is published bare and in a compressed archive (`.tar.gz`, or `.zip`
+  for Windows), each with a SHA-256 checksum of that file and a build provenance
   attestation (`gh attestation verify <file> --repo sloshy/ritual`). The install scripts,
   `ritual self-update` and the generated deploy workflow verify the checksum before
-  using a download. The binaries are not code-signed.
+  unpacking or using a download, and accept only an archive holding exactly the one
+  binary. The binaries are not code-signed.
+- Each release publishes `ritual-sbom.cdx.json`, a CycloneDX software bill of materials,
+  attested against every binary and archive (`gh attestation verify <file> --repo
+sloshy/ritual --predicate-type https://cyclonedx.org/bom`).
 - The Docker image runs as the non-root user `ritual`, and is built by the release
-  workflow from the tagged commit.
+  workflow from the tagged commit, with an SBOM and build provenance attached as registry
+  attestations.

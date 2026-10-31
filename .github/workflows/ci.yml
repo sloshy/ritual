@@ -4,7 +4,8 @@ name: CI
 # check, cold lint, message catalog, unit tests, whole-repo formatting), the
 # integration and Playwright suites, the docs site's build and link check, the
 # repository lints (shellcheck, actionlint, hadolint, typos), the Docker image
-# build, and every shipped binary started on its own OS and architecture.
+# build and its health check, and every shipped binary started on its own OS and
+# architecture (its archive unpacked and compared) plus the release SBOM.
 #
 # Runs on every pull request and every push to main. release.yml calls it
 # before it publishes anything, with `skip-binaries: true` because it builds the
@@ -117,8 +118,36 @@ jobs:
         with:
           context: .
           push: false
+          load: true
+          tags: ritual:ci
           cache-from: type=gha,scope=ci
           cache-to: type=gha,mode=max,scope=ci
+
+      # The image's HEALTHCHECK (scripts/docker-healthcheck.sh) against both
+      # shapes it handles: a server on a port of its command line's choosing,
+      # which turns healthy once it answers, and a one-shot command, which has
+      # nothing to probe and passes.
+      - name: Health check
+        run: |
+          docker run -d --name server ritual:ci cache server --port 4100 --no-seed
+          status=starting
+          for _ in $(seq 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' server)"
+            if [ "$status" = healthy ]; then break; fi
+            sleep 2
+          done
+          docker logs server
+          if [ "$status" != healthy ]; then
+            echo "::error::the cache server container is $status, not healthy" >&2
+            exit 1
+          fi
+          url="$(docker exec server ritual-healthcheck --url)"
+          if [ "$url" != http://127.0.0.1:4100/health ]; then
+            echo "::error::the health check probes '$url'" >&2
+            exit 1
+          fi
+          docker rm -f server
+          docker run --rm --entrypoint ritual-healthcheck ritual:ci
 
   binaries:
     name: Binaries

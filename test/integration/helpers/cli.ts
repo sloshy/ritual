@@ -88,11 +88,9 @@ export async function runCli(
   stdin?: string | Buffer,
 ): Promise<CliResult> {
   await ensureBinary()
-  const proc = Bun.spawn([binaryPath, ...args], {
+  return spawnCapture([binaryPath, ...args], {
     cwd,
-    stdin: stdin === undefined ? 'ignore' : Buffer.from(stdin),
-    stdout: 'pipe',
-    stderr: 'pipe',
+    stdin,
     env: {
       ...process.env,
       // The suite's contract is cwd-as-workspace: an ambient RITUAL_BASE_DIR
@@ -102,6 +100,29 @@ export async function runCli(
       ...LOCALE_ENV,
       ...env,
     },
+  })
+}
+
+/** Where and how {@link spawnCapture} runs a process. */
+export type SpawnCaptureOptions = {
+  cwd?: string
+  /** The whole environment: nothing is inherited that is not here. */
+  env: Record<string, string | undefined>
+  stdin?: string | Buffer
+}
+
+/** Run `argv` to completion, capturing its exit code and output. */
+export async function spawnCapture(
+  argv: string[],
+  options: SpawnCaptureOptions,
+): Promise<CliResult> {
+  const { stdin } = options
+  const proc = Bun.spawn(argv, {
+    cwd: options.cwd,
+    env: options.env,
+    stdin: stdin === undefined ? 'ignore' : Buffer.from(stdin),
+    stdout: 'pipe',
+    stderr: 'pipe',
   })
   const [exitCode, stdout, stderr] = await Promise.all([
     proc.exited,

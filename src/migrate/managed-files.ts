@@ -20,6 +20,7 @@ import type {
 import { getBaseDir } from '../config/base-dir'
 import { fileExists } from '../util/fs'
 import {
+  DEPLOY_WORKFLOW_ARCHIVE,
   DEPLOY_WORKFLOW_ASSET,
   GITHUB_RELEASES_API,
   GITHUB_RELEASES_DOWNLOAD,
@@ -172,12 +173,23 @@ ${RITUAL_VERSION_STEP}
         if: steps.ritual-cache.outputs.cache-hit != 'true'
         run: |
           VERSION="\${{ steps.ritual-version.outputs.version }}"
-          ASSET="${DEPLOY_WORKFLOW_ASSET}"
-          curl -fsSL -o "$ASSET" "${GITHUB_RELEASES_DOWNLOAD}/\${VERSION}/$ASSET"
-          curl -fsSL -o "$ASSET.sha256" "${GITHUB_RELEASES_DOWNLOAD}/\${VERSION}/$ASSET.sha256"
-          sha256sum -c "$ASSET.sha256"
-          mv "$ASSET" ritual
-          rm "$ASSET.sha256"
+          RELEASE="${GITHUB_RELEASES_DOWNLOAD}/\${VERSION}"
+          ARCHIVE="${DEPLOY_WORKFLOW_ARCHIVE.name}"
+          # Each file is checked against the release's .sha256 for it before use;
+          # a release from before 0.1.0 has no archive, only the bare binary.
+          if curl -fsSL -o "$ARCHIVE" "$RELEASE/$ARCHIVE"; then
+            curl -fsSL -o "$ARCHIVE.sha256" "$RELEASE/$ARCHIVE.sha256"
+            sha256sum -c "$ARCHIVE.sha256"
+            tar -xzf "$ARCHIVE" ${DEPLOY_WORKFLOW_ARCHIVE.member}
+            rm "$ARCHIVE" "$ARCHIVE.sha256"
+          else
+            ASSET="${DEPLOY_WORKFLOW_ASSET}"
+            curl -fsSL -o "$ASSET" "$RELEASE/$ASSET"
+            curl -fsSL -o "$ASSET.sha256" "$RELEASE/$ASSET.sha256"
+            sha256sum -c "$ASSET.sha256"
+            mv "$ASSET" ritual
+            rm "$ASSET.sha256"
+          fi
           chmod +x ritual
 ${detectChanges ? DETECT_AND_COMMIT_STEP : ''}
       - name: Generate card manifest${guard}

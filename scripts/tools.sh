@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # The repository linters CI runs, at the versions CI runs them: the one list,
-# used by .github/workflows/ci.yml and by scripts/lint-repo.sh.
+# used by .github/workflows/ci.yml and by scripts/lint-repo.sh. Also syft, which
+# scripts/sbom.sh runs for a release's SBOM; it is not a linter, so only an
+# explicit `install syft` fetches it.
 #
-#   scripts/tools.sh install [tool...]   download into .tools/ (default: all)
+#   scripts/tools.sh install [tool...]   download into .tools/ (default: the linters)
 #   scripts/tools.sh path                print the directory to put on PATH
 #
 # Each tool is a prebuilt release binary from its GitHub releases page, kept
@@ -16,6 +18,7 @@ TYPOS=1.50.2
 SHELLCHECK=0.11.0
 ACTIONLINT=1.7.12
 HADOLINT=2.15.1
+SYFT=1.55.0
 
 ALL=(typos shellcheck actionlint hadolint)
 
@@ -57,6 +60,7 @@ spec() {
     shellcheck) echo "$SHELLCHECK https://github.com/koalaman/shellcheck/releases/download/v$SHELLCHECK/shellcheck-v$SHELLCHECK.$os.$arch.tar.gz tgz" ;;
     actionlint) echo "$ACTIONLINT https://github.com/rhysd/actionlint/releases/download/v$ACTIONLINT/actionlint_${ACTIONLINT}_${os}_$go_arch.tar.gz tgz" ;;
     hadolint) echo "$HADOLINT https://github.com/hadolint/hadolint/releases/download/v$HADOLINT/hadolint-$hado_os-$hado_arch bin" ;;
+    syft) echo "$SYFT https://github.com/anchore/syft/releases/download/v$SYFT/syft_${SYFT}_${os}_$go_arch.tar.gz tgz" ;;
     *)
       echo "tools.sh: unknown tool $1" >&2
       return 1

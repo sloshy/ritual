@@ -122,40 +122,64 @@ else
   base_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download/${version}"
 fi
 
-download_url="${base_url}/${asset_name}"
-checksum_url="${base_url}/${asset_name}.sha256"
-
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
-tmp_bin="${tmp_dir}/${asset_name}"
-tmp_checksum="${tmp_dir}/${asset_name}.sha256"
 
-echo "Downloading ${asset_name}..."
-if ! curl --fail --silent --show-error --location "$download_url" --output "$tmp_bin"; then
-  echo "Failed to download ${download_url}" >&2
-  if [ "$version" = "latest" ]; then
-    echo "If ${REPO_OWNER}/${REPO_NAME} has only prereleases so far, re-run with --prerelease." >&2
+# Fetch the release's <name> into the temporary directory.
+fetch() {
+  curl --fail --silent --show-error --location "${base_url}/$1" --output "${tmp_dir}/$1"
+}
+
+# Check <name> against the release's <name>.sha256, which hashes that file as
+# published.
+verify() {
+  local file="${tmp_dir}/$1" expected_hash actual_hash
+  fetch "$1.sha256"
+  expected_hash="$(cut -d ' ' -f 1 "${file}.sha256")"
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual_hash="$(sha256sum "$file" | cut -d ' ' -f 1)"
+  elif command -v shasum >/dev/null 2>&1; then
+    actual_hash="$(shasum -a 256 "$file" | cut -d ' ' -f 1)"
+  else
+    echo "Warning: no sha256sum or shasum found; skipping checksum verification." >&2
+    actual_hash="$expected_hash"
   fi
-  exit 1
-fi
-curl --fail --silent --show-error --location "$checksum_url" --output "$tmp_checksum"
+  if [ "$actual_hash" != "$expected_hash" ]; then
+    echo "Checksum mismatch for $1!" >&2
+    echo "  expected: ${expected_hash}" >&2
+    echo "  actual:   ${actual_hash}" >&2
+    exit 1
+  fi
+}
 
-echo "Verifying checksum..."
-expected_hash="$(cut -d ' ' -f 1 "$tmp_checksum")"
-if command -v sha256sum >/dev/null 2>&1; then
-  actual_hash="$(sha256sum "$tmp_bin" | cut -d ' ' -f 1)"
-elif command -v shasum >/dev/null 2>&1; then
-  actual_hash="$(shasum -a 256 "$tmp_bin" | cut -d ' ' -f 1)"
+# Each release publishes the binary compressed (<asset>.tar.gz, holding just
+# `ritual`) and bare (<asset>); the archive is the smaller download. A release
+# from before 0.1.0 has only the bare binary.
+archive_name="${asset_name}.tar.gz"
+echo "Downloading ${archive_name}..."
+if fetch "$archive_name" 2>/dev/null; then
+  echo "Verifying checksum..."
+  verify "$archive_name"
+  mkdir "${tmp_dir}/unpacked"
+  # Only the one member is extracted, into a directory of our own.
+  tar -xzf "${tmp_dir}/${archive_name}" -C "${tmp_dir}/unpacked" ritual
+  tmp_bin="${tmp_dir}/unpacked/ritual"
+  if [ ! -f "$tmp_bin" ] || [ -L "$tmp_bin" ]; then
+    echo "${archive_name} does not hold the ritual binary." >&2
+    exit 1
+  fi
 else
-  echo "Warning: no sha256sum or shasum found; skipping checksum verification." >&2
-  actual_hash="$expected_hash"
-fi
-
-if [ "$actual_hash" != "$expected_hash" ]; then
-  echo "Checksum mismatch!" >&2
-  echo "  expected: ${expected_hash}" >&2
-  echo "  actual:   ${actual_hash}" >&2
-  exit 1
+  echo "No ${archive_name} in this release; downloading ${asset_name}..."
+  if ! fetch "$asset_name"; then
+    echo "Failed to download ${base_url}/${asset_name}" >&2
+    if [ "$version" = "latest" ]; then
+      echo "If ${REPO_OWNER}/${REPO_NAME} has only prereleases so far, re-run with --prerelease." >&2
+    fi
+    exit 1
+  fi
+  echo "Verifying checksum..."
+  verify "$asset_name"
+  tmp_bin="${tmp_dir}/${asset_name}"
 fi
 
 mkdir -p "$install_dir"
