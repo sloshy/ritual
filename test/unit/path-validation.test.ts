@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import path from 'node:path'
-import { isPathWithinDir, isSameOrWithin, pathsOverlap } from '../../src/util/path-validation'
+import { isPathWithinDir, isSameOrWithin } from '../../src/util/path-validation'
 
 describe('isPathWithinDir', () => {
   const baseDir = '/home/user/decks'
@@ -31,7 +31,7 @@ describe('isPathWithinDir', () => {
   })
 })
 
-describe('isSameOrWithin / pathsOverlap', () => {
+describe('isSameOrWithin', () => {
   test('a name starting with two dots is a child, not a parent', () => {
     expect(isSameOrWithin('/w/..cache', '/w', 'linux')).toBe(true)
     expect(isSameOrWithin('/w', '/w/..cache', 'linux')).toBe(false)
@@ -40,11 +40,5 @@ describe('isSameOrWithin / pathsOverlap', () => {
   test('case counts only where the file system ignores it', () => {
     expect(isSameOrWithin('/Users/Ada/Cache', '/users/ada', 'darwin')).toBe(true)
     expect(isSameOrWithin('/home/Ada/cache', '/home/ada', 'linux')).toBe(false)
-  })
-
-  test('pathsOverlap holds either way round, and not for siblings', () => {
-    expect(pathsOverlap('/w', '/w/cache', 'linux')).toBe(true)
-    expect(pathsOverlap('/w/cache', '/w', 'linux')).toBe(true)
-    expect(pathsOverlap('/w/cache', '/elsewhere/cache', 'linux')).toBe(false)
   })
 })

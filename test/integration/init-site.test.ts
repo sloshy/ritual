@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli, withTempDir } from './helpers/cli'
+import { REFRESH_DUE_CONFIG } from '../helpers/migrations'
 import { snapshotTree } from '../helpers/workspace'
 import { latestMigrationId } from '../../src/migrate/migrations'
 
@@ -406,11 +407,7 @@ describe('init-site CLI (Integration)', () => {
 
   test('a re-run with pending updates points at migrate and writes nothing', async () => {
     await withTempDir(async (dir) => {
-      // Initialized by an older build: a site.version and no managed block.
-      await fs.writeFile(
-        path.join(dir, 'ritual.config.json'),
-        JSON.stringify({ site: { version: '0.0.1', ciSystem: 'manual' } }),
-      )
+      await fs.writeFile(path.join(dir, 'ritual.config.json'), JSON.stringify(REFRESH_DUE_CONFIG))
       const before = await snapshotTree(dir)
 
       const rerun = await runCli(['init-site'], dir)

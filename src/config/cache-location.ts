@@ -1,7 +1,6 @@
 /**
  * Where the card cache lives. One rule, read by every cache file
- * (`getCacheDir()` in `./file-cache.ts`), by `cache status`, and by the
- * migration that moves a workspace's old `cache/` into it:
+ * (`getCacheDir()` in `./file-cache.ts`) and by `cache status`:
  *
  * 1. `RITUAL_CACHE_DIR`, when set and not blank;
  * 2. the workspace's `cacheDir` config key, when set and not blank;
@@ -26,20 +25,8 @@ import {
   type UserDirsEnvironment,
 } from '../util/user-dirs'
 
-/**
- * Every tier of the precedence, highest first. `legacy` is a workspace still
- * using its own old `cache/` folder until `ritual migrate` (migration
- * {@link SHARED_CACHE_MIGRATION_ID}) has dealt with it — so Ritual never
- * downloads into an empty shared cache while a workspace's own cache sits
- * unmigrated beside it.
- */
-export const CACHE_DIR_SOURCES = ['env', 'config', 'legacy', 'default'] as const
-
-/** The workspace migration that moves a workspace's old `cache/` into the shared cache. */
-export const SHARED_CACHE_MIGRATION_ID = 3
-
-/** The workspace-relative folder every workspace kept its cache in before the shared cache. */
-export const LEGACY_CACHE_DIR = 'cache'
+/** Every tier of the precedence, highest first. */
+export const CACHE_DIR_SOURCES = ['env', 'config', 'default'] as const
 
 /** Which tier of the precedence chose the cache directory. */
 export type CacheDirSource = (typeof CACHE_DIR_SOURCES)[number]
@@ -57,13 +44,6 @@ export type CacheDirInputs = {
   baseDir: string
   /** The workspace's `cacheDir` config value, when it has one. */
   configured?: string
-  /**
-   * Whether the workspace's old `cache/` folder is still the one to use: it
-   * holds cache data and migration {@link SHARED_CACHE_MIGRATION_ID} has not
-   * run. The caller decides (it needs the file system and the config); a
-   * function is asked only when no override applies.
-   */
-  legacyPending?: boolean | (() => boolean)
   /** The process environment, platform and home directory; the running process by default. */
   environment?: UserDirsEnvironment
   /**
@@ -100,11 +80,6 @@ export function resolveCacheDir(inputs: CacheDirInputs): CacheDirLocation {
   if (fromConfig !== undefined) {
     return { dir: path.resolve(inputs.baseDir, fromConfig.trim()), source: 'config' }
   }
-  const legacy =
-    typeof inputs.legacyPending === 'function' ? inputs.legacyPending() : inputs.legacyPending
-  if (legacy === true) {
-    return { dir: path.resolve(inputs.baseDir, LEGACY_CACHE_DIR), source: 'legacy' }
-  }
   return { dir: defaultUserCacheDir(environment), source: 'default' }
 }
 
@@ -133,9 +108,8 @@ export type CacheDirCheckContext = {
 
 /**
  * The reason a cache directory value is unusable, or null. The cache is
- * hundreds of megabytes of files Ritual writes, renames and (on a move)
- * deletes, so it must never be pointed at a folder that holds anything else
- * of the user's.
+ * hundreds of megabytes of files Ritual writes, replaces and rebuilds, so it
+ * must never be pointed at a folder that holds anything else of the user's.
  */
 export function cacheDirProblem(
   value: string,

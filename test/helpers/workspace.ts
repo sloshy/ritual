@@ -209,8 +209,8 @@ export function initGitRepo(dir: string): void {
 
 /**
  * Seed `name` in the workspace's `.logins/` folder with `content`, as Ritual
- * leaves the folder: private, with its own `.gitignore` — so a seeded
- * workspace has no migration pending. Returns the file's path.
+ * leaves the folder: private, with its own `.gitignore`. Returns the file's
+ * path.
  */
 export async function writeLoginFile(dir: string, name: string, content: string): Promise<string> {
   await ensureLoginsDir(dir)

@@ -28,8 +28,7 @@ Ritual picks the folder in this order:
 
 1. the `RITUAL_CACHE_DIR` environment variable,
 2. the workspace's [`cacheDir`](/configuration/#cache-directory-cachedir) setting,
-3. the workspace's own old `cache/` folder, if it has one that [`ritual migrate`](/commands/migrate/#migration-3-the-shared-card-cache) has not moved yet (older Ritual versions kept one cache per workspace),
-4. the per-user folder above.
+3. the per-user folder above.
 
 A relative path in the first two is read from the workspace, so `cacheDir: "cache"` gives a workspace a cache of its own in its `cache/` folder. [`ritual cache status`](/commands/cache/#status) shows the folder in use and which of these chose it. The [Docker image](/docker/) sets `RITUAL_CACHE_DIR=/app/cache`, so the cache is a folder you mount.
 

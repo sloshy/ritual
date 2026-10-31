@@ -12,7 +12,7 @@
  *
  * `test/unit/cli-tokens.test.ts` checks every {@link FLAG} against an option and
  * every {@link COMMAND} against a command the real program registers;
- * {@link CONFIG_KEY} and {@link RETIRED_CONFIG_KEY} are checked by their types, against the config shape.
+ * {@link CONFIG_KEY} is checked by its type, against the config shape.
  *
  * Browser-safe and dependency-free (the one import is type-only): the admin SPA
  * and the i18n machinery name these tokens too.
@@ -276,29 +276,6 @@ export const CONFIG_KEY = {
   uiLocale: 'uiLocale',
   updateCheck: 'updateCheck',
 } as const satisfies Record<string, ConfigKeyToken>
-
-/** `M`, unless one of its values is a live config key — then `never`, which no value satisfies. */
-type OnlyRetired<M extends Record<string, string>> = [Extract<M[keyof M], ConfigKeyToken>] extends [
-  never,
-]
-  ? M
-  : never
-
-const RETIRED = {
-  sitePrerelease: 'site.prerelease',
-  siteVersion: 'site.version',
-} as const
-
-/**
- * Keys a migration removes. They are no longer in the config shape, but the
- * migration's description still names them, so the user can recognize what
- * changed in their file. Typed through {@link OnlyRetired}: a key that is live
- * again is a compile error here.
- */
-export const RETIRED_CONFIG_KEY: OnlyRetired<typeof RETIRED> = RETIRED
-
-/** One of {@link RETIRED_CONFIG_KEY}'s keys. */
-export type RetiredConfigKey = (typeof RETIRED)[keyof typeof RETIRED]
 
 /** Files and directories the messages name, by camelCase name. */
 export const FILE = {

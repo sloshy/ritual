@@ -13,7 +13,8 @@ import {
 } from '../../../src/commands/migrate-check'
 import { qualifiedCommandName } from '../../../src/cli/command-name'
 import { getRitualConfig } from '../../../src/config/ritual-config'
-import { latestMigrationId } from '../../../src/migrate/migrations'
+import type { Migration } from '../../../src/migrate/types'
+import { dropKeyMigration, REFRESH_DUE_CONFIG } from '../../helpers/migrations'
 import { t } from '../../../src/i18n/t'
 import { COMMAND, commandLine, FLAG } from '../../../src/util/cli-tokens'
 import { setNoInputOverride } from '../../../src/util/no-input'
@@ -66,20 +67,21 @@ describe('migration check exemptions', () => {
 describe('the pre-command migration offer', () => {
   stubTty({ stdin: true, stdout: true })
 
-  const OLD_CONFIG = { site: { version: '0.0.1', ciSystem: 'manual' } }
   const log = spyOn(console, 'log').mockImplementation(() => {})
   const warn = spyOn(console, 'warn').mockImplementation(() => {})
   const error = spyOn(console, 'error').mockImplementation(() => {})
   /** Ambient variables that would steer the run: saved, cleared per test, restored after. */
   const AMBIENT = ['CI', 'RITUAL_STATE_DIR', 'RITUAL_BASE_DIR', 'RITUAL_NO_INPUT'] as const
   const original = new Map(AMBIENT.map((name) => [name, process.env[name]]))
+  /** What the probe saw when the config records no managed output. */
+  const UNRECORDED = 'unrecorded'
   let ws: BoundWorkspace
   let stateDir: string
-  /** The `managed.migration` the probe's config load saw, or null when it did not run. */
-  let probeSaw: number | null
+  /** The `managed.output` the probe's config load saw, or null when it did not run. */
+  let probeSaw: string | null
 
   beforeEach(async () => {
-    ws = await bindWorkspace({ dirs: [], config: OLD_CONFIG })
+    ws = await bindWorkspace({ dirs: [], config: REFRESH_DUE_CONFIG })
     stateDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-state-'))
     for (const name of AMBIENT) delete process.env[name]
     process.env.RITUAL_STATE_DIR = stateDir
@@ -107,7 +109,7 @@ describe('the pre-command migration offer', () => {
    * Run the probe through `buildProgram`, not `runInProcess`: the check lives
    * in the root preAction hook. `--base-dir` pins the bound workspace.
    */
-  function run(args: string[]): Promise<number> {
+  function run(args: string[], migrations?: readonly Migration[]): Promise<number> {
     const program = buildProgram({
       groups: [
         {
@@ -116,14 +118,14 @@ describe('the pre-command migration offer', () => {
             (root) => {
               const probe = addOutputOption(root.command('probe')).option('-y, --yes')
               addDryRunOption(probe, 'dry run').action(() => {
-                probeSaw = getRitualConfig().managed?.migration ?? 0
+                probeSaw = getRitualConfig().managed?.output ?? UNRECORDED
               })
             },
           ],
         },
       ],
       backfill: () => false,
-      workspaceCheck: checkWorkspaceMigrations,
+      workspaceCheck: (command) => checkWorkspaceMigrations(command, { migrations }),
       updateNotice: NO_UPDATE_NOTICE,
     })
     return captureExitCode(() =>
@@ -146,15 +148,16 @@ describe('the pre-command migration offer', () => {
 
     expect(await run(['probe'])).toBe(0)
 
-    expect(JSON.parse(await readConfig()).site).toEqual({ ciSystem: 'manual' })
-    expect(probeSaw).toBe(latestMigrationId())
+    const recorded: unknown = JSON.parse(await readConfig()).managed.output
+    expect(recorded).toStartWith('sha256:')
+    expect(probeSaw).toBe(recorded as string)
     const { migratePrompts } = await readUserState()
     expect(Object.keys(migratePrompts)).toEqual([path.resolve(ws.dir)])
   })
 
   // A read-only workspace directory makes the apply fail at the first thing it
-  // creates there: the `.backups` folder, and after it the config's temp file
-  // (root ignores the mode, so the case cannot be exercised there).
+  // creates there: the refreshed config's temp file (root ignores the mode, so
+  // the case cannot be exercised there).
   test.skipIf(process.getuid?.() === 0 || process.platform === 'win32')(
     'a failed apply is reported and the command still runs',
     async () => {
@@ -167,7 +170,7 @@ describe('the pre-command migration offer', () => {
       }
 
       expect(error).toHaveBeenCalledTimes(1)
-      expect(probeSaw).toBe(0)
+      expect(probeSaw).toBe(UNRECORDED)
     },
   )
 
@@ -178,7 +181,7 @@ describe('the pre-command migration offer', () => {
     expect(await run(['probe'])).toBe(0)
 
     expect(await readConfig()).toBe(before)
-    expect(probeSaw).toBe(0)
+    expect(probeSaw).toBe(UNRECORDED)
     expect(
       warned(t('cli.migrate.offerDeclined', { command: commandLine(COMMAND.migrate) })),
     ).toBeTrue()
@@ -197,7 +200,7 @@ describe('the pre-command migration offer', () => {
 
     expect(await readConfig()).toBe(before)
     expect(warned(pendingNotice())).toBeTrue()
-    expect(probeSaw).toBe(0)
+    expect(probeSaw).toBe(UNRECORDED)
   })
 
   // stubTty re-applies its stubs before every test, so a row may flip one.
@@ -222,6 +225,25 @@ describe('the pre-command migration offer', () => {
     prompts.inject([true])
 
     expect(await run(args)).toBe(0)
+
+    expect(await readConfig()).toBe(before)
+    expect(warned(pendingNotice())).toBeTrue()
+    expect(await readUserState()).toEqual({ migratePrompts: {} })
+  })
+
+  // A migration that applies, on a config that would stay invalid after it:
+  // the plan refuses it, so there is nothing to offer, only the plain notice
+  // (`ritual migrate` explains why).
+  test('updates that cannot apply get the plain notice and no prompt', async () => {
+    await fs.writeFile(
+      path.join(ws.dir, 'ritual.config.json'),
+      JSON.stringify({ retired: true, defaultPriceSource: 42 }),
+    )
+    const dropRetired = dropKeyMigration(1, ['retired'])
+    const before = await readConfig()
+    prompts.inject([true])
+
+    expect(await run(['probe'], [dropRetired])).toBe(0)
 
     expect(await readConfig()).toBe(before)
     expect(warned(pendingNotice())).toBeTrue()

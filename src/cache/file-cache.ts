@@ -1,5 +1,4 @@
 import path from 'node:path'
-import { readFileSync, statSync } from 'node:fs'
 import { mkdir, stat } from 'node:fs/promises'
 import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
@@ -22,76 +21,17 @@ import {
 import { renderSyncMessage } from '../sync/message'
 import { foldRepeatedFaceNames } from '../scryfall/card-utils'
 import {
-  LEGACY_CACHE_DIR,
   resolveCacheDir,
-  SHARED_CACHE_MIGRATION_ID,
   type CacheDirLocation,
   type CacheDirCheckContext,
   type RejectedCacheDir,
 } from '../config/cache-location'
-import { hasCacheDataSync } from './cache-entries'
-import { COMMAND, CONFIG_KEY, ENV_VAR, FILE, commandLine } from '../util/cli-tokens'
-import { isRecord } from '../util/json'
+import { COMMAND, CONFIG_KEY, ENV_VAR, commandLine } from '../util/cli-tokens'
 import { namesIgnoreCase } from '../util/path-validation'
-
-/** What the legacy-tier check last saw for a workspace, and its answer. */
-type LegacyProbe = {
-  /** The config file's and the old folder's modification times (-1: missing). */
-  configStamp: number
-  legacyStamp: number
-  pending: boolean
-}
-
-/** The last {@link LegacyProbe} per base dir. */
-const legacyProbes = new Map<string, LegacyProbe>()
-
-/** A path's modification time, or -1 when it cannot be read. */
-function mtimeOrMissing(file: string): number {
-  try {
-    return statSync(file).mtimeMs
-  } catch {
-    return -1
-  }
-}
-
-/** The migration counter the config file records now, or 0 when it records none. */
-function recordedMigration(configPath: string): number {
-  try {
-    const raw = JSON.parse(readFileSync(configPath, 'utf-8')) as unknown
-    const migration = isRecord(raw) && isRecord(raw.managed) ? raw.managed.migration : undefined
-    return typeof migration === 'number' ? migration : 0
-  } catch {
-    return 0
-  }
-}
-
-/**
- * Whether the workspace at `baseDir` should still read its own old `cache/`
- * folder: it holds cache data and the config file does not yet record
- * migration 3. Read from disk rather than the loaded config, because a
- * long-running server never reloads it while another process migrates; the
- * answer is kept only while neither the config file nor the folder changes,
- * so a move or a recorded migration ends it at once.
- */
-function legacyCachePending(baseDir: string): boolean {
-  const configPath = path.join(baseDir, FILE.config)
-  const legacy = path.join(baseDir, LEGACY_CACHE_DIR)
-  const configStamp = mtimeOrMissing(configPath)
-  const legacyStamp = mtimeOrMissing(legacy)
-  const known = legacyProbes.get(baseDir)
-  if (known?.configStamp === configStamp && known.legacyStamp === legacyStamp) return known.pending
-  const pending =
-    legacyStamp !== -1 &&
-    recordedMigration(configPath) < SHARED_CACHE_MIGRATION_ID &&
-    hasCacheDataSync(legacy)
-  legacyProbes.set(baseDir, { configStamp, legacyStamp, pending })
-  return pending
-}
 
 /**
  * Where this process's card cache lives, and which setting chose it
- * (`RITUAL_CACHE_DIR`, the `cacheDir` config key, the workspace's own old
- * `cache/` folder while migration 3 is pending, or the shared per-user
+ * (`RITUAL_CACHE_DIR`, the `cacheDir` config key, or the shared per-user
  * default). Resolved on every call: the base dir and config can change within
  * one process (tests, the admin server's config writes).
  */
@@ -102,7 +42,6 @@ export function getCacheDirLocation(): CacheDirLocation {
   return resolveCacheDir({
     baseDir,
     configured: config.cacheDir,
-    legacyPending: () => legacyCachePending(baseDir),
     // The CLI refuses an unsafe RITUAL_CACHE_DIR before any command runs; a
     // server or the MCP server reaching here skips it (and an unsafe cacheDir
     // the loader let through) rather than writing into such a folder.
@@ -119,7 +58,7 @@ const warnedRejections = new Set<string>()
  * ignored, worded by the same refusal `config set` gives, checked against
  * `context`.
  */
-export function warnRejectedCacheDirOnce(
+function warnRejectedCacheDirOnce(
   rejected: RejectedCacheDir,
   context: CacheDirCheckContext,
 ): void {

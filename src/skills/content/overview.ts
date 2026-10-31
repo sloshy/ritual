@@ -47,9 +47,7 @@ describes every command, the advanced ones (\`migrate\`, \`detect-changes\`,
   \`%LOCALAPPDATA%\\ritual\\cache\` on Windows), unless \`RITUAL_CACHE_DIR\` or the
   \`cacheDir\` config key names another (relative paths resolve against the workspace, so
   \`cacheDir: cache\` keeps a per-workspace \`cache/\`). \`ritual cache status\` prints the
-  folder in use (\`cacheDir\`, \`cacheDirSource\` in JSON). An older workspace's own
-  \`cache/\` folder keeps being read (\`cacheDirSource: legacy\`) until \`ritual migrate\` moves
-  it there (or leaves it for the user to delete when the shared cache already has data).
+  folder in use (\`cacheDir\`, \`cacheDirSource\` in JSON: \`env\`, \`config\` or \`default\`).
   \`cacheDir\`/\`RITUAL_CACHE_DIR\` refuse a leading \`~\` (write the full path), a root, the
   home folder, the workspace itself and list folders (usage error, exit 2). It is downloaded data, never hand-edited (rebuild it with
   \`ritual cache preload-all\`): \`cache.json\` is the Scryfall card cache (\`cards\` keyed by

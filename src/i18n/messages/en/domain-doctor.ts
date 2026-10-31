@@ -58,9 +58,6 @@ export const domainDoctorMessages = {
   'domain.doctor.migrations.blocked': 'Workspace updates are checked once {file} is fixed',
 
   'domain.doctor.cache.server': 'Card data comes from the cache server at {address}',
-  'domain.doctor.cache.legacy': "The card cache is still this workspace's own old folder ({path})",
-  'domain.doctor.cache.legacyHint':
-    'Run `{command}` to move it into the cache every workspace shares.',
   'domain.doctor.cache.unreadable': 'The card cache at {path} cannot be read',
   'domain.doctor.cache.empty': 'The card cache at {path} is empty',
   'domain.doctor.cache.emptyHint': 'Run `{command}` to download it.',

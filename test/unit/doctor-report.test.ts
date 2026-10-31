@@ -221,15 +221,6 @@ describe('cache check', () => {
 
   test.each<[string, FactsChange, Verdict]>([
     [
-      "a workspace's own old cache folder",
-      (f) => (f.cache.dirSource = 'legacy'),
-      {
-        status: 'warn',
-        summary: 'domain.doctor.cache.legacy',
-        hint: 'domain.doctor.cache.legacyHint',
-      },
-    ],
-    [
       'an empty cache',
       status({ empty: true, cardCount: 0, lastCardRefresh: null }),
       {

@@ -23,8 +23,6 @@ ritual migrate [options]
 
 ```
 Pending workspace updates:
-Migration 1: Remove site.version from ritual.config.json (the managed block replaces it)
-  remove site.version from ritual.config.json
 Refresh generated files:
   write .github/workflows/deploy-site.yml
   add dist/, .dist-build-* to .gitignore
@@ -74,27 +72,7 @@ The same file caches the [update notice](/commands/self-update/#update-notice)'s
 
 Each migration is a numbered, one-time change. `migrate` records the highest one applied as `managed.migration` in `ritual.config.json` (see [the `managed` block](/configuration/#ritual-bookkeeping-managed-key)). Every migration checks the workspace itself rather than trusting that counter, so one whose change is already in place does nothing.
 
-| Migration | What it does                                                                                                                                                                                                  |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1         | Removes `site.version`. The `managed` block replaced it as the record of what set up the workspace.                                                                                                           |
-| 2         | Removes `site.prerelease`. The deploy workflow now downloads the [pinned release](#the-ci-pin).                                                                                                               |
-| 3         | Moves the workspace's `cache/` folder into the [shared per-user card cache](#migration-3-the-shared-card-cache).                                                                                              |
-| 4         | Adds `.logins/.gitignore` to a workspace's `.logins/` folder, so git ignores your sign-ins even in a workspace whose `.gitignore` `init-site` never wrote. An existing `.logins/.gitignore` is left as it is. |
-
-#### Migration 3: the shared card cache
-
-Each workspace used to keep its own card cache in `cache/`. The cache is now [one per-user folder every workspace shares](/commands/cache/#where-the-cache-lives), unless `RITUAL_CACHE_DIR` or the [`cacheDir`](/configuration/#cache-directory-cachedir) key names another. Until migration 3 runs, a workspace whose `cache/` holds a cache keeps reading it (`cache status` reports `legacy`), so nothing is downloaded into the shared cache first. Migration 3 then deals with the old folder; the plan names the folder it moves to, and says when `cacheDir` or `RITUAL_CACHE_DIR` chose it:
-
-- **The shared folder does not exist, or is an empty folder:** the whole `cache/` folder is moved there in one step, all or nothing. On the same disk that is a single rename. Across disks, the folder is copied to a temporary folder beside the target (named `.ritual-cache-incoming-…`), which is renamed into place once the copy is complete; only then is `cache/` deleted. While copying, Ritual holds `cache/`'s lock, so a refresh in this workspace waits; a single card another process saves into `cache/` during the copy can be lost (it is fetched again when next needed). The first workspace you migrate keeps its download.
-- **The shared folder holds anything at all** — another workspace's cache, files of your own, even just a `.DS_Store` or an old lock file: nothing on disk changes, on either side. Ritual never merges into, cleans up or deletes anything in that folder. `migrate` says that `cache/` is no longer read and that you can delete it to free the space; to keep this workspace's cache instead, empty or delete the shared folder and move the contents of `cache/` there yourself (the migration does not run again).
-- **A running Ritual holds `cache/`'s lock** (it is refreshing the cache): `migrate` stops with an error naming the lock file and changes nothing; close that Ritual and run `migrate` again. A lock left behind by a crash is not counted once it is an hour old (or names a process that is no longer running); if you are sure no Ritual is running, you can delete it.
-- **The workspace still resolves its cache to `cache/`** (`cacheDir: "cache"`, or `RITUAL_CACHE_DIR=cache`), `cache/` holds no cache (an empty folder, a leftover lock file or `.DS_Store`): there is nothing to do. A `RITUAL_CACHE_DIR` or `cacheDir` naming a folder the cache may not use is skipped here exactly as the cache itself skips it, so the move targets the next choice (usually the per-user default).
-
-If a step fails (on Windows, usually another program or an older Ritual holding a file open), `migrate` stops with an error, `cache/` is left exactly as it was, and only Ritual's own temporary copy is removed; close that program and run `migrate` again. A temporary folder left by a run that was killed outright is removed by a later move once it is an hour old. When `cache/` is a symlink, what it points at is copied in and the link removed; the folder it pointed at is left for you. If, after a complete copy, `cache/` itself cannot be deleted, `migrate` says so and leaves it for you to delete.
-
-A workspace with no `ritual.config.json` has nothing to migrate, so its `cache/` is never moved; it simply keeps being read, as above.
-
-Two workspaces migrating at once take turns on a lock beside the shared folder, and the move checks the shared folder again just before it, so the second one keeps its folder. The cache is not copied into `.backups/`: it is downloaded data that the move does not lose.
+Ritual 0.1.0 ships no numbered migrations, so a current workspace records `managed.migration: 0`. When a later release adds one, its plan line says what it changes, as `Migration <n>: <what it does>` followed by its steps.
 
 The counter is written after each migration that changed something, so a run that fails part-way resumes at the failed migration next time.
 

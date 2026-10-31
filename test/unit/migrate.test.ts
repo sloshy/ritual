@@ -4,12 +4,9 @@ import path from 'node:path'
 import {
   applyMigration,
   checkPendingWork,
-  hasPendingMigrations,
   hasPendingWork,
   planMigration,
   type BuildIdentity,
-  type MigrateOptions,
-  type MigrationPlan,
 } from '../../src/migrate/runner'
 import { computeManagedOutput, refreshChangesFiles } from '../../src/migrate/managed-output'
 import { latestMigrationId, MIGRATIONS } from '../../src/migrate/migrations'
@@ -26,11 +23,13 @@ import type { RitualSkill } from '../../src/skills/types'
 import { CardCommandError, hasErrorCode } from '../../src/util/errors'
 import { fileExists } from '../../src/util/fs'
 import { bindWorkspace, snapshotTree, type BoundWorkspace } from '../helpers/workspace'
-import { renderSyncParam, syncRef } from '../../src/sync/message'
-import { DEFAULT_LOCALE } from '../../src/i18n/runtime'
-import { LOGINS_GITIGNORE, LOGINS_GITIGNORE_CONTENT } from '../../src/auth/logins-dir'
-
-const DEV_BUILD: BuildIdentity = { version: '0.0.0-dev.abc', release: false }
+import {
+  DEV_BUILD,
+  dropKeyMigration,
+  expectPlan,
+  fixedMigration,
+  releaseBuild,
+} from '../helpers/migrations'
 
 const PUBLISH_SITE = {
   ciSystem: 'github-actions',
@@ -57,22 +56,11 @@ async function readConfig(dir: string): Promise<Record<string, unknown>> {
   return JSON.parse(await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8'))
 }
 
-/** Plan as a dev build (unless overridden), expecting a plan rather than a refusal. */
-async function plan(options: MigrateOptions = {}): Promise<MigrationPlan> {
-  const outcome = await planMigration({ build: DEV_BUILD, ...options })
-  if (outcome.kind !== 'plan') throw new Error(`expected a plan, got ${outcome.kind}`)
-  return outcome
-}
-
-/** A test migration that plans a fixed op list whenever it runs. */
-function fixedMigration(id: number, ops: MigrationOp[]): Migration {
-  return {
-    id,
-    description: syncRef('cli.migrate.planHeading'),
-    applies: () => true,
-    plan: () => Promise.resolve(ops),
-  }
-}
+/** Drops `site.retired`, a key the strict parser does not know. */
+const DROP_RETIRED = dropKeyMigration(1, ['site', 'retired'])
+/** Drops `site.alsoRetired`, so a plan has a second, later migration. */
+const DROP_ALSO_RETIRED = dropKeyMigration(2, ['site', 'alsoRetired'])
+const STATE_MIGRATIONS = [DROP_RETIRED, DROP_ALSO_RETIRED]
 
 /** The effective config a raw file object loads as, for computing its expected output hash. */
 function configWithSite(site: Record<string, unknown>): RitualConfig {
@@ -95,27 +83,27 @@ describe('MIGRATIONS', () => {
     expect(MIGRATIONS.map((migration) => migration.id)).toEqual(
       MIGRATIONS.map((_migration, index) => index + 1),
     )
+    expect(latestMigrationId()).toBe(MIGRATIONS.length)
   })
 })
 
-describe('migration 1: drop site.version', () => {
+describe('a state-based migration', () => {
   test('plans the delete, applies it, stamps managed, and re-plans to nothing', async () => {
-    const dir = await workspace({ site: { ...PUBLISH_SITE, version: '0.1.0' } })
+    const dir = await workspace({ site: { ...PUBLISH_SITE, retired: '0.1.0' } })
     const original = await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8')
+    const migrations = STATE_MIGRATIONS
 
-    const pending = await plan()
+    const pending = await expectPlan({ migrations })
     expect(pending.migrations.map((m) => [m.migration.id, m.ops])).toEqual([
-      [1, [{ type: 'config-delete', path: ['site', 'version'] }]],
+      [1, [{ type: 'config-delete', path: ['site', 'retired'] }]],
       [2, []],
-      [3, []],
-      [4, []],
     ])
     expect(hasPendingWork(pending)).toBeTrue()
 
     const { backupDir } = await applyMigration(pending)
 
     // A config-only migration backs up just the config, in a folder named after
-    // the last migration that had ops (1), not the last one planned (4).
+    // the last migration that had ops (1), not the last one planned (2).
     if (backupDir === null) throw new Error('expected a backup folder')
     expect(backupDir).toMatch(/-migration-1$/)
     expect(await snapshotTree(backupDir)).toEqual({ 'ritual.config.json': original })
@@ -123,89 +111,19 @@ describe('migration 1: drop site.version', () => {
     const config = await readConfig(dir)
     expect(config.site).toEqual(PUBLISH_SITE)
     expect(config.managed).toEqual({
-      migration: latestMigrationId(),
+      migration: latestMigrationId(migrations),
       output: outputHash(PUBLISH_SITE),
     })
-    expect(hasPendingWork(await plan())).toBeFalse()
+    expect(hasPendingWork(await expectPlan({ migrations }))).toBeFalse()
   })
 
   test('an already-satisfied migration plans zero ops even with the counter at 0', async () => {
     await workspace({ site: { includeDecks: ['*'] } })
-    const pending = await plan()
-    expect(pending.migrations.map((m) => m.ops)).toEqual([[], [], [], []])
+    const pending = await expectPlan({ migrations: STATE_MIGRATIONS })
+    expect(pending.migrations.map((m) => m.ops)).toEqual([[], []])
     // No deploy config means nothing is managed, so there is nothing to do.
     expect(pending.refresh).toBeNull()
     expect(hasPendingWork(pending)).toBeFalse()
-  })
-})
-
-describe('migration 2: drop site.prerelease', () => {
-  test('its plan line names both config keys and the file as typed', () => {
-    const migration = MIGRATIONS.find((candidate) => candidate.id === 2)
-    expect(migration && renderSyncParam(migration.description, DEFAULT_LOCALE)).toBe(
-      'Remove site.prerelease from ritual.config.json (the deploy workflow now downloads the release pinned in managed.version)',
-    )
-  })
-
-  test.each([true, false, null])(
-    'plans the delete when the key is present, whatever its value (%p)',
-    async (prerelease) => {
-      await workspace({ site: { ...PUBLISH_SITE, prerelease }, managed: { migration: 1 } })
-      const pending = await plan()
-      expect(pending.migrations.map((m) => [m.migration.id, m.ops])).toEqual([
-        [2, [{ type: 'config-delete', path: ['site', 'prerelease'] }]],
-        [3, []],
-        [4, []],
-      ])
-    },
-  )
-
-  test('plans nothing for a site block without the key', async () => {
-    await workspace({ site: PUBLISH_SITE, managed: { migration: 1 } })
-    expect((await plan()).migrations.map((m) => [m.migration.id, m.ops])).toEqual([
-      [2, []],
-      [3, []],
-      [4, []],
-    ])
-  })
-})
-
-describe('migration 4: a .gitignore inside .logins/', () => {
-  const ADD_IGNORE: MigrationOp = {
-    type: 'write',
-    path: LOGINS_GITIGNORE,
-    content: LOGINS_GITIGNORE_CONTENT,
-  }
-
-  test('adds the ignore file to a .logins/ folder made before it, and re-plans to nothing', async () => {
-    const dir = await workspace({ managed: { migration: 3 } })
-    await fs.mkdir(path.join(dir, '.logins'))
-    await fs.writeFile(path.join(dir, '.logins', 'admin-auth.json'), '{}\n')
-
-    const pending = await plan()
-    expect(pending.migrations.map((m) => [m.migration.id, m.ops])).toEqual([[4, [ADD_IGNORE]]])
-    await applyMigration(pending)
-
-    // The sign-ins themselves are left exactly as they were.
-    expect(await fs.readFile(path.join(dir, '.logins', 'admin-auth.json'), 'utf-8')).toBe('{}\n')
-    expect(await fs.readFile(path.join(dir, LOGINS_GITIGNORE), 'utf-8')).toBe(
-      '# Written by Ritual: sign-ins never belong in git.\n*\n',
-    )
-    expect(hasPendingWork(await plan())).toBeFalse()
-  })
-
-  test('keeps an existing .logins/.gitignore as the user wrote it', async () => {
-    const dir = await workspace({ managed: { migration: 3 } })
-    await fs.mkdir(path.join(dir, '.logins'))
-    await fs.writeFile(path.join(dir, LOGINS_GITIGNORE), 'admin-audit.log\n')
-
-    expect((await plan()).migrations.map((m) => [m.migration.id, m.ops])).toEqual([[4, []]])
-  })
-
-  test('has nothing to do without a .logins/ folder', async () => {
-    const dir = await workspace({ managed: { migration: 3 } })
-    expect(MIGRATIONS.find((m) => m.id === 4)?.applies({ config: {}, baseDir: dir })).toBeFalse()
-    expect((await plan()).migrations.map((m) => [m.migration.id, m.ops])).toEqual([[4, []]])
   })
 })
 
@@ -214,7 +132,6 @@ describe('pin bump', () => {
     ...PUBLISH_SITE,
     deployMode: 'local-build',
   } as const satisfies GitHubActionsSiteConfig
-  const release = (version: string): BuildIdentity => ({ version, release: true })
 
   /** A workspace current in every respect except, possibly, its pin. */
   async function currentWorkspace(
@@ -230,19 +147,24 @@ describe('pin bump', () => {
   }
 
   test.each([
-    ['a newer release than the pin', '1.0.0', release('1.1.0'), { to: '1.1.0', from: '1.0.0' }],
-    ['a release and no pin yet', undefined, release('1.1.0'), { to: '1.1.0' }],
+    [
+      'a newer release than the pin',
+      '1.0.0',
+      releaseBuild('1.1.0'),
+      { to: '1.1.0', from: '1.0.0' },
+    ],
+    ['a release and no pin yet', undefined, releaseBuild('1.1.0'), { to: '1.1.0' }],
     [
       'a prerelease of the next version',
       '1.0.0',
-      release('1.1.0-rc1'),
+      releaseBuild('1.1.0-rc1'),
       { to: '1.1.0-rc1', from: '1.0.0' },
     ],
-    ['the pinned release itself', '1.1.0', release('1.1.0'), null],
+    ['the pinned release itself', '1.1.0', releaseBuild('1.1.0'), null],
     ['a dev build', '1.0.0', DEV_BUILD, null],
   ])('publish-for-me with %s', async (_label, pinned, build, expected) => {
     await currentWorkspace(PUBLISH_SITE, pinned)
-    const pending = await plan({ build })
+    const pending = await expectPlan({ build })
     expect(pending.pinBump).toEqual(expected)
     expect(hasPendingWork(pending)).toBe(expected !== null)
   })
@@ -253,7 +175,7 @@ describe('pin bump', () => {
     ['no deploy config', { includeDecks: ['*'] }],
   ])('is never pending for a %s workspace, yet the pin is stamped on a run', async (_l, site) => {
     await currentWorkspace(site, '1.0.0')
-    const pending = await plan({ build: release('1.1.0') })
+    const pending = await expectPlan({ build: releaseBuild('1.1.0') })
     expect(pending.pinBump).toBeNull()
     expect(hasPendingWork(pending)).toBeFalse()
     expect(pending.managed.version).toBe('1.1.0')
@@ -263,14 +185,14 @@ describe('pin bump', () => {
     const dir = await currentWorkspace(PUBLISH_SITE, '1.0.0')
     const before = await readConfig(dir)
 
-    const result = await applyMigration(await plan({ build: release('1.1.0') }))
+    const result = await applyMigration(await expectPlan({ build: releaseBuild('1.1.0') }))
 
-    expect(result).toEqual({ applied: [], cache: [], refresh: null, backupDir: null })
+    expect(result).toEqual({ applied: [], refresh: null, backupDir: null })
     expect(await readConfig(dir)).toEqual({
       ...before,
       managed: { ...(before.managed as ManagedConfig), version: '1.1.0' },
     })
-    expect(hasPendingWork(await plan({ build: release('1.1.0') }))).toBeFalse()
+    expect(hasPendingWork(await expectPlan({ build: releaseBuild('1.1.0') }))).toBeFalse()
   })
 })
 
@@ -291,16 +213,16 @@ describe('planMigration', () => {
   })
 
   test('a release older than the recorded one is refused rather than downgrading the pin', async () => {
-    await workspace({ site: PUBLISH_SITE, managed: { migration: 1, version: '1.4.0' } })
+    await workspace({ site: PUBLISH_SITE, managed: { migration: 0, version: '1.4.0' } })
     const older: BuildIdentity = { version: '1.3.0', release: true }
     expect(await planMigration({ build: older })).toEqual({
       kind: 'ahead',
-      applied: 1,
+      applied: 0,
       latest: latestMigrationId(),
       version: '1.4.0',
     })
     // A dev build never records a version, so it has no pin to move backwards.
-    expect((await plan()).managed.version).toBe('1.4.0')
+    expect((await expectPlan()).managed.version).toBe('1.4.0')
   })
 
   test.each([
@@ -310,14 +232,14 @@ describe('planMigration', () => {
     ['a malformed output hash', { migration: 0, output: 'not-a-hash' }],
     ['a malformed version', { migration: 0, version: 'latest' }],
   ])('%s never locks the workspace out', async (_label, managed) => {
-    await workspace({ site: { ...PUBLISH_SITE, version: '0.1.0' }, managed })
-    const pending = await plan()
+    await workspace({ site: { ...PUBLISH_SITE, retired: '0.1.0' }, managed })
+    const pending = await expectPlan({ migrations: [DROP_RETIRED] })
     // The counter reads as 0 or better, so migration 1 is still planned by state.
     expect(pending.migrations.filter((m) => m.ops.length > 0).map((m) => m.migration.id)).toEqual([
       1,
     ])
     expect(pending.managed).toEqual({
-      migration: latestMigrationId(),
+      migration: 1,
       output: outputHash(PUBLISH_SITE),
     })
   })
@@ -327,7 +249,7 @@ describe('planMigration', () => {
     const fix = fixedMigration(1, [
       { type: 'config-set', path: ['cacheSource'], value: 'scryfall' },
     ])
-    expect(hasPendingWork(await plan({ migrations: [fix] }))).toBeTrue()
+    expect(hasPendingWork(await expectPlan({ migrations: [fix] }))).toBeTrue()
   })
 
   test('a config that would still be invalid is reported without a plan', async () => {
@@ -351,20 +273,20 @@ describe('planMigration', () => {
         return Promise.resolve([])
       },
     }
-    const pending = await plan({ migrations: [second, first] })
+    const pending = await expectPlan({ migrations: [second, first] })
     expect(pending.migrations.map((m) => m.migration.id)).toEqual([1, 2])
     expect(seen).toEqual(['./lists'])
   })
 
   test('a changed output hash makes a refresh due; a matching one does not', async () => {
     const current = outputHash(PUBLISH_SITE)
-    await workspace({ site: PUBLISH_SITE, managed: { migration: 1, output: current } })
-    expect((await plan()).refresh).toBeNull()
+    await workspace({ site: PUBLISH_SITE, managed: { migration: 0, output: current } })
+    expect((await expectPlan()).refresh).toBeNull()
 
     const edited: RitualSkill[] = SKILLS.map((skill, i) =>
       i === 0 ? { ...skill, body: `${skill.body}\nOne more line.` } : skill,
     )
-    const pending = await plan({ skills: edited })
+    const pending = await expectPlan({ skills: edited })
     expect(pending.refresh).not.toBeNull()
     expect(pending.managed.output).not.toBe(current)
   })
@@ -377,7 +299,7 @@ describe('planMigration', () => {
     await fs.writeFile(path.join(dir, WORKFLOW), workflow.content)
     await fs.writeFile(path.join(dir, '.gitignore'), computeGitignore())
 
-    const pending = await plan()
+    const pending = await expectPlan()
     // Everything already matches: only the hash needs recording.
     expect(pending.refresh?.filesToWrite).toEqual([])
     expect(pending.refresh === null ? true : refreshChangesFiles(pending.refresh)).toBeFalse()
@@ -385,9 +307,9 @@ describe('planMigration', () => {
   })
 
   test('only a release build records its version', async () => {
-    await workspace({ site: PUBLISH_SITE, managed: { migration: 1, version: '1.0.0' } })
-    expect((await plan()).managed.version).toBe('1.0.0')
-    expect((await plan({ build: { version: '1.5.0', release: true } })).managed.version).toBe(
+    await workspace({ site: PUBLISH_SITE, managed: { migration: 0, version: '1.0.0' } })
+    expect((await expectPlan()).managed.version).toBe('1.0.0')
+    expect((await expectPlan({ build: { version: '1.5.0', release: true } })).managed.version).toBe(
       '1.5.0',
     )
   })
@@ -404,8 +326,8 @@ function computeGitignore(): string {
  * plan would find, and every `maybe-pending` case here really is pending.
  */
 describe('checkPendingWork', () => {
-  const release = (version: string): BuildIdentity => ({ version, release: true })
-  const latest = latestMigrationId()
+  const migrations = [DROP_RETIRED]
+  const latest = latestMigrationId(migrations)
 
   test('no config file means nothing to check', async () => {
     await workspace(false)
@@ -414,7 +336,7 @@ describe('checkPendingWork', () => {
 
   test('a workspace migrated past this build is ahead', async () => {
     await workspace({ managed: { migration: latest + 1 } })
-    expect(await checkPendingWork({ build: DEV_BUILD })).toEqual({
+    expect(await checkPendingWork({ build: DEV_BUILD, migrations })).toEqual({
       kind: 'ahead',
       applied: latest + 1,
       latest,
@@ -426,7 +348,7 @@ describe('checkPendingWork', () => {
       site: PUBLISH_SITE,
       managed: { migration: latest, version: '2.0.0', output: outputHash(PUBLISH_SITE) },
     })
-    expect(await checkPendingWork({ build: release('1.0.0') })).toEqual({
+    expect(await checkPendingWork({ build: releaseBuild('1.0.0'), migrations })).toEqual({
       kind: 'ahead',
       applied: latest,
       latest,
@@ -437,7 +359,10 @@ describe('checkPendingWork', () => {
   test.each<[string, Record<string, unknown>, BuildIdentity, 'current' | 'maybe-pending']>([
     [
       'a migration above the counter that applies',
-      { site: { version: '0.0.1', ciSystem: 'manual' } },
+      {
+        site: { retired: '0.0.1', ciSystem: 'manual' },
+        managed: { migration: 0, output: outputHash({ ciSystem: 'manual' }) },
+      },
       DEV_BUILD,
       'maybe-pending',
     ],
@@ -449,9 +374,9 @@ describe('checkPendingWork', () => {
       'current',
     ],
     [
-      'a retired key under a counter that already passed its migration',
+      'a retired key under a counter that already passed its migration (the strict parser then rejects it)',
       {
-        site: { version: '0.0.1', ciSystem: 'manual' },
+        site: { retired: '0.0.1', ciSystem: 'manual' },
         managed: { migration: latest, output: outputHash({ ciSystem: 'manual' }) },
       },
       DEV_BUILD,
@@ -481,7 +406,7 @@ describe('checkPendingWork', () => {
         site: PUBLISH_SITE,
         managed: { migration: latest, version: '1.0.0', output: outputHash(PUBLISH_SITE) },
       },
-      release('1.1.0'),
+      releaseBuild('1.1.0'),
       'maybe-pending',
     ],
     [
@@ -492,33 +417,10 @@ describe('checkPendingWork', () => {
     ],
   ])('%s', async (_label, config, build, expected) => {
     await workspace(config)
-    expect(await checkPendingWork({ build })).toEqual({ kind: expected })
-    const outcome = await planMigration({ build })
+    expect(await checkPendingWork({ build, migrations })).toEqual({ kind: expected })
+    const outcome = await planMigration({ build, migrations })
     const pending = outcome.kind === 'plan' && hasPendingWork(outcome)
     expect(pending).toBe(expected === 'maybe-pending')
-  })
-
-  // Migration 4 reads the folder, not the config: the pre-command gate must
-  // see an unignored `.logins/` as pending, and agree with the plan.
-  test.each<[string, (dir: string) => Promise<void>, 'current' | 'maybe-pending']>([
-    [
-      'a .logins/ folder without its .gitignore',
-      (dir) => fs.mkdir(path.join(dir, '.logins')),
-      'maybe-pending',
-    ],
-    [
-      'a .logins file that is not a folder',
-      (dir) => fs.writeFile(path.join(dir, '.logins'), 'not a folder'),
-      'current',
-    ],
-  ])('%s', async (_label, seed, expected) => {
-    const dir = await workspace({ managed: { migration: 3 } })
-    await seed(dir)
-    expect(await checkPendingWork({ build: DEV_BUILD })).toEqual({ kind: expected })
-    const outcome = await planMigration({ build: DEV_BUILD })
-    expect(outcome.kind === 'plan' && hasPendingMigrations(outcome)).toBe(
-      expected === 'maybe-pending',
-    )
   })
 })
 
@@ -533,7 +435,7 @@ describe('applyMigration', () => {
     ])
     const migrations = [first, second]
 
-    const failure = await rejection(applyMigration(await plan({ migrations })))
+    const failure = await rejection(applyMigration(await expectPlan({ migrations })))
     // mkdir -p of `blocker/` meets the file of that name.
     expect(hasErrorCode(failure, 'EEXIST')).toBeTrue()
 
@@ -542,7 +444,7 @@ describe('applyMigration', () => {
     expect(config.managed).toEqual({ migration: 1 })
 
     await fs.rm(path.join(dir, 'blocker'))
-    const resumed = await plan({ migrations })
+    const resumed = await expectPlan({ migrations })
     expect(resumed.migrations.map((m) => m.migration.id)).toEqual([2])
     await applyMigration(resumed)
     expect(await fs.readFile(path.join(dir, 'blocker', 'notes.txt'), 'utf-8')).toBe('hello')
@@ -557,7 +459,7 @@ describe('applyMigration', () => {
       fixedMigration(1, []),
       fixedMigration(2, [{ type: 'write', path: 'blocker/notes.txt', content: 'hello' }]),
     ]
-    await rejection(applyMigration(await plan({ migrations })))
+    await rejection(applyMigration(await expectPlan({ migrations })))
     expect(await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8')).toBe(before)
   })
 
@@ -570,7 +472,7 @@ describe('applyMigration', () => {
         { type: 'delete', path: 'never-existed.txt' },
       ]),
     ]
-    await applyMigration(await plan({ migrations }))
+    await applyMigration(await expectPlan({ migrations }))
     expect(await fileExists(path.join(dir, 'old.txt'))).toBeFalse()
     expect(await fs.readFile(path.join(dir, 'new', 'dir', 'moved.txt'), 'utf-8')).toBe('moved')
   })
@@ -591,7 +493,7 @@ describe('applyMigration', () => {
       ]),
     ]
 
-    const { backupDir } = await applyMigration(await plan({ migrations }))
+    const { backupDir } = await applyMigration(await expectPlan({ migrations }))
 
     if (backupDir === null) throw new Error('expected a backup folder')
     expect(path.relative(dir, backupDir)).toMatch(/^\.backups[\\/][\dTZ-]+-migration-2$/)
@@ -606,9 +508,12 @@ describe('applyMigration', () => {
   })
 
   test('a config changed since planning aborts before anything is written', async () => {
-    const dir = await workspace({ site: { ...PUBLISH_SITE, version: '0.1.0' } })
-    const pending = await plan()
-    const changed = JSON.stringify({ site: { ...PUBLISH_SITE, version: '0.1.0' }, artDir: './x' })
+    const dir = await workspace({})
+    const migrations = [
+      fixedMigration(1, [{ type: 'config-set', path: ['decksDir'], value: './lists' }]),
+    ]
+    const pending = await expectPlan({ migrations })
+    const changed = JSON.stringify({ artDir: './x' })
     await fs.writeFile(path.join(dir, 'ritual.config.json'), changed)
     const before = await snapshotTree(dir)
 
@@ -627,7 +532,7 @@ describe('applyMigration', () => {
     await fs.writeFile(path.join(dir, '.backups'), 'not a directory')
     const migrations = [fixedMigration(1, [{ type: 'delete', path: 'old.txt' }])]
 
-    await rejection(applyMigration(await plan({ migrations })))
+    await rejection(applyMigration(await expectPlan({ migrations })))
 
     expect(await fs.readFile(path.join(dir, 'old.txt'), 'utf-8')).toBe('kept')
     expect(await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8')).toBe(config)
@@ -639,7 +544,7 @@ describe('applyMigration', () => {
     await fs.writeFile(path.join(dir, WORKFLOW), 'run: ./ritual build-site --allow-refresh\n')
     await fs.writeFile(path.join(dir, '.gitignore'), 'node_modules/\ncache/\n')
 
-    const pending = await plan()
+    const pending = await expectPlan()
     expect(pending.refresh?.filesToWrite.map((file) => file.path)).toEqual([WORKFLOW])
     expect(pending.refresh?.gitignoreMissing).toContain('dist/')
     expect(pending.refresh?.gitignoreMissing).not.toContain('cache/')
@@ -676,7 +581,7 @@ describe('applyMigration', () => {
     const ownContent = '---\nname: my-skill\ndescription: mine\n---\n\nMine.\n'
     await write('my-skill', ownContent)
 
-    const pending = await plan()
+    const pending = await expectPlan()
     expect(pending.refresh?.skillsToWrite).toEqual([edited.name])
     expect(pending.refresh?.skillsToRemove.toSorted()).toEqual([kept.name, retired.name])
     await applyMigration(pending)

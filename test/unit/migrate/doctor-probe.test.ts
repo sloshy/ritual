@@ -33,10 +33,25 @@ describe('doctorMigrationProbe', () => {
     })
   })
 
-  test('a retired key a migration removes is a pending update', async () => {
-    await writeConfig(workspace.dir, { site: { version: '0.0.1' }, managed: { migration: 0 } })
+  test('a due managed-output refresh is a pending update', async () => {
+    await writeConfig(workspace.dir, {
+      site: { ciSystem: 'manual' },
+      managed: { migration: latestMigrationId(), output: 'sha256:stale' },
+    })
     expect(await doctorMigrationProbe(VALID)).toEqual({
       state: 'pending',
+      remedy: null,
+      problem: null,
+    })
+  })
+
+  test('a config the plan would refuse is invalid, unless the config check already failed it', async () => {
+    await writeConfig(workspace.dir, { cacheSource: 'torrent' })
+    const facts = await doctorMigrationProbe(VALID)
+    expect(facts.state).toBe('invalid')
+    expect(facts.problem).not.toBeNull()
+    expect(await doctorMigrationProbe({ state: 'invalid', problems: [] })).toEqual({
+      state: 'unknown',
       remedy: null,
       problem: null,
     })

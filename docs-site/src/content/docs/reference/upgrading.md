@@ -34,7 +34,7 @@ From 0.1.0, each release publishes every binary compressed (`ritual-linux-x86_64
 
 ## Migrations
 
-A **migration** is a one-time change a newer Ritual makes to a workspace: a setting renamed in `ritual.config.json`, or a file moved. Each one is numbered and runs once.
+A **migration** is a one-time change a newer Ritual makes to a workspace: a setting renamed in `ritual.config.json`, or a file moved. Each one is numbered and runs once. Ritual 0.1.0 has none yet; the first comes with the release that first changes how a workspace is stored.
 
 Right after `self-update`, Ritual shows the plan for the workspace you are in. Later, any command you run in a workspace with pending changes asks once a day whether to apply them. To do it yourself:
 

@@ -5,13 +5,12 @@ import prompts from 'prompts'
 import { registerMigrateCommand } from '../../../src/commands/migrate'
 import { ExitCode } from '../../../src/util/errors'
 import { runInProcess } from '../../helpers/cli'
+import { REFRESH_DUE_CONFIG } from '../../helpers/migrations'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { stubTty } from '../../test-utils'
 
 // The confirm answer comes from prompts.inject; ask() still wants a terminal.
 stubTty({ stdin: true })
-
-const OLD_CONFIG = { site: { version: '0.0.1', ciSystem: 'manual' } }
 
 describe('migrate confirmation prompt', () => {
   const log = spyOn(console, 'log').mockImplementation(() => {})
@@ -19,7 +18,7 @@ describe('migrate confirmation prompt', () => {
   let ws: BoundWorkspace
 
   beforeEach(async () => {
-    ws = await bindWorkspace({ dirs: [], config: OLD_CONFIG })
+    ws = await bindWorkspace({ dirs: [], config: REFRESH_DUE_CONFIG })
   })
   afterEach(async () => {
     await ws.dispose()
@@ -38,7 +37,7 @@ describe('migrate confirmation prompt', () => {
     prompts.inject([true])
 
     expect(await runInProcess(registerMigrateCommand, ['migrate'])).toBe(ExitCode.Success)
-    expect(JSON.parse(await readConfig()).site).toEqual({ ciSystem: 'manual' })
+    expect(JSON.parse(await readConfig()).managed.output).toStartWith('sha256:')
   })
 
   test('no cancels with a usage exit and writes nothing', async () => {

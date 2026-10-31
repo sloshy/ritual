@@ -838,9 +838,8 @@ export function registerReadTools(server: McpServer): void {
         'Report the local Scryfall card cache: whether it is empty, how many cards it holds, ' +
         'when it was last refreshed, how old its prices are and whether they are stale, whether ' +
         'Scryfall Tagger tags are present, where the cache is served from, the local cache ' +
-        'directory (cacheDir) and which setting chose it (cacheDirSource: env, config, legacy — the ' +
-        "workspace's old cache/ folder until the user runs `ritual migrate` — or the shared " +
-        'per-user default), and which Scryfall ' +
+        'directory (cacheDir) and which setting chose it (cacheDirSource: env, config, or the ' +
+        'shared per-user default), and which Scryfall ' +
         'bulk built it (cardBulkType — default_cards for an English defaultLanguage, all_cards ' +
         'otherwise; bulkTypeStale means the cache and the configured defaultLanguage disagree ' +
         'and a full refresh_cache is needed). ' +

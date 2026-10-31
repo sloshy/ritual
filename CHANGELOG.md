@@ -32,20 +32,11 @@ set cacheDir …`, the admin Settings page, or MCP `update_config`), put it else
   over it. The Docker image sets `RITUAL_CACHE_DIR=/app/cache`, so its `/app/cache` volume
   is still where the cache lives.
 
-  **Run `ritual migrate` in each existing workspace** (Ritual reminds you). Until you do, a
-  workspace whose `cache/` holds a cache keeps reading it (`cache status` reports `legacy`),
-  so nothing downloads into the empty shared cache first. Migration 3 moves the workspace's
-  `cache/` into the shared cache when that is still empty, so the first workspace you
-  migrate keeps its download; for every later one, the shared cache already has data, so
-  its `cache/` is left untouched and `migrate` tells you that Ritual no longer reads it and
-  you can delete it. The move is all or nothing: the whole folder is renamed (or, across
-  disks, copied beside the target and renamed into place) only into a shared folder that
-  does not exist or is empty, and Ritual never merges into or deletes anything already
-  there; if a step fails, `cache/` is left as it was. For a "Publish for
-  me" site, `migrate` also refreshes the deploy workflow, which now sets `RITUAL_CACHE_DIR: cache` so
-  CI keeps caching the checkout's `cache/` folder; commit the updated workflow. A
-  hand-written CI job that caches `cache/` needs the same variable. A workspace without a
-  `ritual.config.json` has nothing to migrate and keeps reading its own `cache/`.
+  A workspace's own `cache/` folder is no longer read: set `cacheDir` to `cache` to keep
+  using it, or delete it and let the next download fill the shared cache. For a "Publish
+  for me" site, `ritual migrate` refreshes the deploy workflow, which now sets
+  `RITUAL_CACHE_DIR: cache` so CI keeps caching the checkout's `cache/` folder; commit the
+  updated workflow. A hand-written CI job that caches `cache/` needs the same variable.
 
   `cacheDir` and `RITUAL_CACHE_DIR` refuse a value starting with `~` (write the full path),
   a file system root, your home folder, the workspace itself and its list folders. If
@@ -138,6 +129,11 @@ https://cyclonedx.org/bom`). The Docker
 
 ### Changed
 
+- **Workspace migration numbering starts over at 0 for 0.1.0**, a one-time reset before
+  the first release: 0.1.0 ships no numbered migrations. A workspace a 0.1.0 release
+  candidate migrated records a higher `managed.migration` and reads as updated by a newer
+  Ritual; **set `managed.migration` to `0` in its `ritual.config.json` by hand**, then run
+  `ritual migrate`.
 - **The admin site refuses requests sent from other websites.** Any `/api/*` request a
   browser sends from another site, a sibling port or subdomain included, now answers `403`
   (`admin.api.server.crossSite`) before any route runs: `/api/setup` and `/api/login`,
@@ -154,9 +150,8 @@ https://cyclonedx.org/bom`). The Docker
 - **`.logins/` keeps its own `.gitignore`.** Whenever Ritual writes into `.logins/` (the
   admin account, the admin audit log, Archidekt tokens, collection-sync state) it also
   writes `.logins/.gitignore`, which ignores the whole folder, so sign-ins stay out of git
-  even in a workspace `init-site` never set up. **Run `ritual migrate`** (Ritual reminds
-  you): migration 4 adds the file to a `.logins/` folder an older Ritual made, and leaves
-  an existing `.logins/.gitignore` alone.
+  even in a workspace `init-site` never set up. An existing `.logins/.gitignore` is left
+  alone.
 - **A shorter `ritual --help`.** It now describes the dozen commands a newcomer needs,
   grouped as Get started (`new`, `import`, `add-card`, `edit`, `admin`), Look up and price
   (`lists`, `card`, `scry`, `price`) and Publish (`build-site`, `serve`), and names the

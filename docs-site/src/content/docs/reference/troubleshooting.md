@@ -41,7 +41,7 @@ Each line is `ok`, `warn` or `fail`. A line that found a problem ends with a one
 
 **Where is the cache, and how big is it?** `ritual cache status` shows the folder and what chose it. The English card data takes about 450 MB on disk. See [Card Cache](/card-cache/#where-it-lives).
 
-**A second workspace downloads the card data again.** Workspaces share one cache unless `cacheDir` or `RITUAL_CACHE_DIR` gives one its own. An older workspace keeps reading its own `cache/` folder until you run `ritual migrate`, which moves it into the shared one.
+**A second workspace downloads the card data again.** Workspaces share one cache unless `cacheDir` or `RITUAL_CACHE_DIR` gives one its own.
 
 **A refresh says the cache is locked.** Another Ritual program is refreshing the same cache, perhaps in another workspace. Wait for it to finish. A lock left by a program that crashed is cleared on its own. See [Cache lock timeout](/configuration/#cache-lock-timeout).
 

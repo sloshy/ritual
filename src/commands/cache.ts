@@ -19,16 +19,7 @@ import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '..
 import { t, type ParameterlessKey } from '../i18n/t'
 import { formatDateTime, formatNumber } from '../ui/format'
 import { displayWidth, padEndDisplay } from '../i18n/width'
-import {
-  COMMAND,
-  CONFIG_KEY,
-  ENV_VAR,
-  FILE,
-  FLAG,
-  LINK,
-  commandLine,
-  flagValue,
-} from '../util/cli-tokens'
+import { CONFIG_KEY, ENV_VAR, FILE, FLAG, LINK, flagValue } from '../util/cli-tokens'
 
 /** Flags for `cache preload-all`. */
 type CachePreloadAllOptions = {
@@ -60,8 +51,6 @@ function formatLocation(status: CacheStatusResult): string {
         configKey: CONFIG_KEY.cacheDir,
         file: FILE.config,
       })
-    case 'legacy':
-      return t('cli.cache.locationLegacy', { path, command: commandLine(COMMAND.migrate) })
     case 'default':
       return t('cli.cache.locationDefault', { path })
     default:

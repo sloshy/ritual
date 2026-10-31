@@ -21,14 +21,11 @@ The folder is chosen in this order, highest precedence first:
 
 1. The `RITUAL_CACHE_DIR` environment variable.
 2. The workspace's [`cacheDir`](/configuration/#cache-directory-cachedir) config key.
-3. The workspace's own old `cache/` folder, while it still holds a cache and [`ritual migrate`](/commands/migrate/#migration-3-the-shared-card-cache) has not yet moved it. So an upgraded workspace never downloads into the empty shared cache before its own cache has had the chance to move there.
-4. The per-user default above.
+3. The per-user default above.
 
-A relative path in the first two is resolved against the workspace, so `cacheDir: "cache"` (or `RITUAL_CACHE_DIR=cache`) keeps a workspace's cache in its own `cache/` folder, as every workspace did before. A value starting with `~` is refused (only a shell expands it; write the full path), as is a file system root, your home folder itself, the workspace itself or a folder containing it, and a deck, collection or wanted-list folder: the cache writes and deletes hundreds of megabytes of files in its folder. A refused `RITUAL_CACHE_DIR` is a usage error (exit `2`) for a CLI command, while a server (`admin`, `serve`, `mcp`, `cache server`) ignores it with a warning and uses the next choice in the list; a refused `cacheDir` is refused by `config set` and the admin API, and ignored with a warning when hand-edited into the file. [`cache status`](#status) shows the folder in use and which setting chose it. The first command that offers to download the card database also says where it will go and roughly how big it is (about 80 MB to download and 450 MB on disk for the English-only data; the every-language data a non-English [`defaultLanguage`](/configuration/) needs is about 400 MB to download and several times larger on disk).
+A relative path in the first two is resolved against the workspace, so `cacheDir: "cache"` (or `RITUAL_CACHE_DIR=cache`) keeps a workspace's cache in its own `cache/` folder. A value starting with `~` is refused (only a shell expands it; write the full path), as is a file system root, your home folder itself, the workspace itself or a folder containing it, and a deck, collection or wanted-list folder: the cache writes and deletes hundreds of megabytes of files in its folder. A refused `RITUAL_CACHE_DIR` is a usage error (exit `2`) for a CLI command, while a server (`admin`, `serve`, `mcp`, `cache server`) ignores it with a warning and uses the next choice in the list; a refused `cacheDir` is refused by `config set` and the admin API, and ignored with a warning when hand-edited into the file. [`cache status`](#status) shows the folder in use and which setting chose it. The first command that offers to download the card database also says where it will go and roughly how big it is (about 80 MB to download and 450 MB on disk for the English-only data; the every-language data a non-English [`defaultLanguage`](/configuration/) needs is about 400 MB to download and several times larger on disk).
 
 Everything below that names a cache file (`cache.json`, `card-bulk.json`, `tags.json`, `cardkingdom.json`, `images/`, `feed-client/`, `feed/`, `.ritual-cache-lock`) means that file inside this folder.
-
-An older workspace's `cache/` folder is moved here by [`ritual migrate`](/commands/migrate/#migration-3-the-shared-card-cache) (migration 3), whole, when the shared folder does not exist yet or is empty. If it holds anything, both folders are left untouched and the migration tells you that you can delete the old one.
 
 ### Sharing the cache between workspaces
 
@@ -66,20 +63,20 @@ The report is the command's entire output, so there is no `--quiet` ([shared con
 
 Text output is aligned `label: value` lines worded for the reader in your [UI language](/localization/): yes/no for the flags, the source's name, the refresh time as a local date and time. `json`/`ndjson` keep the raw values, and emit an object with these fields:
 
-| Field             | Meaning                                                                                                                                                                                                         |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `empty`           | `true` when no cards are cached at all.                                                                                                                                                                         |
-| `cardCount`       | Distinct card **names** cached. Each name holds all of that card's printings, so the printing count is larger.                                                                                                  |
-| `lastCardRefresh` | ISO-8601 time of the last **bulk** refresh, or `null` until one has run (`never` in text output).                                                                                                               |
-| `priceAgeHours`   | Whole hours since `lastCardRefresh`, or `null` when that is `null`.                                                                                                                                             |
-| `priceStale`      | `true` when prices are older than 24 hours, or when their age is unknown (`lastCardRefresh` is `null`).                                                                                                         |
-| `tagsPresent`     | Whether cached cards carry oracle/art tags (see [Tags](#tags)).                                                                                                                                                 |
-| `source`          | `local` for the on-disk cache, `cache-server` when a [cache server](#server) is configured.                                                                                                                     |
-| `cacheDir`        | The absolute path of the local cache folder (see [Where the cache lives](#where-the-cache-lives)).                                                                                                              |
-| `cacheDirSource`  | Which setting chose `cacheDir`: `env` (`RITUAL_CACHE_DIR`), `config` (the `cacheDir` key), `legacy` (the workspace's old `cache/`, until `ritual migrate` moves it), or `default` (the shared per-user folder). |
-| `defaultLanguage` | The configured [`defaultLanguage`](/configuration/#default-language), which decides which Scryfall bulk backs the cache.                                                                                        |
-| `cardBulkType`    | Which bulk built the card cache: `default_cards` (English-only), `all_cards` (every language), or `null`.                                                                                                       |
-| `bulkTypeStale`   | `true` when a non-empty cache's bulk disagrees with what `defaultLanguage` demands (see [Bulk selection](#bulk-selection-and-language)).                                                                        |
+| Field             | Meaning                                                                                                                                  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `empty`           | `true` when no cards are cached at all.                                                                                                  |
+| `cardCount`       | Distinct card **names** cached. Each name holds all of that card's printings, so the printing count is larger.                           |
+| `lastCardRefresh` | ISO-8601 time of the last **bulk** refresh, or `null` until one has run (`never` in text output).                                        |
+| `priceAgeHours`   | Whole hours since `lastCardRefresh`, or `null` when that is `null`.                                                                      |
+| `priceStale`      | `true` when prices are older than 24 hours, or when their age is unknown (`lastCardRefresh` is `null`).                                  |
+| `tagsPresent`     | Whether cached cards carry oracle/art tags (see [Tags](#tags)).                                                                          |
+| `source`          | `local` for the on-disk cache, `cache-server` when a [cache server](#server) is configured.                                              |
+| `cacheDir`        | The absolute path of the local cache folder (see [Where the cache lives](#where-the-cache-lives)).                                       |
+| `cacheDirSource`  | Which setting chose `cacheDir`: `env` (`RITUAL_CACHE_DIR`), `config` (the `cacheDir` key), or `default` (the shared per-user folder).    |
+| `defaultLanguage` | The configured [`defaultLanguage`](/configuration/#default-language), which decides which Scryfall bulk backs the cache.                 |
+| `cardBulkType`    | Which bulk built the card cache: `default_cards` (English-only), `all_cards` (every language), or `null`.                                |
+| `bulkTypeStale`   | `true` when a non-empty cache's bulk disagrees with what `defaultLanguage` demands (see [Bulk selection](#bulk-selection-and-language)). |
 
 Notes on the fields:
 
@@ -87,7 +84,7 @@ Notes on the fields:
 - Prices are part of the bulk card data, so price age equals bulk-cache age.
 - `tagsPresent` comes from a small sample of cached cards, not a full scan. If only rarely-tagged cards land in the sample, it can report `false` after a completed tag refresh.
 - `source` is `cache-server` when `--cache-server` or `RITUAL_CACHE_SERVER` is set. `cacheDir` is reported either way: card data then comes from the server, but images and the Card Kingdom buylist still live in the local folder.
-- The text report's **Location** row shows `cacheDir` followed by what chose it: `(from RITUAL_CACHE_DIR)`, `(from cacheDir in ritual.config.json)`, the workspace's old folder awaiting `ritual migrate`, or `(per-user default, shared by every workspace)`.
+- The text report's **Location** row shows `cacheDir` followed by what chose it: `(from RITUAL_CACHE_DIR)`, `(from cacheDir in ritual.config.json)`, or `(per-user default, shared by every workspace)`.
 - `cardBulkType` is `null` when no bulk ingest has recorded which bulk it used: an empty cache, or one filled before this was recorded (necessarily `default_cards`).
 - A `bulkTypeStale` cache needs a full redownload, which the freshness checks on other commands offer.
 

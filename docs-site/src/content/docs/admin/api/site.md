@@ -78,20 +78,20 @@ Report the card cache's size, freshness, tag coverage, and source — the same p
 }
 ```
 
-| Field             | Description                                                                                                                                                                                                           |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `empty`           | Whether the cache holds no cards at all                                                                                                                                                                               |
-| `cardCount`       | Distinct card **names** cached (each holds an array of printings)                                                                                                                                                     |
-| `lastCardRefresh` | ISO-8601 time of the last bulk refresh, or `null` until one has run                                                                                                                                                   |
-| `priceAgeHours`   | Whole hours since that refresh (prices come with the bulk data), or `null`                                                                                                                                            |
-| `priceStale`      | `true` when prices are older than 24 hours, or their age is unknown                                                                                                                                                   |
-| `tagsPresent`     | Whether any sampled card carries oracle/art tags                                                                                                                                                                      |
-| `source`          | `local`, or `cache-server` when a [cache server](/commands/cache/) is configured                                                                                                                                      |
-| `cacheDir`        | Absolute path of the local [cache folder](/commands/cache/#where-the-cache-lives)                                                                                                                                     |
-| `cacheDirSource`  | Which setting chose it: `env` (`RITUAL_CACHE_DIR`), `config` (the `cacheDir` key), `legacy` (the workspace's old `cache/`, until `ritual migrate` moves it) or `default` (the per-user folder every workspace shares) |
-| `defaultLanguage` | The configured [`defaultLanguage`](/configuration/#default-language)                                                                                                                                                  |
-| `cardBulkType`    | Which bulk built the cache (`default_cards`/`all_cards`), or `null` when no ingest has recorded provenance                                                                                                            |
-| `bulkTypeStale`   | `true` when the cache's bulk disagrees with `defaultLanguage`; a full refresh is needed (see [bulk selection](/commands/cache/#bulk-selection-and-language))                                                          |
+| Field             | Description                                                                                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `empty`           | Whether the cache holds no cards at all                                                                                                                      |
+| `cardCount`       | Distinct card **names** cached (each holds an array of printings)                                                                                            |
+| `lastCardRefresh` | ISO-8601 time of the last bulk refresh, or `null` until one has run                                                                                          |
+| `priceAgeHours`   | Whole hours since that refresh (prices come with the bulk data), or `null`                                                                                   |
+| `priceStale`      | `true` when prices are older than 24 hours, or their age is unknown                                                                                          |
+| `tagsPresent`     | Whether any sampled card carries oracle/art tags                                                                                                             |
+| `source`          | `local`, or `cache-server` when a [cache server](/commands/cache/) is configured                                                                             |
+| `cacheDir`        | Absolute path of the local [cache folder](/commands/cache/#where-the-cache-lives)                                                                            |
+| `cacheDirSource`  | Which setting chose it: `env` (`RITUAL_CACHE_DIR`), `config` (the `cacheDir` key) or `default` (the per-user folder every workspace shares)                  |
+| `defaultLanguage` | The configured [`defaultLanguage`](/configuration/#default-language)                                                                                         |
+| `cardBulkType`    | Which bulk built the cache (`default_cards`/`all_cards`), or `null` when no ingest has recorded provenance                                                   |
+| `bulkTypeStale`   | `true` when the cache's bulk disagrees with `defaultLanguage`; a full refresh is needed (see [bulk selection](/commands/cache/#bulk-selection-and-language)) |
 
 ## Refresh Cache
 

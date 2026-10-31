@@ -723,8 +723,7 @@ export const GET_CACHE_STATUS_OUTPUT: JsonSchemaType = obj(
     cacheDir: str('Absolute path of the local cache directory.'),
     cacheDirSource: enumOf(
       CACHE_DIR_SOURCES,
-      'Which setting chose cacheDir: env (RITUAL_CACHE_DIR), config (the cacheDir key), legacy ' +
-        "(the workspace's own old cache/ folder, still read until `ritual migrate` moves it), or " +
+      'Which setting chose cacheDir: env (RITUAL_CACHE_DIR), config (the cacheDir key), or ' +
         'default (the per-user cache every workspace shares).',
     ),
     defaultLanguage: enumOf(

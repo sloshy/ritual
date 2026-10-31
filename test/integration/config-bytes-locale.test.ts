@@ -12,9 +12,9 @@ import {
 } from '../../src/config/ritual-config'
 import { saveExportPreset } from '../../src/export/output'
 import { resolveExportSettings } from '../../src/export/presets'
-import { applyMigration, planMigration } from '../../src/migrate/runner'
-import type { Migration } from '../../src/migrate/types'
-import { renderSyncMessage, syncRef, type SyncMessage } from '../../src/sync/message'
+import { applyMigration } from '../../src/migrate/runner'
+import { expectPlan, fixedMigration } from '../helpers/migrations'
+import { renderSyncMessage, type SyncMessage } from '../../src/sync/message'
 import { currentLocale, DEFAULT_LOCALE } from '../../src/i18n/runtime'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { putConfig } from '../helpers/config-api'
@@ -59,13 +59,9 @@ const HAND_WRITTEN = `${JSON.stringify(
 )}\n`
 
 /** A migration that moves the wanted lists, as a numbered workspace migration would. */
-const MOVE_WANTED: Migration = {
-  id: 1,
-  // A test migration: any params-free key will do for a description nobody reads.
-  description: syncRef('cli.migrate.planHeading'),
-  applies: () => true,
-  plan: () => Promise.resolve([{ type: 'config-set', path: ['wantedDir'], value: './wants' }]),
-}
+const MOVE_WANTED = fixedMigration(1, [
+  { type: 'config-set', path: ['wantedDir'], value: './wants' },
+])
 
 let warn: Mock<typeof console.warn>
 beforeEach(() => {
@@ -126,12 +122,7 @@ async function writeEverything(): Promise<ConfigRun> {
     await snap()
 
     // `ritual migrate`'s raw writer.
-    const plan = await planMigration({
-      migrations: [MOVE_WANTED],
-      skills: [],
-      build: { version: '0.0.0-dev.test', release: false },
-    })
-    if (plan.kind !== 'plan') throw new Error(`expected a plan, got ${plan.kind}`)
+    const plan = await expectPlan({ migrations: [MOVE_WANTED], skills: [] })
     await applyMigration(plan, { skills: [] })
     await snap()
 

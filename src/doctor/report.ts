@@ -380,14 +380,6 @@ function cacheCheck(facts: DoctorCacheFacts, context: DoctorContext): DoctorChec
       syncMessage('domain.doctor.cache.server', { address: facts.server }),
     )
   }
-  if (facts.dirSource === 'legacy') {
-    return check(
-      'cache',
-      'warn',
-      syncMessage('domain.doctor.cache.legacy', { path }),
-      syncMessage('domain.doctor.cache.legacyHint', { command: commandLine(COMMAND.migrate) }),
-    )
-  }
   if (facts.problem !== null) {
     return check(
       'cache',

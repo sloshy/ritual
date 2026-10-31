@@ -101,10 +101,6 @@ export const domainDoctorMeta = {
   'domain.doctor.cache.server': {
     description: `${SUMMARY} ${CACHE} Here the card data is read from a separate Ritual cache server instead; {address} is its host and port. Never translate it.`,
   },
-  'domain.doctor.cache.legacy': {
-    description: `${SUMMARY} ${CACHE} Older Ritual versions kept a card cache inside each workspace; this one still does until \`ritual migrate\` moves it. ${PATH}`,
-  },
-  'domain.doctor.cache.legacyHint': { description: `${HINT} ${COMMAND}` },
   'domain.doctor.cache.unreadable': {
     description: `${SUMMARY} ${CACHE} Reading it failed (a damaged or unreadable file); the reason is on the next line. ${PATH}`,
   },

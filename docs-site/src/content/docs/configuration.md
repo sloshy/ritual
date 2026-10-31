@@ -210,7 +210,7 @@ Where the value takes effect:
 By default the card cache is one per-user folder, shared by every workspace: `$XDG_CACHE_HOME/ritual` (or `~/.cache/ritual`) on Linux, `~/Library/Caches/ritual` on macOS, and `%LOCALAPPDATA%\ritual\cache` on Windows. Set `cacheDir` to give a workspace a cache of its own; `"cache"` keeps it in the workspace's `cache/` folder. The `RITUAL_CACHE_DIR` environment variable outranks the key, and a relative value there is also resolved against the base directory:
 
 ```
-RITUAL_CACHE_DIR  →  cacheDir  →  the workspace's old cache/ (until `ritual migrate`)  →  per-user default
+RITUAL_CACHE_DIR  →  cacheDir  →  per-user default
 ```
 
 A value starting with `~` is refused (write the full path), as are a file system root, your home folder, the workspace itself or a folder containing it, and a list folder.
@@ -425,8 +425,8 @@ The `managed` key belongs to Ritual. [`init-site`](/commands/init-site/) stamps 
 ```json
 {
   "managed": {
-    "version": "0.2.0",
-    "migration": 2,
+    "version": "0.1.0",
+    "migration": 0,
     "output": "sha256:…"
   }
 }

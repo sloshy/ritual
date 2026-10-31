@@ -84,10 +84,6 @@ export const cliInfraMeta = {
     description:
       '`cache status` Location value when the workspace settings file chose the folder. {path} is the absolute folder path; {configKey} is the setting name (cacheDir) and {file} the settings file name (ritual.config.json). Never translate them.',
   },
-  'cli.cache.locationLegacy': {
-    description:
-      '`cache status` Location value when the workspace (project folder) still uses its own old cache folder, because the migration that moves it into the per-user cache shared by all workspaces has not run yet. {path} is the absolute folder path; {command} is the command that runs the migration (`ritual migrate`). Never translate either.',
-  },
   'cli.cache.locationDefault': {
     description:
       '`cache status` Location value when nothing overrides the folder: the per-user cache folder that every workspace (project folder) on this computer uses. {path} is the absolute folder path; never translate it.',
@@ -1344,23 +1340,7 @@ export const cliInfraMeta = {
   },
   'cli.migrate.migrationHeading': {
     description:
-      'One numbered migration in the plan. {id} is its number; {description} is one of the cli.migrate.migration.* messages.',
-  },
-  'cli.migrate.migration.dropSiteVersion': {
-    description:
-      'What migration 1 does. "managed" is a literal config block name and must not be translated. {configKey} is the `site.version` config key; {file} is the `ritual.config.json` file name. Each is typed or matched exactly by the user, so never translate them.',
-  },
-  'cli.migrate.migration.sharedCache': {
-    description:
-      'What migration 3 does: the downloaded card data used to live in a folder inside each workspace (project folder); it now lives in one per-user folder all workspaces share. {dir} is the old folder name ("cache/"); {envVar} is the RITUAL_CACHE_DIR environment variable and {configKey} the cacheDir setting, either of which can name another folder. Never translate them.',
-  },
-  'cli.migrate.migration.loginsGitignore': {
-    description:
-      'What migration 4 does: the workspace folder holding sign-ins (the admin account, Archidekt tokens) gets a .gitignore file of its own, so the git version-control tool never commits them. {file} is that file\'s path (".logins/.gitignore"), {dir} the folder (".logins/"), {gitignore} the workspace\'s own ".gitignore" file name and {command} the `ritual init-site` command that writes it. Never translate any of them.',
-  },
-  'cli.migrate.migration.dropSitePrerelease': {
-    description:
-      'What migration 2 does. {sitePrereleaseConfigKey} is the `site.prerelease` config key; {file} is the `ritual.config.json` file name; {managedVersionConfigKey} is the `managed.version` config key. Each is typed or matched exactly by the user, so never translate them.',
+      'One numbered migration in the plan. {id} is its number; {description} is the description of that migration, already rendered.',
   },
   'cli.migrate.opConfigSet': {
     description:
@@ -1378,22 +1358,6 @@ export const cliInfraMeta = {
   },
   'cli.migrate.opRename': {
     description: 'Plan line (indented): a workspace file will be moved from {from} to {to}.',
-  },
-  'cli.migrate.opCacheMove': {
-    description:
-      'Plan line (indented): the workspace\'s card cache folder {from} (e.g. "cache") will be moved to the absolute folder {to}, the shared per-user cache.',
-  },
-  'cli.migrate.opCacheMoveConfigured': {
-    description:
-      'Plan line (indented): the workspace\'s card cache folder {from} (e.g. "cache") will be moved to the absolute folder {to}, which the workspace settings name rather than the default shared cache. {configKey} is the cacheDir setting and {file} the ritual.config.json file name; never translate them.',
-  },
-  'cli.migrate.opCacheMoveEnv': {
-    description:
-      'Plan line (indented): the workspace\'s card cache folder {from} (e.g. "cache") will be moved to the absolute folder {to}, which an environment variable names rather than the default shared cache. {envVar} is RITUAL_CACHE_DIR; never translate it.',
-  },
-  'cli.migrate.opCacheKeep': {
-    description:
-      'Plan line (indented): the workspace\'s old card cache folder {path} (e.g. "cache") will not be moved, because the shared cache folder {shared} (absolute path) is not empty — it may hold another workspace\'s card data or any other files. Nothing is deleted on either side; the user may delete the old folder.',
   },
   'cli.migrate.refreshHeading': {
     description:
@@ -1429,35 +1393,11 @@ export const cliInfraMeta = {
   'cli.migrate.cancelled': { description: 'The user declined the `ritual migrate` prompt.' },
   'cli.migrate.applied': {
     description:
-      'A numbered migration was applied. {id} is its number; {description} is one of the cli.migrate.migration.* messages.',
+      'A numbered migration was applied. {id} is its number; {description} is the description of that migration, already rendered.',
   },
   'cli.migrate.backedUp': {
     description:
-      'Printed after migrations ran. {path} is the workspace-relative backup folder (e.g. ".backups/2026-10-05T14-03-22Z-migration-4") holding copies of ritual.config.json and every file the migrations rewrote, removed or moved, taken before they ran.',
-  },
-  'cli.migrate.cacheMoved': {
-    description:
-      'Printed after migrating: the workspace\'s card cache folder {path} (e.g. "cache") was moved to the shared per-user cache folder {shared} (absolute path).',
-  },
-  'cli.migrate.cacheCopiedLink': {
-    description:
-      'Printed after migrating: the workspace\'s old card cache {path} (e.g. "cache") was a shortcut (symbolic link) to another folder {linked} (absolute path). Its contents were copied into the shared cache folder {shared} (absolute path) and the shortcut removed; the folder it pointed at was not touched.',
-  },
-  'cli.migrate.cacheMovedNotRemoved': {
-    description:
-      'Printed after migrating: the card cache was fully copied from the workspace folder {path} (e.g. "cache") to the shared folder {shared} (absolute path), but the old folder could not be deleted. {reason} is the system\'s own error text, untranslated.',
-  },
-  'cli.migrate.cacheMoveFailed': {
-    description:
-      "Error: a file or folder {path} (absolute path) in the workspace's old card cache could not be moved into the shared cache. {reason} is the system's own error text, untranslated. The old folder is left exactly as it was. {command} is `ritual migrate`, which tries again. Never translate {command}.",
-  },
-  'cli.migrate.cacheKept': {
-    description:
-      'Printed after migrating: the workspace\'s old card cache folder {path} (e.g. "cache") was left untouched because the shared cache folder {shared} (absolute path) is not empty (it may hold another workspace\'s card data, or other files). Ritual now uses {shared} and ignores the old folder, so the user can delete it to free disk space — or, to keep the old cache, clear {shared} and move the files over by hand.',
-  },
-  'cli.migrate.cacheBusy': {
-    description:
-      "Error: the migration did not move the workspace's old card cache folder {path} (absolute path) because another running Ritual program holds its lock (it is refreshing or reading the cache). Nothing changed. {command} is `ritual migrate`; never translate it. {lockFile} is the absolute path of the lock file, which the user may delete when no Ritual is actually running (a lock left behind by a crash).",
+      'Printed after migrations ran. {path} is the workspace-relative backup folder (e.g. ".backups/2026-10-05T14-03-22Z-migration-1") holding copies of ritual.config.json and every file the migrations rewrote, removed or moved, taken before they ran.',
   },
   'cli.migrate.wrote': { description: 'A generated file was rewritten. {path} is relative.' },
   'cli.migrate.skillUpdated': { description: 'An installed agent skill {name} was rewritten.' },

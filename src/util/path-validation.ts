@@ -33,12 +33,3 @@ export function isSameOrWithin(
   if (path.isAbsolute(relative)) return false
   return relative !== '..' && !relative.startsWith(`..${path.sep}`)
 }
-
-/** Whether one path is the other or lies inside it. */
-export function pathsOverlap(
-  a: string,
-  b: string,
-  platform: NodeJS.Platform = process.platform,
-): boolean {
-  return isSameOrWithin(a, b, platform) || isSameOrWithin(b, a, platform)
-}

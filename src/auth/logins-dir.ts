@@ -46,8 +46,8 @@ export async function ensureLoginsDir(baseDir: string = getBaseDir()): Promise<v
  * Create {@link LOGINS_GITIGNORE} when it is missing, whole or not at all: it
  * is written under a temporary name and renamed into place (`writeFileAtomic`).
  * Writing it in place could leave an empty file behind a crash or a full disk,
- * which every later run (and migration 4) would take for the user's own and
- * keep. An existing file is left alone.
+ * which every later run would take for the user's own and keep. An existing
+ * file is left alone.
  */
 async function createLoginsGitignore(baseDir: string): Promise<void> {
   const target = path.join(baseDir, LOGINS_GITIGNORE)

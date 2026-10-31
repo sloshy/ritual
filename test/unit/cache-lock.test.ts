@@ -1,13 +1,10 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
-import { mkdtemp, rm, utimes, writeFile } from 'node:fs/promises'
-import os, { tmpdir } from 'node:os'
-import path from 'node:path'
+import os from 'node:os'
 import {
   CACHE_LOCK_FILENAME,
   CacheLockTimeoutError,
   type CacheLockInfo,
   acquireCacheLock,
-  isCacheLockHeld,
   parseCacheLockInfo,
   withCacheLock,
 } from '../../src/cache/lock'
@@ -272,62 +269,5 @@ describe('parseCacheLockInfo', () => {
     const result = parseCacheLockInfo(raw)
     expect(typeof result).toBe('string')
     expect(result as string).toContain(expected)
-  })
-})
-
-describe('isCacheLockHeld', () => {
-  let dir: string
-
-  beforeEach(async () => {
-    dir = await mkdtemp(path.join(tmpdir(), 'ritual-lock-held-'))
-  })
-
-  afterEach(async () => {
-    await rm(dir, { recursive: true, force: true })
-  })
-
-  async function writeLock(body: string): Promise<string> {
-    const file = path.join(dir, CACHE_LOCK_FILENAME)
-    await writeFile(file, body)
-    return file
-  }
-
-  function lockFrom(hostname: string, pid: number, createdAt: number): string {
-    return JSON.stringify({ pid, hostname, createdAt, operation: 'bulk card cache download' })
-  }
-
-  test('a lock from this host is held while its holder lives and it is younger than the stale age', async () => {
-    await writeLock(lockFrom(os.hostname(), 4242, Date.now()))
-    expect(await isCacheLockHeld(dir, () => true)).toBe(true)
-    expect(await isCacheLockHeld(dir, () => false)).toBe(false)
-  })
-
-  test('an old same-host lock is not held even if its pid is alive (the pid may be reused)', async () => {
-    await writeLock(lockFrom(os.hostname(), 4242, 0))
-    expect(await isCacheLockHeld(dir, () => true)).toBe(false)
-  })
-
-  test('a lock naming this very process is not held (a previous run with the same pid)', async () => {
-    await writeLock(lockFrom(os.hostname(), process.pid, Date.now()))
-    expect(await isCacheLockHeld(dir, () => true)).toBe(false)
-  })
-
-  test('a lock from another host is held until the stale age', async () => {
-    await writeLock(lockFrom('elsewhere', 4242, Date.now()))
-    expect(await isCacheLockHeld(dir, () => false)).toBe(true)
-    await writeLock(lockFrom('elsewhere', 4242, 0))
-    expect(await isCacheLockHeld(dir, () => true)).toBe(false)
-  })
-
-  test('an empty lock is held only while it may still be being written', async () => {
-    const file = await writeLock('')
-    expect(await isCacheLockHeld(dir)).toBe(true)
-    const aMinuteAgo = new Date(Date.now() - 60_000)
-    await utimes(file, aMinuteAgo, aMinuteAgo)
-    expect(await isCacheLockHeld(dir)).toBe(false)
-  })
-
-  test('no lock is not held', async () => {
-    expect(await isCacheLockHeld(dir)).toBe(false)
   })
 })

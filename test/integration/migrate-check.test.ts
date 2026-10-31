@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
+import { REFRESH_DUE_CONFIG } from '../helpers/migrations'
 import { snapshotTree, withWorkspace } from '../helpers/workspace'
 import { latestMigrationId } from '../../src/migrate/migrations'
 
@@ -12,8 +13,6 @@ import { latestMigrationId } from '../../src/migrate/migrations'
  * command's outcome. The offer's prompt and once-a-day snooze are covered
  * in-process by test/unit/commands/migrate-check.test.ts.
  */
-
-const OLD_SITE = { site: { version: '0.0.1', ciSystem: 'manual' } }
 
 const PENDING_NOTICE =
   'This workspace has pending updates. Run `ritual migrate --dry-run` to see them, then `ritual migrate` to apply them.'
@@ -36,7 +35,7 @@ describe('pending-migration check (Integration)', () => {
         expect(migrateLines(result.stderr)).toEqual([PENDING_NOTICE])
         expect(await snapshotTree(dir)).toEqual(before)
       },
-      { config: OLD_SITE },
+      { config: REFRESH_DUE_CONFIG },
     )
   })
 
@@ -48,7 +47,7 @@ describe('pending-migration check (Integration)', () => {
         expect(result.exitCode).toBe(0)
         expect(result.stderr).toBe('')
       },
-      { config: OLD_SITE },
+      { config: REFRESH_DUE_CONFIG },
     )
   })
 
@@ -93,19 +92,7 @@ describe('pending-migration check (Integration)', () => {
           'This workspace has pending updates, and ritual.config.json loads with warnings until they are applied. Run `ritual migrate --dry-run` to see them, then `ritual migrate` to apply them.',
         ])
       },
-      { config: { ...OLD_SITE, managed: { migration: 'one' } } },
-    )
-  })
-
-  test('updates that cannot apply still get the plain notice', async () => {
-    await withWorkspace(
-      async (dir) => {
-        const result = await runCli(['lists'], dir)
-
-        expect(result.exitCode).toBe(0)
-        expect(migrateLines(result.stderr)).toEqual([PENDING_NOTICE])
-      },
-      { config: { ...OLD_SITE, defaultPriceSource: 42 } },
+      { config: { ...REFRESH_DUE_CONFIG, managed: { migration: 'one' } } },
     )
   })
 

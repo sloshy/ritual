@@ -31,6 +31,7 @@ import {
   planMigration,
   aheadRemedyCommand,
   type AheadOutcome,
+  type MigrateOptions,
   type MigrationPlan,
   type PlanOutcome,
 } from '../migrate/runner'
@@ -171,20 +172,24 @@ async function offerMigration(plan: MigrationPlan): Promise<void> {
  * The preAction check. Runs before the config load, against the raw file:
  * the strict loader would warn about the very keys a migration exists to
  * change. Failing to read or plan is never this check's error to report — the
- * config load right after it reports an unreadable file itself.
+ * config load right after it reports an unreadable file itself. `options` is
+ * the tests' seam (the migrations to check against); production passes none.
  */
-export async function checkWorkspaceMigrations(actionCommand: Command): Promise<void> {
+export async function checkWorkspaceMigrations(
+  actionCommand: Command,
+  options: MigrateOptions = {},
+): Promise<void> {
   if (isMigrationCheckExempt(actionCommand)) return
 
   let outcome: PlanOutcome
   try {
-    const status = await checkPendingWork()
+    const status = await checkPendingWork(options)
     if (status.kind === 'ahead') {
       warnAhead(status)
       return
     }
     if (status.kind !== 'maybe-pending') return
-    outcome = await planMigration()
+    outcome = await planMigration(options)
   } catch {
     return
   }

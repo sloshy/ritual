@@ -6,7 +6,6 @@
 
 import type { RawConfig } from '../config/ritual-config'
 import type { SyncMessageRef } from '../sync/message'
-import type { CacheDirSource } from '../config/cache-location'
 import type { JsonValue } from '../util/json'
 
 export type { RawConfig } from '../config/ritual-config'
@@ -36,36 +35,9 @@ export type DeleteOp = { type: 'delete'; path: string }
 /** Move a workspace file (paths relative to the base dir). */
 export type RenameOp = { type: 'rename'; from: string; to: string }
 
-/**
- * Move the workspace's legacy cache folder (`from`, relative to the base dir)
- * into the cache directory it now resolves to (`to`, absolute — outside the
- * workspace as a rule). Not a {@link FileOp}: it leaves the workspace, and its
- * hundreds of megabytes of regenerable data are never backed up.
- */
-export type CacheMoveOp = {
-  type: 'cache-move'
-  from: string
-  to: string
-  /** Which setting chose `to`, so the plan can say a config or variable named it. */
-  source: CacheDirSource
-}
-/**
- * Leave the legacy cache folder (`path`, relative to the base dir) where it
- * is, because the cache directory it would move to (`shared`) already holds
- * data. Changes nothing on disk; applying it tells the user once that the
- * folder is no longer read and can be deleted.
- */
-export type CacheKeepOp = { type: 'cache-keep'; path: string; shared: string }
-
 export type ConfigOp = ConfigSetOp | ConfigDeleteOp
 export type FileOp = WriteOp | DeleteOp | RenameOp
-export type CacheOp = CacheMoveOp | CacheKeepOp
-export type MigrationOp = ConfigOp | FileOp | CacheOp
-
-/** Whether an op concerns the card cache folder. */
-export function isCacheOp(op: MigrationOp): op is CacheOp {
-  return op.type === 'cache-move' || op.type === 'cache-keep'
-}
+export type MigrationOp = ConfigOp | FileOp
 
 /** Whether an op touches workspace files rather than the config. */
 export function isFileOp(op: MigrationOp): op is FileOp {

@@ -173,28 +173,6 @@ describe('cache status CLI (Integration)', () => {
       })
     })
 
-    test('an unmigrated workspace keeps reading its own old cache, and says to migrate', async () => {
-      await writeConfig(workspace.dir)
-      await Bun.write(
-        path.join(workspace.dir, 'cache', 'cache.json'),
-        JSON.stringify({
-          prices: {},
-          cards: {
-            'Sol Ring': { timestamp: Date.now(), data: [makeScryfallCard({ name: 'Sol Ring' })] },
-          },
-        }),
-      )
-      const env = { RITUAL_CACHE_DIR: undefined, XDG_CACHE_HOME: elsewhere }
-      const { payload } = await statusJson(workspace.dir, env)
-      expect(payload).toMatchObject({
-        cacheDir: path.join(workspace.dir, 'cache'),
-        cacheDirSource: 'legacy',
-        cardCount: 1,
-      })
-      const text = await runCli(['cache', 'status'], workspace.dir, { ...NO_CACHE_SERVER, ...env })
-      expect(text.stdout).toContain('`ritual migrate` moves it')
-    })
-
     test('a RITUAL_CACHE_DIR naming a folder the cache must not take over is a usage error', async () => {
       const result = await runCli(['cache', 'status'], workspace.dir, {
         ...NO_CACHE_SERVER,
@@ -205,8 +183,7 @@ describe('cache status CLI (Integration)', () => {
     })
 
     test('with neither, the per-user default is used and the text report says it is shared', async () => {
-      // Migrated, so the workspace's own (seeded) cache/ is no longer read.
-      await writeConfig(workspace.dir, { managed: { migration: 3 } })
+      await writeConfig(workspace.dir)
       // Every platform's base directory points into the throwaway folder, so no
       // run reads a real per-user cache; the expected path is the platform's own rule.
       const env = {

@@ -34,8 +34,6 @@ export const cliInfraMessages = {
   'cli.cache.rowLocation': 'Location',
   'cli.cache.locationEnv': '{path} (from {envVar})',
   'cli.cache.locationConfig': '{path} (from {configKey} in {file})',
-  'cli.cache.locationLegacy':
-    "{path} (this workspace's own old cache folder, until `{command}` moves it to the cache all workspaces share)",
   'cli.cache.locationDefault': '{path} (per-user default, shared by every workspace)',
   'cli.cache.rowDefaultLanguage': 'Default language',
   'cli.cache.rowCardBulk': 'Card bulk',
@@ -718,25 +716,11 @@ export const cliInfraMessages = {
     'This workspace has pending updates. Run `{command}` to review and apply them.',
   'cli.migrate.planHeading': 'Pending workspace updates:',
   'cli.migrate.migrationHeading': 'Migration {id}: {description}',
-  'cli.migrate.migration.dropSiteVersion':
-    'Remove {configKey} from {file} (the managed block replaces it)',
-  'cli.migrate.migration.dropSitePrerelease':
-    'Remove {sitePrereleaseConfigKey} from {file} (the deploy workflow now downloads the release pinned in {managedVersionConfigKey})',
-  'cli.migrate.migration.sharedCache':
-    "Move the card cache from the workspace's {dir} folder to the per-user cache every workspace shares (or the one {envVar} or {configKey} names)",
-  'cli.migrate.migration.loginsGitignore':
-    'Add {file}, so git ignores the sign-ins in {dir} even without the {gitignore} that `{command}` writes',
   'cli.migrate.opConfigSet': '  set {path} = {value} in {file}',
   'cli.migrate.opConfigDelete': '  remove {path} from {file}',
   'cli.migrate.opWrite': '  write {path}',
   'cli.migrate.opDelete': '  delete {path}',
   'cli.migrate.opRename': '  move {from} → {to}',
-  'cli.migrate.opCacheMove': '  move the card cache {from} → {to}',
-  'cli.migrate.opCacheMoveConfigured':
-    '  move the card cache {from} → {to} (the folder {configKey} in {file} names)',
-  'cli.migrate.opCacheMoveEnv': '  move the card cache {from} → {to} (the folder {envVar} names)',
-  'cli.migrate.opCacheKeep':
-    '  leave {path} in place: {shared} is not empty (you can delete {path} afterwards)',
   'cli.migrate.refreshHeading': 'Refresh generated files:',
   'cli.migrate.refreshGitignore': '  add {entries} to {file}',
   'cli.migrate.refreshSkill': '  overwrite agent skill {name}',
@@ -750,17 +734,6 @@ export const cliInfraMessages = {
   'cli.migrate.cancelled': 'Cancelled; nothing was written.',
   'cli.migrate.applied': '✓ Applied migration {id}: {description}',
   'cli.migrate.backedUp': '✓ Saved a copy of the files it changed in {path}',
-  'cli.migrate.cacheMoved': '✓ Moved the card cache from {path} to {shared}',
-  'cli.migrate.cacheCopiedLink':
-    '✓ Copied the card cache {path} links to into {shared} and removed the link. The folder it pointed at, {linked}, is left as it was; delete it if nothing else uses it.',
-  'cli.migrate.cacheMovedNotRemoved':
-    '✓ Copied the card cache from {path} to {shared}, but could not remove {path} ({reason}). Ritual no longer reads it; delete it yourself.',
-  'cli.migrate.cacheMoveFailed':
-    'Could not move {path} into the shared card cache: {reason}. Nothing was moved. Another Ritual (or another program) may be using it; close it and run `{command}` again.',
-  'cli.migrate.cacheKept':
-    "Left {path} in place: {shared} is not empty (it may hold another workspace's cache), and Ritual never moves a cache into a folder with anything in it. Ritual now reads {shared} and no longer {path}; delete {path} to free the space. To keep this cache instead, empty or delete {shared} and move the contents of {path} there yourself.",
-  'cli.migrate.cacheBusy':
-    'Did not move {path}: a running Ritual is using this cache. Close it, then run `{command}` again. If you are sure no Ritual is running, delete the lock file {lockFile} first.',
   'cli.migrate.wrote': '✓ Wrote {path}',
   'cli.migrate.skillUpdated': '✓ Updated agent skill {name}',
   'cli.migrate.skillRemoved': '✕ Removed agent skill {name}',
