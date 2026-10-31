@@ -190,7 +190,7 @@ export function ListPageShell(props: ListPageShellProps): JSX.Element {
 
       {/* Card sections */}
       <div
-        class={`card-sections view-${toolbar().viewMode()}`}
+        class={`card-sections view-${toolbar().viewMode()}${page().sell.active() ? ' is-selling' : ''}`}
         style={`--card-width:${toolbar().cardWidth()}px`}
       >
         {props.sections}

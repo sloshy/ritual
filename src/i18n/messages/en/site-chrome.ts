@@ -483,7 +483,16 @@ export const siteChromeMessages = {
     'Price shown on the card hover label — a universally bright green.',
   'site.themeVar.cardLabelBuylist.label': 'Card buylist price',
   'site.themeVar.cardLabelBuylist.description':
-    'Buylist offer shown beside the retail price in sell mode — a universally bright amber.',
+    'Buylist offer shown beside the retail price on the card hover label in sell mode — a universally bright amber.',
+  'site.themeVar.buylistText.label': 'Row buylist price',
+  'site.themeVar.buylistText.description':
+    'Buylist offer at the end of a list-view row in sell mode, drawn on the page — dark amber on light themes, bright amber on dark ones.',
+  'site.themeVar.qtyBadgeBg.label': 'Quantity badge background',
+  'site.themeVar.qtyBadgeBg.description':
+    'Dark scrim behind the copy count (e.g. 4x) in the corner of a card image.',
+  'site.themeVar.qtyBadgeText.label': 'Quantity badge text',
+  'site.themeVar.qtyBadgeText.description':
+    'Copy count (e.g. 4x) in the corner of a card image. Stays bright on every theme so it reads against its dark scrim.',
   'site.themeVar.modalRadius.label': 'Modal radius',
   'site.themeVar.modalRadius.description': 'Corner rounding of modal dialog panels.',
   'site.themeVar.modalShadowColor.label': 'Modal shadow',

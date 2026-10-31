@@ -223,8 +223,8 @@ h3 {
   position: absolute;
   top: 4px;
   left: 4px;
-  background: var(--overlay-medium);
-  color: var(--text-accent);
+  background: var(--qty-badge-bg);
+  color: var(--qty-badge-text);
   font-size: 0.7rem;
   font-weight: 700;
   padding: 1px 6px;
@@ -450,19 +450,37 @@ h3 {
   width: 0.85rem;
 }
 
+/* The trailing price columns are as wide as their usual figures, so the
+   controls before them (⋯, + Trade) line up from row to row; tabular figures
+   keep a narrower amount from shifting them. */
 .card-list .list-price {
   color: var(--text-muted);
   font-size: 0.7rem;
-  min-width: 3rem;
-  text-align: right;
-}
-
-.card-list .list-buylist-price {
-  color: var(--card-label-buylist);
-  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
   min-width: 3.5rem;
   text-align: right;
   white-space: nowrap;
+}
+
+.card-list .list-buylist-price {
+  color: var(--buylist-text);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* In sell mode a row with no offer holds the buylist column empty, so it lines
+   up with the rows that have one. `::before` because a foil row's `::after` is
+   its sheen; `order` moves it to the end of the row. */
+.card-list .list-buylist-price,
+.card-sections.is-selling .card-list:not(:has(.list-buylist-price))::before {
+  min-width: 4.75rem;
+}
+
+.card-sections.is-selling .card-list:not(:has(.list-buylist-price))::before {
+  content: '';
+  order: 1;
 }
 
 /* Card image tooltips — shared base for list view, changelog, and admin changes */
@@ -617,8 +635,8 @@ h3 {
   position: absolute;
   top: 3px;
   left: 3px;
-  background: var(--overlay-heavy);
-  color: var(--text-accent);
+  background: var(--qty-badge-bg);
+  color: var(--qty-badge-text);
   font-size: 0.6rem;
   font-weight: 700;
   padding: 1px 4px;

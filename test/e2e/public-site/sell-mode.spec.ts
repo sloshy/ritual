@@ -125,6 +125,32 @@ test.describe('Sell mode', () => {
     expect(buylistApi.requests).toEqual([])
   })
 
+  test('list rows keep their controls in one column, with or without an offer', async ({
+    page,
+  }) => {
+    await gotoSellBinder(page)
+    await switchToListView(page)
+    await enableSellMode(page)
+    await expect(page.locator('.list-buylist-price')).toHaveCount(1)
+
+    // One row has an offer and two do not: the empty buylist column must still
+    // be held, or the rows' last controls land at different x positions.
+    const rows = page.locator('.card-list')
+    await expect(rows).toHaveCount(3)
+    // The retail price column is the anchor: its left edge is where the
+    // controls before it end, its right edge where the buylist column starts.
+    // The rows' retail prices differ in width ($5.00, $0.50, $10.00).
+    const edges = await rows.evaluateAll((els) =>
+      els.map((row) => {
+        const { left, right } = row.querySelector('.list-price')!.getBoundingClientRect()
+        return { left, right }
+      }),
+    )
+    const spread = (values: number[]): number => Math.max(...values) - Math.min(...values)
+    expect(spread(edges.map((r) => r.left)), 'price column left edges').toBeLessThanOrEqual(1)
+    expect(spread(edges.map((r) => r.right)), 'price column right edges').toBeLessThanOrEqual(1)
+  })
+
   test('binder tiles carry the same buylist label as the list view', async ({ page }) => {
     await gotoSellBinder(page)
     await enableSellMode(page)

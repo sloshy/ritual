@@ -64,6 +64,10 @@
   --overlay-light: rgba(0, 0, 0, 0.5);
   --overlay-medium: rgba(0, 0, 0, 0.7);
   --overlay-heavy: rgba(0, 0, 0, 0.85);
+  /* The scrim behind a card tile's quantity badge ("4x"). Its text,
+     --qty-badge-text, is per-theme (src/theme/themes.ts) and is tuned to keep
+     AA contrast on this scrim over any card art. */
+  --qty-badge-bg: var(--overlay-medium);
 
   /* ---- Modals ----
      Shared chrome tokens for every modal/dialog so the family stays visually

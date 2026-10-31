@@ -217,6 +217,8 @@ export type ResolvedPalette = ThemeCssVars &
     '--card-label-price': string
     '--card-label-buylist': string
     '--label-any-printing': string
+    '--qty-badge-text': string
+    '--buylist-text': string
     '--foil-blend': string
     '--foil-opacity': string
     '--foil-opacity-hover': string
@@ -360,10 +362,34 @@ function flameVars(p: ThemePalette): FlameCssVars {
 // the dark --overlay-medium scrim in every view and every mode, so its
 // lightness is fixed high like the card-label tones above; the hue is the
 // theme's accent, at a fraction of the accent's chroma, so the tag wears the
-// theme without competing with the quantity badge's --text-accent.
+// theme without competing with the quantity badge's --qty-badge-text.
 function anyPrintingTagVar(p: ThemePalette): Pick<ResolvedPalette, '--label-any-printing'> {
   return { '--label-any-printing': ok(84, Math.min(p.accentChroma * 0.6, 0.1), p.accentHue) }
 }
+
+// The quantity badge ("4x") on a card tile. Like the ANY tag it sits on a dark
+// scrim (--qty-badge-bg) over card art in every mode, so its lightness is fixed
+// high rather than following the page: the page-relative --text-accent it used
+// to borrow turns to dark ink on light themes and all but vanished there. At
+// 88% it keeps AA contrast (4.5:1) on the default scrim even over white art;
+// the hue is the accent's, a little more saturated than the ANY tag's so the
+// two do not blur together.
+function qtyBadgeVar(p: ThemePalette): Pick<ResolvedPalette, '--qty-badge-text'> {
+  return { '--qty-badge-text': ok(88, Math.min(p.accentChroma * 0.8, 0.13), p.accentHue) }
+}
+
+// A buylist offer ("Buy $7.50") in a list row, drawn on the page rather than on
+// the card scrim (that one is --card-label-buylist). The same amber, with the
+// lightness flipped per mode so the figure keeps AA contrast on the page,
+// the panel and a hovered row: the scrim's light amber washed out on light
+// themes. Dark themes reuse the scrim's amber; the light shade turns a little
+// toward orange (hue 70), which keeps it reading as amber, not brown, at 50%.
+const darkBuylistVars = {
+  '--buylist-text': cardLabelVars['--card-label-buylist'],
+} satisfies Pick<ResolvedPalette, '--buylist-text'>
+const lightBuylistVars = {
+  '--buylist-text': 'oklch(50% 0.11 70)',
+} satisfies Pick<ResolvedPalette, '--buylist-text'>
 
 function darkVars(p: ThemePalette): ResolvedPalette {
   const { bgHue: bH, bgChroma: bC, accentHue: aH, accentChroma: aC } = p
@@ -403,6 +429,8 @@ function darkVars(p: ThemePalette): ResolvedPalette {
     ...darkLinkVars,
     ...cardLabelVars,
     ...anyPrintingTagVar(p),
+    ...qtyBadgeVar(p),
+    ...darkBuylistVars,
     ...darkFoilVars,
     ...flameVars(p),
   }
@@ -445,6 +473,8 @@ function lightVars(p: ThemePalette): ResolvedPalette {
     ...lightLinkVars,
     ...cardLabelVars,
     ...anyPrintingTagVar(p),
+    ...qtyBadgeVar(p),
+    ...lightBuylistVars,
     ...lightFoilVars,
     ...flameVars(p),
   }

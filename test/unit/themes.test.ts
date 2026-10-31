@@ -1,4 +1,6 @@
 import { describe, test, expect } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import {
   generateAllThemesCss,
   generateCustomThemeCss,
@@ -13,6 +15,7 @@ import {
 import { localeTag } from '../../src/i18n/locale-tag-message'
 import { isMessageParseError, renderSyncMessage, type SyncMessage } from '../../src/sync/message'
 import { expectLocaleInForce, foreignLocales, withSyntheticLocale } from '../helpers/sync-text'
+import { BLACK, composite, contrastRatio, parseColor, toSrgb255, WHITE } from '../helpers/contrast'
 
 const GUILDS = [
   'orzhov',
@@ -171,6 +174,62 @@ describe('generateThemeCss', () => {
           expect(parts[3]).toBe('/')
           expect(parts[4]).toMatch(/^[0-9]+(\.[0-9]+)?$/)
         }
+      }
+    }
+  })
+})
+
+// WCAG AA for normal-size text.
+const AA_TEXT = 4.5
+
+const THEME_BASE_CSS = readFileSync(
+  path.join(import.meta.dir, '../../src/css/theme-base.css'),
+  'utf8',
+)
+
+/** A universal token's value as `src/css/theme-base.css` declares it. */
+function themeBaseValue(name: string): string {
+  const value = new RegExp(`(?<![\\w-])${name}:\\s*([^;]+);`).exec(THEME_BASE_CSS)?.[1]?.trim()
+  if (value === undefined) throw new Error(`${name} is not declared in theme-base.css`)
+  return value
+}
+
+describe('text contrast', () => {
+  // Anchors for the colour math the two checks below rely on.
+  test('the contrast helper reproduces known colours and ratios', () => {
+    expect(contrastRatio(parseColor('oklch(100% 0 0)'), BLACK)).toBeCloseTo(21, 1)
+    const black = parseColor('oklch(0% 0 0)')
+    expect([black.r, black.g, black.b]).toEqual([0, 0, 0])
+    // CSS Color 4's sRGB red in OKLCH.
+    const red = parseColor('oklch(62.8% 0.2577 29.23)')
+    expect(toSrgb255(red.r)).toBeCloseTo(255, 0)
+    expect(toSrgb255(red.g)).toBeLessThan(1)
+    expect(toSrgb255(red.b)).toBeLessThan(1)
+    // Half-black over white is mid-grey in sRGB, as browsers blend.
+    expect(toSrgb255(composite(parseColor('rgba(0, 0, 0, 0.5)'), WHITE).r)).toBeCloseTo(127.5, 0)
+  })
+
+  test('the quantity badge keeps AA on its scrim, even over white card art', () => {
+    // --qty-badge-bg aliases an overlay scrim; resolve the alias to its colour.
+    const bg = themeBaseValue('--qty-badge-bg')
+    const alias = /^var\((--[\w-]+)\)$/.exec(bg)?.[1]
+    const scrim = parseColor(alias === undefined ? bg : themeBaseValue(alias))
+    // White art under the translucent scrim is the lightest the badge's
+    // background can get, so it is the worst case for light text.
+    const worst = composite(scrim, WHITE)
+    for (const name of themeNames) {
+      const text = parseColor(paletteToVars(themes[name])['--qty-badge-text'])
+      expect(contrastRatio(text, worst), name).toBeGreaterThanOrEqual(AA_TEXT)
+    }
+  })
+
+  test('the list-row buylist price keeps AA on the page, the panel and a hovered row', () => {
+    for (const name of themeNames) {
+      const vars = paletteToVars(themes[name])
+      const text = parseColor(vars['--buylist-text'])
+      for (const surface of ['--bg-body', '--bg-panel', '--bg-hover'] as const) {
+        const ratio = contrastRatio(text, parseColor(vars[surface]))
+        expect(ratio, `${name} on ${surface}`).toBeGreaterThanOrEqual(AA_TEXT)
       }
     }
   })

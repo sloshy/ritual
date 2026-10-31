@@ -1136,6 +1136,19 @@ foil`), `move`'s "matching finish Foil" refusal and a `--finish` pin's "is not a
 
 ### Fixed
 
+- The copy count on a card image ("4x") is readable on every theme. On light themes it
+  was dark purple on a dark backdrop and almost disappeared. It now has its own two
+  theme editor colors, Quantity badge background and Quantity badge text.
+- The buylist offer at the end of a list row in sell mode ("Buy $7.50") is readable on
+  light themes, where its pale amber washed out. It has its own theme editor color, Row
+  buylist price.
+- In list view, the buttons before the prices (⋯ and + Trade) now line up from row to
+  row. A longer price or offer, or a row with no offer in sell mode, used to push them
+  sideways.
+- On a phone, the header's All Selected button no longer covers the quick switch button.
+- The admin Change History page, and its Combine dialog, show when each change set was
+  made as a date and time in your language, like the public site's change history,
+  instead of a raw timestamp. Hover a time to see the exact one.
 - New cards now get the id the card-id rules promise, and the changelog records the id
   the line actually got.
   - A card added through the MCP server (or any client of the admin save API) was written

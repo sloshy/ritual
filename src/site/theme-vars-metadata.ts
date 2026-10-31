@@ -225,6 +225,13 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     group: 'text',
     type: 'color',
   },
+  {
+    name: '--buylist-text',
+    label: 'site.themeVar.buylistText.label',
+    description: 'site.themeVar.buylistText.description',
+    group: 'text',
+    type: 'color',
+  },
 
   // ----- Accent -----
   {
@@ -535,6 +542,20 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     name: '--card-label-buylist',
     label: 'site.themeVar.cardLabelBuylist.label',
     description: 'site.themeVar.cardLabelBuylist.description',
+    group: 'overlays',
+    type: 'color',
+  },
+  {
+    name: '--qty-badge-bg',
+    label: 'site.themeVar.qtyBadgeBg.label',
+    description: 'site.themeVar.qtyBadgeBg.description',
+    group: 'overlays',
+    type: 'color',
+  },
+  {
+    name: '--qty-badge-text',
+    label: 'site.themeVar.qtyBadgeText.label',
+    description: 'site.themeVar.qtyBadgeText.description',
     group: 'overlays',
     type: 'color',
   },

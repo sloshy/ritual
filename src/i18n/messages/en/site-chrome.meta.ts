@@ -1245,6 +1245,24 @@ export const siteChromeMeta = {
     description:
       'Tooltip for the `--card-label-buylist` swatch, explaining what the variable colors.',
   },
+  'site.themeVar.buylistText.label': {
+    description: 'Swatch label for the `--buylist-text` CSS variable in the theme editor.',
+  },
+  'site.themeVar.buylistText.description': {
+    description: 'Tooltip for the `--buylist-text` swatch, explaining what the variable colors.',
+  },
+  'site.themeVar.qtyBadgeBg.label': {
+    description: 'Swatch label for the `--qty-badge-bg` CSS variable in the theme editor.',
+  },
+  'site.themeVar.qtyBadgeBg.description': {
+    description: 'Tooltip for the `--qty-badge-bg` swatch, explaining what the variable colors.',
+  },
+  'site.themeVar.qtyBadgeText.label': {
+    description: 'Swatch label for the `--qty-badge-text` CSS variable in the theme editor.',
+  },
+  'site.themeVar.qtyBadgeText.description': {
+    description: 'Tooltip for the `--qty-badge-text` swatch, explaining what the variable colors.',
+  },
   'site.themeVar.modalRadius.label': {
     description: 'Swatch label for the `--modal-radius` CSS variable in the theme editor.',
   },
