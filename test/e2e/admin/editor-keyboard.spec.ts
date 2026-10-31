@@ -125,7 +125,11 @@ async function gotoPrintingStep(page: Page, cardName: string): Promise<void> {
 /** Drive `cardName` from the search step through to the finish/condition step. */
 async function gotoFinishCondition(page: Page, cardName: string): Promise<void> {
   await gotoPrintingStep(page, cardName)
+  // The heading appears before the printings load; a key pressed into an empty
+  // grid is lost, so wait for a tile and for the arrow to highlight it.
+  await expect(page.locator('.printing-select-card').first()).toBeVisible({ timeout: 5_000 })
   await page.keyboard.press('ArrowRight')
+  await expect(page.locator('.printing-select-card--highlighted')).toHaveCount(1)
   await page.keyboard.press('Enter')
   await expect(page.locator('.modal-heading-flex')).toContainText('Set finish & condition', {
     timeout: 5_000,
