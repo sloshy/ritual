@@ -2,7 +2,7 @@ import { matchRoute } from '../util/routing'
 import { serveSiteFile, type StaticSiteServer } from './static'
 import { createLiveSiteData } from './live-data'
 import { buildSiteRoutes } from './routes'
-import { errorFieldNotFound, errorFieldResponse, MAX_BODY_SIZE } from '../api/http'
+import { apiError, MAX_BODY_SIZE, notFoundResponse } from '../api/http'
 import { apiMessage } from '../api/result'
 import { t } from '../i18n/t'
 import { MAX_QUOTE_BODY_BYTES } from '../api/buylist'
@@ -86,7 +86,7 @@ export function startSiteServer(options: SiteServerOptions): StaticSiteServer {
       }
 
       if (url.pathname.startsWith('/api/')) {
-        return withHeaders(errorFieldNotFound(), {
+        return withHeaders(notFoundResponse(), {
           ...BASE_HEADERS,
           ...CORS_HEADERS,
         })
@@ -96,7 +96,7 @@ export function startSiteServer(options: SiteServerOptions): StaticSiteServer {
     },
     error(error) {
       console.error(t('cli.serve.serverError'), error)
-      return errorFieldResponse(apiMessage('admin.api.server.internalError'), 500)
+      return apiError(apiMessage('admin.api.server.internalError'), 500)
     },
   })
 }

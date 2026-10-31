@@ -20,7 +20,7 @@ import { getRitualConfigPath } from '../../src/config/ritual-config'
 import { MAX_BUYLIST_PRINTINGS } from '../../src/api/buylist'
 import { CARD_LANGUAGES } from '../../src/card/card-language'
 import type { ScryfallCard } from '../../src/scryfall/types'
-import type { ApiErrorResponse, ErrorFieldBody } from '../../src/api/http'
+import type { ApiErrorResponse } from '../../src/api/http'
 import type { CardPrintingsResponse } from '../../src/api/card-printings'
 import { keyedMessage } from '../helpers/api-message'
 import { pseudoCatalog, pseudoString, withGuardedLocaleAsync } from '../helpers/sync-text'
@@ -243,13 +243,14 @@ describe('site server (Integration)', () => {
       messageParams: { field: 'limit', value: 'abc' },
     })
 
-    // Every site-server 404 is one shape: the English under `error`, its key
-    // beside it as `errorKey`.
+    // Every site-server 404 is the admin API's refusal envelope: the English
+    // under `message`, its key beside it.
     for (const missing of [art, unknownApi, unknownDeck]) {
       expect(missing.status).toBe(404)
-      expect((await missing.json()) as ErrorFieldBody).toEqual({
-        error: 'Not found',
-        errorKey: 'admin.api.server.notFound',
+      expect((await missing.json()) as ApiErrorResponse).toEqual({
+        success: false,
+        message: 'Not found',
+        messageKey: 'admin.api.server.notFound',
       })
     }
   })

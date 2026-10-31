@@ -990,7 +990,9 @@ preload-all`'s buylist-failure warning, the buylist's download prompt and progre
   sign-in, Archidekt and first-run forms' `username`/`password`) moved onto the same family. The
   buylist gate's and the admin server's `404` share `admin.api.server.notFound`. On
   `serve --api`, every JSON `404` (unknown `/api/*` path, list, locale dictionary or art
-  file) and the last-resort `500` keep their `error` field with `errorKey` beside it.
+  file) and the last-resort `500` now answer with the same `{ "success": false, "message",
+"messageKey" }` envelope as the admin API (they were `{ "error" }`); a script that read
+  their `error` field reads `message`, or matches on `messageKey`.
   Sentences are reworded to fit the family; update any script that matched them, or match
   on `messageKey`:
   - Field names are now double-quoted and each sentence ends with a period, for example

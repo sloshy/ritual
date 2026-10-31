@@ -13,7 +13,7 @@
  * so an unauthenticated public route can never be made to pull ~70 MB.
  */
 
-import { apiError, errorResponse, nestedRefusal, readJsonObjectBody } from './http'
+import { errorResponse, nestedRefusal, notFoundResponse, readJsonObjectBody } from './http'
 import {
   DEFAULT_BUYER,
   quoteKey,
@@ -247,13 +247,12 @@ export async function handleBuylistStatus(_req: Request): Promise<Response> {
  * the sell-mode session override first, so a `--sell-mode` run stays enabled
  * either way.
  *
- * The refusal uses the standard `apiError` envelope rather than a bare literal:
- * every admin client branches on `success === false`, and the MCP dispatcher
- * reads `message` — a body without it degrades a gated tool's error to the
- * meaningless "Admin request failed (HTTP 404)". It is the admin server's own
- * 404 for a path with no route (`admin.api.server.notFound`), English plus its
- * key like every other refusal on these routes, so a gated route reads exactly
- * like one that is not there.
+ * The refusal is the servers' own 404 for a path with no route
+ * ({@link notFoundResponse}), the standard refusal envelope: every admin client
+ * branches on `success === false`, and the MCP dispatcher reads `message` — a
+ * body without it degrades a gated tool's error to the meaningless "Admin
+ * request failed (HTTP 404)". So a gated route reads exactly like one that is
+ * not there.
  */
 export function withBuylistFeedGate(handler: BuylistRouteHandler): BuylistRouteHandler {
   return async (req: Request): Promise<Response> => {
@@ -261,7 +260,7 @@ export function withBuylistFeedGate(handler: BuylistRouteHandler): BuylistRouteH
     // The `cardkingdom` price source opens these routes too: the admin editors
     // quote live to display CK retail prices, whether or not sell mode is on.
     if (!wantsCardKingdomFeed(config)) {
-      return apiError(apiMessage('admin.api.server.notFound'), 404)
+      return notFoundResponse()
     }
     return handler(req)
   }

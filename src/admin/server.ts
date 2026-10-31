@@ -69,7 +69,7 @@ import {
   handleListDelete,
   type ListLifecycleConfig,
 } from './api/list-lifecycle'
-import { apiError, errorResponse } from '../api/http'
+import { apiError, errorResponse, notFoundResponse } from '../api/http'
 import { apiMessage } from '../api/result'
 import { t } from '../i18n/t'
 import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
@@ -617,7 +617,7 @@ async function handleRequest(
     // there an abort is an explicit `notifications/cancelled` rather than a
     // socket closing. Wiring this would be a behaviour change, not a fix.
     const result = await dispatchRoute(req, { clientIp, sessionToken })
-    return result.matched ? result.response : notFound()
+    return result.matched ? result.response : notFoundResponse()
   }
 
   // Serve static SPA files
@@ -633,12 +633,7 @@ async function handleRequest(
     return new Response(indexFile)
   }
 
-  return notFound()
-}
-
-/** The 404 for a path the server has no route or file for, in the shared refusal body. */
-function notFound(): Response {
-  return apiError(apiMessage('admin.api.server.notFound'), 404)
+  return notFoundResponse()
 }
 
 /**

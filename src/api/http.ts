@@ -16,13 +16,7 @@
 import { isRecord } from '../util/json'
 import { apiMessage, apiMessageOf, pickMessage, plainMessage, type ApiMessage } from './result'
 import { CardCommandError, ExitCode, getErrorMessage, isCancellation } from '../util/errors'
-import {
-  prefixedFields,
-  syncMessage,
-  SyncMessageError,
-  type PrefixedMessage,
-  type SyncMessage,
-} from '../sync/message'
+import { syncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
 import type { ParameterlessKey } from '../i18n/t'
 
 /**
@@ -128,27 +122,13 @@ export function keyedRefusal(
 }
 
 /**
- * The error body of the routes that predate the `{ success, message }`
- * envelope — the site server's `404` for an unknown list, locale or `/api/*`
- * path, the art route's `404`, its last-resort `500`. The English stays under
- * `error`, where those routes' readers have always found it; its key and params
- * ride beside it as `errorKey` / `errorParams`, the prefixed-field form a
- * message takes under a field of its own name.
+ * The `404` for a path a server has no route or file for, in the shared refusal
+ * body: the admin server's unmatched path, a gated buylist route, and every
+ * JSON `404` of `ritual serve` (an unknown list, locale dictionary, `/api/*`
+ * path or art file).
  */
-export type ErrorFieldBody = PrefixedMessage<'error'>
-
-/** An {@link ErrorFieldBody} at `status`. */
-export function errorFieldResponse(reason: ApiMessage, status: number): Response {
-  const body: ErrorFieldBody = prefixedFields('error', reason)
-  return Response.json(body, { status })
-}
-
-/**
- * The {@link ErrorFieldBody} `404`: the same `admin.api.server.notFound`
- * sentence the admin server answers a path it has no route for with.
- */
-export function errorFieldNotFound(): Response {
-  return errorFieldResponse(apiMessage('admin.api.server.notFound'), 404)
+export function notFoundResponse(): Response {
+  return apiError(apiMessage('admin.api.server.notFound'), 404)
 }
 
 /**

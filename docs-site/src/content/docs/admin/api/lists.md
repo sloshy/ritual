@@ -823,7 +823,7 @@ An unknown list is a `404`.
 
 Clearing the last card's art removes the sidecar rather than writing `{}`. When git auto-commit is enabled the sidecar is committed with the message `Update custom art for <type> <slug>`, but only when a file was actually written or removed.
 
-The images themselves are served read-only, behind the same login, at `GET /art/<relpath>` from the configured [`artDir`](/configuration/#directory-options), which lets the editor preview a local file. Only `.avif`, `.gif`, `.jpeg`, `.jpg`, `.png`, and `.webp` are served (the same allowlist a `file` reference is validated against), and any path leaving the art directory is a `404`. That `404`'s body is `{"error": "Not found", "errorKey": "admin.api.server.notFound"}`: the English under `error`, its key beside it.
+The images themselves are served read-only, behind the same login, at `GET /art/<relpath>` from the configured [`artDir`](/configuration/#directory-options), which lets the editor preview a local file. Only `.avif`, `.gif`, `.jpeg`, `.jpg`, `.png`, and `.webp` are served (the same allowlist a `file` reference is validated against), and any path leaving the art directory is a `404`. That `404`'s body is the shared refusal, `{"success": false, "message": "Not found", "messageKey": "admin.api.server.notFound"}`.
 
 ## Diff Lists
 

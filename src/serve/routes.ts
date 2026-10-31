@@ -6,7 +6,7 @@ import { handleCards } from '../api/cards'
 import { handleCardPrintings } from '../api/card-printings'
 import { handleCardPrice } from '../api/card-price'
 import { handleCardPrices } from '../api/card-prices'
-import { errorFieldNotFound } from '../api/http'
+import { notFoundResponse } from '../api/http'
 import { isLocaleTagError } from '../i18n/locale-tag'
 import {
   isDictionaryFileName,
@@ -50,11 +50,11 @@ function detailHandler(live: LiveSiteData, kind: ListType): SiteRouteHandler {
     const url = new URL(req.url)
     const file = decodeURIComponent(url.pathname.split('/').pop() ?? '')
     if (!file.endsWith('.json')) {
-      return errorFieldNotFound()
+      return notFoundResponse()
     }
     const payload = await live.getDetail(kind, file.slice(0, -'.json'.length))
     if (!payload) {
-      return errorFieldNotFound()
+      return notFoundResponse()
     }
     return liveJsonResponse(req, payload)
   }
@@ -77,11 +77,11 @@ function localeHandler(distDir: string): SiteRouteHandler {
     // anything else in the path is a 404, not a file read.
     const tag = isDictionaryFileName(file) ? localeTagFromFileName(file) : undefined
     if (tag === undefined || isLocaleTagError(tag)) {
-      return errorFieldNotFound()
+      return notFoundResponse()
     }
     const dictionary = Bun.file(path.join(distDir, LOCALES_DIR, localeFileName(tag)))
     if (!(await dictionary.exists())) {
-      return errorFieldNotFound()
+      return notFoundResponse()
     }
     return new Response(dictionary, {
       headers: { 'Content-Type': 'application/json;charset=utf-8' },
