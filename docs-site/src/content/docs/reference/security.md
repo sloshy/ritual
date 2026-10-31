@@ -1,6 +1,6 @@
 ---
 title: 'Security and Privacy'
-description: What Ritual sends to which service and when, what it stores on your computer, and how to report a security problem.
+description: 'What Ritual sends to which service and when, what it stores on your computer, and how to report a security problem.'
 sidebar:
   order: 3
 ---

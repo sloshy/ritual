@@ -1,5 +1,8 @@
 ---
-title: 'metadata'
+title: 'ritual metadata'
+description: "Read and change a list's front matter (format, description, labels and more) from scripts."
+sidebar:
+  label: 'metadata'
 ---
 
 Inspect and change a list's front matter from scripts, with the same `set`, `get`, `list`, and `unset` subcommands as [`config`](/commands/config/).

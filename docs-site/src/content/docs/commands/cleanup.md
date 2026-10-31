@@ -1,5 +1,8 @@
 ---
-title: 'cleanup'
+title: 'ritual cleanup'
+description: 'Rewrite every list file in the standard format, after hand edits or older tools.'
+sidebar:
+  label: 'cleanup'
 ---
 
 Normalize every deck, collection, and wanted list file in the workspace to the current conventions. Run it after hand-editing files, importing from older tools, or upgrading a workspace whose files predate a convention change.

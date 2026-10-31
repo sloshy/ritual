@@ -1,5 +1,8 @@
 ---
-title: 'rename'
+title: 'ritual rename'
+description: 'Rename a list, moving its file and companion files together.'
+sidebar:
+  label: 'rename'
 ---
 
 Rename a deck, collection, or wanted list. The file, its display name, and every companion file move together.

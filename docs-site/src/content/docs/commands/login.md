@@ -1,5 +1,8 @@
 ---
-title: 'login'
+title: 'ritual login'
+description: 'Sign in to Archidekt, check the stored sign-in, or clear it.'
+sidebar:
+  label: 'login'
 ---
 
 Sign in to Archidekt so syncs and imports can use your account, check the stored login, or clear it.

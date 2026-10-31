@@ -1,5 +1,8 @@
 ---
-title: 'add-card'
+title: 'ritual add-card'
+description: 'Add a card to a deck, collection or wanted list by name, from the terminal.'
+sidebar:
+  label: 'add-card'
 ---
 
 Add a card to a deck, collection, or wanted list by name.

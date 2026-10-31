@@ -1,6 +1,6 @@
 ---
 title: 'Admin API: Site, Cache and Settings'
-description: Admin API routes to build the site, check and refresh the card cache, run setup diagnostics, and read or change settings.
+description: 'Admin API routes to build the site, check and refresh the card cache, run setup diagnostics, and read or change settings.'
 sidebar:
   label: 'Site, cache and settings'
   order: 7

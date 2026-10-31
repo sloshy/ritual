@@ -1,6 +1,6 @@
 ---
 title: 'Upgrading'
-description: How to update Ritual, what happens to your workspace when you do, and how to pin the version your site builds with.
+description: 'How to update Ritual, what happens to your workspace when you do, and how to pin the version your site builds with.'
 sidebar:
   order: 2
 ---

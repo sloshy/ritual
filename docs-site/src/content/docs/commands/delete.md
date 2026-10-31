@@ -1,5 +1,8 @@
 ---
-title: 'delete'
+title: 'ritual delete'
+description: "Delete a list and its companion files into the workspace's .trash/ folder."
+sidebar:
+  label: 'delete'
 ---
 
 Delete a deck, collection, or wanted list, along with all of its companion files (called sidecar files in the prompt). The files move into the workspace's `.trash/` folder rather than being erased, so a deletion can be [undone by hand](#restoring-a-deleted-list).

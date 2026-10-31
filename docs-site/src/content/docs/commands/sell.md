@@ -1,5 +1,8 @@
 ---
-title: 'sell'
+title: 'ritual sell'
+description: "See what Card Kingdom's buylist currently pays for the cards in your lists."
+sidebar:
+  label: 'sell'
 ---
 
 Check what [Card Kingdom's buylist](https://www.cardkingdom.com/purchasing/mtg_singles) ("Sell us your cards") is currently paying for the cards in your lists.

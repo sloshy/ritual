@@ -1,5 +1,8 @@
 ---
-title: 'detect-changes'
+title: 'ritual detect-changes'
+description: 'Record changelog entries for lists edited by hand, and manage their .sha256 files.'
+sidebar:
+  label: 'detect-changes'
 ---
 
 Record changelog entries for hand-edited lists, and manage the `.sha256` files that decide what still needs recording. This page calls each one a **sidecar**, as the command's output does; see [The `.sha256` files](/list-format/#the-sha256-files) for what they are.

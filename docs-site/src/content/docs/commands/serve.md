@@ -1,5 +1,8 @@
 ---
-title: 'serve'
+title: 'ritual serve'
+description: 'Serve the built site on your computer, or run it with a live backend.'
+sidebar:
+  label: 'serve'
 ---
 
 Serve the generated static site locally, optionally building it first.

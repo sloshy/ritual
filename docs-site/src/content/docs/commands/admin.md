@@ -1,5 +1,8 @@
 ---
-title: 'admin'
+title: 'ritual admin'
+description: 'Start the admin site, a browser editor for your lists, with its own sign-in.'
+sidebar:
+  label: 'admin'
 ---
 
 Start the web [admin site](/admin/) for managing Ritual from a browser.

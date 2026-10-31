@@ -1,5 +1,8 @@
 ---
-title: 'get-primer'
+title: 'ritual get-primer'
+description: "Print a deck's primer as Markdown, from a local deck or a Moxfield URL."
+sidebar:
+  label: 'get-primer'
 ---
 
 Print a deck's primer as markdown, from a local deck or a Moxfield URL.

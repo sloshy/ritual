@@ -1,5 +1,8 @@
 ---
-title: 'history'
+title: 'ritual history'
+description: "Show a list's change history, or tidy it in a menu-driven editor."
+sidebar:
+  label: 'history'
 ---
 
 Show a list's change history (`.changes.md`) with `--show`, or tidy it in a menu-driven editor: merge, retime, or reword its entries.

@@ -1,5 +1,8 @@
 ---
-title: 'import-account'
+title: 'ritual import-account'
+description: 'Import every public deck of an Archidekt account, or your own private decks.'
+sidebar:
+  label: 'import-account'
 ---
 
 Import all public decks from an Archidekt user account, or your own private decks when you are logged in.

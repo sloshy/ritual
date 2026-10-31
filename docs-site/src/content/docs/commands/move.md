@@ -1,5 +1,8 @@
 ---
-title: 'move'
+title: 'ritual move'
+description: 'Move cards between decks, collections and wanted lists.'
+sidebar:
+  label: 'move'
 ---
 
 Move cards between decks, collections, and wanted lists. Run it interactively, or as a single scripted command with `--from` and `--to`.

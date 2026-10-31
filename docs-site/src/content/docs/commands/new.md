@@ -1,5 +1,8 @@
 ---
-title: 'new'
+title: 'ritual new'
+description: 'Create a new deck, collection or wanted list.'
+sidebar:
+  label: 'new'
 ---
 
 Create a new deck, collection, or wanted list.

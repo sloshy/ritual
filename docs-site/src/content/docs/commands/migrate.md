@@ -1,5 +1,8 @@
 ---
-title: 'migrate'
+title: 'ritual migrate'
+description: 'Bring a workspace up to date after upgrading Ritual.'
+sidebar:
+  label: 'migrate'
 ---
 
 Bring a workspace up to date after upgrading Ritual (for example with [`ritual self-update`](/commands/self-update/), which previews this command's plan right after installing). `migrate` applies the one-time **migrations** a newer Ritual needs (config keys removed or renamed, files moved), **refreshes the files Ritual generates** for a site set up with [`init-site`](/commands/init-site/) (the deploy workflow, the `.gitignore` entries, and the installed [agent skills](/commands/skills/)), and, on a release build, moves the [CI pin](#the-ci-pin) to the running release.

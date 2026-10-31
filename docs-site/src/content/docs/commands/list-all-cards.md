@@ -1,5 +1,8 @@
 ---
-title: 'list-all-cards'
+title: 'ritual list-all-cards'
+description: 'Print a sorted list of every card in your lists, used as a cache key in CI.'
+sidebar:
+  label: 'list-all-cards'
 ---
 
 Print a deduplicated, alphabetically sorted manifest of every card in your decks, collections, and wanted lists. Its main job is to serve as a deterministic cache key for CI builds: the output changes only when the set of unique `(name, set, collector number)` tuples in your lists changes.

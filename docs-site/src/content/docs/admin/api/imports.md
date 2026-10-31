@@ -1,6 +1,6 @@
 ---
 title: 'Admin API: Import and Export'
-description: Admin API routes to import decks, CSV files and change bundles, and to export cards.
+description: 'Admin API routes to import decks, CSV files and change bundles, and to export cards.'
 sidebar:
   label: 'Import and export'
   order: 5

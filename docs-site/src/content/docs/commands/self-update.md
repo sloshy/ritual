@@ -1,5 +1,8 @@
 ---
-title: 'self-update'
+title: 'ritual self-update'
+description: 'Update Ritual to a newer release, or check whether one exists.'
+sidebar:
+  label: 'self-update'
 ---
 
 Replace the running Ritual binary with a newer release from GitHub. `self-update` downloads the binary for your platform, checks it against the release's published SHA-256 checksum, runs it once to confirm it reports the expected version, and only then swaps it into place. Ritual never updates itself on its own; this command is the only way it does.

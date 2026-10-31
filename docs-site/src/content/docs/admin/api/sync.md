@@ -1,6 +1,6 @@
 ---
 title: 'Admin API: Archidekt Sync'
-description: Admin API routes to log in to Archidekt and sync decks and the collection with it.
+description: 'Admin API routes to log in to Archidekt and sync decks and the collection with it.'
 sidebar:
   label: 'Archidekt sync'
   order: 6

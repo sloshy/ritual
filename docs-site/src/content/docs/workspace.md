@@ -1,6 +1,6 @@
 ---
 title: 'Workspace'
-description: The folder Ritual works in, what each file and folder in it is for, and which ones to commit.
+description: 'The folder Ritual works in, what each file and folder in it is for, and which ones to commit.'
 ---
 
 A **workspace** is the folder Ritual works in. It holds your decks, collections and wanted lists as markdown files, plus a few small files Ritual keeps beside them. Ritual uses the current directory, or the folder you name with [`--base-dir`](/cli-conventions/#--base-dir) (or `RITUAL_BASE_DIR`).

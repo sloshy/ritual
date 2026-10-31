@@ -1,5 +1,8 @@
 ---
-title: 'export'
+title: 'ritual export'
+description: 'Export cards from your lists as CSV, JSON, plain text or Markdown.'
+sidebar:
+  label: 'export'
 ---
 
 Export any set of cards from your decks, collections, and wanted lists as **CSV**, **JSON**, **plain text**, or **Markdown**. Run it bare in a terminal for an interactive wizard, or drive everything with flags for scripting. The global `--no-input` flag guarantees the wizard never opens. The same engine backs the [MCP](/commands/mcp/) `export_cards` tool.

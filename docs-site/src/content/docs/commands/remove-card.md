@@ -1,5 +1,8 @@
 ---
-title: 'remove-card'
+title: 'ritual remove-card'
+description: 'Remove a card from a list without opening an editor.'
+sidebar:
+  label: 'remove-card'
 ---
 
 Remove a card from a deck, collection, or wanted list without opening an editor. It is the one-shot counterpart to removing a card in `ritual edit` or the admin site.

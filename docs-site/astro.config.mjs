@@ -3,8 +3,10 @@ import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
 import starlightLinksValidator from 'starlight-links-validator'
 
+const SITE = 'https://ritual.rpeters.dev'
+
 export default defineConfig({
-  site: 'https://ritual.rpeters.dev',
+  site: SITE,
   // The Changelog page renders the repository's CHANGELOG.md, one level up.
   vite: { server: { fs: { allow: ['..'] } } },
   integrations: [
@@ -12,6 +14,27 @@ export default defineConfig({
       title: 'Ritual',
       description: 'An All-In-One "Magic: The Gathering" Toolkit',
       favicon: '/app.svg',
+      // Link previews: Starlight already emits og:title/description and
+      // `twitter:card: summary_large_image`; this gives both the image they
+      // need. Regenerate the PNGs with scripts/docs-og-image.ts.
+      head: [
+        { tag: 'meta', attrs: { property: 'og:image', content: `${SITE}/og.png` } },
+        { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
+        { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
+        {
+          tag: 'meta',
+          attrs: {
+            property: 'og:image:alt',
+            content: 'Ritual: your Magic: The Gathering decks and collection as plain files.',
+          },
+        },
+        { tag: 'meta', attrs: { name: 'twitter:image', content: `${SITE}/og.png` } },
+        { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } },
+      ],
+      editLink: { baseUrl: 'https://github.com/sloshy/ritual/edit/main/docs-site/' },
+      // From each page's last commit. The deploy workflow checks out full
+      // history (fetch-depth: 0), which this needs.
+      lastUpdated: true,
       logo: { src: './src/assets/app.svg', alt: 'Ritual flame logo' },
       customCss: ['./src/styles/custom.css'],
       // Root-only: these docs are English and are not localized (localizing

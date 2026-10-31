@@ -1,5 +1,8 @@
 ---
-title: 'note'
+title: 'ritual note'
+description: 'Set, replace or clear the note on a card in a list.'
+sidebar:
+  label: 'note'
 ---
 
 Set, replace, or clear the note on a card that already exists in a deck, collection, or wanted list.

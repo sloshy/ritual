@@ -1,6 +1,8 @@
 ---
-title: 'categories'
-description: Inspect and edit a list's card categories.
+title: 'ritual categories'
+description: "Inspect and edit a list's card categories, a card's role in that list."
+sidebar:
+  label: 'categories'
 ---
 
 Inspect and edit a list's **card categories**: a card's role in that one list, such as `Ramp`, `Removal`, or `Board Wipes`. It is what Archidekt calls a category and Moxfield a tag. Categories are not Ritual's [tags](/list-format/#card-tags) or [labels](/list-format/#card-labels); see [Labels, tags, and categories](/list-format/#labels-tags-and-categories) for how the three differ.

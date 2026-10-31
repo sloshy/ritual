@@ -1,5 +1,8 @@
 ---
-title: 'mcp'
+title: 'ritual mcp'
+description: 'Start an MCP server so AI assistants can read and change your lists.'
+sidebar:
+  label: 'mcp'
 ---
 
 Start an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that lets AI agents (Claude Desktop, Claude Code, and other MCP clients) manage your decks, collections, and wanted lists.

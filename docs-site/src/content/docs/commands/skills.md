@@ -1,5 +1,8 @@
 ---
-title: 'skills'
+title: 'ritual skills'
+description: 'Install agent skills that teach AI coding agents to use the ritual command.'
+sidebar:
+  label: 'skills'
 ---
 
 Install [Claude Code agent skills](https://docs.claude.com/en/docs/claude-code/skills) that teach AI agents how to drive Ritual from a local workspace. Each skill is a `SKILL.md` file (YAML frontmatter plus Markdown) covering one slice of the CLI. An agent loads a skill when its description matches the task.

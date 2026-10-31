@@ -1,6 +1,6 @@
 ---
 title: 'Admin API: Cards and Moves'
-description: Admin API routes to look up cards, printings and prices, search the card cache, and move or remove cards across lists.
+description: 'Admin API routes to look up cards, printings and prices, search the card cache, and move or remove cards across lists.'
 sidebar:
   label: 'Cards and moves'
   order: 3

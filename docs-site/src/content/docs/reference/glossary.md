@@ -1,6 +1,6 @@
 ---
 title: 'Glossary'
-description: Short definitions of the words these docs use, with links to where each is explained.
+description: 'Short definitions of the words these docs use, with links to where each is explained.'
 sidebar:
   order: 5
 ---

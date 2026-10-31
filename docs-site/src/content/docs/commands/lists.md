@@ -1,5 +1,8 @@
 ---
-title: 'lists'
+title: 'ritual lists'
+description: 'List every deck, collection and wanted list in the workspace.'
+sidebar:
+  label: 'lists'
 ---
 
 List every deck, collection, and wanted list in the workspace. It is the quickest way to see what exists, and how a script learns the names it can pass to other commands.

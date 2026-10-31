@@ -1,5 +1,8 @@
 ---
-title: 'collection-sync'
+title: 'ritual collection-sync'
+description: 'Sync your collection lists with your Archidekt collection.'
+sidebar:
+  label: 'collection-sync'
 ---
 
 Sync your collection lists with the Archidekt collection of the account you are signed into.

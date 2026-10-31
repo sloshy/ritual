@@ -1,6 +1,6 @@
 ---
 title: 'Admin API: Prices and Selling'
-description: Admin API routes for list prices, the sell report and cart, and Card Kingdom buylist quotes.
+description: 'Admin API routes for list prices, the sell report and cart, and Card Kingdom buylist quotes.'
 sidebar:
   label: 'Prices and selling'
   order: 4

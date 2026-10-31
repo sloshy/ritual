@@ -1,6 +1,6 @@
 ---
 title: 'Troubleshooting'
-description: Fixes for common problems, how to check your setup with ritual doctor, and how to report a bug.
+description: 'Fixes for common problems, how to check your setup with ritual doctor, and how to report a bug.'
 sidebar:
   order: 4
 ---

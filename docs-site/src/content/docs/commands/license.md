@@ -1,5 +1,8 @@
 ---
-title: 'license'
+title: 'ritual license'
+description: "Show Ritual's license, the GNU AGPL v3."
+sidebar:
+  label: 'license'
 ---
 
 Display the Ritual project license (AGPLv3). [License and Attribution](/attribution/) covers the license, the Fan Content Policy notice, and where Ritual's card data comes from.

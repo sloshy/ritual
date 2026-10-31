@@ -1,5 +1,8 @@
 ---
-title: 'set-list-image'
+title: 'ritual set-list-image'
+description: 'Choose the cover image a list shows on the published site.'
+sidebar:
+  label: 'set-list-image'
 ---
 
 Choose the cover image a deck, collection, or wanted list shows on the published site: the picture on its index-page tile and in Quick Switch. The choice is written as the [`image:` front-matter key](/list-images/).

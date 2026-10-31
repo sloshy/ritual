@@ -1,5 +1,8 @@
 ---
-title: 'dep-license'
+title: 'ritual dep-license'
+description: 'Show the license of a dependency bundled with Ritual.'
+sidebar:
+  label: 'dep-license'
 ---
 
 Show the license for a dependency bundled with Ritual.

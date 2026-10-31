@@ -1,5 +1,8 @@
 ---
-title: 'diff'
+title: 'ritual diff'
+description: 'Compare two lists and show which cards are only in one, or in different quantities.'
+sidebar:
+  label: 'diff'
 ---
 
 Compare two lists, in any mix of deck, collection, and wanted list. The report shows what is only in one side, only in the other, and where quantities differ. The same engine backs the admin [`GET /api/diff`](/admin/api/lists/#diff-lists) endpoint and the [MCP](/commands/mcp/) `diff_lists` tool.

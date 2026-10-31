@@ -1,6 +1,6 @@
 ---
 title: 'Admin API'
-description: The HTTP API the admin server exposes, shared by the admin site, the MCP server, and any other client.
+description: 'The HTTP API the admin server exposes, shared by the admin site, the MCP server, and any other client.'
 sidebar:
   label: 'Overview'
   order: 0

@@ -1,5 +1,8 @@
 ---
-title: 'import-changes'
+title: 'ritual import-changes'
+description: 'Apply a change bundle exported from the public site or admin editor to your lists.'
+sidebar:
+  label: 'import-changes'
 ---
 
 Apply a change bundle to your list files. A bundle is the JSON exported by the public site's [in-browser editor](/public-site/editing/) or the admin editor's Export panel. The command previews every change grouped by target list, lists cross-list moves after them, and writes nothing until you confirm.

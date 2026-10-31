@@ -1,5 +1,8 @@
 ---
-title: 'set-card'
+title: 'ritual set-card'
+description: "Change a card's printing, finish, condition, labels, tags and more in place."
+sidebar:
+  label: 'set-card'
 ---
 
 Update a card in place without opening an editor. You can change its printing, finish, condition, language, label, tags, categories, custom art, deck section, or commander status, in a deck, collection, or wanted list.

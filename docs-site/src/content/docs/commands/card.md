@@ -1,5 +1,8 @@
 ---
-title: 'card'
+title: 'ritual card'
+description: 'Look up one card, or a batch of names, and print its details and prices.'
+sidebar:
+  label: 'card'
 ---
 
 Look up a single card by name on Scryfall, or a batch of names from a file or stdin.

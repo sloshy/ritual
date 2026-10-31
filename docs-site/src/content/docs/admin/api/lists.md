@@ -1,6 +1,6 @@
 ---
 title: 'Admin API: Lists'
-description: Admin API routes to create, load, save, rename and delete decks, collections and wanted lists, and to read their metadata, art, diffs and history.
+description: 'Admin API routes to create, load, save, rename and delete decks, collections and wanted lists, and to read their metadata, art, diffs and history.'
 sidebar:
   label: 'Lists'
   order: 2

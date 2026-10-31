@@ -1,5 +1,8 @@
 ---
-title: 'init-site'
+title: 'ritual init-site'
+description: 'Set up a workspace to publish its site, with a GitHub Actions workflow if you like.'
+sidebar:
+  label: 'init-site'
 ---
 
 Set up the current directory for publishing a Ritual site to GitHub Pages or another host: a README, a `.gitignore`, the site settings in `ritual.config.json`, and, for GitHub Actions, a deploy workflow.

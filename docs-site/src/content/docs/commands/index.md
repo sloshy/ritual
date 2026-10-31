@@ -1,6 +1,6 @@
 ---
 title: 'CLI Commands'
-description: Every command in the Ritual CLI, grouped by what it works on.
+description: 'Every command in the Ritual CLI, grouped by what it works on.'
 ---
 
 Every Ritual command, grouped the way `ritual help --all` groups them. Each page opens with usage and options, then covers behavior, examples, and exit codes. Global options, scripting output, and exit codes shared by all commands are on [CLI Conventions](/cli-conventions/).

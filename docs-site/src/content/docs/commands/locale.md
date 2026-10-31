@@ -1,5 +1,8 @@
 ---
-title: 'locale'
+title: 'ritual locale'
+description: "Show which language Ritual's interface uses and which setting chose it."
+sidebar:
+  label: 'locale'
 ---
 
 Show which language Ritual's interface is speaking, **which setting decided that**, and the card language, side by side.

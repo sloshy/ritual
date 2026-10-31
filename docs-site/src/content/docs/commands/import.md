@@ -1,5 +1,8 @@
 ---
-title: 'import'
+title: 'ritual import'
+description: 'Import a deck from a URL, or any list from a text or CSV file.'
+sidebar:
+  label: 'import'
 ---
 
 Import a deck from a URL, or a deck, collection, or wanted list from a local text or CSV file.

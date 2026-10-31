@@ -1,6 +1,6 @@
 ---
 title: 'Admin API: Status and Sign-in'
-description: Admin API routes for server status, the first account, signing in and out, the audit log, and TOTP.
+description: 'Admin API routes for server status, the first account, signing in and out, the audit log, and TOTP.'
 sidebar:
   label: 'Status and sign-in'
   order: 1

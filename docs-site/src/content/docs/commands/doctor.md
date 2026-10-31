@@ -1,5 +1,8 @@
 ---
-title: 'doctor'
+title: 'ritual doctor'
+description: 'Check your Ritual setup and print a report to paste into a bug report.'
+sidebar:
+  label: 'doctor'
 ---
 
 Check your Ritual setup and print a short report you can paste into a bug report: which Ritual is running, the workspace, its configuration and pending updates, the card cache, and the last update check. Each check is `ok`, `warn` or `fail`, and a check that found something to do says how to fix it in one line.

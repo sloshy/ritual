@@ -1,5 +1,8 @@
 ---
-title: 'cache'
+title: 'ritual cache'
+description: 'Inspect, preload and refresh the card cache, and run a cache server or cache feed.'
+sidebar:
+  label: 'cache'
 ---
 
 Manage the card cache: inspect it, preload it, and run the always-on cache server and the experimental peer-to-peer cache feed. For what the cache is, start with [Card Cache](/card-cache/); this page has every option.

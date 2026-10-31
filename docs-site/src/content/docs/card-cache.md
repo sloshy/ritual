@@ -1,6 +1,6 @@
 ---
 title: 'Card Cache'
-description: The local copy of Scryfall's card data Ritual keeps, where it lives, how big it is, how it is refreshed, and how to use Ritual offline.
+description: "The local copy of Scryfall's card data Ritual keeps, where it lives, how big it is, how it is refreshed, and how to use Ritual offline."
 ---
 
 Ritual does not ask Scryfall about every card each time it needs one. It keeps a local copy of Scryfall's card data, the **card cache**: card names, printings, Oracle text, images and prices. Lookups, pricing, autocomplete and site builds all read from it.

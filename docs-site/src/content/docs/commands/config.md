@@ -1,5 +1,8 @@
 ---
-title: 'config'
+title: 'ritual config'
+description: 'Read and change ritual.config.json settings from the command line.'
+sidebar:
+  label: 'config'
 ---
 
 Read and change `ritual.config.json` from the command line. The `config` group has four subcommands:

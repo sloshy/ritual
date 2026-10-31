@@ -224,6 +224,8 @@ bun run scripts/docs-screenshots.ts --only trade,admin   # just these shots (nam
 
 The script copies `demo/` into a temporary directory (linking its card cache), builds and serves it there so the build's card-ID backfill never touches the committed files, and writes WebP images in the site's dark and light themes to `docs-site/src/assets/screenshots/`. The price-store and sell-mode shots come from a second copy with the Cardmarket and Card Kingdom stores enabled, built with `--sell-mode`, so they need Card Kingdom's feed in the cache too. The admin shots run `ritual admin` on loopback against a copy, with an account the script creates there. The script uses the Playwright Chromium the end-to-end tests use (`bunx playwright install chromium`). The site's 🎨 theme button needs a color emoji font on the machine taking the screenshots. A docs page shows a shot with the `Screenshot` component (`docs-site/src/components/Screenshot.astro`), which picks the image for the reader's theme.
 
+The docs' link-preview image (`docs-site/public/og.png`) and Apple touch icon are drawn from the app icon and the home screenshot. Retake them with `bun run scripts/docs-og-image.ts` after either changes.
+
 `demo/` is a user workspace like any other. When a change adds a [`ritual migrate`](/commands/migrate/) migration, apply it to the demo in the same change (`bun run index.ts --base-dir demo migrate`). `test/integration/demo-workspace.test.ts` checks a copy of `demo/` with `migrate --check`, `detect-changes --verify` and `cleanup --check`, and fails until the demo is current.
 
 ### Terminal Recordings

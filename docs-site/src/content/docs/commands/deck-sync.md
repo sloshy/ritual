@@ -1,5 +1,8 @@
 ---
-title: 'deck-sync'
+title: 'ritual deck-sync'
+description: 'Sync decks between your local files and Archidekt, in either direction.'
+sidebar:
+  label: 'deck-sync'
 ---
 
 Sync deck card lists between local files and Archidekt.

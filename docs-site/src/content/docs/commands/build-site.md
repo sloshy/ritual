@@ -1,5 +1,8 @@
 ---
-title: 'build-site'
+title: 'ritual build-site'
+description: 'Build the public site: a static website of your decks, collections and wanted lists.'
+sidebar:
+  label: 'build-site'
 ---
 
 Generate the [public site](/public-site/): a static website for your decks, collections, and wanted lists.
