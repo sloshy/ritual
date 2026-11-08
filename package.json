@@ -34,7 +34,7 @@
     "ritual": "./index.ts"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.9",
+    "@babel/core": "^8.1.0",
     "@babel/preset-typescript": "^8.0.7",
     "@dschz/bun-plugin-solid": "^1.0.4",
     "@eslint/js": "^10.0.1",
@@ -46,12 +46,12 @@
     "@typescript-eslint/rule-tester": "^8.72.1",
     "babel-preset-solid": "^1.9.16",
     "commander": "^15.0.0",
-    "eslint": "^10.13.0",
-    "globals": "^17.13.0",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
     "gray-matter": "^4.0.3",
     "husky": "^9.1.7",
     "prompts": "^2.4.2",
-    "solid-js": "^1.9.17",
+    "solid-js": "^1.9.18",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1"
   },
