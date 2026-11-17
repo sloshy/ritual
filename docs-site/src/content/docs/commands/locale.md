@@ -5,7 +5,7 @@ sidebar:
   label: 'locale'
 ---
 
-Show which language Ritual's interface is speaking, **which setting decided that**, and the card language, side by side.
+Show which language Ritual's interface uses, which setting chose it, and the card language, side by side.
 
 ## Usage
 
@@ -14,7 +14,7 @@ ritual locale
 ritual locale --detect
 ```
 
-Plain `locale` is read-only. It never writes `ritual.config.json`, never touches your list files, and never triggers the [card-ID backfill](/cli-conventions/#the-card-id-backfill). Only [`--detect`](#detecting-the-os-locale) can write, and only after you answer its prompt with yes. To _change_ the language, use `--locale`, `RITUAL_LOCALE`, or [`config set uiLocale`](/commands/config/). See [Localization](/localization/#choosing-the-interface-language).
+Plain `locale` is read-only. It never writes `ritual.config.json`, never touches your list files, and never triggers the [card-ID backfill](/cli-conventions/#the-card-id-backfill). Only [`--detect`](#detecting-the-os-locale) can write, and only after you answer its prompt with yes. To change the language, use `--locale`, `RITUAL_LOCALE`, or [`config set uiLocale`](/commands/config/). See [Localization](/localization/#choosing-the-interface-language).
 
 ## Options
 
@@ -47,7 +47,7 @@ The UI locale is the language Ritual speaks; the card language selects which pri
 
 The detected value is a normalized BCP-47 tag, not the raw environment value: `LANG=de_DE.UTF-8` shows as `de-DE`.
 
-Asking for a locale this build has no dictionary for (`de-AT` above, on an English-only build) is **not** an error. The tag still drives date, number, and currency formatting, and every message falls back to English. Compare the `Available UI locales` line with the `UI locale` line to see whether messages will actually be translated.
+Asking for a locale this build has no dictionary for (`de-AT` above, on an English-only build) is not an error. The tag still drives date, number, and currency formatting, and every message falls back to English. Compare the `Available UI locales` line with the `UI locale` line to see whether messages will be translated.
 
 A value that was present but unusable is reported as a warning above the report, naming the tier and the reason:
 
@@ -56,13 +56,13 @@ RITUAL_LOCALE: ignoring invalid value — invalid UI locale: invalid locale tag:
 Ignoring RITUAL_LOCALE "de_DE": invalid UI locale: invalid locale tag: de_DE
 ```
 
-The first line comes from the locale resolution that runs before **every** command; the second is this report restating the rejection.
+The first line comes from the locale resolution that runs before every command; the second is this report restating the rejection.
 
 Such a value never fails the command. Ritual falls through to the next tier. The one exception is `--locale` itself, which the flag parser validates and rejects with exit `2`. That refusal is worded in the language the remaining tiers pick (`RITUAL_LOCALE`, then `uiLocale`, then the OS), so a typo in `--locale` never hides a valid `RITUAL_LOCALE`; it is English only when no other tier names a usable locale.
 
 ## Detecting the OS locale
 
-Ordinary detection reads environment variables only. The subprocess probes that ask Windows or macOS directly are [skipped at startup](/localization/#windows), so an English-only build never spawns them. `--detect` runs them anyway, reports what **every** source said, and offers to save the answer:
+Ordinary detection reads environment variables only. The subprocess probes that ask Windows or macOS directly are [skipped at startup](/localization/#windows), so an English-only build never spawns them. `--detect` runs them anyway, reports what every source said, and offers to save the answer:
 
 ```text
 $ ritual locale --detect
@@ -88,20 +88,20 @@ Three sources are always listed, in the order they are consulted. A source that 
 | **Windows UI culture**  | `[Globalization.CultureInfo]::CurrentUICulture.Name`, via PowerShell (Windows only) |
 | **macOS system locale** | `defaults read -g AppleLocale` (macOS only)                                         |
 
-The offer appears only when a source names a language **different from the tag already in force**, compared as an exact tag (`en-US` and `en` format dates and numbers differently, so that counts). Answering yes writes `uiLocale` with the same validation [`config set`](/commands/config/) uses. Answering no writes nothing.
+The offer appears only when a source names a language different from the tag already in force, compared as an exact tag (`en-US` and `en` format dates and numbers differently, so that counts). Answering yes writes `uiLocale` with the same validation [`config set`](/commands/config/) uses. Answering no writes nothing.
 
-Nothing is written without that yes. When prompting is impossible (`--no-input`, `RITUAL_NO_INPUT`, or a stdin that is not a terminal), `--detect` prints the finding, shows the command that would apply it, and exits `0`:
+When prompting is impossible (`--no-input`, `RITUAL_NO_INPUT`, or a stdin that is not a terminal), `--detect` writes nothing, prints the finding, shows the command that would apply it, and exits `0`:
 
 ```text
 Not offering to save it (prompts are disabled by --no-input / RITUAL_NO_INPUT). To apply it, run: ritual config set uiLocale de-DE
 ```
 
-Under `--output json`/`ndjson` there is no prompt and no prose. The output's `suggestedUiLocale` **is** the offer; act on it with `config set uiLocale`.
+Under `--output json`/`ndjson` there is no prompt and no prose. The offer is the output's `suggestedUiLocale`; act on it with `config set uiLocale`.
 
 The probe findings print under `--quiet` too.
 
 :::note
-**WSL is still a hard limit.** A WSL command is a Linux process, so `--detect` runs the environment probe and reports both OS probes as not applicable. Ritual never calls a `powershell.exe` under `/mnt/c`. See [Localization → WSL](/localization/#wsl).
+**WSL limit.** A WSL command is a Linux process, so `--detect` runs the environment probe and reports both OS probes as not applicable. Ritual never calls a `powershell.exe` under `/mnt/c`. See [Localization → WSL](/localization/#wsl).
 :::
 
 ## JSON output
@@ -147,7 +147,7 @@ $ ritual locale --detect --output json
 
 - `probes[].source` is `environment`, `windows`, or `macos`. `ran` says whether that source applied to this platform. `origin` is what was consulted: the environment variable that answered, or the command a subprocess probe runs. `raw` is the answer before normalization, absent when it answered nothing. `tag` is absent when the raw value named no usable language.
 - `suggestedUiLocale` is absent when detection found nothing or agreed with `uiLocale`.
-- `detectedOsLocale` is **not** changed by `--detect`. It stays what this run detected under the ordinary gates.
+- `detectedOsLocale` is not changed by `--detect`. It stays what this run detected under the ordinary gates.
 
 ## Examples
 

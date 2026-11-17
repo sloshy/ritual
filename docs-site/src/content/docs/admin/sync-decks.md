@@ -27,7 +27,7 @@ If the token stops working mid-run, the run reports the failure and the login fo
 
 With no deck selected, the sync button is disabled.
 
-Only decks whose front matter carries an Archidekt `sourceUrl` **and** a `sourceId` are listed. A deck with a `sourceUrl` but no `sourceId` is reported as skipped when you sync all decks.
+Only decks whose front matter carries both an Archidekt `sourceUrl` and a `sourceId` are listed. A deck with a `sourceUrl` but no `sourceId` is reported as skipped when you sync all decks.
 
 **Sync printings** reconciles a card held at several printings printing by printing: copies are added, removed, or re-pointed so both sides hold the same printings. The **Changes** filter does not affect it.
 
@@ -59,16 +59,16 @@ If the browser cannot hold the event stream open (some reverse proxies buffer se
 
 ## Decks with unreadable lines
 
-Syncing rewrites the deck file, so a line Ritual's parser cannot read (a stray comment, a malformed card line) would be **deleted** by the save. Rather than let that happen quietly, the run refuses those decks and shows what is at stake: each deck file, each line, and a **Sync anyway and remove those lines** button that re-runs with your consent. This is the page's version of the confirmation the [CLI prompts for](/commands/deck-sync/#unreadable-lines). Fixing the lines by hand is the lossless option. The panel appears on the non-streaming fallback too.
+Syncing rewrites the deck file, so a line Ritual's parser cannot read (a stray comment, a malformed card line) would be deleted by the save. The run refuses those decks and lists each deck file and each line, with a **Sync anyway and remove those lines** button that re-runs with your consent. This is the page's version of the confirmation the [CLI prompts for](/commands/deck-sync/#unreadable-lines). Fixing the lines by hand is the lossless option. The panel appears on the non-streaming fallback too.
 
 Decks refused this way are reported as failed (`N unreadable lines would be dropped by a sync`); the rest of the run continues. A **Preview only** run is exempt, since it writes nothing: those decks are previewed like any other and no confirmation is asked for.
 
 ## What a sync changes
 
-The same as the CLI, since it is the same engine:
+The same as the CLI:
 
 - A **pull** applies remote card additions, removals, quantity changes, and board moves per board, adopts the deck's Archidekt format, records every card change in the deck's `.changes.md`, and stamps `lastSynced`.
-- A **push** sends local card changes, board moves included, to Archidekt and stamps `lastSynced`, **only for decks that pushed cleanly**.
+- A **push** sends local card changes, board moves included, to Archidekt and stamps `lastSynced`, only for decks that pushed cleanly.
 - Both directions **move a card between boards** when it sits on a different board on each side: a pull moves the local line (keeping its ID), and a push moves the existing Archidekt entry by changing its board category. The change filter never skips a move. See [Board moves](/commands/deck-sync/#board-moves).
 - With **Sync printings** ticked, a pull also rewrites local printings and finishes to what Archidekt records (as `set-printing` changelog entries), and a push moves the remote entries to the local file's printing and finish. A card held at several printings is reconciled printing by printing, adding and removing copies as needed. See [Printing Sync](/commands/deck-sync/#printing-sync---sync-printings).
 - With it **unticked**, printings are never added or removed. A card's new total is spread over the lines (or Archidekt entries) it already occupies, and a card whose printings the two sides cannot square up is reported and left alone. See [Without the flag](/commands/deck-sync/#without-the-flag).
@@ -79,7 +79,7 @@ See [What Is Compared](/commands/deck-sync/#what-is-compared) for the full rules
 
 ## Decks the remote moved on from
 
-A push makes Archidekt match your local file, so a card added on archidekt.com since your last sync would be silently reverted. A push therefore **refuses** any deck whose Archidekt `updatedAt` is newer than the `sourceUpdatedAt` its last sync recorded:
+A push makes Archidekt match your local file, so a card added on archidekt.com since your last sync would be silently reverted. A push therefore refuses any deck whose Archidekt `updatedAt` is newer than the `sourceUpdatedAt` its last sync recorded:
 
 ```
 Remote deck changed since last sync (remote: …, last synced against: …) — pull first, or pass --force to overwrite remote changes.

@@ -37,7 +37,7 @@ The folder names are settings: `decksDir`, `collectionsDir`, `wantedDir` and `ar
 
 `ritual.config.json` holds your settings: price stores, the default language, site options and more. It is optional; a missing file means every setting has its default. Ritual creates it only when something writes a setting, such as [`ritual config set`](/commands/config/). Every key is on [Configuration](/configuration/).
 
-Ritual also keeps a little bookkeeping in it, under the `managed` key: which release last updated the workspace and which [migrations](/reference/upgrading/#migrations) have run. Leave that key alone.
+Ritual also records in it, under the `managed` key, which release last updated the workspace and which [migrations](/reference/upgrading/#migrations) have run. Leave that key alone.
 
 ## Files Ritual manages
 
@@ -69,7 +69,7 @@ Keep the rest out of git. `ritual init-site` writes a `.gitignore` that does thi
 | `exports/`, `all-cards.md`                                | Files [`ritual export`](/commands/export/) and [`list-all-cards`](/commands/list-all-cards/) write.                                                                                                                                                                 |
 | `.admin-dist/`, `.dist-build-*`, `.dist-old-*`, `/ritual` | Build leftovers, and the Ritual binary the deploy workflow downloads.                                                                                                                                                                                               |
 
-The card cache itself does not live in the workspace. It is one folder per user, shared by all your workspaces; see [Card Cache](/card-cache/).
+The card cache is not in the workspace. It is one folder per user, shared by all your workspaces; see [Card Cache](/card-cache/).
 
 ## More than one workspace
 

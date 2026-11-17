@@ -3,7 +3,7 @@ title: 'List Names'
 description: How a name you type on the command line is matched to a deck, collection, or wanted list.
 ---
 
-When you name a list on the command line, as in `ritual price burn` or `ritual edit "Winota Stax"`, every command matches that name the same way. This page describes the rules.
+When you name a list on the command line, as in `ritual price burn` or `ritual edit "Winota Stax"`, every command matches that name by the same rules.
 
 ## How a name is matched
 
@@ -78,7 +78,7 @@ Single-type commands (`deck-sync`, `collection-sync`, `get-primer`, and the CSV 
 
 ### What the ambiguity error advises
 
-The error always lists every match. The remedy line under it names the mechanism the command you ran actually has:
+The error always lists every match. The remedy line under it names the mechanism the command you ran has:
 
 | Situation                                                                           | Advice                                                                                                  |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |

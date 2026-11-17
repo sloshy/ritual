@@ -69,7 +69,7 @@ You can name the workspace with the `RITUAL_BASE_DIR` environment variable inste
 }
 ```
 
-A server defined here also loads in the Desktop app's Code tab, and wins over an entry of the same name there.
+A server defined here also loads in the Desktop app's Code tab, and takes precedence over an entry of the same name there.
 
 Other MCP clients take a similar `command` / `args` entry. The workspace folder must exist, or the server exits before starting.
 
@@ -99,7 +99,7 @@ If you already run the web admin, `ritual admin --mcp` serves the same endpoint 
 
 Every tool that addresses a list takes a `listType` (`deck`, `collection` or `wanted`) and a `slug` (the file name without `.md`). The tools fall into three groups:
 
-- **Read**: list your lists, read one, search Scryfall, find where a card lives across your lists, look up printings and prices, price a list, show a list's history, diff two lists, and export cards.
+- **Read**: list your lists, read one, search Scryfall, find which of your lists hold a card, look up printings and prices, price a list, show a list's history, diff two lists, and export cards.
 - **Write**: create a list, import a deck or CSV, add, remove and move cards, change a printing, condition or language, set labels, tags and categories, and apply a [change bundle](/commands/import-changes/).
 - **Destructive**: rename or delete a list, rewrite a change log, change configuration, rebuild the site, sync with Archidekt, and refresh the card cache.
 
@@ -123,7 +123,7 @@ Without auto-commit, review what the assistant changed with `git diff` before yo
 
 ### Example Prompts
 
-Once connected, ask in plain language. The assistant picks the tools.
+Once connected, ask in plain language and the assistant picks the tools.
 
 - "What's in my Atraxa deck? Summarize it by card type."
 - "Which of my collections hold a Sol Ring, and which printings?"

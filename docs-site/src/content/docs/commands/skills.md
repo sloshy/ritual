@@ -28,7 +28,7 @@ Every skill Ritual writes carries two extra frontmatter keys after `name` and `d
 
 Claude Code reads only `name` and `description`, so the markers do not affect loading. Ritual uses them to classify each file:
 
-- **Machine-managed**: the stored hash matches the content. Ritual wrote it and nobody edited it. Safe to rewrite on a version change.
+- **Machine-managed**: the stored hash matches the content. Ritual wrote it and nobody edited it, so it is safe to rewrite on a version change.
 - **User-edited**: the hash does not match, or the markers are missing. `install` and `update` leave these alone unless you pass `--force`.
 - **Absent**: no file at the skill's path.
 
@@ -158,7 +158,7 @@ If your repository was set up with [`ritual init-site`](/commands/init-site/), [
 
 [`ritual init-site`](/commands/init-site/) offers to install these skills when it scaffolds a repository. Answer the prompt, or pass `--skills` / `--no-skills` to decide without prompting.
 
-Re-running `init-site` on an initialized repository never touches its skills. Bringing them up to date after an upgrade is [`ritual migrate`](/commands/migrate/)'s job.
+Re-running `init-site` on an initialized repository never touches its skills. [`ritual migrate`](/commands/migrate/) brings them up to date after an upgrade.
 
 ## See also
 

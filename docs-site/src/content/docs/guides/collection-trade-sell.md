@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-This guide covers the cards you own: where to keep them, how to mark what each copy is for, and how to move from "what do I have" to a trade or a sale. Each step links to the reference page with every option.
+This guide covers the cards you own: where to keep them, how to mark what each copy is for, and how to price, trade and sell them. Each step links to the reference page with every option.
 
 It assumes you have a workspace with a few lists. If not, start with the [quick tour](/start/tour/).
 
@@ -24,7 +24,7 @@ A collection differs from a deck in two ways ([full table](/list-format/#the-thr
 - **Every copy is its own line.** Four Lightning Bolts are four lines, so each copy can have its own condition, language or note.
 - **Every line has a printing.** A collection holds physical cards, so each line names its set and collector number: `- Lightning Bolt (LEA:161)`.
 
-Collections have no fixed sections. A `## Heading` inside one is just a group you choose, such as `## Page 1` or `## Foils`.
+Collections have no fixed sections. A `## Heading` inside one is a group you choose, such as `## Page 1` or `## Foils`.
 
 To bring in a collection you already track elsewhere, import its CSV with [`ritual import`](/commands/import/), or pull it from Archidekt (see [Sync with Archidekt](/guides/archidekt-sync/)).
 

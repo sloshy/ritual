@@ -10,7 +10,7 @@ Check what [Card Kingdom's buylist](https://www.cardkingdom.com/purchasing/mtg_s
 The report uses Card Kingdom's public pricelist feed: one ~70 MB download covering their whole singles catalog, cached as `cardkingdom.json` in the [card cache folder](/commands/cache/#where-the-cache-lives) and considered fresh for a day. Every check after that is a local join, with no scraping and no per-card requests. The same engine backs the [MCP](/commands/mcp/) `get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, and `refresh_buylist` tools, the [admin sell endpoints](/admin/api/prices/#sell-report), and [sell mode](/public-site/sell/) on the sites. A quote is the same wherever you read it.
 
 :::note[Not gated on `site.sellMode`]
-Every _other_ buylist surface (sell mode on the sites, the admin's sell routes and startup buylist refresh, the buylist part of [`cache preload-all`](/commands/cache/#the-buylist-rides-along-under-sell-mode)) is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. `ritual sell` ignores both keys. Running it is itself the request for Card Kingdom prices, so it downloads, refreshes, and quotes regardless. A feed downloaded this way is also what a later `--sell-mode` build uses.
+Every other buylist surface (sell mode on the sites, the admin's sell routes and startup buylist refresh, the buylist part of [`cache preload-all`](/commands/cache/#the-buylist-rides-along-under-sell-mode)) is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. `ritual sell` ignores both keys. Running it is itself the request for Card Kingdom prices, so it downloads, refreshes, and quotes regardless. A feed downloaded this way is also what a later `--sell-mode` build uses.
 :::
 
 For a walkthrough, see [Manage a collection, trade and sell](/guides/collection-trade-sell/).
@@ -62,7 +62,7 @@ Each entry lands in one of three states:
 - **not buying**: the product is on CK's list but their buy quantity is 0. Their feed keeps token prices on paused offers, and those are not real quotes.
 - **no match**: no CK product was found, with a reason. Either the card cache has no printings for the name, the entry's printing is not in the cache, the printing is not in CK's catalog, or the entry is **non-English** (a `[ja]`-style [language token](/list-format/#card-language)). CK's feed is English-only, so a foreign copy is reported as `no-match` with reason `non-english` rather than quoted at the English price.
 
-**[Proxies](/list-format/#card-labels) and [custom-art](/custom-art/) cards never enter the report.** An entry whose effective labels include `proxy`, or that the list's `.art.json` file gives custom art, is dropped before matching. It is not quoted, counted, or reported as a no-match: there is nothing to sell. The drop happens before aggregation, so such a copy never merges into an identical real one and gets offered to the buyer.
+**[Proxies](/list-format/#card-labels) and [custom-art](/custom-art/) cards never enter the report.** An entry whose effective labels include `proxy`, or that the list's `.art.json` file gives custom art, is dropped before matching. It is not quoted, counted, or reported as a no-match, since there is nothing to sell. The drop happens before aggregation, so such a copy never merges into an identical real one and gets offered to the buyer.
 
 Identical lines (same name, printing, finish, condition, language, and tags, within a section) are aggregated first, so a playset spelled as four collection lines reports as one entry with quantity 4. Entries matching the same CK product share one buy-quantity budget, so several lists holding the same card never sum past CK's cap.
 
@@ -86,7 +86,7 @@ Beyond the match and quote, every entry in the `json`/`ndjson` output carries fi
 - **`cardIds`**: the [`&N` ids](/list-format/#card-ids-n) of the list lines behind the entry, in file order. Aggregation folds identical lines into one entry, so a collection's four one-copy lines give four ids, while a deck's `4 Card` line gives one. Pass one to [`set-card --card-id`](/commands/set-card/) (for example to tag the copy, `--tag "CK Batch"`), [`move`](/commands/move/), or [`remove-card`](/commands/remove-card/) to act on exactly that copy after the sale. A line with no id yet contributes none. `sell` never writes to your lists, so a line added by hand gets its id from the next command that edits the list (any `set-card`, `add-card`, `edit`, …), or from [`cleanup`](/commands/cleanup/).
 - **`tags`**: the lines' [tags](/list-format/#card-tags). Identically tagged lines aggregate together, so every line behind `cardIds` carries exactly these tags. The text report names them after the card (`Sol Ring (C21:263) · tags: CK Batch`), so a tagged copy reads apart from an untagged one.
 - **`edhrecRank`**: the card's [EDHREC](https://edhrec.com) rank (1 = the most-played Commander card), from the card cache. Absent when EDHREC has not ranked it or the card cache does not hold the card.
-- **`ownedCopies`**: `{ "collection": n, "deck": n }`, how many copies of the card you hold, **by name and across every printing**, in _all_ your collections and _all_ your decks, whatever lists the report covers. Proxies never count, nor do a deck's extras sections (maybeboard, tokens); wanted lists are cards you do not own. The two are kept apart because whether a deck's cards are also in a collection depends on how you track them. `--min-owned <count>` keeps entries whose two counts add up to at least `count`, the quickest way to find duplicates worth selling:
+- **`ownedCopies`**: `{ "collection": n, "deck": n }`, how many copies of the card you hold, by name and across every printing, in all your collections and all your decks, whatever lists the report covers. Proxies never count, nor do a deck's extras sections (maybeboard, tokens); wanted lists are cards you do not own. The two are kept apart because whether a deck's cards are also in a collection depends on how you track them. `--min-owned <count>` keeps entries whose two counts add up to at least `count`, which finds duplicates worth selling:
 
 ```bash
 # Cards you own 4+ copies of that CK pays at least $1 for
@@ -119,7 +119,7 @@ The advice prints in the CLI's language. Under `--output json` its error envelop
 ritual sell --min 0.25 --output csv --out to-sell.csv
 ```
 
-With nothing to sell the CSV is empty. Upload the file on their CSV import page and the sell cart fills itself. Two caveats:
+With nothing to sell the CSV is empty. Upload the file on their CSV import page and their importer fills the sell cart. Two caveats:
 
 - Their importer caps one upload at 500 unique titles or 5,000 cards. The command warns when the file exceeds either.
 - The format cannot express etched foils. Etched-quoted entries export as foil, with a warning to adjust the cart by hand.
@@ -141,7 +141,7 @@ ritual set-card "Red Binder" --card-id 27 --tag "CK Batch"
 ritual sell --tags "CK Batch" --output csv --out ck-batch.csv
 ```
 
-`--tags` differs from the other filters: it narrows **which lines are matched at all**, before copies are aggregated and CK's buy quantity is shared out. Their cap is a budget drawn down in file order, so an untagged copy of the same card earlier in the file would otherwise use it up first, and the cart could come out short of the batch you picked. The other filters (`--sets`, `--min`, `--min-ratio`, `--min-owned`) trim the finished report.
+`--tags` differs from the other filters: it narrows which lines are matched, before copies are aggregated and CK's buy quantity is shared out. Their cap is a budget drawn down in file order, so an untagged copy of the same card earlier in the file would otherwise use it up first, and the cart could come out short of the batch you picked. The other filters (`--sets`, `--min`, `--min-ratio`, `--min-owned`) trim the finished report.
 
 ## Non-Interactive Output
 

@@ -46,8 +46,8 @@ properties to know before you expose any of it to a network. The
   per-route budget counted as the body streams in. `cache server`'s bulk-upload route allows
   1 GiB, because a client's full card refresh sends the whole card cache in one request; its
   other routes allow 16 MiB or less.
-- **`cache server` and `cache feed host` keep unexpected errors to themselves.** A `500`
-  carries a generic message; the error itself goes to the server's console.
+- **`cache server` and `cache feed host` do not send unexpected errors to the client.**
+  A `500` carries a generic message; the error itself goes to the server's console.
 
 ### The admin site
 
@@ -60,7 +60,7 @@ properties to know before you expose any of it to a network. The
 - **Sessions** are random 256-bit tokens in an `HttpOnly`, `SameSite=Strict` cookie,
   held in memory for 24 hours (a restart logs everyone out). Set `admin.secureCookies`
   when the admin is served over HTTPS so the cookie is also `Secure`.
-- **Cross-site requests** are refused twice over. The `SameSite=Strict` cookie keeps a
+- **Cross-site requests** are refused in two ways. The `SameSite=Strict` cookie keeps a
   browser from sending the session with them, and every `/api/*` request a browser sends
   from another site (a sibling port or subdomain included) is refused with `403` before any
   route runs, including `/api/setup` and `/api/login`, which need no session, and the `GET`

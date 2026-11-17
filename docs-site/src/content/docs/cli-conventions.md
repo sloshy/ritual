@@ -3,7 +3,7 @@ title: 'CLI Conventions'
 description: Global options, headless runs, scripting output, and exit codes shared by every command.
 ---
 
-Every Ritual command shares the same global options, the same rules for running without a terminal, the same scripting output formats, and the same exit codes. This page collects them so the command pages do not repeat them.
+Every Ritual command shares the same global options, rules for running without a terminal, scripting output formats, and exit codes. They are described here and not repeated on the command pages.
 
 ## Global Options
 
@@ -51,7 +51,7 @@ ritual lists                              # operates on ~/my-collection
 ritual --base-dir /projects/mtg lists     # the flag wins for this one run
 ```
 
-**The directory must already exist.** Ritual never creates a base directory. A path that is missing, or is not a directory, is a usage error (exit code `2`), and nothing is read or written:
+The directory must already exist, because Ritual never creates a base directory. A path that is missing, or is not a directory, is a usage error (exit code `2`), and nothing is read or written:
 
 ```
 base directory does not exist: /home/you/my-collectoin
@@ -59,7 +59,7 @@ base directory is not a directory: /home/you/notes.txt
 base directory is not readable: /srv/private — EACCES: permission denied, stat '/srv/private'
 ```
 
-The third form covers permission problems and any other filesystem failure while checking the path. The message is in the CLI's language (the one `--locale`, `RITUAL_LOCALE` or the OS chose: the requested directory's own `uiLocale` is never read), and under `--output json`/`ndjson` it is the standard error envelope on stderr, keyed `cli.baseDir.missing`, `cli.baseDir.notDirectory` or `cli.baseDir.unreadable`. Failing early protects you from a typo: a misspelled `--base-dir` would otherwise look like an empty workspace, and a write would put your data in a stray directory.
+The third form covers permission problems and any other filesystem failure while checking the path. The message is in the CLI's language (the one `--locale`, `RITUAL_LOCALE` or the OS chose: the requested directory's own `uiLocale` is never read), and under `--output json`/`ndjson` it is the standard error envelope on stderr, keyed `cli.baseDir.missing`, `cli.baseDir.notDirectory` or `cli.baseDir.unreadable`. Without this check, a misspelled `--base-dir` would look like an empty workspace, and a write would put your data in a stray directory.
 
 ### `--no-input`
 
@@ -96,7 +96,7 @@ Interactive-only surfaces refuse to open and point at their headless equivalent:
 
 Where a question has a documented default, that default is used instead of failing. The general rule is that `--refresh ask` is **declined** wherever it would prompt. A few commands differ, and their pages say so:
 
-- [`sell`](/commands/sell/#feed-freshness) redownloads an already-downloaded Card Kingdom buylist once it is a day old. [`admin`](/commands/admin/), [`serve --api`](/commands/serve/#live-api-mode---api), and a [sell-mode `build-site`](/commands/build-site/#sell-mode---sell-mode) do the same. Only the _first_ buylist download prompts.
+- [`sell`](/commands/sell/#feed-freshness) redownloads an already-downloaded Card Kingdom buylist once it is a day old. [`admin`](/commands/admin/), [`serve --api`](/commands/serve/#live-api-mode---api), and a [sell-mode `build-site`](/commands/build-site/#sell-mode---sell-mode) do the same. Only the first buylist download prompts.
 - [`collection-sync`](/commands/collection-sync/#cache-freshness) fails the run instead of skipping.
 - A text `import` without `--type` falls back to a deck **under an explicit `--no-input`**. A merely piped run still errors, since nothing said which type was meant.
 - A URL `import` (and `import-account`) without a [`--sync-printings`/`--no-sync-printings`](/commands/import/#printings-from-a-url-import) answer behaves the same way: an explicit `--no-input` keeps the source's exact printings and says so; a merely piped run errors.
@@ -120,7 +120,7 @@ Precedence: `--locale` → `RITUAL_LOCALE` → the [`uiLocale`](/configuration/#
 Run [`ritual locale`](/commands/locale/) to see which tier won, or [`ritual locale --detect`](/commands/locale/#detecting-the-os-locale) to run the deeper OS probes (Windows/macOS) and optionally save the result as `uiLocale`.
 
 :::note[Not the card language]
-`--locale` is the language **Ritual speaks**. Which _printing of a card_ gets recorded is [`defaultLanguage`](/configuration/#default-language), a separate setting with a separate vocabulary; see [Localization](/localization/). No translations ship yet, so every locale renders English text today, though dates, numbers, and currency follow the tag.
+`--locale` sets the language of Ritual's interface text. Which printing of a card gets recorded is [`defaultLanguage`](/configuration/#default-language), a separate setting with a separate vocabulary; see [Localization](/localization/). No translations ship yet, so every locale renders English text today, though dates, numbers, and currency follow the tag.
 :::
 
 ## Scripting
@@ -152,7 +152,7 @@ Three commands differ:
 
 - [`scry`](/commands/scry/) adds `--output csv`, which Scryfall renders itself.
 - [`sell`](/commands/sell/) adds `--output csv` with a different payload: Card Kingdom's sell-cart upload rows, not the report.
-- [`export`](/commands/export/) has no `--output`. Its stdout payload _is_ the export; choose it with `--format csv|json|text|md` and redirect it with `--out <file>`.
+- [`export`](/commands/export/) has no `--output`. Its stdout payload is the export; choose it with `--format csv|json|text|md` and redirect it with `--out <file>`.
 
 Errors always go to **stderr**, structured to match the output mode. Under `json`/`ndjson` an error is `{"error": {"code", "messageKey", "messageParams", "message", "details"}}`; under `text` it is a plain line. `code` and `messageKey` never change with the locale, so match on those. `message` is prose in the UI locale. `messageParams` is always flat strings and numbers in English: a param that is itself a message, a list or a duration is given as its English rendering, so the pair stays locale-invariant. `messageKey` and `messageParams` are omitted when the failure has no message-catalog entry, such as an error quoted verbatim from Scryfall or the filesystem. An unexpected internal failure uses the same envelope with `code: "runtime_error"`, exit code `1`, no `messageKey`, and `details` of `{"kind", "issuesUrl"}`: `kind` is `bug` when it looks like a bug in Ritual or `environment` for a system or network error, and `issuesUrl` is where to report it. `RITUAL_DEBUG` adds the stack trace as `details.stack`. Under `text`, a failure that looks like a bug in Ritual (not a refusal, and not a system or network error such as a permission denied or a refused connection) is followed by one line pointing at `RITUAL_DEBUG=1` and the issue tracker; see [Reporting a bug](/commands/doctor/#reporting-a-bug). stdout stays parseable in every case.
 
@@ -163,7 +163,7 @@ Errors always go to **stderr**, structured to match the output mode. Under `json
 - the **structured payload**. `--output json`/`ndjson` stdout is always emitted, so `--quiet --output json` is a JSON document with nothing around it. For total silence, redirect stdout.
 - **errors**, and **warnings that mean content was lost**: a card line the parser could not read, a change skipped as a conflict, a result set truncated by the page cap. These always print to stderr.
 
-A command with no non-essential output does not register the flag at all. `card`, `diff`, `scry`, `cache status`, `dep-license`, `doctor`, `history`, `login status`, `deck-sync status`, and `skills list` accept `--output` but no `--quiet`: everything they print is either the payload or a warning that must survive.
+A command with no non-essential output does not register the flag at all. `card`, `diff`, `scry`, `cache status`, `dep-license`, `doctor`, `history`, `login status`, `deck-sync status`, and `skills list` accept `--output` but no `--quiet`: everything they print is either the payload or a warning that is always printed.
 
 ### Exit codes
 
@@ -193,7 +193,7 @@ No other command triggers the backfill, so no other command rewrites the card li
 - the lifecycle commands `new`, `rename`, and `delete`, which create, move, or trash list files but never touch card lines;
 - the front-matter-only [`metadata`](/commands/metadata/) command and the front-matter-only modes of `set-list-image`;
 - the [`categories`](/commands/categories/) command, which writes only the categories file;
-- `detect-changes`, in all three of its modes, since a backfill would rewrite the very files it is inspecting (`--hash-only` still writes `.sha256` files, as that is its job).
+- `detect-changes`, in all three of its modes, since a backfill would rewrite the files it is inspecting (`--hash-only` still writes `.sha256` files, as that is its job).
 
 `-n`/`--dry-run` also skips the backfill: a dry run writes nothing.
 

@@ -9,7 +9,7 @@ Ritual is updated often. This page covers how to update it and what happens to y
 
 ## What "0.x" means
 
-Ritual's version number starts with `0.`. Until 1.0, **any release may change** a command, a flag, an output format, an [MCP tool](/commands/mcp/) or a site setting. Each change that needs something from you, such as a renamed flag in a script, says so in the [changelog](/reference/changelog/).
+Ritual's version number starts with `0.`. Until 1.0, any release may change a command, a flag, an output format, an [MCP tool](/commands/mcp/) or a site setting. Each change that needs something from you, such as a renamed flag in a script, says so in the [changelog](/reference/changelog/).
 
 **Your data is the exception.** Your decks, collections, wanted lists, their change histories and your `ritual.config.json` always carry forward from one version to the next. When a release changes how one of those files is written, it brings a [migration](#migrations) that updates your files for you.
 
@@ -22,7 +22,7 @@ ritual self-update          # update to the newest release
 ritual self-update --check  # only say whether there is one
 ```
 
-A release build also tells you, at most once a day, when a newer release is out. It only tells you; nothing is installed until you run `self-update`. See [Update notice](/commands/self-update/#update-notice), including how to turn it off.
+A release build also tells you, at most once a day, when a newer release is out; nothing is installed until you run `self-update`. See [Update notice](/commands/self-update/#update-notice), including how to turn it off.
 
 If you run a prerelease (a version such as `0.2.0-rc1`), `self-update` keeps you on prereleases. `ritual self-update --stable` goes back to stable releases.
 
@@ -47,7 +47,7 @@ Before a migration changes anything, Ritual copies each file it will change into
 
 `migrate` also refreshes the files Ritual generates for a published site (the deploy workflow, the `.gitignore` entries, the agent skills). See [`ritual migrate`](/commands/migrate/) for every detail. Commit the result.
 
-Each workspace is migrated on its own. If you have several, run `ritual migrate` in each, or just use them: each one asks.
+Each workspace is migrated on its own. If you have several, run `ritual migrate` in each, or use them and answer when each one asks.
 
 ## Pinning the version your site builds with
 
@@ -61,4 +61,4 @@ To build with a different release for a while without changing the pin, set a `R
 
 ## Going back to an older release
 
-`ritual self-update --tag v0.1.0` installs exactly that release, older ones included. An older Ritual never migrates a workspace a newer one already updated: `ritual migrate` refuses and names the release it needs, and other commands print a warning. See [A workspace from a newer Ritual](/commands/migrate/#a-workspace-from-a-newer-ritual).
+`ritual self-update --tag v0.1.0` installs that release, older ones included. An older Ritual never migrates a workspace a newer one already updated: `ritual migrate` refuses and names the release it needs, and other commands print a warning. See [A workspace from a newer Ritual](/commands/migrate/#a-workspace-from-a-newer-ritual).

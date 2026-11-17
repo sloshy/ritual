@@ -41,7 +41,7 @@ When nothing is pending it prints `This workspace is already up to date; nothing
 
 ## When Ritual offers to migrate
 
-You rarely need to remember `migrate`. Before every other command, Ritual checks whether the workspace has pending updates. When nothing is pending, the check reads only `ritual.config.json`, so it costs nothing noticeable. When updates are pending:
+Before every other command, Ritual checks whether the workspace has pending updates, so you rarely need to remember `migrate`. When nothing is pending, the check reads only `ritual.config.json`, so it costs nothing noticeable. When updates are pending:
 
 - **In an interactive terminal**, Ritual prints the same plan and asks ``Run `ritual migrate` now?``. Yes applies it exactly as `ritual migrate --yes` would, then your command runs against the updated workspace. If applying fails, Ritual reports the error the way `ritual migrate` would and still runs your command; run `ritual migrate` again to finish. No leaves the workspace alone and runs your command. Either way, Ritual asks **at most once a day per workspace**; commands in the next 24 hours only print the one-line notice below.
 - **Otherwise**, it prints one line to stderr and runs the command:
@@ -56,7 +56,7 @@ A workspace [from a newer Ritual](#a-workspace-from-a-newer-ritual) gets a one-l
 
 The notice and the warning never change a command's exit code, and nothing in the workspace is written unless you answer yes. `migrate`, `self-update`, `init-site`, `config` (all its subcommands), `help`, `mcp`, `detect-changes` (which must see the workspace exactly as committed), and [`doctor`](/commands/doctor/) (which reports pending updates itself) skip the check entirely, as does a directory with no `ritual.config.json`.
 
-The once-a-day memory lives in a small per-user state file, not in the workspace:
+The once-a-day record is kept in a small per-user state file, not in the workspace:
 
 | Platform | State file                                                                                    |
 | -------- | --------------------------------------------------------------------------------------------- |
@@ -64,7 +64,7 @@ The once-a-day memory lives in a small per-user state file, not in the workspace
 | macOS    | `~/Library/Application Support/ritual/state.json`                                             |
 | Windows  | `%LOCALAPPDATA%\ritual\state.json`, or `~\AppData\Local\ritual\state.json` when that is unset |
 
-The same file caches the [update notice](/commands/self-update/#update-notice)'s last release lookup (its `updateCheck` section). Set `RITUAL_STATE_DIR` to use another directory. Deleting the file is harmless: Ritual just asks again, and looks the newest release up again. If the file cannot be read or written, the command runs anyway.
+The same file caches the [update notice](/commands/self-update/#update-notice)'s last release lookup (its `updateCheck` section). Set `RITUAL_STATE_DIR` to use another directory. Deleting the file is harmless: Ritual asks again, and looks the newest release up again. If the file cannot be read or written, the command runs anyway.
 
 ## What gets migrated
 
@@ -114,7 +114,7 @@ Only a release build (one built by Ritual's release workflow, exactly at a relea
 
 ## Not an MCP tool
 
-Workspace migration is maintenance, like logging in. It is deliberately not exposed through the [MCP server](/commands/mcp/). Agents drive it through the CLI: see the `ritual-site` [skill](/commands/skills/), which runs `--check` or `--dry-run` first and asks before applying.
+Workspace migration is maintenance, like logging in, and is not exposed through the [MCP server](/commands/mcp/). Agents drive it through the CLI: see the `ritual-site` [skill](/commands/skills/), which runs `--check` or `--dry-run` first and asks before applying.
 
 If `ritual.config.json` changes between planning and applying (another process wrote it while the prompt was open), `migrate` stops without writing anything; run it again.
 

@@ -110,7 +110,7 @@ Sideboard
 - Bare `Deck`, `Sideboard`, `Commander`, and `Companion` lines start sections (`Deck` is `Main`). An empty `Commander` or `Companion` marker is dropped with a warning, like an empty `##` header. An empty `Deck` or `Sideboard` marker in an import that has cards elsewhere is kept as a bare header.
 - An `About` block's `Name ...` line names the deck. Its other lines are skipped with an advisory.
 
-**A set with no collector number is not read as a printing.** A card line can only carry `(SET:NUM)`, and a trailing parenthesized word is part of many real card names (`Very Cryptic Command (Untap)`, `Hazmat Suit (Used)`). So `1 Sol Ring (LTC)` keeps the name exactly as written and prints an advisory. The same rule applies to URL imports: a source that names a set but no collector number yields a name-only card line.
+A set with no collector number is not read as a printing. A card line can only carry `(SET:NUM)`, and a trailing parenthesized word is part of many real card names (`Very Cryptic Command (Untap)`, `Hazmat Suit (Used)`). So `1 Sol Ring (LTC)` keeps the name exactly as written and prints an advisory. The same rule applies to URL imports: a source that names a set but no collector number yields a name-only card line.
 
 ### Fenced Decklists
 
@@ -124,7 +124,7 @@ If a card line's format is not recognized and the parsed name still contains a p
 
 ### Skipped Lines
 
-Any body line matching none of the above (a bare card name with no quantity, a stray marker word, prose) is **skipped**. Every skipped line is reported and the command exits `1`, so a lossy import never looks clean (see [Partial Failures](#partial-failures)).
+Any body line matching none of the above (a bare card name with no quantity, a stray marker word, prose) is skipped. Every skipped line is reported and the command exits `1`, so a lossy import never looks clean (see [Partial Failures](#partial-failures)).
 
 ## Printings from a URL import
 
@@ -148,7 +148,7 @@ Archidekt's categories and Moxfield's tags are what Ritual calls [categories](/c
 - **Archidekt** files boards as categories too. A category that names a board (`Commander`, `Sideboard`, `Maybeboard`, …), that the deck marks as the command zone, or that the deck excludes from its count (_Tokens & Extras_) decides the card's section and is not imported as a category. See [Boards and categories](/commands/deck-sync/#boards-and-categories) for the exact rule.
 - **Moxfield** tags carry no board meaning, so every tag on a card the deck holds becomes a category.
 - **MTGGoldfish** has no categories, and its imports leave the categories file alone.
-- **An overwrite replaces the categories file.** Importing over an existing deck from Archidekt or Moxfield leaves exactly the source's categories; a card the source leaves untagged loses any it had.
+- **Overwrite**: importing over an existing deck from Archidekt or Moxfield replaces the categories file, leaving exactly the source's categories; a card the source leaves untagged loses any it had.
 - A category name Ritual cannot store (one holding a comma or a control character) is skipped and reported as an advisory (on stderr, and in the JSON `advisories` array). So is a categories file that could not be written; the deck itself still imports.
 
 `--dry-run` reports the categories file it would write without writing it. [`import-account`](/commands/import-account/), the admin Import Deck page, and the MCP `import_deck` tool import categories the same way.
@@ -157,7 +157,7 @@ To keep a deck's categories in step with Archidekt after the import, use [`deck-
 
 ## Dry Runs
 
-`-n, --dry-run` previews an import. The source is fetched or read, every card is resolved and validated, and the summary reports exactly what would be written, but **nothing on disk changes**. A dry run does not even create the `decks/`, `collections/`, or `wanted/` directory it would have written into.
+`-n, --dry-run` previews an import. The source is fetched or read, every card is resolved and validated, and the summary reports what would be written, but nothing on disk changes. A dry run also does not create the `decks/`, `collections/`, or `wanted/` directory it would have written into.
 
 A dry run that would replace an existing list says so: `[dry-run] Would overwrite deck: <path>` (or `... collection: <path>`) instead of `[dry-run] Would save deck to: <path>`, and the JSON output's `action` is `overwritten`.
 
@@ -201,8 +201,8 @@ With `--output json` (or `ndjson`), a URL or text-file import emits a summary on
 
 - `action` is `created`, `overwritten`, or `renamed` (the interactive rename resolution).
 - `warnings` lists text-file lines the parser skipped (always empty for URL imports). A non-empty array means content was lost and the command exits `1` (see [Partial Failures](#partial-failures)).
-- `advisories` lists content that **was** read but is worth a word: a card name still carrying a printing token, a skipped Arena `About` line, or an empty extras section (`## Maybeboard`, `## Tokens`) dropped because it holds nothing. Advisories print on stderr (even under `--quiet`) and never change the exit code, so a file whose only oddity is a bare `## Maybeboard` exits `0`. A run of four or more digits with no `x` is part of the card name ([read tolerances](/list-format/#read-tolerances)), so a source line meaning 1,000 or more copies needs the `x` (`1234x Sol Ring`).
-- Each entry of `warnings` and `advisories` is a message object: the English `message`, plus `messageKey` and `messageParams` when the text has a catalog entry. They stay English whatever the CLI's language; text mode prints them in it. Match on `messageKey` when it is present, never on the prose. A card-line grammar refusal is keyed `domain.card.line.atLine` (pasted text) or `domain.card.line.inFile`, its diagnostic nested as `text` (`domain.card.line.*`). A warning whose card **was** imported, only without the labels it carried, has `"labelsDropped": true`:
+- `advisories` lists notices about content that was read: a card name still carrying a printing token, a skipped Arena `About` line, or an empty extras section (`## Maybeboard`, `## Tokens`) dropped because it holds nothing. Advisories print on stderr (even under `--quiet`) and never change the exit code, so a file whose only oddity is a bare `## Maybeboard` exits `0`. A run of four or more digits with no `x` is part of the card name ([read tolerances](/list-format/#read-tolerances)), so a source line meaning 1,000 or more copies needs the `x` (`1234x Sol Ring`).
+- Each entry of `warnings` and `advisories` is a message object: the English `message`, plus `messageKey` and `messageParams` when the text has a catalog entry. They stay English whatever the CLI's language; text mode prints them in it. Match on `messageKey` when it is present, never on the prose. A card-line grammar refusal is keyed `domain.card.line.atLine` (pasted text) or `domain.card.line.inFile`, its diagnostic nested as `text` (`domain.card.line.*`). A warning whose card was imported without the labels it carried has `"labelsDropped": true`:
 
   ```json
   {
@@ -239,19 +239,19 @@ A CSV import emits a different result:
 - `imported` counts copies written. `failures` lists rejected rows by CSV line number. Each `reason` is English (several reasons joined with `; `), with `reasonKey`/`reasonParams` beside it; several reasons nest as a list under `reasonParams.reasons`.
 - `mode` is the resolved `create`/`overwrite`/`append`.
 - `replacesExisting` is `true` when the import replaced (or, under `--dry-run`, would replace) an existing list.
-- `advisories` carries non-fatal notices about rows that **did** import: category values the grammar refused, category values that named a board and became the row's section, and a categories sidecar that could not be written. Each is a message object, as on a text import. In text mode these print on stderr as `Warning: ...` (even under `--quiet`). They never change the exit code.
-- A CSV import has no `warnings` key. On a URL or text-file import that key means content was **lost**, which exits `1`.
+- `advisories` carries non-fatal notices about rows that did import: category values the grammar refused, category values that named a board and became the row's section, and a categories sidecar that could not be written. Each is a message object, as on a text import. In text mode these print on stderr as `Warning: ...` (even under `--quiet`). They never change the exit code.
+- A CSV import has no `warnings` key. On a URL or text-file import that key means content was lost, which exits `1`.
 
 Errors are emitted on stderr as `{ "error": { "code", "message" } }` in JSON modes, with `messageKey`/`messageParams` when the refusal has a catalog entry (a bad `--columns` spec, an unparseable CSV, an unsupported URL, or a deck service answering an error: `cli.import.failed`, whose `reason` is the service's failure, such as `Failed to fetch Archidekt deck 123456 (HTTP 404): Not found.` for an Archidekt deck that does not exist or is private). A partial failure still exits `1` even though the output was printed.
 
 ## Deck Format
 
-A deck imported from a URL or text file gets a `format:` in its front matter **when one can be established**. Otherwise the deck is written without one, and you can add it later by editing the front matter.
+A deck imported from a URL or text file gets a `format:` in its front matter when one can be established. Otherwise the deck is written without one, and you can add it later by editing the front matter.
 
 A format is established in one of two ways:
 
 1. **The source reports it.** Archidekt and Moxfield do. The reported format is mapped onto Ritual's format keys (Archidekt's "Commander / EDH" and Moxfield's `commander` both become `commander`). A format Ritual does not model (Archidekt's "Custom", Moxfield's `none`) counts as not reported.
-2. **The deck's sections imply it.** Only a command zone is recognized: a `## Commander` section means Commander, an `## Oathbreaker` section means Oathbreaker. A plain `Main`/`Sideboard` decklist imports with **no** `format:`.
+2. **The deck's sections imply it.** Only a command zone is recognized: a `## Commander` section means Commander, an `## Oathbreaker` section means Oathbreaker. A plain `Main`/`Sideboard` decklist imports with no `format:`.
 
 MTGGoldfish reports no format, so those imports get a format only through inference. See [new](/commands/new/#deck-format) for the full list of format keys.
 
@@ -281,13 +281,13 @@ Appending:
 - Continues the list's `&N` card IDs from its existing pool.
 - For decks, merges rows into existing lines when name and printing match (incrementing quantity) and creates any missing sections.
 - Records every added card in the list's changelog (visible in `ritual history` and the admin Change History page).
-- Rewrites the whole target file in canonical form, so it **refuses** (exit `1`, nothing written) when the file holds content the rewrite cannot reproduce: a line the parser could not read, or a [fenced code block](/list-format/#fenced-code-blocks). `--overwrite` has no such gate.
+- Rewrites the whole target file in canonical form, so it refuses (exit `1`, nothing written) when the file holds content the rewrite cannot reproduce: a line the parser could not read, or a [fenced code block](/list-format/#fenced-code-blocks). `--overwrite` has no such gate.
 
 A `--dry-run` CSV import performs every validation and resolution step, including row conversion and its failures, but writes neither the list file nor a changelog.
 
 ### Header Rows
 
-The wizard asks whether the first row is a header. A scripted run (`--columns`) does not ask: the first row is a header unless `--no-header` is given. Because that drops a row, a scripted run always says which one (`Skipping header row: ...`). When the dropped row does **not** look like a header (none of its cells match a known column name), an extra warning names `--no-header`. The known column names are the English ones (`Name`, `Set`, `Collector Number`, `Qty`, …) plus any spellings the translation for the CLI's [interface language](/configuration/#interface-language) lists. The same names pre-select the wizard's column picks, in two passes: every field an English heading names is picked first, and a translation's spellings only fill fields still unpicked, so they never take a field from an English heading and every English heading keeps its English field in every language. A header row of English headings is therefore read the same whatever language Ritual speaks; a row the translation recognizes, but English does not, counts as a header only in that language:
+The wizard asks whether the first row is a header. A scripted run (`--columns`) does not ask: the first row is a header unless `--no-header` is given. Because that drops a row, a scripted run always says which one (`Skipping header row: ...`). When the dropped row does not look like a header (none of its cells match a known column name), an extra warning names `--no-header`. The known column names are the English ones (`Name`, `Set`, `Collector Number`, `Qty`, …) plus any spellings the translation for the CLI's [interface language](/configuration/#interface-language) lists. The same names pre-select the wizard's column picks, in two passes: every field an English heading names is picked first, and a translation's spellings only fill fields still unpicked, so they never take a field from an English heading and every English heading keeps its English field in every language. A header row of English headings is therefore read the same in every interface language; a row the translation recognizes, but English does not, counts as a header only in that language:
 
 ```
 Warning: the first row does not look like a header but was skipped as one: Lightning Bolt,lea,161,4 — pass --no-header to import it as a card.
@@ -329,13 +329,13 @@ CSV exports differ between tools, so cell values are normalized on import. All m
 - **Finish**: `F`/`foil` (and `yes`/`true`/`1`) for foil; `E`/`etched`/`etched foil`/`foil etched` for etched. Empty cells, `non-foil`/`nonfoil`, `normal`, `regular`, `no`, `false`, and `0` all mean non-foil.
 - **Language**: Scryfall codes (`en`, `ja`, `zhs`, ...), printed-code aliases (`JP` → `ja`, `KR` → `ko`, `SP` → `es`, `CS` → `zhs`, `CT` → `zht`, Archidekt's CSV vocabulary), and full English names (`Japanese` → `ja`). An explicit cell value is kept as-is. A blank cell in a present language column means English. Only when the import has no language column at all are pinned rows stamped with the configured [`defaultLanguage`](/configuration/#default-language), falling back to English when the printing does not exist in that language, then to the printing's only available language. Rows without a printing are never stamped. English is written as a bare line (no token).
 - **Section**: blank means `Main`. For decks, common board names normalize to canonical headers: `side`/`sideboard`/`sb` → `Sideboard`, `maybe`/`maybeboard` → `Maybeboard`, `main`/`mainboard`/`maindeck`/`deck` → `Main`, `commander`/`command`/`command zone` → `Commander`. Anything else becomes a custom section verbatim.
-- **Categories**: comma-separated, in cell order, the first one primary. On a **deck**, a value that names a board (`sideboard`/`side`/`sb`, `maybeboard`/`maybe`, `commander`/`commanders`/`command`/`command zone`, `main`/`mainboard`/`maindeck`/`deck`, `tokens`/`token`, `companion`, `oathbreaker`/`signature spell` — the last yielding section `Oathbreaker`) sets the row's **section** instead of becoming a category. So Archidekt's `Ramp,Sideboard` cell yields section `Sideboard` and category `Ramp`. When a cell names two board values, the first wins. An explicit, non-empty `section` cell wins over both. Every board value is dropped from the categories either way and reported as an advisory (`Tokens` is also a shipped default category). On collections and wanted lists every value stays a category. A value that is not [category-shaped](/list-format/#categories-namecategoriesjson) (one holding a control character, such as a tab) is **ignored with a warning; the card still imports** with its other categories. The `category` header means categories, not section; `board` and `section` are the section headers. Imported categories are written to the list's `<name>.categories.json` sidecar and recorded in the changelog on `--append`.
+- **Categories**: comma-separated, in cell order, the first one primary. On a **deck**, a value that names a board (`sideboard`/`side`/`sb`, `maybeboard`/`maybe`, `commander`/`commanders`/`command`/`command zone`, `main`/`mainboard`/`maindeck`/`deck`, `tokens`/`token`, `companion`, `oathbreaker`/`signature spell`, the last yielding section `Oathbreaker`) sets the row's **section** instead of becoming a category. So Archidekt's `Ramp,Sideboard` cell yields section `Sideboard` and category `Ramp`. When a cell names two board values, the first wins. An explicit, non-empty `section` cell wins over both. Every board value is dropped from the categories either way and reported as an advisory (`Tokens` is also a shipped default category). On collections and wanted lists every value stays a category. A value that is not [category-shaped](/list-format/#categories-namecategoriesjson) (one holding a control character, such as a tab) is ignored with a warning; the card still imports with its other categories. The `category` header means categories, not section; `board` and `section` are the section headers. Imported categories are written to the list's `<name>.categories.json` sidecar and recorded in the changelog on `--append`.
 - **Quantity**: a positive integer, tolerating `4x`/`x4`.
 - **Set codes**: stored lowercase internally and written uppercase in markdown, like everywhere else in Ritual.
 
 ### Partial Failures
 
-Rows that fail validation (missing name, missing printing for a collection, unrecognized condition/finish/quantity) do **not** abort the import. Every valid row is imported, and each failed row is reported with its line number, raw text, and reason. When any row fails, the command exits `1` even though the import was written. Check stderr for the failed lines.
+Rows that fail validation (missing name, missing printing for a collection, unrecognized condition/finish/quantity) do not abort the import. Every valid row is imported, and each failed row is reported with its line number, raw text, and reason. When any row fails, the command exits `1` even though the import was written. Check stderr for the failed lines.
 
 Text-file imports behave the same way. A body line that is neither a section header nor a card line (see [Local Text File Format](#local-text-file-format)) is skipped and reported: on stderr in text mode (`2 lines could not be imported:` followed by each `Skipped malformed line: ...`), or in the JSON `warnings` array. The command exits `1` in every mode even though the import was written. `--dry-run` reports the same warnings, so a preview reveals the loss too.
 

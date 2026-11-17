@@ -86,7 +86,7 @@ ritual note --collection main "Sol Ring" --note "first edition" --output json
 
 ### Setting Replaces
 
-Setting a note **replaces** any existing note, with no confirmation. The previous text is reported back (`previousNote` in JSON output), so scripts can detect a replacement.
+Setting a note replaces any existing note, with no confirmation. The previous text is reported back (`previousNote` in JSON output), so scripts can detect a replacement.
 
 ```json
 {
@@ -129,7 +129,7 @@ When both a name and `--card-id` are given they must agree. A disagreement is a 
 
 ### Dry Runs
 
-`--dry-run` resolves the list, the card, and the note text, then reports what the note _would_ become. Nothing is written: no list file, changelog, `.sha256` file, or card-ID backfill. There is no `-n` short form, since `-n` is `--note`. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`. The idempotent `--clear` no-op reports `cleared: false` and `previousNote: null` whether or not it is a dry run.
+`--dry-run` resolves the list, the card, and the note text, then reports what the note would become. Nothing is written: no list file, changelog, `.sha256` file, or card-ID backfill. There is no `-n` short form, since `-n` is `--note`. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`. The idempotent `--clear` no-op reports `cleared: false` and `previousNote: null` whether or not it is a dry run.
 
 ### Quantity Behavior
 
@@ -137,7 +137,7 @@ In a deck, copies of the same printing share one line and one `&N` ID (`4 Lightn
 
 ### Note Validation
 
-Notes are single-line text. Surrounding whitespace is trimmed, and control characters (newlines, tabs, NUL, DEL, escape sequences, NEL) and the Unicode line and paragraph separators (U+2028, U+2029) are rejected. Quotes and other printable punctuation are allowed. The admin UI applies the same validation. An empty or whitespace-only `--note` is rejected; clearing is only ever done with `--clear`.
+Notes are single-line text. Surrounding whitespace is trimmed, and control characters (newlines, tabs, NUL, DEL, escape sequences, NEL) and the Unicode line and paragraph separators (U+2028, U+2029) are rejected. Quotes and other printable punctuation are allowed. The admin UI applies the same validation. An empty or whitespace-only `--note` is rejected; clearing is done only with `--clear`.
 
 ### Change Tracking
 

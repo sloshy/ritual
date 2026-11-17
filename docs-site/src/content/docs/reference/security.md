@@ -50,7 +50,7 @@ The files in `.logins/` are readable only by you (mode `0600`, in a `0700` folde
 
 ## Running servers
 
-`ritual admin`, `ritual serve`, `ritual mcp` and `ritual cache server` start servers. Some listen on every network interface by default, and some have no sign-in at all. Before you open any of them to a network, read [`SECURITY.md`](https://github.com/sloshy/ritual/blob/main/SECURITY.md#deployment-assumptions): it lists each server's default address and how it checks who is connecting.
+`ritual admin`, `ritual serve`, `ritual mcp` and `ritual cache server` start servers. Some listen on every network interface by default, and some have no sign-in. Before you open any of them to a network, read [`SECURITY.md`](https://github.com/sloshy/ritual/blob/main/SECURITY.md#deployment-assumptions): it lists each server's default address and how it checks who is connecting.
 
 A few protections apply whatever you expose:
 

@@ -48,7 +48,7 @@ On startup, `admin`:
 Sell mode on the sites is in beta and may change in any release. See [Sell Mode](/public-site/sell/).
 :::
 
-[Sell mode](/public-site/sell/) adds Card Kingdom buy prices in the editors, buylist filters and groupings, and the sell-cart export. It is **off unless you ask for it**. Turn it on for the workspace with [`ritual config set site.sellMode true`](/configuration/#offering-sell-mode-sellmode), or for one run:
+[Sell mode](/public-site/sell/) adds Card Kingdom buy prices in the editors, buylist filters and groupings, and the sell-cart export. It is off by default. Turn it on for the workspace with [`ritual config set site.sellMode true`](/configuration/#offering-sell-mode-sellmode), or for one run:
 
 ```bash
 ritual admin --sell-mode
@@ -60,11 +60,11 @@ With sell mode **off**, and [`priceSources`](/configuration/#price-stores-prices
 - answers `404` on `/api/sell/report`, `/api/sell/cart`, `/api/sell/refresh`, `/api/buylist/status`, and `/api/buylist/quotes`. The setting is read per request, so a `config set` takes effect without a restart;
 - hides the surfaces that call them: the editors' **Sell mode** toggle and buyer selector (see [Editors](/admin/editors/)), the **Refresh buylist** card on the [Refresh Cache](/admin/dashboard/#refresh-cache) page, and the sell controls on all three panes of [Move Cards](/admin/move-cards/).
 
-The admin UI learns the **effective** value from [`GET /api/status`](/admin/api/auth/#server-status), so `--sell-mode` shows the surfaces even with nothing in the config file.
+The admin UI reads the effective value from [`GET /api/status`](/admin/api/auth/#server-status), so `--sell-mode` shows the surfaces even with nothing in the config file.
 
 The [Settings](/admin/dashboard/#settings) page has an **Offer sell mode** checkbox for `site.sellMode` and **Price Stores** checkboxes for [`priceSources`](/configuration/#price-stores-pricesources). Checking the box stores `site.sellMode: true`. Unchecking removes the key, so `config get site.sellMode` reports it unset rather than an explicit `false`.
 
-The change applies **immediately, without a reload or restart**: the routes re-read the config per request, and the save re-reads `GET /api/status`, so the sell surfaces appear or disappear on the spot. If that status read fails (the server went away between the save and the re-read), the surfaces keep their previous state; the save still landed, so reload to resynchronize. A server started with `--sell-mode` keeps offering sell mode whatever the checkbox says, since the flag overrides the stored key for that run.
+The change applies immediately, without a reload or restart: the routes re-read the config per request, and the save re-reads `GET /api/status`, so the sell surfaces appear or disappear. If that status read fails (the server went away between the save and the re-read), the surfaces keep their previous state; the save still landed, so reload to resynchronize. A server started with `--sell-mode` keeps offering sell mode whatever the checkbox says, since the flag overrides the stored key for that run.
 
 Checking the box commits every later site build and cache refresh to downloading and indexing Card Kingdom's ~70 MB buylist.
 
@@ -104,7 +104,7 @@ Open that link to create the account:
 - **Password**: 8–128 characters
 - **Setup token**: filled in from the link. If you open the plain URL instead, paste the token from the terminal.
 
-The account can only be created with that token. Because the admin binds every interface (`0.0.0.0`) by default, anyone on your network can reach a fresh server, and without the token the first person to open it would own it. The token is printed only to the terminal that started the server (in Docker, to `docker logs`). A new one is drawn on every start, and once an account exists the setup form is gone. To pin the token, for example to create the account from a provisioning script, set `RITUAL_ADMIN_SETUP_TOKEN`.
+The account can only be created with that token. Because the admin binds every interface (`0.0.0.0`) by default, anyone on your network can reach a fresh server, and without the token the first person to open it would control it. The token is printed only to the terminal that started the server (in Docker, to `docker logs`). A new one is drawn on every start, and once an account exists the setup form is gone. To pin the token, for example to create the account from a provisioning script, set `RITUAL_ADMIN_SETUP_TOKEN`.
 
 Credentials are hashed with bcrypt and stored in `.logins/admin-auth.json`. Later visits sign in with these credentials and get a session cookie.
 
@@ -186,7 +186,7 @@ Browser sessions are held **in memory inside the running admin server**. Changin
 
 Settings are stored in `ritual.config.json` in the base directory. The file is shared by the whole app; see [Configuration](/configuration/) for the full reference and how it interacts with `--base-dir`. It is created the first time something writes a setting (a **Settings** page save, `config set`, `init-site`). Until then the [defaults](/configuration/#default-settings) apply.
 
-Admin-server settings live under the `admin` key. Set them from the **Settings** page, with [`config set admin.<field>`](/commands/config/), or by hand.
+Admin-server settings are under the `admin` key. Set them from the **Settings** page, with [`config set admin.<field>`](/commands/config/), or by hand.
 
 ## Git Integration
 

@@ -37,7 +37,7 @@ Returns server health, whether first-time setup is needed, and which optional ca
 
 `about` is the running Ritual's source offer: its version, its license, the repository holding its source, and `revisionUrl`, the source of exactly this version (the release tag's tree, or the commit's for a development build). The admin UI shows it at the foot of its navigation. See [Source Code](/attribution/#source-code).
 
-`sellMode` is the **effective** value: `site.sellMode`, or `true` when the server was started with [`--sell-mode`](/commands/admin/#sell-mode). When it is false a client hides its sell surfaces. The `/api/sell/*` and `/api/buylist/*` routes themselves stay open while the `cardkingdom` [price store](/configuration/#price-stores-pricesources) is enabled, because Card Kingdom retail prices come from the same feed.
+`sellMode` is the effective value: `site.sellMode`, or `true` when the server was started with [`--sell-mode`](/commands/admin/#sell-mode). When it is false a client hides its sell surfaces. The `/api/sell/*` and `/api/buylist/*` routes themselves stay open while the `cardkingdom` [price store](/configuration/#price-stores-pricesources) is enabled, because Card Kingdom retail prices come from the same feed.
 
 ## Create Admin Account
 

@@ -135,13 +135,13 @@ A missing **collection** or **wanted list** can be created by the add, but only 
 
 `--create` needs the type pinned to a collection or wanted list; with `--deck` or no type it is a usage error (exit `2`). Decks are never auto-created: create them first with [`new deck`](/commands/new/). A missing deck's error suggests the closest deck names the same way.
 
-The file is created **at write time**, after every validation has passed. A failed add (empty card cache, unknown printing pin, cancelled prompt) or a `--dry-run` never leaves an empty list file behind.
+The file is created at write time, after every validation has passed. A failed add (empty card cache, unknown printing pin, cancelled prompt) or a `--dry-run` never leaves an empty list file behind.
 
 ### Card Selection
 
 The card name filters the local card cache, and an autocomplete prompt lets you narrow the list and pick the card.
 
-Your input is split on whitespace, and **every term must appear in the card name**, in any order. `in tre` finds "In the Trenches", and `bolt light` finds "Lightning Bolt". Case, accents, and punctuation don't have to match (`jaces archivist` finds "Jace's Archivist"). The same rule applies to the name on the command line and to what you type at the prompt.
+Your input is split on whitespace, and every term must appear in the card name, in any order. `in tre` finds "In the Trenches", and `bolt light` finds "Lightning Bolt". Case, accents, and punctuation don't have to match (`jaces archivist` finds "Jace's Archivist"). The same rule applies to the name on the command line and to what you type at the prompt.
 
 Suggestions are ordered by EDHRec popularity, with closer matches first:
 
@@ -183,9 +183,9 @@ The interactive printing picker shows each printing's price in the currency of y
 
 `--language` records the copy's language as a lowercase Scryfall code: `en es fr de it pt ja ko ru zhs zht he la grc ar sa ph`. These are Scryfall's codes, not ISO codes, so Chinese is `zhs`/`zht`. Common aliases normalize to the canonical code (`jp` → `ja`, `kr` → `ko`, `sp` → `es`, `cs` → `zhs`, `ct` → `zht`, and full English names like `Japanese`).
 
-Adding **never prompts** for a language. Without the flag, the configured [`defaultLanguage`](/configuration/#default-language) is stamped on the new card.
+Adding never prompts for a language. Without the flag, the configured [`defaultLanguage`](/configuration/#default-language) is stamped on the new card.
 
-On the line, the language is a bracket token in canonical position (`- Sol Ring (C21:263) [foil] [LP] [ja] &7`) and is **omitted for English**. A bare line always means `en` whatever the configured default, so files stay self-describing. `--language` is recorded as given: only the printing pin is verified, not the language. To change a copy's language with verification against the printing's real languages, use [`set-card --language`](/commands/set-card/#language-updates).
+On the line, the language is a bracket token in canonical position (`- Sol Ring (C21:263) [foil] [LP] [ja] &7`) and is omitted for English. A bare line always means `en` whatever the configured default, so files stay self-describing. `--language` is recorded as given: only the printing pin is verified, not the language. To change a copy's language with verification against the printing's real languages, use [`set-card --language`](/commands/set-card/#language-updates).
 
 ### Cache Freshness
 
@@ -199,11 +199,11 @@ Under `ask`, a prompt that can't be answered (see [When prompts are unavailable]
 
 ### Dry Runs
 
-`-n` / `--dry-run` resolves the list and card, runs every validation (printing pin, finish availability, flag applicability), reports the line that _would_ be written, then stops. No list file, changelog, or `.sha256` file is written, no missing list is created, and the card-ID backfill is skipped, so the workspace is left byte-for-byte as it was. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`.
+`-n` / `--dry-run` resolves the list and card, runs every validation (printing pin, finish availability, flag applicability), reports the line that would be written, then stops. No list file, changelog, or `.sha256` file is written, no missing list is created, and the card-ID backfill is skipped, so the workspace is left byte-for-byte as it was. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`.
 
 ### Change Tracking
 
-Every add records a change event in the `.changes.md` changelog beside the target file, including the `&N` card ID allocated for the new line. Deck adds record **one event per copy**, so `-q 4` writes four `Added` entries. The site's change history view reads this changelog.
+Every add records a change event in the `.changes.md` changelog beside the target file, including the `&N` card ID allocated for the new line. Deck adds record one event per copy, so `-q 4` writes four `Added` entries. The site's change history view reads this changelog.
 
 ### Deck Mode
 
@@ -213,7 +213,7 @@ How the card lands in the deck:
 
 - **Copies merge onto an existing line** for the same card when the printing (set, collector number, finish, condition, language), the effective labels (each line's override applied to the deck's default), and the tags all match. The merged line keeps its `&N` ID and any `{note}`. Labels are part of that identity: `--label proxy` on a card the deck already runs for real adds a second, `[proxy]` line rather than folding the proxies into the real copies.
 - **Merging and placement.** Without `--section`, copies join the deck's existing line for the same printing wherever it lives, and `--commander` then moves that whole line (every copy) into the Commander section. With `--section`, copies join a line of the same printing **in that section** only; when the section has none, they start a new line there, even if another section already runs the printing. The changelog records the section the copies landed in.
-- **Section names resolve to the deck's own sections.** `--section` matches an existing section case-insensitively (`sideboard` is `## Sideboard`). A reserved name means the deck's first section of that role: a main-deck alias (`Main`, `Mainboard`, `Deck`) is the first main-deck section, such as `## Creatures`, or the card lines above the first heading when the deck has any. `Signature Spell` and `Oathbreaker` are kept apart. Any other name is a new section, created at the end of the file. A name that resolves to an existing section never creates a new one: to start a second section under such a name, add the empty section first (the editors' section manager), then place cards in it by that name.
+- **Section names.** `--section` matches an existing section case-insensitively (`sideboard` is `## Sideboard`). A reserved name means the deck's first section of that role: a main-deck alias (`Main`, `Mainboard`, `Deck`) is the first main-deck section, such as `## Creatures`, or the card lines above the first heading when the deck has any. `Signature Spell` and `Oathbreaker` are kept apart. Any other name is a new section, created at the end of the file. A name that resolves to an existing section never creates a new one: to start a second section under such a name, add the empty section first (the editors' section manager), then place cards in it by that name.
 - **A new line is appended at the end of its section**: the section named by `--section`, the Commander section under `--commander`, otherwise the deck's first main-deck section (the card lines above the first heading when there are any, else the first section that is not a commander, oathbreaker, signature spell, companion, sideboard, or extras section). A deck organized as `## Mainboard` keeps that one main section instead of gaining a `## Main`. A deck whose body is bare card lines with no headings is one implicit Main section, and the card joins after its last card line. Only a deck with no card lines at all gets a `## Main` created.
 
 Deck entries record the card name and quantity, plus the set code and collector number when pinned, and `[finish]`/`[condition]`/`[labels]`/`#tags` annotations when the matching flags are given. `proxy` (and `no-proxy`) is the only label a deck line takes (see [Card Labels](/list-format/#card-labels)); tags are free-form on every type (see [Card Tags](/list-format/#card-tags)). A `--finish` on a deck add is validated only when `--set`/`--collector-number` pin a printing, since an unpinned deck line records no printing to check against.

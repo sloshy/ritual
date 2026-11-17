@@ -2,12 +2,12 @@
 
 <img src="app.svg" alt="Ritual icon" width="96" />
 
-Ritual is a free, open-source command-line program for Magic: The Gathering. It keeps your decks, collections and wanted lists as plain markdown files in a folder, usually a git repository. It prices them, imports them from the sites you already use, and builds them into a website you can host anywhere.
+Ritual is a free, open-source command-line program that keeps Magic: The Gathering decks, collections and wanted lists as plain markdown files in a folder, usually a git repository. It prices them, imports them from other sites, and builds them into a static website you can host anywhere.
 
-- **Lists are files.** One markdown file per deck, collection or wanted list. Edit it with Ritual (`ritual edit` in the terminal, `ritual admin` in the browser) or by hand. Ritual logs the changes it makes in a history file beside the list, and keeps a small `.sha256` file there too so it can tell its own edits from yours; commit both with the list.
+- **Markdown files.** One file per deck, collection or wanted list. Edit it with Ritual (`ritual edit` in the terminal, `ritual admin` in the browser) or by hand. Ritual logs the changes it makes in a history file beside the list, and keeps a small `.sha256` file there too so it can tell its own edits from yours; commit both with the list.
 - **Prices.** TCGplayer, Cardmarket, Card Kingdom and Cardhoarder prices for every list. Card data and most prices come from a local cache of Scryfall's data; Card Kingdom's come from its own price list.
 - **Import and sync.** Decks from Archidekt, Moxfield and MTGGoldfish, lists from text and CSV files, and two-way sync with Archidekt for decks and your collection.
-- **Your own site.** `ritual build-site` writes a static website of your lists; `ritual init-site` sets up publishing to GitHub Pages. An MCP server and agent skills let AI assistants work with your lists too.
+- **Website.** `ritual build-site` writes a static website of your lists; `ritual init-site` sets up publishing to GitHub Pages. An MCP server and agent skills let AI assistants work with your lists too.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs-site/src/assets/screenshots/home-dark.webp" />
@@ -16,7 +16,7 @@ Ritual is a free, open-source command-line program for Magic: The Gathering. It 
 
 See a built site in the [live demo](https://ritual.rpeters.dev/demo/), and read the documentation at <https://ritual.rpeters.dev/>.
 
-In the terminal, a deck is one command away, and the file Ritual writes is plain markdown:
+In the terminal, `ritual new deck` creates a deck, and the file it writes is plain markdown:
 
 <img src="docs-site/src/assets/recordings/first-deck.gif" alt="A terminal session: ritual new deck creates a Commander deck, ritual add-card adds Sol Ring to it, and cat shows the deck file, with its front matter, an empty Commander section, and a Main section holding 1 Sol Ring." />
 

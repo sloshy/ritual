@@ -5,7 +5,7 @@ description: The dashboard pages for building the site, refreshing the card cach
 
 import Screenshot from '../../../components/Screenshot.astro'
 
-Besides the editors and the list tools, the admin dashboard has a handful of single-purpose pages, described here. The two Archidekt sync pages have their own pages: [Sync Decks](/admin/sync-decks/) and [Sync Collection](/admin/sync-collection/).
+Besides the editors and the list tools, the admin dashboard has several single-purpose pages. The two Archidekt sync pages have their own pages: [Sync Decks](/admin/sync-decks/) and [Sync Collection](/admin/sync-collection/).
 
 ## Build Site
 
@@ -25,11 +25,11 @@ While the refresh runs the page shows:
 
 ### Card Kingdom buylist
 
-When [sell mode](/commands/admin/#sell-mode) is on, the page also shows a **Card Kingdom buylist** panel. It backs sell mode and the [`sell`](/commands/sell/) command. The panel is shown only while sell mode is on. Its routes answer `404` unless sell mode or the `cardkingdom` [price store](/public-site/prices/) is enabled.
+The page also shows a **Card Kingdom buylist** panel, only while [sell mode](/commands/admin/#sell-mode) is on. It backs sell mode and the [`sell`](/commands/sell/) command. Its routes answer `404` unless sell mode or the `cardkingdom` [price store](/public-site/prices/) is enabled.
 
 The panel shows when the feed was last downloaded, Card Kingdom's own generation stamp, and the product count, with a **Refresh buylist** button.
 
-- The download (about 70 MB) only happens when you click the button. No page load triggers it. The button forces a redownload even when the cached copy is still fresh. Server startup refreshes a day-old feed on its own (whenever sell mode or the `cardkingdom` price store is enabled), so the button is for forcing one mid-session.
+- The download (about 70 MB) happens only when you click the button, and no page load triggers it. The button forces a redownload even when the cached copy is still fresh. Server startup refreshes a day-old feed on its own (whenever sell mode or the `cardkingdom` price store is enabled), so the button is for forcing one mid-session.
 - A workspace that has never downloaded the feed shows an empty state with the button, not an error.
 - If a download fails but a stale copy exists, the panel reports "The buylist was not updated." instead of claiming success.
 - When a refresh brings down a new feed, the admin discards the buylist quotes already resolved in this browser session, so an editor opened afterwards prices against the new feed. A refresh that changed nothing (still fresh, or a failed download that kept the stale copy) leaves them alone.
@@ -58,15 +58,15 @@ Change admin settings. Each maps to a key on the [Configuration](/configuration/
 - **Decks Directory**: path to the decks folder (default `./decks`)
 - **Collections Directory**: path to the collections folder (default `./collections`)
 - **Wanted List Directory**: path to the wanted-lists folder (default `./wanted`)
-- **Custom Art Directory**: folder holding [custom card art](/custom-art/) images; a card's `file` reference is relative to it. Ritual never creates it, and a missing directory just means the workspace has no local art (default `./art`; see [Configuration](/configuration/#directory-options))
+- **Custom Art Directory**: folder holding [custom card art](/custom-art/) images; a card's `file` reference is relative to it. Ritual never creates it, and a missing directory means the workspace has no local art (default `./art`; see [Configuration](/configuration/#directory-options))
 - **Default Price Store**: the store (and so the currency) price displays and the price command default to. **Automatic** uses the first ticked price store (see [Configuration](/configuration/#default-price-store)). The admin header's **Prices** dropdown switches the store for the session, like the public site's; this setting is where it opens
 - **Price Stores**: which [price stores](/public-site/prices/) the app quotes. Stored in canonical order however you tick the boxes (default TCGplayer; see [Configuration](/configuration/#price-stores-pricesources))
 - **Default Categories**: the global [category](/commands/categories/) vocabulary. These are the suggestions offered wherever you type a category, and the fallback heading order for a list whose categories file declares none. Comma-separated; spaces are part of a name (`Ramp, Board Wipes`). Default: the shipped fourteen (see [Configuration](/configuration/#default-categories)). A name that breaks the [category shape rule](/commands/categories/) is refused as you type: the field keeps your text, the refusal is explained under it, and a save stores the last valid vocabulary. Saving applies at once, and already-open editors offer the new vocabulary as soon as the save returns
 - **Default Language**: the Scryfall language code stamped on newly added cards. A non-English value switches cache downloads to the much larger `all_cards` bulk (default `en`; see [Configuration](/configuration/#default-language))
-- **Interface Language**: the language the admin and CLI **speak**, as a BCP-47 tag. This is not the card language. The list offers every locale this build ships, each named in its own language (default `en`; see [Configuration](/configuration/#interface-language)). Saving relabels the admin immediately with no rebuild; the public site picks it up on its next [build-site](/commands/build-site/#localized-builds). The header also has a language switcher that changes the language for this browser only, without touching the config; see [Localization](/localization/#admin-site)
+- **Interface Language**: the language the admin and CLI display their text in, as a BCP-47 tag. This is not the card language. The list offers every locale this build ships, each named in its own language (default `en`; see [Configuration](/configuration/#interface-language)). Saving relabels the admin immediately with no rebuild; the public site picks it up on its next [build-site](/commands/build-site/#localized-builds). The header also has a language switcher that changes the language for this browser only, without touching the config; see [Localization](/localization/#admin-site)
 - **Cache Source**: where cache refreshes download from, Scryfall directly or a peer-to-peer cache feed (default `scryfall`; see [Configuration](/configuration/#cache-source))
 - **Cache Feed URL**: the feed URL used when the cache source is the feed. There is no public feed, so the feed source needs one: left empty, a feed refresh warns and downloads from Scryfall instead (see [Configuration](/configuration/#cache-source))
-- **Card Cache Folder**: where this workspace's card cache lives, absolute or relative to the workspace (`cache` keeps a folder inside it). Empty = the per-user cache every workspace shares. `RITUAL_CACHE_DIR` overrides it, and changing it does not move the existing cache (see [Configuration](/configuration/#cache-directory-cachedir))
+- **Card Cache Folder**: where this workspace's card cache is stored, absolute or relative to the workspace (`cache` keeps a folder inside it). Empty = the per-user cache every workspace shares. `RITUAL_CACHE_DIR` overrides it, and changing it does not move the existing cache (see [Configuration](/configuration/#cache-directory-cachedir))
 - **Cache Lock Timeout**: seconds a cache refresh waits for another process's cache-write lock before failing (default `300`; see [Configuration](/configuration/#cache-lock-timeout))
 - **Card Search Debounce (ms)**: how long the editors' add-card search waits after a keystroke before querying autocomplete; `0` disables the wait (default `500`; see [Configuration](/configuration/#search-debounce)). Applies to the public site the next time it is built
 - **Tell me when a newer Ritual is available**: whether a release build of the CLI checks for a newer Ritual (daily, or hourly while lookups fail) and prints a one-line notice (default on; see [Configuration](/configuration/#update-check))

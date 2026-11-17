@@ -88,7 +88,7 @@ The first command that creates a `.sha256` file in a workspace (usually the firs
 
 ## List file names
 
-A list's file is named exactly as you name the list: `ritual new deck "Winota Stax"` writes `decks/Winota Stax.md`. Case, spaces, and punctuation are preserved. The name is not lowercased or hyphenated.
+A list's file is named as you name the list: `ritual new deck "Winota Stax"` writes `decks/Winota Stax.md`. Case, spaces, and punctuation are preserved. The name is not lowercased or hyphenated.
 
 Only characters file systems reject are removed: `/ \ : * ? " < > |`, the null byte, and leading, trailing, or repeated dots. So `Atraxa: Praetors' Voice` is stored as `decks/Atraxa Praetors' Voice.md`, while the `# Title` heading keeps the colon. A name with nothing usable left (`"???"`) is an error, and no file is written.
 
@@ -98,7 +98,7 @@ Every surface that creates a list (the CLI, the editors, imports, and the admin 
 
 ## Deck format
 
-A deck's format lives in its `format:` front matter. It is the same closed set of values everywhere: `ritual new`, the editors, [`import`](/commands/import/#deck-format), the admin site, and the MCP `create_list` tool.
+A deck's format is in its `format:` front matter. It is the same closed set of values everywhere: `ritual new`, the editors, [`import`](/commands/import/#deck-format), the admin site, and the MCP `create_list` tool.
 
 A deck that declares no format is treated as Commander when it has a `## Commander` section, and as Oathbreaker when it has a `## Oathbreaker` or `## Signature Spell` section. That inference is written into the file the next time the deck is saved.
 

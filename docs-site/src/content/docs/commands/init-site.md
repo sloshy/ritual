@@ -76,7 +76,7 @@ Flag: `--deploy <mode>`
 
 **Publish for me** (`--deploy publish-for-me`) generates a GitHub Action that:
 
-1. Resolves the Ritual version — the release [pinned in `ritual.config.json`](#the-pinned-ritual-release-github-actions), unless the `RITUAL_VERSION` variable says otherwise — and restores the Ritual binary from cache if the version has not changed
+1. Resolves the Ritual version (the release [pinned in `ritual.config.json`](#the-pinned-ritual-release-github-actions), unless the `RITUAL_VERSION` variable says otherwise) and restores the Ritual binary from cache if the version has not changed
 2. Downloads Ritual only when the resolved version is not cached: the compressed `ritual-linux-x86_64.tar.gz`, checked against the release's published SHA-256 checksum before it is unpacked. A release before 0.1.0-rc4 has no archive, so the step fails for a workspace pinned to one; run `ritual migrate` with a current release to pin it
 3. Restores the Scryfall card cache from a previous run (GitHub Actions caching). The job sets `RITUAL_CACHE_DIR: cache`, so in CI the [card cache](/card-cache/) is the checkout's `cache/` folder, the path it caches
 4. Runs `ritual build-site --refresh auto`
@@ -185,7 +185,7 @@ If a generated file already exists, you are prompted before it is overwritten; `
 }
 ```
 
-It also stamps the [`managed` block](/configuration/#ritual-bookkeeping-managed-key): the latest migration this Ritual knows (a fresh workspace needs none of them), a hash of the files it just generated, and, on a release build, the Ritual version — the [CI pin](#the-pinned-ritual-release-github-actions). Commit `ritual.config.json` along with the generated files.
+It also stamps the [`managed` block](/configuration/#ritual-bookkeeping-managed-key): the latest migration this Ritual knows (a fresh workspace needs none of them), a hash of the files it just generated, and, on a release build, the Ritual version (the [CI pin](#the-pinned-ritual-release-github-actions)). Commit `ritual.config.json` along with the generated files.
 
 ### After upgrading Ritual
 
@@ -193,7 +193,7 @@ Re-running `init-site` on an initialized repository never changes it. It prints 
 
 A fresh init or a `--force` re-init also refuses such a workspace. Otherwise it applies any pending migrations before writing its files, copying what they change into `.backups/` first, as [`ritual migrate`](/commands/migrate/#numbered-migrations) does. If you keep an existing workflow at the overwrite prompt, the generated-files hash is left unrecorded, so `ritual migrate` later offers to regenerate it.
 
-`ritual migrate` is what brings the workspace up to date: it rewrites the workflow from your saved settings (so older workflows pick up template changes), appends `.gitignore` entries added by newer versions (for a **local-build** deploy, this is how an older scaffold gets the `!<distDir>/` un-ignore), and refreshes installed [agent skills](/commands/skills/). Preview it with `ritual migrate --dry-run`. You rarely need to remember it: every other command [offers to migrate, or prints a one-line notice](/commands/migrate/#when-ritual-offers-to-migrate), when updates are pending. The generated GitHub Actions workflow runs with `CI` set, so its `build-site` step only prints the notice and never prompts.
+`ritual migrate` is what brings the workspace up to date: it rewrites the workflow from your saved settings (so older workflows pick up template changes), appends `.gitignore` entries added by newer versions (for a **local-build** deploy, this is how an older scaffold gets the `!<distDir>/` un-ignore), and refreshes installed [agent skills](/commands/skills/). Preview it with `ritual migrate --dry-run`. Every other command [offers to migrate, or prints a one-line notice](/commands/migrate/#when-ritual-offers-to-migrate), when updates are pending. The generated GitHub Actions workflow runs with `CI` set, so its `build-site` step only prints the notice and never prompts.
 
 ### `--force`
 
@@ -213,11 +213,11 @@ ritual init-site --force --ci github-actions --deploy publish-for-me --no-change
 
 ## The Pinned Ritual Release (GitHub Actions)
 
-The "Publish for me" workflow builds with exactly one Ritual release: the one recorded as `managed.version` in `ritual.config.json` (read with `jq`). Release tags carry a `v` prefix (`v1.2.0`) and the pin does not (`1.2.0`), so the workflow adds it. The binary is cached between runs by version, so an unchanged pin means no download.
+The "Publish for me" workflow builds with the Ritual release recorded as `managed.version` in `ritual.config.json` (read with `jq`). Release tags carry a `v` prefix (`v1.2.0`) and the pin does not (`1.2.0`), so the workflow adds it. The binary is cached between runs by version, so an unchanged pin means no download.
 
 Only a Ritual **release** build writes the pin, when it runs `init-site` or [`ritual migrate`](/commands/migrate/). CI therefore never jumps to a newer Ritual by itself. To move it forward, install the newer release (`ritual self-update`, which previews the workspace's pending updates right after), run `ritual migrate` (a newer release than the pin [counts as pending work](/commands/migrate/#the-ci-pin) for this deploy mode), and commit `ritual.config.json`. A development build never writes the pin, and warns when it applies migrations that the pinned release does not know.
 
-A workspace with no pin (one only ever set up by development builds) builds with the latest stable release, or, while Ritual has only prereleases, with the newest release (prereleases included). Each run logs a GitHub Actions warning naming the release it picked. If no release can be resolved at all, the step fails.
+A workspace with no pin (one only ever set up by development builds) builds with the latest stable release, or, while Ritual has only prereleases, with the newest release (prereleases included). Each run logs a GitHub Actions warning naming the release it picked. If no release can be resolved, the step fails.
 
 ### Overriding the pin
 

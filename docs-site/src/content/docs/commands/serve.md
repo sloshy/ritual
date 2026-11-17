@@ -13,7 +13,7 @@ Serve the generated static site locally, optionally building it first.
 ritual serve [options]
 ```
 
-By default, `serve` serves a previously built `dist/` directory (or the directory given by `--out-dir`). A directory with no `index.html` is **refused** with exit code 1 (see [Exit Codes](#exit-codes)); `--api` instead builds the missing site itself. Pass `--build` to build and then serve in one step. Pass `--api` to also host a live, read-only data API beside the site; see [Hosting with a live backend](/public-site/hosted/).
+By default, `serve` serves a previously built `dist/` directory (or the directory given by `--out-dir`). A directory with no `index.html` is refused with exit code 1 (see [Exit Codes](#exit-codes)); `--api` instead builds the missing site itself. Pass `--build` to build and then serve in one step. Pass `--api` to also host a live, read-only data API beside the site; see [Hosting with a live backend](/public-site/hosted/).
 
 ## Options
 
@@ -32,7 +32,7 @@ By default, `serve` serves a previously built `dist/` directory (or the director
 Live API mode is in beta and may change in any release. See [Hosting with a Live Backend](/public-site/hosted/).
 :::
 
-With `--api`, the server hosts the static `dist/` **plus** a live, unauthenticated, **read-only** API on the same port:
+With `--api`, the server hosts the static `dist/` plus a live, unauthenticated, **read-only** API on the same port:
 
 | Method | Path                                                     | Serves                                                                                                                                                                                                            |
 | ------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -53,7 +53,7 @@ The web app detects the backend through the served `index.json` and switches beh
 Details:
 
 - **Sell mode quotes come inside the live list data.** [Sell mode](/public-site/sell/) is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on or the run passed `--sell-mode`. When on, each served list carries that list's Card Kingdom buy prices, computed from the cached feed exactly as [`build-site`](/commands/build-site/#sell-mode---sell-mode) does. A newly refreshed feed shows on the next request without a rebuild. When [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`, the list data also carries Card Kingdom's [printing picks](/public-site/prices/#which-printing-a-card-is-priced-at) for name-only lines and a quote for **every printing each list carries**, at every finish, for the card modal's other-printings grid and the printing pickers.
-- **The buylist feed refreshes only at startup.** No request can trigger the ~70 MB download. Before the server binds, a cached feed more than a day old is redownloaded under the run's `--refresh` policy (`no-bulk`/`never` skip it). A failed download keeps the older feed with a warning. Startup only ever _updates_ a feed: a workspace that has never downloaded one is left alone, the buylist routes answer `503` with the remedy, and sell mode shows a "prices unavailable" notice until you download one with `ritual sell --refresh auto` or the admin site.
+- **The buylist feed refreshes only at startup.** No request can trigger the ~70 MB download. Before the server binds, a cached feed more than a day old is redownloaded under the run's `--refresh` policy (`no-bulk`/`never` skip it). A failed download keeps the older feed with a warning. Startup only updates an existing feed: a workspace that has never downloaded one is left alone, the buylist routes answer `503` with the remedy, and sell mode shows a "prices unavailable" notice until you download one with `ritual sell --refresh auto` or the admin site.
 - **Refusals.** The API routes refuse in English plus a key, the same [message triple](/admin/api/#the-message-triple) the admin server's routes answer with, whatever the server's own UI language. A malformed request body or parameter is keyed with the [shared request-field family](/admin/api/#error-responses) (`admin.api.body.*`, `admin.api.field.*`), whose `field` param names the field as the request spelled it. Every JSON `404` (an unknown `/api/*` path, list, locale dictionary or art file) and the last-resort `500` use the admin API's refusal envelope too: `{"success": false, "message": "Not found", "messageKey": "admin.api.server.notFound"}`, `{"success": false, "message": "Internal server error", "messageKey": "admin.api.server.internalError"}`. A path with no file and no app shell to fall back to is a plain-text `Not Found` page, with no key: a page a person reads in a browser, so it is worded in the server's UI language, as is the server's console.
 - **Read-only, no auth.** Only the routes above exist. An unmatched `/api/*` path answers a JSON 404 (never the site's `index.html`), and none of the admin server's write or auth routes are reachable. Public edits stay client-side (export/import change bundles), as on the static site. One local exception: like every list-writing command, startup runs the [card-ID backfill](/cli-conventions/#the-card-id-backfill), which writes any missing `&N` card IDs into the list files. Plain `serve`, without `--build` or `--api`, never does.
 - **Builds when there is nothing to serve.** Under `--api` the data is live, so an unbuilt directory is only a missing app shell. The command builds the site and then serves it. (Plain `serve` refuses, since there the build is the content.) An existing build is served as-is. Pass `--build` to rebuild it, which is also the only way to pass the build any of its flags.
@@ -75,7 +75,7 @@ Details:
 
 ### Build options (require `--build`)
 
-With `--build`, `serve` accepts every [`build-site`](/commands/build-site/) option. Passing one **without** `--build` is a usage error: exit code 2 and an error naming the flag(s). Four exceptions:
+With `--build`, `serve` accepts every [`build-site`](/commands/build-site/) option. Passing one without `--build` is a usage error: exit code 2 and an error naming the flag(s). Four exceptions:
 
 - `--refresh` and `--sell-mode`: also valid with `--api` (cache warming and live sell mode). Exempt **only under `--api`**.
 - `--out-dir`: names the directory to serve whether or not a build runs.
@@ -108,7 +108,7 @@ To change the language a **built** site opens in, rebuild it: `ritual serve --bu
 | `--out-dir <path>`              | Build into this directory instead of `dist/`, **and serve it**. Valid without `--build`, where it names the built directory to serve. The Ritual directory itself or any ancestor is refused with exit code 2, with or without `--build`. See [build-site](/commands/build-site/#the-output-directory-is-replaced-never-half-written).                                                       |
 | `--sell-mode`                   | (Beta) Offer [sell mode](/public-site/sell/) for this run even when `site.sellMode` is off: update the Card Kingdom buylist (~70 MB) and serve its buy prices. **Also valid with `--api` and no `--build`**: the live list data then carries quotes and the buylist routes answer instead of 404ing. Enable-only. See [build-site → Sell mode](/commands/build-site/#sell-mode---sell-mode). |
 
-Plain `serve`, with no `--build` and no `--api`, is a static file server. It never consults sell mode; the served directory shows whatever its build produced. `--sell-mode` there is a usage error (exit code 2) like every other build-only flag. Add `--build` to bake the quotes, or `--api` to serve them live.
+Plain `serve`, with no `--build` and no `--api`, is a static file server. It never consults sell mode; the served directory shows whatever its build produced. `--sell-mode` there is a usage error (exit code 2) like every other build-only flag. Add `--build` to build the quotes into the site, or `--api` to serve them live.
 
 ## Examples
 

@@ -14,7 +14,7 @@ Routes for list prices and for [sell mode](/public-site/sell/): the sell report,
 GET /api/price/summary
 ```
 
-Price every deck, collection, and wanted list from the local card cache and return per-list, per-type, and grand totals plus any list-parser warnings — the same payload as [`price --summary --output json`](/commands/price/). Prices are read strictly from the cache: an empty cache returns `503` without downloading anything (run [`ritual cache preload-all`](/commands/cache/) first), and a card the cache does not hold is reported as unpriced rather than fetched from Scryfall. `lastRefreshedAt` is the cache's last bulk-refresh time in Unix milliseconds, or `null` when unknown.
+Price every deck, collection, and wanted list from the local card cache and return per-list, per-type, and grand totals plus any list-parser warnings. This is the same payload as [`price --summary --output json`](/commands/price/). Prices are read strictly from the cache: an empty cache returns `503` without downloading anything (run [`ritual cache preload-all`](/commands/cache/) first), and a card the cache does not hold is reported as unpriced rather than fetched from Scryfall. `lastRefreshedAt` is the cache's last bulk-refresh time in Unix milliseconds, or `null` when unknown.
 
 **Query Parameters:**
 
@@ -25,11 +25,11 @@ Price every deck, collection, and wanted list from the local card cache and retu
 
 An unknown `type` or `source` returns `400`. There is no currency parameter: each store has one (`tcgplayer`/`cardkingdom` → `usd`, `cardmarket` → `eur`, `cardhoarder` → `tix`), and every response names both its `source` and its `currency`.
 
-When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configured default), the route reads the cached [buylist feed](/commands/sell/). With a feed cached, printings Card Kingdom does not sell are reported unpriced. With no feed downloaded it returns `503` with the refresh advice rather than falling back to Scryfall. The parameter is **not** gated on the [`priceSources`](/configuration/#price-stores-pricesources) config key; it needs only a cached feed.
+When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configured default), the route reads the cached [buylist feed](/commands/sell/). With a feed cached, printings Card Kingdom does not sell are reported unpriced. With no feed downloaded it returns `503` with the refresh advice rather than falling back to Scryfall. The parameter is not gated on the [`priceSources`](/configuration/#price-stores-pricesources) config key; it needs only a cached feed.
 
 `mode` discriminates the two price bodies: `"summary"` here, `"list"` on [Price List](#price-list).
 
-`unpricedCount` counts copies whose price the data could not supply, and **only** those. `estimatedCount` counts deck and wanted-list copies whose price is an estimate: the line pins no printing (priced at a representative one) or has no price. Any at all makes `total` an estimate, which the CLI and sites render with a `~` prefix (`~$12.34`). Collections never estimate. Cards that carry no price [by rule](/custom-art/#custom-art-carries-no-price) — a `proxy` label, custom art, or both — are priced at `0` and counted in `cardCount`, but are left out of `unpricedCount`: they are not a gap in the price data.
+`unpricedCount` counts copies whose price the data could not supply, and only those. `estimatedCount` counts deck and wanted-list copies whose price is an estimate: the line pins no printing (priced at a representative one) or has no price. Any such copy makes `total` an estimate, which the CLI and sites render with a `~` prefix (`~$12.34`). Collections never estimate. Cards that carry no price [by rule](/custom-art/#custom-art-carries-no-price) (a `proxy` label, custom art, or both) are priced at `0` and counted in `cardCount`, but are left out of `unpricedCount`: they are not a gap in the price data.
 
 **Response:**
 
@@ -80,7 +80,7 @@ When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configure
 GET /api/price/:type/:slug
 ```
 
-Price a single list and return its summary plus every priced card entry in file order — the same payload as the CLI's single-list `price <name> --output json`. `:type` is `deck`, `collection`, or `wanted`; `:slug` is the list's file basename, as on the load routes. Takes the same `source` query parameter as [Price Summary](#price-summary), with the same `503` when the card cache is empty (or when `source=cardkingdom` finds no cached feed). An unknown slug returns `404`.
+Price a single list and return its summary plus every priced card entry in file order. This is the same payload as the CLI's single-list `price <name> --output json`. `:type` is `deck`, `collection`, or `wanted`; `:slug` is the list's file basename, as on the load routes. Takes the same `source` query parameter as [Price Summary](#price-summary), with the same `503` when the card cache is empty (or when `source=cardkingdom` finds no cached feed). An unknown slug returns `404`.
 
 **Response:**
 
@@ -130,27 +130,27 @@ An entry that could not be priced also carries **`unpricedReason`**, absent on e
 - Data gaps, which `unpricedCount` counts: `no-printings`, `printing-not-found`, `currency-unavailable`, `finish-unpriced-in-currency`, `no-price-data`.
 - By-rule reasons, which it does not count (see [Price Summary](#price-summary)): `proxy` and `custom-art`. `custom-art` wins when a card is both.
 
-By-rule entries still carry their printing and their `set`/`collectorNumber`: a proxy is a proxy _of_ a card, and custom art replaced the picture, not the card.
+By-rule entries still carry their printing and their `set`/`collectorNumber`, since a proxy or a card with custom art still refers to that printing.
 
 ## Sell Report
 
 :::note[The five sell routes are gated on the buyer feed being wanted]
-`GET /api/sell/report`, `GET /api/sell/cart`, `POST /api/sell/refresh`, `GET /api/buylist/status`, and `POST /api/buylist/quotes` answer **`404`** unless something wants the buyer feed: [sell mode](/public-site/sell/) — [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) (off by default) or a server started with [`ritual admin --sell-mode`](/commands/admin/#sell-mode) — **or** the `cardkingdom` entry of [`priceSources`](/configuration/#price-stores-pricesources), whose retail prices come from the same feed.
+`GET /api/sell/report`, `GET /api/sell/cart`, `POST /api/sell/refresh`, `GET /api/buylist/status`, and `POST /api/buylist/quotes` answer **`404`** unless something wants the buyer feed: [sell mode](/public-site/sell/) ([`site.sellMode`](/configuration/#offering-sell-mode-sellmode), off by default, or a server started with [`ritual admin --sell-mode`](/commands/admin/#sell-mode)), or the `cardkingdom` entry of [`priceSources`](/configuration/#price-stores-pricesources), whose retail prices come from the same feed.
 
 The check reads the config per request, so a `config set` or a [`PUT /api/config`](/admin/api/site/#update-config) (the Settings page's **Offer sell mode** and **Price Stores** checkboxes) takes effect on the next request without a restart. [`GET /api/status`](/admin/api/auth/#server-status) reports the effective value so a client can hide its sell surfaces. The public site server (`serve --api`) gates its two buylist routes the same way.
 
 A server running under `--sell-mode` opens these routes without anything on disk saying so; [`GET /api/config`](/admin/api/site/#get-config) reports it as `overrides: {"site.sellMode": true}` beside the stored `config`.
 
-The refusal body is the standard [error envelope](/admin/api/#error-responses), `{"success": false, "message": "Not found", "messageKey": "admin.api.server.notFound"}`: the same body the admin server answers for a path it has no route for. The same gate applies to the MCP tools that reuse these handlers (`get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, `refresh_buylist`) — see [`mcp`](/commands/mcp/#sell-tools-need-sell-mode).
+The refusal body is the standard [error envelope](/admin/api/#error-responses), `{"success": false, "message": "Not found", "messageKey": "admin.api.server.notFound"}`: the same body the admin server answers for a path it has no route for. The same gate applies to the MCP tools that reuse these handlers (`get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, `refresh_buylist`). See [`mcp`](/commands/mcp/#sell-tools-need-sell-mode).
 :::
 
 ```
 GET /api/sell/report
 ```
 
-Match listed cards against the locally cached [Card Kingdom buylist](/commands/sell/) and report what CK is buying, the cash quote per Near Mint copy, and their quantity caps — the same payload as [`sell --output json`](/commands/sell/). Strictly cache-backed: the card cache **and** a downloaded feed are prerequisites (`503` otherwise, each naming its remedy). This route never downloads anything; that is [Sell Refresh](#sell-refresh)'s job.
+Match listed cards against the locally cached [Card Kingdom buylist](/commands/sell/) and report what CK is buying, the cash quote per Near Mint copy, and their quantity caps. This is the same payload as [`sell --output json`](/commands/sell/). Cache-backed: the card cache and a downloaded feed are prerequisites (`503` otherwise, each naming its remedy). This route never downloads anything; [Sell Refresh](#sell-refresh) does.
 
-Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) — labeled `proxy`, wearing custom art, or both — are dropped **before** matching, so they are never quoted and never counted as cards the buyer declined. They are dropped rather than merged, so an otherwise-identical real copy in the same list keeps its own quote and quantity.
+Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) (labeled `proxy`, wearing custom art, or both) are dropped before matching, so they are never quoted and never counted as cards the buyer declined. They are dropped rather than merged, so an otherwise-identical real copy in the same list keeps its own quote and quantity.
 
 ### Parameters
 
@@ -401,4 +401,4 @@ Which buyers this server can quote against and how fresh the cached feed is, wit
 }
 ```
 
-`503` with the remedy when no feed has been downloaded — a normal first-run state.
+`503` with the remedy when no feed has been downloaded, a normal first-run state.

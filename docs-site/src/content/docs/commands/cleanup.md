@@ -30,7 +30,7 @@ Two cases are reported with a warning instead of fully acted on:
 
 In either case the file is still renamed if its name drifted, but its content is left alone. Rewriting it would silently drop that content. Fix, remove, or accept it and rerun.
 
-A file cleanup cannot read at all (broken YAML front matter, bad permissions) is reported by name and **skipped**. Nothing about it is rewritten or renamed, every other list is still cleaned up, and the run exits 1:
+A file cleanup cannot read at all (broken YAML front matter, bad permissions) is reported by name and skipped. Nothing about it is rewritten or renamed, every other list is still cleaned up, and the run exits 1:
 
 ```
 [dry-run] decks/Broken.md: warning: could not be read: unexpected end of the stream within a flow collection at line 3, column 1
@@ -40,10 +40,10 @@ A file cleanup cannot read at all (broken YAML front matter, bad permissions) is
 
 Its per-file JSON result carries `"unreadable": true`.
 
-Two further cases are reported _without_ holding anything back:
+Two further cases are reported without holding anything back:
 
 - A collection or wanted-list line that carries a quantity (`- 4 Sol Ring (C21:240)`) reads as that many copies. Cleanup reports it (`Read 4 copies: a collection holds one line per copy, so this line becomes 4 lines on the next save.`) and the rewrite expands it. See [Deck-Style Quantity Prefixes](/commands/collection-sync/#deck-style-quantity-prefixes).
-- A deck's **empty extras section**: a `## Maybeboard` or `## Tokens` header with no cards under it, usually left behind by a sync or a `remove-card` that took its last card. The rewrite drops it and reports `Dropped empty section: Maybeboard`; this is the one advisory that names something the rewrite _removes_. Any other empty section header (`## Sideboard`, `## Commander`, `## Creatures`, …) in a deck that has cards elsewhere is kept and written back bare, without a warning.
+- A deck's **empty extras section**: a `## Maybeboard` or `## Tokens` header with no cards under it, usually left behind by a sync or a `remove-card` that took its last card. The rewrite drops it and reports `Dropped empty section: Maybeboard`; this is the one advisory that names something the rewrite removes. Any other empty section header (`## Sideboard`, `## Commander`, `## Creatures`, …) in a deck that has cards elsewhere is kept and written back bare, without a warning.
 
 ## Usage
 
@@ -65,7 +65,7 @@ Under `--dry-run` nothing is prompted. Decks with no declared format are reporte
 
 ## Headless Runs
 
-The deck-format step is the only interactive part of cleanup. A real run that meets a formatless deck when prompts are unavailable (`--no-input` / `RITUAL_NO_INPUT`, stdin is not a terminal, or `--output json`/`ndjson` owns stdout) refuses **before touching any file** with a usage error (exit 2) naming `--skip-formats`. Pass `--skip-formats` to run everything else and leave formatless decks as they are (reported as `format skipped`), or run interactively to answer the prompts.
+The deck-format step is the only interactive part of cleanup. A real run that meets a formatless deck when prompts are unavailable (`--no-input` / `RITUAL_NO_INPUT`, stdin is not a terminal, or `--output json`/`ndjson` owns stdout) refuses before touching any file with a usage error (exit 2) naming `--skip-formats`. Pass `--skip-formats` to run everything else and leave formatless decks as they are (reported as `format skipped`), or run interactively to answer the prompts.
 
 ## `--check`
 

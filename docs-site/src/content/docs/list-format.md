@@ -77,7 +77,7 @@ An optional YAML block between `---` fences at the top of the file. Each type ha
 
 A deck with no `format` and a `## Commander` section is inferred as Commander.
 
-A list's name is its `# Title` heading, never a front-matter key; an old `name:` or `created:` is just an unknown key.
+A list's name is its `# Title` heading, never a front-matter key; an old `name:` or `created:` is an unknown key.
 
 ### Default labels and descriptions
 
@@ -144,7 +144,7 @@ Matching is exact, never by substring or word: `## Token Generators`, `## Comman
 
 Empty sections are handled by role:
 
-- An empty `## Maybeboard` / `## Tokens` heading is deleted on purpose by a whole-file rewrite and reported as `Dropped empty section`.
+- An empty `## Maybeboard` / `## Tokens` heading is deleted by a whole-file rewrite and reported as `Dropped empty section`.
 - Any other empty heading (`## Sideboard`, `## Commander`, `## Creatures`, …), in a deck that has cards elsewhere, is kept and written back bare, without a warning. Removing or moving a section's last card leaves its heading the same way.
 
 ## Card lines
@@ -189,7 +189,7 @@ A bracket token at the end of the line must be one the grammar knows. `[Alpha]` 
 | note      | yes                 | yes                  | yes         |
 | id        | yes                 | yes                  | yes         |
 
-\* Accepted when reading and expanded on save — see [Read tolerances](#read-tolerances).
+\* Accepted when reading and expanded on save. See [Read tolerances](#read-tolerances).
 
 A `no-` negation is accepted wherever its label is: `[no-proxy]` on a deck, any of the four on a collection.
 
@@ -199,7 +199,7 @@ The parser **refuses** a line, naming the offending token and its column, when i
 - a token written twice (tags excepted: a line may carry several tag tokens, and a repeated tag folds away);
 - a malformed tag token: a `#` with nothing after it, or a tag holding a forbidden character such as `#R&D`;
 - a known token stuck inside the name, or written without whitespace around it;
-- a well-formed token the type does not carry. The message says so plainly: `[NM] is not a wanted list token — wanted lists never carry a condition.`
+- a well-formed token the type does not carry. The message says so: `[NM] is not a wanted list token — wanted lists never carry a condition.`
 
 A collection line with no `(SET:CN)` is refused too (`missing-printing`), since a stored copy is a specific physical card.
 
@@ -229,7 +229,7 @@ Every card line ends in a persistent numeric id. Ids are sequential from 1 withi
 
 ## Labels, tags, and categories
 
-Ritual has three ways to say something about a card. They look alike, since each is a short word attached to a card, but they are different kinds of thing, and each answers a different question:
+Ritual has three ways to say something about a card. They look alike, since each is a short word attached to a card, but each answers a different question:
 
 - A **label** tells Ritual what to _do_ with a copy: sell it, trade it, keep it, or price it as a proxy. `[sale]`, `[proxy]`.
 - A **tag** describes the physical _copy_: something true of that card whichever list it sits in. `#Signed`, `#Trade Binder`.
@@ -314,7 +314,7 @@ A card whose effective labels include `proxy` is not a real card, so Ritual pric
 - The generated site records `0` in every currency, leaves proxies out of list totals and missing-price counts, and never asks a buyer for a quote on one.
 - [`sell`](/commands/sell/) drops proxy entries before matching, so they are never quoted, counted, or merged into an identical real copy.
 
-[Custom art](/custom-art/#custom-art-carries-no-price) follows the same rule. A card with both reports the unpriced reason `custom-art` and shows **CUSTOM**; custom art wins.
+[Custom art](/custom-art/#custom-art-carries-no-price) follows the same rule. A card with both reports the unpriced reason `custom-art` and shows **CUSTOM**; custom art takes precedence.
 
 ## Card tags
 
@@ -414,7 +414,7 @@ A **category** is a card's role in **one list**: `Ramp`, `Removal`, `Board Wipes
 
 Edit categories with [`set-card --categories`/`--no-categories`](/commands/set-card/#category-updates), the [`ritual categories`](/commands/categories/) subcommands (`list`/`rename`/`order`/`remove`), or the editors' `🗂 Edit Categories` action and the list menu's `Rename Category…` / `Reorder Categories…` rows ([`ritual edit`](/commands/edit/#card-categories)).
 
-Categories are never written on a card line. They live in a JSON file beside the list (a "sidecar"):
+Categories are never written on a card line. They are kept in a JSON file beside the list (a "sidecar"):
 
 ```json
 {
@@ -432,7 +432,7 @@ Categories are never written on a card line. They live in a JSON file beside the
 - **A category name is any non-empty plain text without a comma or a control character.** It is looser than the tag rule because a category is never written on a card line, so names like Archidekt's `Tokens & Extras` survive a [sync](/commands/deck-sync/#category-sync---sync-categories) unchanged. Case is kept; `Ramp` and `ramp` are one category with two spellings.
 - **Stale names are kept, with a warning.** A `cards` key naming a card the list no longer holds loads with a warning. It is pruned by the list's own save (an editor session, an admin save), by a cross-list [`move`](/commands/move/) that rewrites the list (only when the move could read every card line in it), and by [`ritual cleanup`](/commands/cleanup/). [`ritual categories`](/commands/categories/) reports stale entries and never prunes them.
 - **A malformed sidecar is refused as a whole.** It is never partially loaded and never silently overwritten. A list with an unreadable sidecar still saves.
-- **Empty means gone.** A sidecar with no vocabulary and no cards is deleted rather than written as `{}`.
+- **Empty sidecars.** A sidecar with no vocabulary and no cards is deleted rather than written as `{}`.
 - **It has its own `.sha256`.** Unlike `<name>.art.json`, this sidecar is part of the list's recorded history. [`detect-changes`](/commands/detect-changes/) detects hand edits and records them in the **list's** `.changes.md` as `Set categories of "Sol Ring" to Ramp, Artifacts`, `Set category order to …`, or `Renamed category "Draw" to "Card Draw"`. A sidecar Ritual did not itself last write keeps its stale hash, so a hand edit is never silently declared recorded.
 
 The sites read this file. The built site includes it in each list's detail JSON and offers the [Category groupings, sort and filter](/public-site/filtering/#grouping-sorting-and-filtering-by-category). The admin and public editors write it through their [Edit Categories… and Manage categories dialogs](/admin/editors/#card-categories). [`ritual export`](/commands/export/#properties)'s `categories`/`primaryCategory` columns read it, and a CSV import's [`categories` column](/commands/import/#value-normalization) writes it.

@@ -5,13 +5,13 @@ sidebar:
   order: 1
 ---
 
-This guide takes a workspace of lists and publishes it as a website. The main path uses GitHub: your lists live in a repository, and a GitHub Actions workflow builds the site and deploys it to GitHub Pages each time you push. At the end there is a second path for building on your own machine and hosting the files anywhere.
+This guide takes a workspace of lists and publishes it as a website. The main path uses GitHub: your lists are in a repository, and a GitHub Actions workflow builds the site and deploys it to GitHub Pages each time you push. At the end there is a second path for building on your own machine and hosting the files anywhere.
 
 It assumes you already have some lists. If not, start with [Your first deck](/start/first-deck/) or the [quick tour](/start/tour/). The [live demo](https://ritual.rpeters.dev/demo/) shows what the finished site looks like.
 
 ## 1. Preview the Site Locally
 
-Before publishing anything, look at it:
+Build the site and serve it locally before you publish it:
 
 ```bash
 ritual serve --build
@@ -67,7 +67,7 @@ The `.gitignore` keeps the card cache, built output and your saved [logins](/com
 
 ### The CI pin
 
-The workflow always builds with one exact Ritual release: the one recorded in `managed.version`. It is written when a release build of Ritual runs `init-site` or `ritual migrate`. CI never moves to a newer Ritual on its own; you move it when you upgrade (see [Upgrade Ritual Later](#upgrade-ritual-later)). To try another release in CI without changing the pin, set a `RITUAL_VERSION` repository variable; see [Overriding the pin](/commands/init-site/#overriding-the-pin).
+The workflow builds with one Ritual release, the one recorded in `managed.version`. It is written when a release build of Ritual runs `init-site` or `ritual migrate`. CI never moves to a newer Ritual on its own; you move it when you upgrade (see [Upgrade Ritual Later](#upgrade-ritual-later)). To try another release in CI without changing the pin, set a `RITUAL_VERSION` repository variable; see [Overriding the pin](/commands/init-site/#overriding-the-pin).
 
 ## 4. Choose Price Stores
 
@@ -94,7 +94,7 @@ To publish only some lists, set the matching setting to their display names (the
 ritual config set site.includeDecks "Izzet Storm" "Atraxa Superfriends"
 ```
 
-To publish everything except a few, leave the `include*` setting at `["*"]` and add those lists to the `exclude*` setting. Exclusion always wins:
+To publish everything except a few, leave the `include*` setting at `["*"]` and add those lists to the `exclude*` setting. An exclusion takes precedence over an inclusion:
 
 ```bash
 ritual config set --add site.excludeDecks "Untuned Brew"
@@ -144,7 +144,7 @@ A custom domain is a GitHub Pages setting, not a Ritual one. Enter the domain un
 
 ## How Updates Flow
 
-Once set up, publishing is part of editing:
+Once set up, each change is published in three steps:
 
 1. Edit your lists: [`ritual edit`](/commands/edit/), the [admin site](/admin/), one-shot commands such as [`add-card`](/commands/add-card/), a sync, or a text editor.
 2. Commit the list files and their `.changes.md` and `.sha256` files.
@@ -166,7 +166,7 @@ git add -A && git commit -m "Upgrade Ritual" && git push
 
 `ritual migrate` applies any one-time migrations, rewrites the workflow and `.gitignore` entries from your saved settings, refreshes installed agent skills, and records the new release in `managed.version`. Preview with `ritual migrate --dry-run`. Once you push `ritual.config.json`, CI builds with the new release.
 
-You rarely need to remember this: other commands offer to migrate when updates are pending. If CI or another machine is on an older release than the workspace needs, Ritual names the release to install with [`ritual self-update --tag`](/commands/self-update/#installing-a-specific-release). Details: [`migrate`](/commands/migrate/) and [the CI pin](/commands/migrate/#the-ci-pin).
+Other commands offer to migrate when updates are pending, so you rarely need to remember this. If CI or another machine is on an older release than the workspace needs, Ritual names the release to install with [`ritual self-update --tag`](/commands/self-update/#installing-a-specific-release). Details: [`migrate`](/commands/migrate/) and [the CI pin](/commands/migrate/#the-ci-pin).
 
 ## Build Locally and Host Anywhere
 
@@ -193,7 +193,7 @@ A few `build-site` flags matter most for hand-built sites:
 
 To keep using GitHub Pages with a build you made yourself, run `init-site` and choose **Deploy my local build**. The workflow then deploys the committed `dist/` folder as-is, and `.gitignore` is set up so `dist/` is committed. Rebuild, commit `dist/` and push to publish.
 
-To keep the workspace with no workflow at all, choose **Manual / None**: `init-site` writes only the config, README and `.gitignore`.
+To keep the workspace with no workflow, choose **Manual / None**: `init-site` writes only the config, README and `.gitignore`.
 
 :::note
 `ritual serve --api` serves the site with a live, read-only backend instead of static files. It is in beta. See [Hosting with a Live Backend](/public-site/hosted/).

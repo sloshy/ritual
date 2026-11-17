@@ -5,7 +5,7 @@ sidebar:
   label: 'lists'
 ---
 
-List every deck, collection, and wanted list in the workspace. It is the quickest way to see what exists, and how a script learns the names it can pass to other commands.
+List every deck, collection, and wanted list in the workspace. Use it to see what exists, or from a script to get the names other commands accept.
 
 ## Usage
 

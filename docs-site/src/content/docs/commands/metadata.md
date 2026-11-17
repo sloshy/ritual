@@ -58,11 +58,11 @@ Notes on `labels` (deck and collection):
 - `--add` / `--remove` merge with the current set. Removing the last label clears the key.
 - A misspelled label errors, even under `--remove`, rather than silently removing nothing.
 - A default is positive only. A `no-…` negation is a card-line token (it takes an inherited label away from one card), so `labels no-sale` is refused here.
-- An empty `set` is refused; clearing is `unset`'s job.
+- An empty `set` is refused; use `unset` to clear.
 
 Setting `sourceId` plus an `archidekt.com` `sourceUrl` is what makes a deck [sync-linked](/commands/deck-sync/). The two must name the same Archidekt deck; a write that would leave them disagreeing is refused. For the interactive linking flow, prefer `deck-sync link`.
 
-A deck's `lastSynced` field is not settable here (a usage error says deck sync stamps it). Any other property is refused with the accepted-fields listing. A list's name is not front matter at all: it is the file's `# Title` heading, changed with [`rename`](/commands/rename/).
+A deck's `lastSynced` field is not settable here (a usage error says deck sync stamps it). Any other property is refused with the accepted-fields listing. A list's name is not front matter: it is the file's `# Title` heading, changed with [`rename`](/commands/rename/).
 
 ## Examples
 

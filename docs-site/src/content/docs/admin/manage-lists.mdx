@@ -92,7 +92,7 @@ Click **Delete** next to a collection and type the exact collection name to conf
 
 A wanted list is a Markdown file in the configured `wantedDir` (default `wanted/`). It uses the same format as a collection: a `# Title` heading followed by card lines (without condition fields), optionally grouped under `## Section Name` headers (see the [wanted format](/list-format/#title-and-sections)).
 
-Create, Rename, and Delete work exactly as for **Collections**, including the changelog, custom-art, and categories files.
+Create, Rename, and Delete work as they do for **Collections**, including the changelog, custom-art, and categories files.
 
 ## Publishing visibility
 
@@ -101,7 +101,7 @@ Each list has a **Public / Hidden** toggle next to its Rename and Delete buttons
 - **Public** (on): the list is published, subject to the type's publish list.
 - **Hidden** (off): the list is excluded from the public site.
 
-The toggle edits only the type's exclude list in your [site configuration](/configuration/#choosing-which-lists-to-publish): `site.excludeDecks`, `site.excludeCollections`, or `site.excludeWantedLists`. Hiding adds the list's display name there; showing removes it. The `include*` publish lists are never touched, so the two settings combine and exclusion always wins. With the default `include*` of `["*"]` (publish everything), the toggle is simply "published or not".
+The toggle edits only the type's exclude list in your [site configuration](/configuration/#choosing-which-lists-to-publish): `site.excludeDecks`, `site.excludeCollections`, or `site.excludeWantedLists`. Hiding adds the list's display name there; showing removes it. The `include*` publish lists are never touched, so the two settings combine and exclusion always wins. With the default `include*` of `["*"]` (publish everything), the toggle alone decides whether a list is published.
 
 Changes save immediately. If git **Auto-commit** is enabled in Settings, the configuration change is committed like any other settings edit.
 

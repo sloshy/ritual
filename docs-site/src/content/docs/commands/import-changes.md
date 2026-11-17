@@ -74,7 +74,7 @@ The file is a **`ritual-change-bundle`** JSON (format version **1**; any other v
 }
 ```
 
-**`lists[]`** has one entry per edited list: its `kind` (`deck`, `collection`, or `wanted`), `slug`, display `name`, an optional `baseContentHash`, and the ordered `changes` to replay. A list's `changes` **never** contain `move-from` or `move-to` events; a bundle that does is rejected ("moves belong in the top-level moves array").
+**`lists[]`** has one entry per edited list: its `kind` (`deck`, `collection`, or `wanted`), `slug`, display `name`, an optional `baseContentHash`, and the ordered `changes` to replay. A list's `changes` never contain `move-from` or `move-to` events; a bundle that does is rejected ("moves belong in the top-level moves array").
 
 **`moves[]`** holds every cross-list move, **one entry per physical copy**, in timestamp order. A move is recorded once here, not as a `move-from` and `move-to` in two lists; the changelog files still get both halves when it is applied. Each move carries:
 
@@ -108,7 +108,7 @@ Before anything is applied, the command prints every pending change grouped by t
 
 Each move is listed once, after the per-list changes, naming both ends. The confirmation count includes the moves.
 
-Pass `--yes` to skip the prompt. `--yes` is **required** when stdin is not a terminal, when prompts are disabled (`--no-input` / `RITUAL_NO_INPUT`), or under `--output json`/`ndjson`. Without it the command exits `2` instead of prompting.
+Pass `--yes` to skip the prompt. `--yes` is required when stdin is not a terminal, when prompts are disabled (`--no-input` / `RITUAL_NO_INPUT`), or under `--output json`/`ndjson`. Without it the command exits `2` instead of prompting.
 
 `--quiet` suppresses the preview and the per-list applied counts. It never hides **skipped conflicts** or list failures, which always go to stderr. A quiet run that skipped changes prints a one-line summary such as `⚠ <list>: N changes skipped (card not found: 2, not applicable to this list: 1)`, since skips do not affect the exit code and nothing else would report them. Without `--quiet`, one `⚠ Skipped (<reason>): …` line per skipped change goes to stderr, keeping stdout for the applied-counts report.
 
@@ -126,7 +126,7 @@ Every list's changes and every move are merged into **one timestamp-ordered stre
 
 - Changes are **re-targeted** to each list's current `&N` card IDs. Added cards (and arriving moves) take the smallest free ID at the point they apply: a card the same batch removed earlier has already released its ID, and a deck copy that merges onto a line the deck already has takes that line's ID rather than drawing one. Other changes match by ID when it still exists, otherwise by card name (a copy the same import just added first, then the list as loaded).
 - Changes that cannot apply are **skipped and reported** as conflicts; the rest still apply. A conflict's `reason` is `"target-not-found"`, `"not-applicable"`, or `"needs-printing"` (the card is present but needs a printing pinned first).
-- A **move** is applied on its **destination** list as a `move-to`. The destination's save adds the copy there and, in the same step, removes it from the source list: by the source line id when that line still holds the card, otherwise by the exact printing, otherwise (for a source line with no printing, such as a wanted entry) by name. It writes **both** changelogs (`Moved … from …` on the destination, `Moved … to …` on the source). A move carrying a `replacement` also adds that printing to the source list in the same step, into the section the departed line left, logged there as an `Added` line. Because this happens inside the destination's save, a source list reported with `0` applied may still have been written. Every removal is validated before anything is written; a source with no copy left to take fails that batch with nothing written.
+- A **move** is applied on its **destination** list as a `move-to`. The destination's save adds the copy there and, in the same step, removes it from the source list: by the source line id when that line still holds the card, otherwise by the exact printing, otherwise (for a source line with no printing, such as a wanted entry) by name. It writes both changelogs (`Moved … from …` on the destination, `Moved … to …` on the source). A move carrying a `replacement` also adds that printing to the source list in the same step, into the section the departed line left, logged there as an `Added` line. Because this happens inside the destination's save, a source list reported with `0` applied may still have been written. Every removal is validated before anything is written; a source with no copy left to take fails that batch with nothing written.
 - A destination named only by a move (its source being the list you exported) is resolved by slug, then by name, like a list entry, and reported as a list of its own. A list named only as a move **source** is reported too, with `0` applied. The report therefore names every list the import touched.
 - Every list that received changes gets an entry in its `.changes.md` changelog, the same way the admin editors save.
 
@@ -176,10 +176,10 @@ With `--output json` (or `ndjson`), the preview and glyph lines are replaced by 
 
 - `lists` has one entry per list the bundle touched: the bundle's own entries plus any list named only as a move destination (whose `slug` is the file basename it resolved to). Moves count toward `applied` on their destination list.
 - `droppedNotes` lists the notes the list's saves discarded, as `{ cardName, cardId?, note }` (`cardId` is the source line's): a moved card that merged onto a deck line already holding a different note keeps the line's note. Empty when none. Text mode prints each one as a warning, even with `--quiet`.
-- A list that failed to resolve, load, or save carries an `error` string (English) and is counted in `failedCount`; `errorKey` and `errorParams` ride beside it when the failure has a catalog entry. Text mode prints that reason in the CLI's language. Its later batches are skipped; anything already applied is still counted.
+- A list that failed to resolve, load, or save carries an `error` string (English) and is counted in `failedCount`; `errorKey` and `errorParams` accompany it when the failure has a catalog entry. Text mode prints that reason in the CLI's language. Its later batches are skipped; anything already applied is still counted.
 - `success` stays `true` even then. It is the envelope flag and means the run was processed; `failedCount` and each list's `error` report the failures. The exit code is `1`, as in text mode.
 
-A file that is not a valid bundle is refused before anything is read or applied, with the reason naming what is wrong and where — `Move #1 "from" is not an object.`, `List #2: Change #3 has an invalid "set".` — in the CLI's language. Under `--output json` the error envelope's `messageKey` is `cli.importChanges.invalidBundle`.
+A file that is not a valid bundle is refused before anything is read or applied, with the reason naming what is wrong and where (`Move #1 "from" is not an object.`, `List #2: Change #3 has an invalid "set".`) in the CLI's language. Under `--output json` the error envelope's `messageKey` is `cli.importChanges.invalidBundle`.
 
 ## Exit Codes
 

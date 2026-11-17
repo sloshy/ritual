@@ -74,7 +74,7 @@ You can also download Ritual for your platform from the [releases page](https://
 | macOS Intel / Apple  | `ritual-macos-x86_64.tar.gz`, `ritual-macos-arm64.tar.gz` |
 | Windows x86_64 / ARM | `ritual-windows-x86_64.zip`, `ritual-windows-arm64.zip`   |
 
-Each holds just the binary, already named `ritual` (`ritual.exe` on Windows):
+Each holds only the binary, already named `ritual` (`ritual.exe` on Windows):
 
 ```bash
 tar -xzf ritual-linux-x86_64.tar.gz
@@ -98,7 +98,7 @@ bun run build
 
 ## Where Ritual keeps its data
 
-Your decks and lists live in whatever folder you run Ritual in (a [workspace](/workspace/)). The card data Ritual downloads from Scryfall (about 80 MB to download, about 450 MB on disk) goes in one cache folder for your user account, shared by all your workspaces: `~/.cache/ritual` on Linux, `~/Library/Caches/ritual` on macOS, and `%LOCALAPPDATA%\ritual\cache` on Windows. Deleting it is safe; Ritual offers to download it again when it next needs card data. See [Card Cache](/card-cache/) to put it somewhere else.
+Your decks and lists are in whatever folder you run Ritual in (a [workspace](/workspace/)). The card data Ritual downloads from Scryfall (about 80 MB to download, about 450 MB on disk) goes in one cache folder for your user account, shared by all your workspaces: `~/.cache/ritual` on Linux, `~/Library/Caches/ritual` on macOS, and `%LOCALAPPDATA%\ritual\cache` on Windows. Deleting it is safe; Ritual offers to download it again when it next needs card data. See [Card Cache](/card-cache/) to put it somewhere else.
 
 ## Next
 

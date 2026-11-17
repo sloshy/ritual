@@ -22,7 +22,7 @@ About to delete deck 'Modern Burn' (decks/Modern Burn.md) and its sidecar files.
 ? Type 'Modern Burn' to confirm: ›
 ```
 
-The two halves are matched differently on purpose. `<list>` is [resolved](/list-resolution/), so a partial, differently cased, or colon-carrying display name finds the list. `--confirm` must be the display name character for character.
+The two values are matched differently. `<list>` is [resolved](/list-resolution/), so a partial, differently cased, or colon-carrying display name finds the list. `--confirm` must be the display name character for character.
 
 ## Arguments
 

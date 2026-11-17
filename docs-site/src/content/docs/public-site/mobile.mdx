@@ -7,7 +7,7 @@ sidebar:
 
 import Screenshot from '../../../components/Screenshot.astro'
 
-The public site adapts to phones and touch devices automatically. There is nothing to configure. Two independent signals drive the adaptations:
+The public site adapts to phones and touch devices automatically, with nothing to configure. Two independent signals drive the adaptations:
 
 - **Screen width.** Below tablet width the site switches to its phone layout: the bottom tab bar and the compact toolbar.
 - **Pointer type.** On touch-first devices (no hover, coarse pointer), controls that desktop reveals on hover are always visible, tap targets are larger, and dropdown menus open as bottom sheets. This applies at any screen size, so tablets benefit too. The exception is the controls in a card tile's corners; see [Selecting cards by touch](#selecting-cards-by-touch).
@@ -16,7 +16,7 @@ The public site adapts to phones and touch devices automatically. There is nothi
 
 On phone-width screens a **bottom tab bar** replaces the header's nav links, with the same six destinations: Decks, Collections, Wanted, [All](/public-site/combined-view/), Trade, and Find. The current section is highlighted, and the quick-switch button (⌕) sits centered in the header for jumping to any list.
 
-While edit mode is on, the tab bar steps aside for the editor's bottom action bar (see [Editing on touch](#editing-on-touch)). Use quick switch to move between lists mid-edit, or tap **Done** to leave edit mode and get the tabs back.
+While edit mode is on, the editor's bottom action bar replaces the tab bar (see [Editing on touch](#editing-on-touch)). Use quick switch to move between lists mid-edit, or tap **Done** to leave edit mode and get the tabs back.
 
 ### The header while scrolling
 
@@ -28,7 +28,7 @@ Phones show only the logo and quick switch in the header. The **Prices** store d
 
 Wider screens keep these controls inline as long as the header has room for them. When it runs out (on most tablets, or on a desktop once the **All Selected** button appears or a translation's longer labels need the space), they move behind the same ⚙ button. The nav links stay in the header and the bottom tab bar stays hidden. If the header is tighter still, the quick-switch button shows only its ⌕ icon. The controls come back inline once there is room again. If even that isn't enough, as with a long translation on a narrow tablet, the nav links scroll sideways within the header instead of widening the page.
 
-**Done** appears in the slot **Edit** occupied, so leaving edit mode works where entering it did. The ⚙ button never leaves the header, so a collapsed row is always one tap away.
+**Done** appears in the slot **Edit** occupied, so leaving edit mode works where entering it did. The ⚙ button is always in the header, so one tap reopens a collapsed row.
 
 ## The toolbar on phones
 
@@ -38,7 +38,7 @@ List pages collapse the desktop toolbar into one compact row:
 - a **Sort** button that opens a _Sort & Group_ bottom sheet with the full controls: grouping (and price brackets), sorting with stacked layers via **+** (each with its own reverse **↑↓** and remove **−** button), the Reverse Sections toggle, card size, and any page-specific extras, and
 - the **Filters** button with its active-filter count badge.
 
-The two [category groupings](/public-site/filtering/#grouping-sorting-and-filtering-by-category), the **Category** sort, and the **Categories** filter row live in those same sheets.
+The two [category groupings](/public-site/filtering/#grouping-sorting-and-filtering-by-category), the **Category** sort, and the **Categories** filter row are in those same sheets.
 
 On pages that support it, the **Update prices** button sits in the button group above the toolbar (with Combine and View Changes), as on desktop. See [Update Prices](/public-site/prices/#update-prices-per-page).
 
@@ -70,7 +70,7 @@ Desktop multi-select uses Ctrl/Cmd-click and hover-revealed checkboxes, which ha
   phone
 />
 
-Outside selection mode the checkboxes stay hidden, so card art is never covered by controls you didn't ask for.
+Outside selection mode the checkboxes stay hidden, so they do not cover the card art.
 
 The **Add to Trade** corner bookmark is also omitted on touch devices. Add a card to the trade by opening it and tapping **+ Add to Trade** in the card modal, or by selecting cards and choosing **Add to Trade** from the Actions sheet.
 

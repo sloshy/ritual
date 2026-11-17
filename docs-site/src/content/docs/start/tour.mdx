@@ -39,7 +39,7 @@ ritual edit
 
 The [interactive editor](/commands/edit/) lists your decks, collections, and wanted lists. Add cards with autocomplete over the card database, edit the cards already there, undo mistakes, and save when you are done. One-shot commands such as [`add-card`](/commands/add-card/), [`move`](/commands/move/) and [`set-card`](/commands/set-card/) do the same from scripts.
 
-Prefer a browser? `ritual admin` starts the [admin site](/admin/) on [http://localhost:8080](http://localhost:8080), with the same editors plus imports, syncs, history, and site builds.
+To work in a browser instead, `ritual admin` starts the [admin site](/admin/) on [http://localhost:8080](http://localhost:8080), with the same editors plus imports, syncs, history, and site builds.
 
 ## 3. Price Them
 
@@ -81,7 +81,7 @@ Pull your Archidekt collection into your collection lists:
 ritual collection-sync pull
 ```
 
-A `collection-sync push` goes the other way and makes your **whole** Archidekt collection match your local collection lists, removals included. Preview it with `--dry-run` first, and use `--only additions` to send new cards without deleting anything.
+A `collection-sync push` goes the other way and makes your whole Archidekt collection match your local collection lists, removals included. Preview it with `--dry-run` first, and use `--only additions` to send new cards without deleting anything.
 
 [`deck-sync`](/commands/deck-sync/) works per deck; [`collection-sync`](/commands/collection-sync/) treats all your collection lists as one Archidekt collection.
 
@@ -112,4 +112,4 @@ ritual mcp              # or expose your lists to an MCP client
 
 ## Where Next
 
-The guides walk one job end to end: [publish your site](/guides/publish-site/), [sync with Archidekt](/guides/archidekt-sync/), [manage a collection, trade and sell](/guides/collection-trade-sell/), [use Ritual with AI agents](/guides/ai-agents/), and [take edits from your public site](/guides/public-edits/).
+Each guide covers one job from start to finish: [publish your site](/guides/publish-site/), [sync with Archidekt](/guides/archidekt-sync/), [manage a collection, trade and sell](/guides/collection-trade-sell/), [use Ritual with AI agents](/guides/ai-agents/), and [take edits from your public site](/guides/public-edits/).

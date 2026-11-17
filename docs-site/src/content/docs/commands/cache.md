@@ -5,7 +5,7 @@ sidebar:
   label: 'cache'
 ---
 
-Manage the card cache: inspect it, preload it, and run the always-on cache server and the experimental peer-to-peer cache feed. For what the cache is, start with [Card Cache](/card-cache/); this page has every option.
+Manage the card cache: inspect it, preload it, and run the always-on cache server and the experimental peer-to-peer cache feed. For what the cache is, see [Card Cache](/card-cache/).
 
 ## Where the cache lives
 
@@ -102,7 +102,7 @@ ritual cache preload-set <setCode>
 | ----------- | ---------------------------------------- | -------- |
 | `<setCode>` | Set code to preload (e.g., `khm`, `lea`) | Yes      |
 
-It caches exactly that set and nothing else, and never offers to bulk-download every card first. Use [`preload-all`](#preload-all) when you want the whole database.
+It caches only that set and never offers to bulk-download every card first. Use [`preload-all`](#preload-all) when you want the whole database.
 
 Each outcome has its own exit code, so a script can trust it:
 
@@ -135,7 +135,7 @@ Printings that no list should ever reference are dropped during ingestion and ne
 
 **Reversible printings** (one card printed on both sides with different art, such as a Secret Lair `Steam Vents` that Scryfall names `Steam Vents // Steam Vents`) are filed under the card they print rather than under a doubled name. Searching `Steam Vents` offers one card, and its printing pickers list the reversible printings beside the ordinary ones. Such a printing keeps both sides and still flips to its back face. A list line written as `Steam Vents // Steam Vents` still resolves to the same card, and [`ritual cleanup`](/commands/cleanup/) renames such lines to the card's own name.
 
-Every preload **replaces** the card cache rather than merging into it. An entry the new data no longer produces (a printing an exclusion now drops, a doubled name now folded) is gone once `preload-all` finishes.
+Every preload replaces the card cache rather than merging into it. An entry the new data no longer produces (a printing an exclusion now drops, a doubled name now folded) is gone once `preload-all` finishes.
 
 A failed preload exits `1`. The same refresh over HTTP ([`POST /api/cache/refresh`](/admin/api/site/#refresh-cache), and the MCP `refresh_cache` tool that reuses it) also reports the failure, and honours cancellation from an in-process caller (the MCP tool): the download stops, nothing is written, the previous cache stands, and the cache lock is released.
 
@@ -143,13 +143,13 @@ A failed preload exits `1`. The same refresh over HTTP ([`POST /api/cache/refres
 
 When [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is enabled, `preload-all` also refreshes the [Card Kingdom buylist](/commands/sell/), so a site you build next uses today's offers. After the card cache refresh succeeds it runs the equivalent of `ritual sell --refresh auto`: a cached buylist less than a day old is left alone, a day-old one is redownloaded, and a missing one is downloaded (~70 MB) without prompting. `--force` carries through and redownloads even a fresh buylist.
 
-There is no `--sell-mode` flag here; the command follows the config only. **A buylist failure is a warning, never the exit code**, since the card cache did refresh:
+There is no `--sell-mode` flag here; the command follows the config only. A buylist failure is a warning and does not change the exit code, since the card cache did refresh:
 
 ```
 The card cache was updated, but the Card Kingdom buylist was not: <reason>
 ```
 
-With sell mode off, no buylist work happens. The HTTP and MCP refreshes (`POST /api/cache/refresh`, `refresh_cache`) do **not** include this step. The buylist has its own route and tool (`POST /api/sell/refresh`, `refresh_buylist`).
+With sell mode off, no buylist work happens. The HTTP and MCP refreshes (`POST /api/cache/refresh`, `refresh_cache`) do not include this step. The buylist has its own route and tool (`POST /api/sell/refresh`, `refresh_buylist`).
 
 ### Bulk selection and language
 
@@ -160,7 +160,7 @@ Which Scryfall bulk a card refresh downloads follows the [`defaultLanguage`](/co
 
 The rule applies everywhere the card cache is fetched or synced: `preload-all`, the stale-cache prompts on other commands, the [cache server](#server)'s scheduled refreshes, and the [cache feed](#feed-fetch).
 
-Every bulk ingest records **which bulk built the cache** in `card-bulk.json` in the cache folder. When that disagrees with what `defaultLanguage` currently demands (you switched the key in either direction), the cache is the wrong dataset, and commands that check cache freshness say so instead of running a staleness prompt. Under `--refresh ask` they offer a full redownload, under `--refresh auto` they run it, and `cache status` reports `bulkTypeStale: true`. A cache filled before this was recorded reads as `default_cards`.
+Every bulk ingest records which bulk built the cache in `card-bulk.json` in the cache folder. When that disagrees with what `defaultLanguage` currently demands (you switched the key in either direction), the cache is the wrong dataset, and commands that check cache freshness say so instead of running a staleness prompt. Under `--refresh ask` they offer a full redownload, under `--refresh auto` they run it, and `cache status` reports `bulkTypeStale: true`. A cache filled before this was recorded reads as `default_cards`.
 
 ### refresh-tags
 
@@ -246,12 +246,12 @@ ritual cache feed fetch --url https://feed.example.com/feed.json
 Behavior:
 
 - Downloaded files are verified against the feed's per-file SHA-256 before anything is ingested. A corrupted download is deleted and the sync fails.
-- Only the kinds the client needs are downloaded, ingested, and seeded: the tag bulks plus **one** card bulk (`default-cards` under an English [`defaultLanguage`](/configuration/#default-language), `all-cards` otherwise). A feed that does not publish the needed card kind fails the sync with a message naming it; point the host at `--cards both` to serve mixed clients.
-- The last ingested torrent infohash is tracked **per kind** in `feed-client/state.json` in the cache folder. Switching `defaultLanguage` changes the needed card kind and so forces a re-ingest even when the feed has not changed. An unchanged feed for an unchanged kind is a cheap no-op.
+- Only the kinds the client needs are downloaded, ingested, and seeded: the tag bulks plus one card bulk (`default-cards` under an English [`defaultLanguage`](/configuration/#default-language), `all-cards` otherwise). A feed that does not publish the needed card kind fails the sync with a message naming it; point the host at `--cards both` to serve mixed clients.
+- The last ingested torrent infohash is tracked per kind in `feed-client/state.json` in the cache folder. Switching `defaultLanguage` changes the needed card kind and so forces a re-ingest even when the feed has not changed. An unchanged feed for an unchanged kind is a cheap no-op.
 - Ingestion runs the same local pipeline as a direct Scryfall preload (filtering, card mapping, tag attachment), so a feed-synced cache is indistinguishable from a Scryfall-synced one.
 - While seeding, the feed is re-checked on the `--refresh` cadence and new files are ingested and seeded automatically.
 
-To make feed syncing the default for **all** of Ritual's cache refreshes (`cache preload-all`, stale-cache prompts, `build-site --refresh auto`, price refreshes), set the [`cacheSource` config key](/configuration/#cache-source):
+To make feed syncing the default for all of Ritual's cache refreshes (`cache preload-all`, stale-cache prompts, `build-site --refresh auto`, price refreshes), set the [`cacheSource` config key](/configuration/#cache-source):
 
 ```bash
 ritual config set cacheSource feed
@@ -278,7 +278,7 @@ The tag lookup is stored in `tags.json` in the cache folder. The [`sell`](/comma
 - Uses the local `cache.json` in the [cache folder](#where-the-cache-lives) as its storage backend.
 - If the card cache is empty or stale for the selected cards cadence (weekly if unset) on startup, it performs a full preload before serving requests.
 - Startup and scheduled full preloads take the exclusive cache-write lock (`.ritual-cache-lock` in the cache folder), so they never interleave with another process's refresh. See [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
-- With a `feed` cache source (experimental), card refreshes sync from a peer-to-peer [cache feed](#feed-host) instead of Scryfall. Unchanged feeds are a cheap infohash check, and feed failures fall back to a direct Scryfall preload. Unless `--no-seed` is given, the server **keeps seeding** the feed's files between refreshes. In feed-seeding mode the startup refresh always runs (it is what starts the seeding), even when the local cache is fresh.
+- With a `feed` cache source (experimental), card refreshes sync from a peer-to-peer [cache feed](#feed-host) instead of Scryfall. Unchanged feeds are a cheap infohash check, and feed failures fall back to a direct Scryfall preload. Unless `--no-seed` is given, the server keeps seeding the feed's files between refreshes. In feed-seeding mode the startup refresh always runs (it is what starts the seeding), even when the local cache is fresh.
 - `--deny-http` also disables feed syncing and seeding.
 - Request bodies are capped. A body is counted as it arrives, and one past its route's budget is refused with `413` and a JSON refusal naming the limit: 1 GiB for `PUT /cache/<section>/bulk` (a client's full card refresh sends the whole card cache in one request), 16 MiB for one entry's `PUT`, and 4 MiB for `POST /cache/prices/stream`. A body past 1 GiB plus 64 KiB is refused before it is read, by the runtime, with no JSON body. The 1 GiB bulk budget fits the English-only card cache; the every-language cache a non-English `defaultLanguage` needs can be larger, and a client's full refresh of it through a cache server is then refused.
 - An unexpected failure answers `500` with `domain.cache.serverReply.internalError` and a generic message; the error itself is written to the server's console, not sent to the client. A failure Ritual words for its reader (Scryfall refusing a price lookup, the `--deny-http` refusal below) is sent as English plus its message key, as every refusal is. A price stream's `error` events follow the same rule.
@@ -430,7 +430,7 @@ Clients decide whether anything changed by comparing each entry's `infoHash` aga
 ### Behavior
 
 - **Raw files, not processed caches.** The feed distributes Scryfall's bulk files byte-identical to the originals, and every peer runs its own local ingestion. A schema change in Ritual's processed cache can never break the swarm.
-- **Web seeds make an empty swarm harmless.** Every torrent embeds this host's `--public-url` file URL as a BEP 19 web seed, so a download completes over plain HTTP(S) even with zero peers online. Peers only make it faster.
+- **Web seeds.** Every torrent embeds this host's `--public-url` file URL as a BEP 19 web seed, so a download completes over plain HTTP(S) even with zero peers online. Peers only make it faster.
 - **Transports:** plain TCP peers plus DHT discovery. Trackers and WebRTC are not used.
 - On each refresh interval the host re-reads Scryfall's bulk manifest and only downloads files whose `updated_at` changed. A republished feed prunes the previous generation's files and torrents from disk.
 - A restart serves the previously published feed immediately, then refreshes.

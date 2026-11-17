@@ -33,7 +33,7 @@ The full feature list, and how this editor differs from the admin one, is on [Ed
 
 ### Nothing is saved yet
 
-Edits live only in the browser tab. Closing the tab loses them unless you export them or save them to the browser (step 2). Edit mode stays on while you move between pages, so you can edit several lists in one session and export them together.
+Edits are kept only in the browser tab. Closing the tab loses them unless you export them or save them to the browser (step 2). Edit mode stays on while you move between pages, so you can edit several lists in one session and export them together.
 
 ## 2. Export the Changes
 
@@ -57,7 +57,7 @@ If a visitor is sending you their edits, ask them to export with **Download chan
 
 ## 3. What the Bundle Contains
 
-A bundle is a `ritual-change-bundle` JSON, format version 1. It records **what you did**, not the resulting list:
+A bundle is a `ritual-change-bundle` JSON, format version 1. It records the changes you made, not the resulting list:
 
 - `lists`: one entry per edited list (its kind, slug and name), each with its ordered changes: adds, removals, quantity, printing, finish, label and category changes, and so on.
 - `moves`: every card moved between two lists, one entry per copy, with its printing, tags, note, and labels.
@@ -105,7 +105,7 @@ If you use the [MCP server](/commands/mcp/), the `import_change_bundle` tool tak
 
 The result is reported per list: how many changes applied, and any that were skipped.
 
-A change is **skipped**, not applied, when it no longer fits the list:
+A change is **skipped** when it no longer fits the list:
 
 | Reason                                 | Typical cause                                                          |
 | -------------------------------------- | ---------------------------------------------------------------------- |
@@ -119,7 +119,7 @@ A **list fails** when it cannot be found or saved, or when a move's source list 
 
 ### How moves land
 
-A move is applied once, on its destination list. That save adds the copy there and removes it from the source list in the same step, and writes a changelog entry on **both** lists. The card keeps its tags and note, and its labels follow the [move rule](/commands/move/): a proxy stays a proxy, and the destination keeps only the labels its list type accepts.
+A move is applied once, on its destination list. That save adds the copy there and removes it from the source list in the same step, and writes a changelog entry on both lists. The card keeps its tags and note, and its labels follow the [move rule](/commands/move/): a proxy stays a proxy, and the destination keeps only the labels its list type accepts.
 
 ## 6. Check and Commit
 

@@ -7,7 +7,7 @@ sidebar:
 
 Sync deck card lists between local files and Archidekt.
 
-The same sync runs from the admin site's [Sync Decks](/admin/sync-decks/) page and from the MCP `sync_decks` tool. All three share one engine, so the rules below apply everywhere.
+The same sync runs from the admin site's [Sync Decks](/admin/sync-decks/) page and from the MCP `sync_decks` tool, so the rules below apply to all three.
 
 For a walkthrough, see [Sync with Archidekt](/guides/archidekt-sync/).
 
@@ -121,14 +121,14 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
 - Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains anything other than a clean sync.
 - `outcome` is the code to branch on: `changed` (written or sent), `unchanged` (already matched, or a push that once planned had nothing to send), `dry-run` (a preview, which `reason` summarizes) or `cancelled` (never reached). It is absent on a failed deck and on one skipped for another reason, such as a deck the account does not own. (`not-run` exists for collection lists a refused run never reached.) Scripts should read `outcome`, not the text of `reason`.
 - `reason` is English prose whatever the UI language. `reasonKey` and `reasonParams` are the message it was rendered from, for a client that renders it in its own language; a param may itself be a message (`messageKey`, `messageParams`), a list (`list`, `join`), a duration (`elapsedMs`, or `durationMs` for an age or a time-out) or a card language (`language`). A reason raised outside the message catalog, such as a network error, has no key.
-- `ownedDecksIncomplete`, on a push only, is present when Archidekt stopped serving the list of decks you own part way (a next-page link Ritual would not follow, a page served twice, the 100-page cap). It is a message — `message`, `messageKey`, `messageParams` — saying why. While it is present, a deck missing from that list is `skipped` with `reasonKey: "domain.sync.ownershipUnknown"` (its `reasonParams` name the `deckId` and nest that message as `reason`), not as a deck you do not own. The run also logs it as a warning.
-- A failed Archidekt request is keyed `domain.sync.archidekt.*`: the request that failed (a deck fetch, a card search, the changes sent to a deck), the HTTP `status` as a number, and, when Archidekt explained itself, its own words as `reason` (one string, or a `clauses` list of several), quoted as Archidekt sent them and cut to a few hundred characters (at most three, then a count of the rest). A key ending in `WithReason` is the one that carries `reason`. A reply Archidekt sent that Ritual could not read (not JSON, or missing a part it needs) is a `…Unreadable` key, such as `domain.sync.archidekt.deckUnreadable`, nesting what was wrong as `reason`.
+- `ownedDecksIncomplete`, on a push only, is present when Archidekt stopped serving the list of decks you own part way (a next-page link Ritual would not follow, a page served twice, the 100-page cap). It is a message (`message`, `messageKey`, `messageParams`) saying why. While it is present, a deck missing from that list is `skipped` with `reasonKey: "domain.sync.ownershipUnknown"` (its `reasonParams` name the `deckId` and nest that message as `reason`), not as a deck you do not own. The run also logs it as a warning.
+- A failed Archidekt request is keyed `domain.sync.archidekt.*`: the request that failed (a deck fetch, a card search, the changes sent to a deck), the HTTP `status` as a number, and, when Archidekt gave a reason, that text as `reason` (one string, or a `clauses` list of several), quoted as Archidekt sent it and cut to a few hundred characters (at most three, then a count of the rest). A key ending in `WithReason` is the one that carries `reason`. A reply Archidekt sent that Ritual could not read (not JSON, or missing a part it needs) is a `…Unreadable` key, such as `domain.sync.archidekt.deckUnreadable`, nesting what was wrong as `reason`.
 - Decks that could not be resolved, or that are not sourced from Archidekt, appear as `failed`. A deck with an Archidekt `sourceUrl` but no `sourceId` is `skipped` in an all-decks run and `failed` when you name it explicitly.
 - Under [`--sync-printings`](#printing-sync---sync-printings) each deck also carries `printingsChanged` (printing differences applied, or previewed on a dry run). Without the flag, a deck whose printings disagree between the two sides carries `printingsUnaligned` (those card names). A card one side holds with no printing at all never counts as disagreeing.
 - A deck whose diff [moves cards between boards](#board-moves) carries `boardMoves`: the number of moves applied, or previewed on a dry run. It is absent when there are none.
 - Under [`--sync-categories`](#category-sync---sync-categories) each deck also carries `categoriesChanged`: the number of cards whose categories the run changed, or would change on a dry run.
 - A deck with card changes carries `changes`, the [card listing](#card-listing) as data, whether or not `--verbose` was given. It lists what went through: a push leaves out what its plan could not send, or did not need to. When the push itself failed (nothing was sent), it lists what the push attempted, and `reason` says so. Entries are discriminated by `kind`: `added`/`removed` (`name`, `quantity`, `board`), `quantity` (`name`, `board`, `from`, `to`), `move` (`name`, `quantity`, `from`, `to`), `printing` (`name`, `board`, `from`, `to`) and `categories` (`name`, `categories`). On a run syncing printings, the first four also carry `printing` (`set` lowercase, `collectorNumber`, `finish`).
-- `unreadable` lists any deck whose file holds lines the parser could not read, as `{ name, file, warnings }`: each warning is a message — the English `message` plus `messageKey`/`messageParams` (a card-line diagnostic nests as `text`). See [Unreadable Lines](#unreadable-lines).
+- `unreadable` lists any deck whose file holds lines the parser could not read, as `{ name, file, warnings }`: each warning is a message, the English `message` plus `messageKey`/`messageParams` (a card-line diagnostic nests as `text`). See [Unreadable Lines](#unreadable-lines).
 - `cancelled` is always `false` on the CLI. The [admin API](/admin/api/sync/#sync-decks) and the MCP `sync_decks` tool set it when a client cancels between decks.
 
 Top-level failures (for example, not being signed in) are emitted as a structured error on stderr.
@@ -141,7 +141,7 @@ A text-mode run closes with a one-line tally:
 Synced 4 decks (2 with changes), 1 skipped, 1 failed.
 ```
 
-"with changes" counts decks that actually moved cards, as opposed to decks already in sync. A dry run says `[dry-run] Would sync …` instead. A run that covered no decks prints only `No Archidekt decks found to sync.`
+"with changes" counts decks that moved cards, as opposed to decks already in sync. A dry run says `[dry-run] Would sync …` instead. A run that covered no decks prints only `No Archidekt decks found to sync.`
 
 ## Card Listing
 
@@ -232,7 +232,7 @@ This is the same write the admin API's `PUT /api/metadata/deck/:slug`, the MCP `
 
 :::note[Creating a deck on Archidekt is not supported]
 
-Linking requires the deck to **already exist** on Archidekt. Archidekt exposes no deck-creation endpoint Ritual can call, so there is no way to upload a brand-new local deck. Create it on archidekt.com first (an empty deck is enough), then `link` it and `push`.
+Linking requires the deck to already exist on Archidekt. Archidekt exposes no deck-creation endpoint Ritual can call, so there is no way to upload a new local deck. Create it on archidekt.com first (an empty deck is enough), then `link` it and `push`.
 
 :::
 
@@ -414,14 +414,14 @@ The rules:
 
 ### Without the flag
 
-A sync that is _not_ syncing printings never adds or removes a card to reconcile a printing. A card's new total is spread over the lines (or Archidekt entries) it already occupies: a surplus lands on the first, a shortfall drains from the last backwards, so a card split across printings keeps its split. When the two sides hold genuinely different printings of a card, the run says so and moves on:
+A sync that is _not_ syncing printings never adds or removes a card to reconcile a printing. A card's new total is spread over the lines (or Archidekt entries) it already occupies: a surplus lands on the first, a shortfall drains from the last backwards, so a card split across printings keeps its split. When the two sides hold genuinely different printings of a card, the run reports it and continues:
 
 ```
 Printings not synced for "Lightning Bolt": the local file and Archidekt hold
 different printings of it. Re-run with --sync-printings to reconcile them.
 ```
 
-Those card names are reported as `printingsUnaligned` in the structured report (omitted when there are none). Only a printing with _no counterpart at all_ on the other side counts, since squaring that up would mean adding or removing copies. A card the two sides merely hold at different printings is not reported, and neither is a line that names no printing.
+Those card names are reported as `printingsUnaligned` in the structured report (omitted when there are none). Only a printing with _no counterpart at all_ on the other side counts, since reconciling that would mean adding or removing copies. A card the two sides merely hold at different printings is not reported, and neither is a line that names no printing.
 
 The admin [Sync Decks](/admin/sync-decks/) page offers the same behavior as a checkbox ("Also sync each card's exact printing…"), and the MCP `sync_decks` tool takes it as a `syncPrintings` field.
 
@@ -436,13 +436,13 @@ Each deck's summary line gets a clause: `…, 3 cards' categories changed` on a 
 
 The rules:
 
-- **A first push cannot wipe Archidekt.** A push from a deck with no local categories at all leaves Archidekt's categories as they are and says so. Pull with `--sync-categories` first to bring them down.
+- **A first push cannot clear Archidekt's categories.** A push from a deck with no local categories at all leaves Archidekt's categories as they are and says so. Pull with `--sync-categories` first to bring them down.
 - **An unreadable categories file fails the deck** before anything is written or sent.
 - **`--only` does not filter category changes.** Changing a card's categories neither adds nor removes it.
 - **Card names are the key.** Archidekt holds a card once per printing; when those entries disagree, a pull takes the union in entry order. A push gives every entry of the card the same categories.
-- **Names Ritual cannot store are skipped with a warning.** Anything goes except a comma or a control character, so in practice this rarely happens. A push leaves such a category on Archidekt as it is, since the local file never held it.
+- **Names Ritual cannot store are skipped with a warning.** Only a name with a comma or a control character cannot be stored, so this is rare. A push leaves such a category on Archidekt as it is, since the local file never held it.
 - **A local category named like a board is not pushed.** Sending `Sideboard` as a category would move the card on Archidekt, so a push leaves it out.
-- **A pull speaks only for cards Archidekt holds.** A local card the remote deck lacks (one an `--only additions` pull kept) keeps its categories.
+- **A pull sets categories only for cards Archidekt holds.** A local card the remote deck lacks (one an `--only additions` pull kept) keeps its categories.
 
 ### Boards and categories
 

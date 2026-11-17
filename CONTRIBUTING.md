@@ -28,7 +28,7 @@ All TypeScript code should follow these conventions:
 
 - **Interface names**: Use PascalCase without an `I` prefix (e.g. `CacheManager`, not `ICacheManager`).
 - **Standard library imports**: Always use the `node:` prefix (e.g. `import fs from 'node:fs/promises'`).
-- **Object types**: Always define object types explicitly with `type` or `interface` — never use inline anonymous object shapes as return types or variable types.
+- **Object types**: Always define object types explicitly with `type` or `interface`. Never use inline anonymous object shapes as return types or variable types.
 - **Parsers**: When writing parsing code, ensure that errors are properly represented, either through union types or structured error objects.
 - **Set code normalization**: Set codes must always be lowercase in memory, cache keys, and data files. They must always be uppercase in markdown output (deck/collection/wanted files), CLI display text, and site UI. Normalize on read with `.toLowerCase()`; format on write/display with `.toUpperCase()`.
 
@@ -39,7 +39,7 @@ All TypeScript code should follow these conventions:
 
 ## Localization
 
-Every string a person reads in the CLI or either site goes through `t()` from `src/i18n/t.ts`, keyed into the English catalog under `src/i18n/messages/en/`. Each new key also needs an entry in the sibling `*.meta.ts` file with a `description`: it is the only context a translator gets. Removed strings mean removed keys. `bun run scripts/check-locales.ts` validates the catalog and runs as part of `bun run test`.
+Every string a person reads in the CLI or either site goes through `t()` from `src/i18n/t.ts`, keyed into the English catalog under `src/i18n/messages/en/`. Each new key also needs an entry in the sibling `*.meta.ts` file with a `description`, which is the only context a translator gets. When you remove a string, remove its key. `bun run scripts/check-locales.ts` validates the catalog and runs as part of `bun run test`.
 
 Some text is never translated because it is data, not prose:
 
@@ -62,7 +62,7 @@ Besides the CLI, Ritual exposes its features to AI agents through the MCP server
 Ritual is in 0.x, so commands, flags, output formats and the MCP tools may change from one release to the next. Two things go with every such change:
 
 - **A `CHANGELOG.md` entry** under `## [Unreleased]` for anything a user would notice, saying what to do when they need to act.
-- **A `ritual migrate` migration** (`src/migrate/migrations.ts`) for any change to what Ritual reads from or writes to a workspace: the list and card-line format, front matter, changelogs, sidecars, config keys, generated files. Users upgrade version by version and keep their data; the migration is how.
+- **A `ritual migrate` migration** (`src/migrate/migrations.ts`) for any change to what Ritual reads from or writes to a workspace: the list and card-line format, front matter, changelogs, sidecars, config keys, generated files. The migration is how users keep their data when they upgrade version by version.
 
 ## Tests
 

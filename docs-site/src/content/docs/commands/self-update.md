@@ -34,7 +34,7 @@ When nothing newer exists it prints `Ritual 0.3.0 is up to date (the newest rele
 
 ## Channels
 
-By default, `self-update` follows the **channel of the build you are running**: a prerelease build (such as `0.3.0-beta2`) looks for the newest release including prereleases, and a stable build looks only at stable releases. `--prerelease` and `--stable` switch channels for one run; after that, the installed build's own channel applies again.
+By default, `self-update` follows the channel of the build you are running: a prerelease build (such as `0.3.0-beta2`) looks for the newest release including prereleases, and a stable build looks only at stable releases. `--prerelease` and `--stable` switch channels for one run; after that, the installed build's own channel applies again.
 
 - **Stable** reads GitHub's "latest release". While no stable release exists (or GitHub's latest release is marked as a prerelease), the stable channel refuses with exit `3` and suggests `--prerelease`.
 - **Prerelease** picks the highest version among the 30 most recently published releases, stable or not. Drafts are never installed.
@@ -81,7 +81,7 @@ Without a terminal (see [When prompts are unavailable](/cli-conventions/#when-pr
 
 ## After an update: workspace changes
 
-A newer Ritual may have [migrations or regenerated files](/commands/migrate/) for your workspace, and only the new release knows what they are. So when you run `self-update` in a directory with a `ritual.config.json` (or with `--base-dir` pointing at one), the newly installed Ritual runs `ritual migrate --dry-run` right away and prints its plan. Nothing is applied: run `ritual migrate` when you are ready, then commit `ritual.config.json` so CI builds with the new release. If the new binary cannot be started for the preview, or the preview fails, `self-update` prints a warning and still succeeds; run `ritual migrate --dry-run` yourself.
+A newer Ritual may have [migrations or regenerated files](/commands/migrate/) for your workspace, and only the new release can list them. So when you run `self-update` in a directory with a `ritual.config.json` (or with `--base-dir` pointing at one), the newly installed Ritual runs `ritual migrate --dry-run` right away and prints its plan. Nothing is applied: run `ritual migrate` when you are ready, then commit `ritual.config.json` so CI builds with the new release. If the new binary cannot be started for the preview, or the preview fails, `self-update` prints a warning and still succeeds; run `ritual migrate --dry-run` yourself.
 
 ## Update notice
 
@@ -91,11 +91,11 @@ A release build tells you when a newer release is out. After a command's own out
 Ritual 0.3.0 is available (you have 0.2.0). Run `ritual self-update` to update.
 ```
 
-The notice only informs; nothing is installed until you run `self-update`. It follows the same [channel](#channels) `self-update` would, and appears **at most once a day per release**: a newer release than the one last announced is shown right away.
+Nothing is installed until you run `self-update`. The notice follows the same [channel](#channels) `self-update` would, and appears at most once a day per release: a newer release than the one last announced is shown right away.
 
 The answer comes from a small cache in the per-user [state file](/commands/migrate/#when-ritual-offers-to-migrate) (its `updateCheck` section). Whether a notice shows is decided from that cache, never from how fast the network is:
 
-- When the cache is more than a day old (or was filled for the other channel), Ritual looks up the newest release on GitHub **while your command runs**. If the answer arrives before the command finishes, the cache is updated and this run's notice uses it. Otherwise the lookup is abandoned when the command finishes; it never delays the command or its exit. A lookup gives up after 5 seconds.
+- When the cache is more than a day old (or was filled for the other channel), Ritual looks up the newest release on GitHub while your command runs. If the answer arrives before the command finishes, the cache is updated and this run's notice uses it. Otherwise the lookup is abandoned when the command finishes; it never delays the command or its exit. A lookup gives up after 5 seconds.
 - A lookup that fails is not retried for an hour, so an offline machine does not try on every command. One abandoned because the command finished first is retried after 10 minutes, so a later, longer command can catch the answer. Failures are silent.
 - [`serve`](/commands/serve/) and [`admin`](/commands/admin/) keep running, so they (but not subcommands such as `admin setup`) print the notice at startup from the cache alone and refresh the cache in the background for next time. The refresh is cancelled if the server fails to start.
 
@@ -127,7 +127,7 @@ Release lookups use GitHub's public API, which allows a limited number of anonym
 
 ## Not an MCP tool
 
-Replacing the Ritual binary is maintenance, like logging in or migrating a workspace. It is deliberately not exposed through the [MCP server](/commands/mcp/). Agents using the [skills](/commands/skills/) check with `ritual self-update --check` and ask before installing.
+Replacing the Ritual binary is maintenance, like logging in or migrating a workspace, so it is not exposed through the [MCP server](/commands/mcp/). Agents using the [skills](/commands/skills/) check with `ritual self-update --check` and ask before installing.
 
 `self-update` also skips the [pending-updates check](/commands/migrate/#when-ritual-offers-to-migrate) other commands run, since it previews the new release's own plan afterwards.
 

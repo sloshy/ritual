@@ -17,7 +17,7 @@ The command has three modes:
 
 ## What a `.sha256` file means
 
-Every time Ritual writes a list file (the admin UI, `edit`, `add-card`, `move`, `deck-sync`, …) it writes a `<name>.md.sha256` sidecar holding the hash of exactly what it wrote, and records the matching changelog entry. So a sidecar means one thing:
+Every time Ritual writes a list file (the admin UI, `edit`, `add-card`, `move`, `deck-sync`, …) it writes a `<name>.md.sha256` sidecar holding the hash of exactly what it wrote, and records the matching changelog entry. So a sidecar means:
 
 > **Ritual wrote this exact content, and its changelog entries are already recorded.**
 
@@ -84,10 +84,10 @@ Notes (`{note}`) and label overrides (`[labels]`) are invisible to the diff. Edi
 
 ### The categories sidecar
 
-A list's [`<name>.categories.json`](/list-format/#categories-namecategoriesjson) is the one sidecar that **is** tracked. It has a `.sha256` of its own and is walked alongside its list file. A hand edit to it is recorded as `Set categories of "Sol Ring" to Ramp, Artifacts`, `Set category order to …`, and `Renamed category "Draw" to "Card Draw"` entries in that **list's** `.changes.md` (the sidecar has no changelog of its own), and its own `.sha256` is stamped so a second run records nothing.
+A list's [`<name>.categories.json`](/list-format/#categories-namecategoriesjson) is the one sidecar that is tracked. It has a `.sha256` of its own and is walked alongside its list file. A hand edit to it is recorded as `Set categories of "Sol Ring" to Ramp, Artifacts`, `Set category order to …`, and `Renamed category "Draw" to "Card Draw"` entries in that **list's** `.changes.md` (the sidecar has no changelog of its own), and its own `.sha256` is stamped so a second run records nothing.
 
 - **Adding** a sidecar records every assignment in it.
-- **Deleting** one by hand, while the list survives, means _clear every category_. The clearing entries are recorded and the stale `.sha256` is removed. Deleting the list **and** its sidecar together records only the list's own deletion.
+- **Deleting** one by hand, while the list survives, means _clear every category_. The clearing entries are recorded and the stale `.sha256` is removed. Deleting the list and its sidecar together records only the list's own deletion.
 
 A malformed sidecar produces a parse warning and is skipped entirely, never diffed partially. `--hash-only` and `--verify` cover the categories sidecar too, listing it beside its list file.
 
@@ -118,9 +118,9 @@ Detection uses the sidecar to avoid re-recording changes Ritual already logged:
 
 The sidecar is refreshed only for a file whose diff produced changelog entries. A file whose card list is unchanged (a prose-only edit, a reordering, a front-matter tweak) is reported as `no card changes detected` and keeps its stale or absent sidecar. Such a file keeps showing as `diverged`/`no sidecar` under [`--verify`](#--verify-report-sidecar-drift) however often the default mode runs; `--hash-only` is what clears it.
 
-This makes the command idempotent: running it twice over the same range is a no-op the second time, and a repository can freely mix Ritual edits with raw git edits.
+This makes the command idempotent: running it twice over the same range is a no-op the second time, and a repository can mix Ritual edits with raw git edits.
 
-The [card-ID backfill](/cli-conventions/#the-card-id-backfill) cooperates from the other side. When a list-writing command persists missing `&N` IDs into a hand-edited file, it refreshes the `.sha256` file only if the sidecar already matched the file, so a hand edit keeps its stale or absent sidecar and detection still records it. `detect-changes` itself never runs the backfill, in any mode, since it must see the working tree exactly as you committed it.
+When the [card-ID backfill](/cli-conventions/#the-card-id-backfill) of a list-writing command persists missing `&N` IDs into a hand-edited file, it refreshes the `.sha256` file only if the sidecar already matched the file, so a hand edit keeps its stale or absent sidecar and detection still records it. `detect-changes` itself never runs the backfill, in any mode, since it must see the working tree exactly as you committed it.
 
 > **Limitation:** the sidecar reflects a file's _final_ state across the diff range, not its per-commit history. If one range mixes a Ritual edit and a raw edit to the **same** file, only the final content is compared: a range ending in a raw edit re-records the whole diff (including the part Ritual already logged), and a range ending in a Ritual edit is skipped entirely (dropping the raw edit's changelog). To keep changelogs exact, avoid mixing both kinds of edit to one file within a single detection range. In the CI workflow, that range is one push.
 
@@ -136,7 +136,7 @@ ritual detect-changes --hash-only
 
 Rewrites every list file's `.sha256` file from the file's current content. It needs no git repository, writes no changelog entries, and never modifies list file content. Because `detect-changes` is exempt from the [card-ID backfill](/cli-conventions/#the-card-id-backfill), a `--dry-run` preview always shows exactly the hashes a real run would write.
 
-Deck, collection, and wanted **list files** are stamped, together with their [`.categories.json`](/list-format/#categories-namecategoriesjson) sidecars. Never `.changes.md` changelogs, `.primer.md` primers, `.art.json` custom art, or anything else.
+Only deck, collection, and wanted **list files** are stamped, together with their [`.categories.json`](/list-format/#categories-namecategoriesjson) sidecars. `.changes.md` changelogs, `.primer.md` primers, `.art.json` custom art and all other files are not.
 
 In text mode each stamped file is printed with its hash, followed by a count:
 
@@ -162,9 +162,9 @@ The command names every such file:
 ⚠️    wanted/To Buy.md
 ```
 
-This warning goes to **stderr in every output mode and prints even under `--quiet`**, because it reports data loss. Run `--verify` first to see the list before deciding, or run the default mode against a commit to record those edits instead of discarding them.
+This warning goes to stderr in every output mode and prints even under `--quiet`, because it reports data loss. Run `--verify` first to see the list before deciding, or run the default mode against a commit to record those edits instead of discarding them.
 
-Use `--hash-only` when you deliberately do **not** want the current state recorded, for example after restoring from a backup, or after a bulk mechanical rewrite whose per-card history would be noise.
+Use `--hash-only` when you do not want the current state recorded, for example after restoring from a backup, or after a bulk mechanical rewrite whose per-card history would be noise.
 
 ## `--verify`: report sidecar drift
 
@@ -254,7 +254,7 @@ The changelogs are still updated (or previewed under `--dry-run`) exactly as in 
 - `changelogsUpdated`: the number of list files whose changelog was (or, under `--dry-run`, would be) updated.
 - `renames`: old path → new path for renamed list files.
 - `results`: one entry per changed list file: its `kind` (`deck`, `collection`, or `wanted`), git `status` (`A`, `M`, `D`, or `R`), whether it was skipped as `ritualClean` (see [Hash-aware detection](#hash-aware-detection)), and the detected change events.
-- `warnings`: everything the run noticed but did not stop for. Each is a message — the English `message` plus `messageKey` and `messageParams` (match on the key, never the prose; text mode prints it in the CLI's language) — and carries a `kind`:
+- `warnings`: everything the run noticed but did not stop for. Each is a message, the English `message` plus `messageKey` and `messageParams` (match on the key, never the prose; text mode prints it in the CLI's language), and carries a `kind`:
   - `missing-file` (`cli.detectChanges.missingFile`): the file changed in the range but is gone from the working tree, so it was skipped. The run is partial, so this (and only this) makes the exit code `1`.
   - `parse` (`cli.detectChanges.parseWarning`): a line the parser could not read, with `revision` saying whether it was in the `working-tree` or the `committed` copy. The parser's own warning nests as `detail` (a card-line diagnostic is `domain.card.line.atLine`, its diagnostic nested as `text`). The rest of the file is still diffed and the exit code stays `0`. That line gets no changelog entry.
 

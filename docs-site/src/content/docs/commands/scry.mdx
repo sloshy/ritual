@@ -63,7 +63,7 @@ Scryfall returns search results in pages. How many `scry` fetches:
 
 When a non-interactive run stops with results still available, one line goes to stderr in every output mode: `Fetched 175 of 4210 results (page 1); use --pages <n> for more.` (with CSV output, `More results remain (fetched page 1); use --pages <n> for more.`). It prints so a capped run is never mistaken for a complete one.
 
-A run fetches at most **20 pages**. Each page is a separate, paced Scryfall request, so the cap protects their API as well as guarding against a mistyped `--pages`. A larger value is rejected at parse time with a message naming the cap. `--count` is capped at **50** for the same reason.
+A run fetches at most 20 pages. Each page is a separate, paced Scryfall request, so the cap protects their API as well as guarding against a mistyped `--pages`. A larger value is rejected at parse time with a message naming the cap. `--count` is capped at 50 for the same reason.
 
 :::note
 Use the global `--no-input` flag to guarantee no prompting, and `--pages <n>` to fetch a fixed number of pages. There is no fetch-all flag.
@@ -71,7 +71,7 @@ Use the global `--no-input` flag to guarantee no prompting, and `--pages <n>` to
 
 ### Output across pages
 
-A scripted `--output json` run always emits **one** JSON array of cards, whether it walked one page or five and whether it found matches or none. The pages are collected and written once at the end. A run that fails partway still emits the cards that arrived, and a run that found nothing emits `[]` (with the error on stderr and a non-zero exit code).
+A scripted `--output json` run always emits one JSON array of cards, whether it walked one page or five and whether it found matches or none. The pages are collected and written once at the end. A run that fails partway still emits the cards that arrived, and a run that found nothing emits `[]` (with the error on stderr and a non-zero exit code).
 
 Interactive paging is the exception: those runs print each page as it arrives, so you can see it before asking for the next.
 
@@ -83,7 +83,7 @@ Interactive paging is the exception: those runs print each page as it arrives, s
 
 Text output prints one line per pick. Under `--output json`, a single pick (`--count 1`, the default) emits a bare card object and `--count` greater than 1 emits an array (one line per card with `--output ndjson`). `--fields` works as with searches. If any fetch fails or a pick comes back empty, nothing is printed and the command exits non-zero.
 
-Get a completely random card:
+Get a random card:
 
 ```bash
 ritual scry --random

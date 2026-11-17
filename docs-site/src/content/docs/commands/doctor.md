@@ -69,6 +69,6 @@ This looks like a bug in Ritual. Run the command again with RITUAL_DEBUG=1 for d
 
 Run the command again with `RITUAL_DEBUG=1` to print the full stack trace (and the failure that caused it, if any) instead of the bare message, and include it in the report. A released binary carries its source map, so the trace names Ritual's source files. Under `--output json`, the [error envelope](/cli-conventions/#--output-always-means-the-scripting-format) says the same as data: `details.kind` is `bug` or `environment`, `details.issuesUrl` is the tracker, and `RITUAL_DEBUG` adds the trace as `details.stack`.
 
-A failure of the machine around Ritual, such as a permission denied or a refused network connection, prints only its message: it is not a Ritual bug.
+A failure of the machine around Ritual, such as a permission denied or a refused network connection, prints only its message, since it is not a Ritual bug.
 
 A build made from a fork with `RITUAL_SOURCE_URL` set points both the line above and `doctor` at the fork's own issue tracker.

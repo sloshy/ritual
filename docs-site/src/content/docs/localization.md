@@ -3,7 +3,7 @@ title: 'Localization'
 description: How Ritual picks the language of its own interface, how that differs from the card language, and how to contribute a locale.
 ---
 
-Ritual's interface text (CLI output, prompts, menus, help, and both web apps) comes from a message catalog, so the whole product can speak a language other than English. This page covers how each surface picks its language, what Ritual can detect on each operating system, what stays English no matter what, and how to contribute a translation.
+Ritual's interface text (CLI output, prompts, menus, help, and both web apps) comes from a message catalog, so all of it can be shown in a language other than English.
 
 :::note[English is the only catalog that ships today]
 Every user-facing string flows through the catalog, but no translations are bundled yet. An English-only build resolves to English, hides the in-app language switcher, and never spawns the OS probe subprocesses. Adding a language is a pull request touching [one JSON file](#contributing-a-locale), with no TypeScript.
@@ -79,9 +79,9 @@ Both apps set `<html lang>` and `<html dir>` before first paint, so there is no 
 
 ## What Ritual can detect, per platform
 
-Bun resolves **no** locale from the environment on its own. With `LANG=de_DE.UTF-8`, `Intl` still reports `en-US`. Ritual reads the environment itself and hands an explicit tag to every formatter, so detection is only as good as what the environment says.
+Bun resolves no locale from the environment on its own. With `LANG=de_DE.UTF-8`, `Intl` still reports `en-US`. Ritual reads the environment itself and hands an explicit tag to every formatter, so detection is only as good as what the environment says.
 
-To see what each source says on **your** machine, including the subprocess probes that normal startup skips, run [`ritual locale --detect`](/commands/locale/#detecting-the-os-locale).
+To see what each source says on your machine, including the subprocess probes that normal startup skips, run [`ritual locale --detect`](/commands/locale/#detecting-the-os-locale).
 
 ### Linux and macOS (and any POSIX shell)
 
@@ -117,7 +117,7 @@ That subprocess is gated the same way as the Windows one below and never runs du
 powershell -NoProfile -NonInteractive -Command "[Globalization.CultureInfo]::CurrentUICulture.Name"
 ```
 
-That subprocess runs only when **both** hold: no explicit flag, environment, or config value was given, **and** the build ships more than one locale. Its result is remembered for the process. An English-only build never spawns it, so today's build normally answers "I don't know" on Windows.
+That subprocess runs only when both hold: no explicit flag, environment, or config value was given, and the build ships more than one locale. Its result is remembered for the process. An English-only build never spawns it, so today's build normally detects no locale on Windows.
 
 To get the answer anyway, ask for it once and save it:
 
@@ -129,9 +129,9 @@ That runs every probe regardless of the gates, prints what each one said, and of
 
 ### WSL
 
-**WSL cannot see the Windows host's language.** A WSL command is a Linux process. It inherits the distro's `LANG`, which is typically unset or `C.UTF-8`, and there is no supported way to read the host's region from inside it. Ritual does not probe `/mnt/c/.../powershell.exe`. Detection falls through to `en`.
+A WSL command is a Linux process, so it cannot read the Windows host's language. It inherits the distro's `LANG`, which is typically unset or `C.UTF-8`, and there is no supported way to read the host's region from inside it. Ritual does not probe `/mnt/c/.../powershell.exe`. Detection falls through to `en`.
 
-`ritual locale --detect` reports this honestly: under WSL it shows the environment probe and marks both OS probes as not applicable.
+Under WSL, `ritual locale --detect` shows the environment probe and marks both OS probes as not applicable.
 
 WSL users, and Windows users who would rather skip the probe, should set the language explicitly:
 
@@ -144,7 +144,7 @@ Time zones need no workaround; Bun honors `TZ` normally.
 
 ## What never gets translated
 
-Everything a human reads is localizable. Everything a **machine** reads is English in every locale. Otherwise a translated build would produce files and payloads that Ritual, or your scripts, could no longer read.
+Text a person reads is localizable, and everything a machine reads is English in every locale. Otherwise a translated build would produce files and payloads that Ritual, or your scripts, could no longer read.
 
 | Contract                                                                                                                                         | Stays English because                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
@@ -194,7 +194,7 @@ The structured error envelope carries a stable `messageKey` beside its `code`:
 
 ## Shipping locales with a built site
 
-A built site carries its dictionaries as **data**: one `app.js`, plus one `locales/<tag>.json` per language. One build can serve several languages, and the running site can switch language without a reload. A released binary can also ship a language it was never built with (see `--locale-file` below).
+A built site carries its dictionaries as data: one `app.js`, plus one `locales/<tag>.json` per language. One build can serve several languages, and the running site can switch language without a reload. A released binary can also ship a language it was never built with (see `--locale-file` below).
 
 [`build-site`](/commands/build-site/#localized-builds) (and `serve --build`) take three flags:
 
@@ -220,7 +220,7 @@ Each prefixed build still carries English, so `dist/de/` opens in German with `e
 
 ## Contributing a locale
 
-Translators never touch TypeScript and never run the type checker. English lives in `src/i18n/messages/en/*.ts` because it is the type source; every other language is a flat JSON file in `locales/`.
+Translators never touch TypeScript and never run the type checker. English is in `src/i18n/messages/en/*.ts` because it is the type source; every other language is a flat JSON file in `locales/`.
 
 ```sh
 bun run scripts/check-locales.ts --emit-template de   # writes locales/de.json + de.meta.json
@@ -245,7 +245,7 @@ A message value is a plain string with `{named}` placeholders, a plural object, 
 
 Placeholders are named, not positional, so you can **reorder them freely**.
 
-Some placeholders hold a **token the user types or matches exactly**: a flag (`{flag}`, `{dryRunFlag}`), a command line (`{command}`), an environment variable (`{envVar}`), a config key (`{configKey}`), a file name (`{file}`) or an example value (`{example}`, `{url}`). Move them wherever your sentence needs them, but keep every one — the key's description says which token each holds. That is why `--dry-run` or `ritual migrate` never appears inside the English text itself.
+Some placeholders hold a **token the user types or matches exactly**: a flag (`{flag}`, `{dryRunFlag}`), a command line (`{command}`), an environment variable (`{envVar}`), a config key (`{configKey}`), a file name (`{file}`) or an example value (`{example}`, `{url}`). Move them wherever your sentence needs them, but keep every one. The key's description says which token each holds. That is why `--dry-run` or `ritual migrate` never appears inside the English text itself.
 
 `check-locales.ts` runs as part of `bun run test` and `bun run verify`, and enforces:
 
@@ -265,9 +265,9 @@ Some placeholders hold a **token the user types or matches exactly**: a flag (`{
 | An English string writing a plural as `word(s)` / `word(es)` / `entr(y/ies)`                                                                                                         | Error — only `$plural` translates into a language with more than two forms                      |
 | An English string writing a machine token inline: a `--flag`, a `ritual <command>` line or a bare one (`config set`), an environment variable, or a file name, link or example value | Error — a translator would read it as prose; it must arrive as a `{placeholder}`                |
 
-Missing keys are only a warning because **`t()` falls back to English per key**. A pull request with 200 of 2,000 keys translated ships and renders correctly. Coverage is a number, not a gate.
+Missing keys are only a warning because **`t()` falls back to English per key**. A pull request with 200 of 2,000 keys translated ships and renders correctly. Coverage is reported, and no minimum is required.
 
-A pull request touching only `locales/*.json` needs no behavioral code review. Validation is the gate.
+A pull request touching only `locales/*.json` needs no behavioral code review, only passing validation.
 
 ### The pseudo-locale
 

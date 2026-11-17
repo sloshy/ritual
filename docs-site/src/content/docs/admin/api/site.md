@@ -14,7 +14,7 @@ Routes that build the public site, report on and refresh the [card cache](/card-
 POST /api/build-site
 ```
 
-Build and publish the public static site — the same build as [`ritual build-site`](/commands/build-site/), run as a child process so the server stays responsive. The child runs with the server's own [`--refresh`](/commands/build-site/#card-cache-refresh) mode, `ask` (the default) answered as `auto` since the child cannot prompt. The build writes into a scratch directory beside `dist/` and swaps it into place only once the child exits cleanly, so `dist/` always holds either the previous site or the new one. Exposed as the MCP `build_site` tool.
+Build and publish the public static site, the same build as [`ritual build-site`](/commands/build-site/), run as a child process so the server stays responsive. The child runs with the server's own [`--refresh`](/commands/build-site/#card-cache-refresh) mode, `ask` (the default) answered as `auto` since the child cannot prompt. The build writes into a scratch directory beside `dist/` and swaps it into place only once the child exits cleanly, so `dist/` always holds either the previous site or the new one. Exposed as the MCP `build_site` tool.
 
 **Request Body:** None.
 
@@ -48,7 +48,7 @@ The same build as `POST /api/build-site`, streamed as server-sent events. The ad
 | `done`     | `{ message, messageKey?, messageParams?, outDir, durationMs }` — the same [message triple](/admin/api/#the-message-triple) and publish details the JSON route returns.                                                                                                                                           |
 | `error`    | `{ message, messageKey?, messageParams? }` for a build that was refused (one is already running) or failed; `message` carries the same text the JSON route would, and it is a [message triple](/admin/api/#the-message-triple) whose params may nest (an error the build raised, such as a cache-lock time-out). |
 
-Failures ride the stream rather than an HTTP status, since `EventSource` exposes no response body for a non-2xx open. Closing the stream does **not** cancel the build: it runs to completion and publishes on its own, as a dropped sync stream leaves its run in flight.
+Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no response body for a non-2xx open. Closing the stream does not cancel the build: it runs to completion and publishes on its own, as a dropped sync stream leaves its run in flight.
 
 ## Cache Status
 
@@ -56,7 +56,7 @@ Failures ride the stream rather than an HTTP status, since `EventSource` exposes
 GET /api/cache/status
 ```
 
-Report the card cache's size, freshness, tag coverage, and source — the same payload [`ritual cache status --output json`](/commands/cache/) prints. Diagnostic only: it never refreshes or writes the cache. Tag presence is checked over a bounded sample of cached cards, not a full scan.
+Report the card cache's size, freshness, tag coverage, and source: the same payload [`ritual cache status --output json`](/commands/cache/) prints. Diagnostic only: it never refreshes or writes the cache. Tag presence is checked over a bounded sample of cached cards, not a full scan.
 
 **Response:**
 
@@ -99,7 +99,7 @@ Report the card cache's size, freshness, tag coverage, and source — the same p
 POST /api/cache/refresh
 ```
 
-Download and cache all Scryfall card data — the Scryfall half of `ritual cache preload-all`, without the [buylist](/commands/sell/) refresh that command also runs under sell mode (that is [`POST /api/sell/refresh`](/admin/api/prices/#sell-refresh)). Returns a JSON response when complete. A refresh that fails answers a non-2xx with the failure's message. A refresh cancelled by its caller (only an in-process caller such as the MCP `refresh_cache` tool can cancel one) answers `499`: the download stops, nothing is written, the previous cache is left as it was, and the cache lock is released.
+Download and cache all Scryfall card data: the Scryfall half of `ritual cache preload-all`, without the [buylist](/commands/sell/) refresh that command also runs under sell mode (that is [`POST /api/sell/refresh`](/admin/api/prices/#sell-refresh)). Returns a JSON response when complete. A refresh that fails answers a non-2xx with the failure's message. A refresh cancelled by its caller (only an in-process caller such as the MCP `refresh_cache` tool can cancel one) answers `499`: the download stops, nothing is written, the previous cache is left as it was, and the cache lock is released.
 
 **Request body:** None
 
@@ -129,7 +129,7 @@ Stream cache refresh progress as Server-Sent Events (SSE). The UI uses it for it
 | `done`     | `message`, `messageKey`                                           | Refresh completed successfully |
 | `error`    | `message`, `messageKey?`, `messageParams?`                        | Refresh failed                 |
 
-All three are [message triples](/admin/api/#the-message-triple): `message` is English whatever the server's UI language, and `messageKey` and `messageParams` let a client render the line in its reader's language — the admin Cache Refresh page does, and relabels a line already on screen when the reader switches language. A `progress` line's key is a `domain.cache.refresh.*` message, and its params nest: a download size or the amount received so far is a size, `{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale (the line spells the `MiB` unit itself). An `error` with a catalog entry carries its key and params as an [error response](/admin/api/#error-responses) does: a cache-lock time-out (`domain.cache.lockTimedOut`), or a refresh failure (`domain.cache.refresh.*`) — Scryfall refusing the bulk manifest or the bulk download (`manifestFailed`, `bulkFetchFailed`, whose params are the HTTP `status` and `statusText`), a manifest with no bulk of the kind needed (`noBulkUri`, whose `bulk` is the Scryfall bulk name), an empty download (`bulkNoBody`) or a malformed bulk line (`invalidJsonLine`, whose `line` is its number).
+All three are [message triples](/admin/api/#the-message-triple): `message` is English whatever the server's UI language, and `messageKey` and `messageParams` let a client render the line in its reader's language. The admin Cache Refresh page does, and relabels a line already on screen when the reader switches language. A `progress` line's key is a `domain.cache.refresh.*` message, and its params nest: a download size or the amount received so far is a size, `{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale (the line spells the `MiB` unit itself). An `error` with a catalog entry carries its key and params as an [error response](/admin/api/#error-responses) does: a cache-lock time-out (`domain.cache.lockTimedOut`), or a refresh failure (`domain.cache.refresh.*`). A refresh failure is Scryfall refusing the bulk manifest or the bulk download (`manifestFailed`, `bulkFetchFailed`, whose params are the HTTP `status` and `statusText`), a manifest with no bulk of the kind needed (`noBulkUri`, whose `bulk` is the Scryfall bulk name), an empty download (`bulkNoBody`) or a malformed bulk line (`invalidJsonLine`, whose `line` is its number).
 
 **Stage values:** `metadata`, `tags`, `download`, `save`, `done`, `info`. Parsing and processing happen inline while the gzipped-JSONL bulk streams, so `download` covers them. The stages come from the refresh engine itself, and `percentage` is present on a `download` event whenever the compressed download size is known.
 
@@ -152,7 +152,7 @@ data: {"message":"Cache refreshed successfully","messageKey":"admin.api.cache.re
 GET /api/doctor
 ```
 
-Check the setup — the same report [`ritual doctor --output json`](/commands/doctor/) prints, and what the [`get_diagnostics`](/commands/mcp/) MCP tool returns. Read-only and offline: it never refreshes the cache, asks a configured cache server anything, or looks up releases. A failing check is still a `200`; `ok` is `false` when any check failed. The config verdict reads `ritual.config.json` as it is on disk now, so a file edited by hand after the server started is reported as it stands.
+Check the setup: the same report [`ritual doctor --output json`](/commands/doctor/) prints, and what the [`get_diagnostics`](/commands/mcp/) MCP tool returns. Read-only and offline: it never refreshes the cache, asks a configured cache server anything, or looks up releases. A failing check is still a `200`; `ok` is `false` when any check failed. The config verdict reads `ritual.config.json` as it is on disk now, so a file edited by hand after the server started is reported as it stands.
 
 **Response:**
 
@@ -276,7 +276,7 @@ Returns the current application configuration.
 }
 ```
 
-`config` is the **stored** configuration. When this server was started with a session flag that displaces one of those values — today that means [`--sell-mode`](/commands/admin/#sell-mode) — the response also carries an `overrides` object saying what the running process is actually operating with, keyed by the config path each override displaces:
+`config` is the **stored** configuration. When this server was started with a session flag that displaces one of those values (today that means [`--sell-mode`](/commands/admin/#sell-mode)), the response also carries an `overrides` object saying what the running process is operating with, keyed by the config path each override displaces:
 
 ```json
 {
@@ -286,7 +286,7 @@ Returns the current application configuration.
 }
 ```
 
-The flag writes nothing, so `config.site.sellMode` keeps reporting the stored value (usually unset) while the server's sell routes answer anyway. `overrides` is **absent entirely** when no override is in force. It is a process-local fact, so `ritual config get` has no equivalent and `PUT /api/config` never returns it: a write echoes back what it persisted.
+The flag writes nothing, so `config.site.sellMode` keeps reporting the stored value (usually unset) while the server's sell routes answer anyway. `overrides` is absent when no override is in force. It is a process-local fact, so `ritual config get` has no equivalent and `PUT /api/config` never returns it: a write echoes back what it persisted.
 
 ## Update Config
 
@@ -296,18 +296,18 @@ PUT /api/config
 
 Update the application configuration. Partial updates are supported: only the fields you include change. The nested `admin` object is merged field by field, so you can send just the admin settings you want to change.
 
-Every key in the request body is validated **before** the merge is persisted; a malformed update is rejected with a `400` and never written to disk:
+Every key in the request body is validated before the merge is persisted; a malformed update is rejected with a `400` and never written to disk:
 
 - Unknown top-level keys are rejected (`Unknown config key "x"`).
 - Unknown keys inside `admin` are rejected (`Unknown admin config key "x"`), matching `config set admin.<field>`.
 - When `admin` or `site` is present, its fields are validated field by field with the config loader's rules, and any malformed field rejects the whole update.
 - `collectionSync` replaces wholesale like `site` rather than merging like `admin`. Its fields are validated (`pullTarget` must be a non-empty list name) and any absent field takes its default, so a partial object round-trips to a complete one. A malformed value rejects the whole update.
-- `defaultPriceSource` (an empty string clears it), `priceSources` (store names only — lowercased and deduped, unknown stores rejected), `defaultLanguage` (canonical Scryfall codes only, no aliases), `uiLocale` (a BCP-47 tag naming the interface language, not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, `cacheDir` (a non-blank path, trimmed; a leading `~`, a root, the home folder, the workspace or a list folder is refused with a `domain.config.cacheDir*` key), `searchDebounceMs`, and `updateCheck` (a boolean) are validated as [`config set`](/commands/config/) validates them.
+- `defaultPriceSource` (an empty string clears it), `priceSources` (store names only: lowercased and deduped, unknown stores rejected), `defaultLanguage` (canonical Scryfall codes only, no aliases), `uiLocale` (a BCP-47 tag naming the interface language, not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, `cacheDir` (a non-blank path, trimmed; a leading `~`, a root, the home folder, the workspace or a list folder is refused with a `domain.config.cacheDir*` key), `searchDebounceMs`, and `updateCheck` (a boolean) are validated as [`config set`](/commands/config/) validates them.
 - `cacheFeedUrl` and `cacheDir` have one extra rule: sending either as an **empty string** clears a previously-set value (`cacheFeedUrl` to no feed URL, so a `feed` cache source refreshes from Scryfall with a warning; `cacheDir` to the [per-user cache every workspace shares](/commands/cache/#where-the-cache-lives)). Omitting the field leaves the current value untouched; a whitespace-only `cacheDir` is refused (`domain.config.mustBePath`).
 - `site.theme` is stored lowercase and must name a built-in theme, or (only while `site.themeFiles` is non-empty) a custom theme name (`domain.config.siteThemeUnknown`). `site.themeFiles` must be an array of non-blank paths (`domain.config.mustBeStringArray`, `domain.config.blankEntry`). Because `site` replaces wholesale, send `themeFiles` with a custom `theme` in the same object.
 - `managed` is accepted so a client can send back the whole config it read, but it is **ignored**: the stored [`managed` block](/configuration/#ritual-bookkeeping-managed-key) belongs to `init-site` and `migrate` and is never taken from a request.
 
-A rejected value answers in the shared [error envelope](/admin/api/#error-responses), in English plus its key. The config validator's keys are `domain.config.*`: a top-level field's refusal names it as `field` (`domain.config.mustBeBoolean`, `mustBeOneOf` — whose `values` is a `{ list, join: "unit" }` — and so on), and a field inside a block is refused by `domain.config.inSection`, whose `section` is the block (`site`, `admin`, `collectionSync`) and whose `reason` nests the field's own refusal:
+A rejected value answers in the shared [error envelope](/admin/api/#error-responses), in English plus its key. The config validator's keys are `domain.config.*`: a top-level field's refusal names it as `field` (`domain.config.mustBeBoolean`, `mustBeOneOf`, whose `values` is a `{ list, join: "unit" }`, and so on), and a field inside a block is refused by `domain.config.inSection`, whose `section` is the block (`site`, `admin`, `collectionSync`) and whose `reason` nests the field's own refusal:
 
 ```json
 {
@@ -326,7 +326,7 @@ A rejected value answers in the shared [error envelope](/admin/api/#error-respon
 
 A `priceSources` or `defaultPriceSource` refusal is keyed `domain.config.mustBeOneOf`, `domain.config.mustBeStringArray`, or `domain.config.unknownStore` (`{ field, value, values }`, with the accepted stores a `{ list, join }`). An `exportPresets` refusal is keyed `domain.export.problem.*` (a preset's column list's own refusal nested as `reason` inside `domain.export.problem.presetColumnsInvalid`). A `defaultCategories` refusal is keyed: `domain.config.defaultCategoriesNotArray` / `domain.config.defaultCategoriesNotText`, or the category rule's own `domain.card.category.invalid`, whose `rule` nests `domain.card.category.shapeRule`.
 
-A `uiLocale` refusal is keyed `domain.config.uiLocaleMalformed` for a value that is not a language tag at all, whose `reason` nests the tag parser's own refusal — `errors.i18n.localeTag.invalid` (`{ value }`, the value as given), `errors.i18n.localeTag.empty` or `errors.i18n.localeTag.notAString` — or `domain.config.uiLocaleUnknown` (`{ tag }`) for a well-formed tag naming no language the server knows.
+A `uiLocale` refusal is keyed `domain.config.uiLocaleMalformed` for a value that is not a language tag at all, whose `reason` nests the tag parser's own refusal (`errors.i18n.localeTag.invalid` (`{ value }`, the value as given), `errors.i18n.localeTag.empty` or `errors.i18n.localeTag.notAString`), or `domain.config.uiLocaleUnknown` (`{ tag }`) for a well-formed tag naming no language the server knows.
 
 **Request body:**
 

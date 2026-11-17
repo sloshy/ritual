@@ -69,7 +69,7 @@ ritual get-primer winota-snowball-stax > primer.md
 | `2`  | Usage error (an ambiguous deck name, or a Moxfield URL with no user agent configured)                                                       |
 | `3`  | Not found — no deck matched the name, the local deck has no primer (its `.primer.md` sidecar is absent), or the Moxfield deck has no primer |
 
-A deck with no primer is a missing resource, not a failure, so it exits `3`. A script can tell "no primer" from "fetching broke".
+A deck with no primer is a missing resource, not a failure, so it exits `3` and a script can tell "no primer" from "fetching broke".
 
 ## Site Integration
 

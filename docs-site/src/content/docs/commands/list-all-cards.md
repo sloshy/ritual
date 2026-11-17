@@ -7,9 +7,9 @@ sidebar:
 
 Print a deduplicated, alphabetically sorted manifest of every card in your decks, collections, and wanted lists. Its main job is to serve as a deterministic cache key for CI builds: the output changes only when the set of unique `(name, set, collector number)` tuples in your lists changes.
 
-The manifest **excludes** quantities, finishes, conditions, notes, and card IDs. A card that appears in several lists, or with the same printing in different decks, collapses into a single entry.
+The manifest excludes quantities, finishes, conditions, notes, and card IDs. A card that appears in several lists, or with the same printing in different decks, collapses into a single entry.
 
-The command is strictly read-only. It never writes to list files (it is exempt from the [card-ID backfill](/cli-conventions/#the-card-id-backfill)), so running it in CI never dirties the checkout.
+The command is read-only. It never writes to list files (it is exempt from the [card-ID backfill](/cli-conventions/#the-card-id-backfill)), so running it in CI never dirties the checkout.
 
 ## Usage
 

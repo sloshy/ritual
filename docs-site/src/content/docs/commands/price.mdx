@@ -11,7 +11,7 @@ Browse the prices of every deck, collection, and wanted list in one place.
 
 Run in a terminal with no flags, `price` opens an [interactive browser](#the-interactive-browser). The same information prints non-interactively when you pass scripting flags, when stdin or stdout is piped, or under the global `--no-input` flag.
 
-The same pricing engine backs the [MCP](/commands/mcp/) `get_price_report` tool. For what a store would _pay you_ for these cards, see [`sell`](/commands/sell/).
+The same pricing engine backs the [MCP](/commands/mcp/) `get_price_report` tool. For what a store would pay you for these cards, see [`sell`](/commands/sell/).
 
 ## Usage
 
@@ -95,14 +95,14 @@ Prices come from the local Scryfall card cache. The shared `--refresh <mode>` op
 
 Declining a download when the cache is empty also exits with an error, since nothing can be priced.
 
-Under `never` the report is built from the cache **only**. A card the cache does not hold is reported as unpriced, not fetched one card at a time. (`ask`, `auto`, and `no-bulk` still fill such gaps with a per-card lookup.) This makes `--refresh never` usable offline; otherwise every uncached name waits out the full Scryfall request timeout.
+Under `never` the report is built from the cache only. A card the cache does not hold is reported as unpriced, not fetched one card at a time. (`ask`, `auto`, and `no-bulk` still fill such gaps with a per-card lookup.) This makes `--refresh never` usable offline; otherwise every uncached name waits out the full Scryfall request timeout.
 
 Prompts never fire when they cannot be answered. Under `--no-input` / `RITUAL_NO_INPUT` or a non-TTY stdin, the `ask` prompts are declined. With `--output json`/`ndjson`, `ask` downgrades to `never` so the output stays parseable.
 
 ## How Cards Are Priced
 
 - An entry pinned to a specific printing (set + collector number) is priced at that exact printing, at its own finish when recorded, otherwise the printing's default finish. Collection entries are always pinned.
-- An unpinned entry is priced at a representative recent printing, the same pick the public site uses. Such printings are marked `*` in card listings. The pick uses the _active store's_ prices: under Card Kingdom it is the newest printing Card Kingdom sells. A card CK carries no printing of keeps the Scryfall pick and reports unpriced.
+- An unpinned entry is priced at a representative recent printing, the same pick the public site uses. Such printings are marked `*` in card listings. The pick uses the active store's prices: under Card Kingdom it is the newest printing Card Kingdom sells. A card CK carries no printing of keeps the Scryfall pick and reports unpriced.
 - Every deck and wanted-list entry also carries a **lowest** price, the cheapest acceptable copy:
   - Deck entries and name-only wanted entries: the cheapest printing+finish overall.
   - A wanted entry pinned to a printing without a finish: that printing's cheapest finish.
@@ -110,8 +110,8 @@ Prompts never fire when they cannot be answered. Under `--no-input` / `RITUAL_NO
 - Deck totals cover every section except extras (maybeboard/token sections), matching the public site.
 - A card with no price in the active currency counts as **unpriced**. Unpriced counts are quantity-weighted.
 - **A deck or wanted-list total is an estimate** when it includes any entry with no pinned printing (priced at the representative) or any entry with no price. Such a total reads **`Total ~$12.34`**, and the JSON totals report those copies as a quantity-weighted `estimatedCount`. Collection entries always pin their printing, so collections never estimate. Proxy and custom-art cards are an exact zero, not an estimate.
-- **A [proxy](/list-format/#card-labels) or [custom-art](/custom-art/) card is priced at zero, by rule.** A card is a proxy when its effective labels include `proxy` (its own `[proxy]` token, or a `proxy` list default its line does not negate with `[no-proxy]`). A card has custom art when the list's `.art.json` file gives it some. Either skips the price lookup entirely. Its price and lowest price are `0`, its unpriced reason is `proxy` or `custom-art`, and it counts toward the card count but **not** the unpriced count. A fully proxied deck therefore totals nothing and reports zero missing prices. In the browser and text views the price cell reads **PROXY** or **CUSTOM** instead of `N/A`, and the card detail explains it (`this copy is a proxy, so it carries no price` / `this copy has custom art, so it carries no price`). A card that is both reads **CUSTOM**.
-- **Only `nonfoil`, `foil`, and `etched` participate in pricing.** These are the finishes Ritual records and the only ones Scryfall publishes prices for. A printing offered in some other finish is never quoted under that finish's name, in either the cheapest-printing pick or the all-printings listing. A printing offered in _no_ recorded finish is still priced at its base price and reported as `nonfoil`.
+- **A [proxy](/list-format/#card-labels) or [custom-art](/custom-art/) card is priced at zero.** A card is a proxy when its effective labels include `proxy` (its own `[proxy]` token, or a `proxy` list default its line does not negate with `[no-proxy]`). A card has custom art when the list's `.art.json` file gives it some. Either skips the price lookup. Its price and lowest price are `0`, its unpriced reason is `proxy` or `custom-art`, and it counts toward the card count but not the unpriced count. A fully proxied deck therefore totals nothing and reports zero missing prices. In the browser and text views the price cell reads **PROXY** or **CUSTOM** instead of `N/A`, and the card detail explains it (`this copy is a proxy, so it carries no price` / `this copy has custom art, so it carries no price`). A card that is both reads **CUSTOM**.
+- **Only `nonfoil`, `foil`, and `etched` participate in pricing.** These are the finishes Ritual records and the only ones Scryfall publishes prices for. A printing offered in some other finish is never quoted under that finish's name, in either the cheapest-printing pick or the all-printings listing. A printing offered in no recorded finish is still priced at its base price and reported as `nonfoil`.
 - **Etched euro prices are sparse.** Scryfall publishes `eur_etched` for only a few etched printings, so an etched entry priced at `cardmarket` often reports as unpriced. It is not quoted at the nonfoil euro price, which would understate it. Price those lists at a USD store (`--source tcgplayer` or `--source cardkingdom`) for a complete total.
 
 ## Non-Interactive Output
@@ -130,7 +130,7 @@ ritual price --set neo --sort price --descending
 ritual price --name "sol ring"
 ```
 
-In text, a card row reads `4x Lead the Stampede (IKO:163)* — $1.32 · lowest $1.12`: the quantity, the card and its printing, the price of the **whole line** (all four copies), and, when a cheaper printing exists, what the line would cost at that printing. A footer gives the list's totals, such as `75 cards · Total ~$135.79 · Lowest possible $69.85`, where **Lowest possible** prices every card at its cheapest printing. Under the listing, a legend explains whichever markers the view shows:
+In text, a card row reads `4x Lead the Stampede (IKO:163)* — $1.32 · lowest $1.12`: the quantity, the card and its printing, the price of the whole line (all four copies), and, when a cheaper printing exists, what the line would cost at that printing. A footer gives the list's totals, such as `75 cards · Total ~$135.79 · Lowest possible $69.85`, where **Lowest possible** prices every card at its cheapest printing. Under the listing, a legend explains whichever markers the view shows:
 
 ```text
 Prices are for the whole line (quantity × one copy); 'lowest' is the line at its cheapest printing.
@@ -143,7 +143,7 @@ Prices are for the whole line (quantity × one copy); 'lowest' is the line at it
 
 Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). Every JSON result names its `source` (the store) and `currency` (that store's). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, grand totals, and a `warnings` array. The single-list and card-search results carry the same `warnings` field. Card listings include per-entry prices, lowest prices, and unpriced reasons.
 
-`warnings` holds lines the list parsers could not read (prose, comments, malformed card lines). Such lines are not priced, so the totals exclude them. The warnings **also** print to stderr in every output mode, including under `--quiet`.
+`warnings` holds lines the list parsers could not read (prose, comments, malformed card lines). Such lines are not priced, so the totals exclude them. The warnings also print to stderr in every output mode, including under `--quiet`.
 
 ```bash
 ritual price --summary --output json

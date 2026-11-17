@@ -5,7 +5,7 @@ description: Pull or push your collection lists against the signed-in Archidekt 
 
 The **Sync Collection** page syncs your collection lists with the Archidekt collection of the signed-in account, from the browser. It runs the same engine as the [`collection-sync`](/commands/collection-sync/) CLI command, with the same matching, the same ambiguity guard, and the same changelog entries. Progress streams into the page as it happens.
 
-An Archidekt account has **one** collection while Ritual has **many** collection lists, so a run compares the union of the lists in scope against the whole remote collection. There is no per-list link and no per-list "last synced". The account has one, shown above the controls.
+An Archidekt account has one collection while Ritual has many collection lists, so a run compares the union of the lists in scope against the whole remote collection. There is no per-list link and no per-list "last synced". The account has one, shown above the controls.
 
 ## Signing in
 
@@ -50,11 +50,11 @@ If the browser cannot hold the event stream open (some reverse proxies buffer se
 
 ## Removals it will not guess at
 
-A pull removes the copies Archidekt no longer has. That is clear when **every** copy of a printing is going (each list loses what it holds) and when the copies that are going all sit in **one** list. It is ambiguous when only _some_ of a printing's copies are going and they live in several lists. Nothing says which binder the card physically left.
+A pull removes the copies Archidekt no longer has. That is clear when every copy of a printing is going (each list loses what it holds) and when the copies that are going all sit in one list. It is ambiguous when only some of a printing's copies are going and they live in several lists, since nothing says which binder the card physically left.
 
 The browser cannot be prompted mid-run, so the **Removal priority** control answers that question up front. Copies are taken only from the lists it names, in the order shown, taking each list's last lines first. A placed removal is logged with the list that lost it.
 
-Without a priority, or with one that cannot cover a removal (the copies live elsewhere, or the named lists hold too few), the run **fails and writes nothing at all**, not even the changes it could have made on its own. The page then shows an _Ambiguous removals_ panel listing each one it could not place, with the lists holding copies and how many each holds:
+Without a priority, or with one that cannot cover a removal (the copies live elsewhere, or the named lists hold too few), the run fails and writes nothing, not even the changes it could have made on its own. The page then shows an _Ambiguous removals_ panel listing each one it could not place, with the lists holding copies and how many each holds:
 
 ```
 Not removing 2 × Lightning Bolt (LEA:161): ambiguous — copies live in "Blue Binder" (1) and "Long Box" (2).
@@ -86,13 +86,13 @@ When the run finishes, what the import did is reported above the log:
 - Rows Archidekt refused are listed by card with the reason (`not found on Archidekt`, `matched more than one printing`, or whatever it said). The lists holding those cards are reported as **failed**; the rest of the run still applied.
 - A card whose printing is missing from your local Scryfall cache has no Scryfall ID and cannot go in the CSV. It is added one at a time instead and counted separately. Refresh the cache (`ritual cache preload-all`) to keep that rare. When the cache can key **none** of them, the panel says no CSV was built.
 - A chunk whose answer Ritual could not read is called out. Those rows are counted as imported because nothing said otherwise, and the run log carries what Archidekt replied.
-- A whole upload that fails says so and adds nothing. The additions are **not** retried one at a time, since a partial import would then be imported twice. Fix the problem and run again; only the remaining differences are sent.
+- A whole upload that fails says so and adds nothing. The additions are not retried one at a time, since a partial import would then be imported twice. Fix the problem and run again; only the remaining differences are sent.
 
 Writing the CSV to a file instead of pushing it is CLI-only ([`--csv-file`](/commands/collection-sync/#writing-the-csv-instead-of-pushing---csv-file)); the server does not write files a request names. `ritual export --preset archidekt` writes the same file by hand.
 
 ## Lists with unreadable lines
 
-A line Ritual's parser cannot read is a line a sync would destroy. A pull rewrites the list file and would drop it, and a push treats the file as the truth and would delete those cards from your Archidekt collection. Rather than let either happen quietly, the run refuses those lists and shows what is at stake: each file, each line, and a **Sync anyway and lose those lines** button that re-runs with your consent. This is the page's version of the confirmation the [CLI prompts for](/commands/collection-sync/#unreadable-lines). Fixing the lines by hand is the lossless option. The panel appears on the non-streaming fallback too.
+A sync would destroy a line that Ritual's parser cannot read. A pull rewrites the list file and would drop it, and a push treats the file as the truth and would delete those cards from your Archidekt collection. The run therefore refuses those lists and shows each file, each line, and a **Sync anyway and lose those lines** button that re-runs with your consent. This is the page's version of the confirmation the [CLI prompts for](/commands/collection-sync/#unreadable-lines). Fixing the lines by hand is the lossless option. The panel appears on the non-streaming fallback too.
 
 Lists refused this way are reported as failed; the rest of the run continues. A **Preview only** run is exempt, since it writes nothing.
 

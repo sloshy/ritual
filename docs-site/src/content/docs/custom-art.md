@@ -3,13 +3,13 @@ title: 'Custom Card Art'
 description: Show your own image for any card, from a local art directory or a URL, recorded in a per-list sidecar.
 ---
 
-Any card in any list can show **your** image instead of the printing's Scryfall art: a proxy scan, an altered card photo, commissioned art. The image is referenced, never uploaded. You put the file in an art directory (or point at a URL), and Ritual records the reference in a small JSON file beside the list (a "sidecar").
+Any card in any list can show your own image instead of the printing's Scryfall art: a proxy scan, an altered card photo, commissioned art. The image is referenced, never uploaded. You put the file in an art directory (or point at a URL), and Ritual records the reference in a small JSON file beside the list (a "sidecar").
 
-Custom art never changes the card line or the printing it is pinned to. It changes one thing beyond appearance: a card with its own art **carries no price**. See [Custom art carries no price](#custom-art-carries-no-price).
+Custom art never changes the card line or the printing it is pinned to. Its one effect beyond appearance is that a card with its own art carries no price. See [Custom art carries no price](#custom-art-carries-no-price).
 
 ## The art directory
 
-Local images live in the directory named by the [`artDir`](/configuration/#directory-options) config key: `./art` unless you change it, resolved against the base directory like `decksDir`.
+Local images are in the directory named by the [`artDir`](/configuration/#directory-options) config key: `./art` unless you change it, resolved against the base directory like `decksDir`.
 
 ```bash
 ritual config set artDir ./art
@@ -30,7 +30,7 @@ The same relative path identifies the image everywhere: on disk, in the built si
 
 ## The sidecar
 
-Each list's art lives beside it as `<list>.art.json`, so `decks/Winota Stax.art.json` sits next to `decks/Winota Stax.md`. It is a JSON object keyed by the card line's [`&N` id](/cli-conventions/#the-card-id-backfill). Each value carries exactly one of `file` or `url`:
+Each list's art is stored beside it as `<list>.art.json`, so `decks/Winota Stax.art.json` sits next to `decks/Winota Stax.md`. It is a JSON object keyed by the card line's [`&N` id](/cli-conventions/#the-card-id-backfill). Each value carries exactly one of `file` or `url`:
 
 ```json
 {
@@ -48,7 +48,7 @@ Ritual writes this file for you (see below), but hand-editing it is fine.
 
 ### When the sidecar is wrong
 
-A malformed sidecar fails **as a whole** rather than loading the entries it could read, because a partial read would be erased by the next write. A bad file is reported and the list still loads, editors included; its cards show their normal art. The message names the exact problem: `card 5: "..\\secret.png" escapes the art directory`, `"x" is not a card id — keys are the card line's &N`, `not valid JSON: …`.
+A malformed sidecar fails as a whole rather than loading the entries it could read, because a partial read would be erased by the next write. A bad file is reported and the list still loads, editors included; its cards show their normal art. The message names the exact problem: `card 5: "..\\secret.png" escapes the art directory`, `"x" is not a card id — keys are the card line's &N`, `not valid JSON: …`.
 
 An entry pointing at a card id the list no longer has is only a **warning**. The entry is kept (removing it is your decision), and the warning reports the raw ids. Ritual's own edits never leave such an entry behind (see [Art follows the card](#art-follows-the-card)), so an orphan means the card line was removed by a hand edit or another tool.
 
@@ -85,8 +85,8 @@ Like a deck's `.primer.md`, the art sidecar is **list metadata**:
 The sidecar is keyed by `&N`, and removing a line **releases that id** for the next card added. The art cannot stay where it is, or it would come back on a different card. Every edit that moves ids re-files the sidecar in the same operation, and the file is rewritten only when something in it changed:
 
 - **Removing a card** ([`remove-card`](/commands/remove-card/), an editor save, a bulk remove) drops that card's entry. Removing a _copy_ from a deck line that still has copies left does not: the line, its id, and its art stay. A removal in the [`edit`](/commands/edit/) TUI re-files the sidecar when the session is saved, including art the same session had just set.
-- **A removal is final for the art, even when the card comes straight back.** Removing a card and re-adding it in the same save leaves the card without art, even if the written line carries the same `&N`. Art returns two ways only: **undo** the removal, which reclaims the original id, art and all, as long as nothing has since taken that id (an undo that must allocate a fresh `&N` restores the card but not its art); or give the re-add art of its own.
-- **Unless the two cancel out entirely.** In the web editors, adding a card that is the exact opposite of a removal still pending in the same session (same card, printing, and labels) cancels that removal instead of queueing a second change. The file is never rewritten, and **its art stays**.
+- **A card removed and re-added.** Removing a card and re-adding it in the same save leaves the card without art, even if the written line carries the same `&N`. Art returns two ways only: **undo** the removal, which reclaims the original id, art and all, as long as nothing has since taken that id (an undo that must allocate a fresh `&N` restores the card but not its art); or give the re-add art of its own.
+- **An add that cancels a pending removal.** In the web editors, adding a card that is the exact opposite of a removal still pending in the same session (same card, printing, and labels) cancels that removal instead of queueing a second change. The file is never rewritten, and **its art stays**.
 - **Moving a card between lists** carries the entry across: dropped from the source, re-filed under the destination's new `&N`. This holds for [`move`](/commands/move/), the admin editors' move-to-another-list, the `edit` TUI's, the web editors' **Swap Printings** wizard (whose incoming copies carry their art _into_ the edited list), and a bundle's `moves` applied by [`import-changes`](/commands/import-changes/) or the MCP `import_change_bundle` tool. Rules:
   - A copy that merges onto a line the destination already had does not bring its art; that line may have art of its own.
   - A copy landing on a new or emptied `&N` adopts the arriving art.
@@ -99,7 +99,7 @@ All of this writes the sidecar directly, with no changelog entry. A list's [cove
 
 ## Custom art carries no price
 
-A card with custom art is priced at **0 everywhere**, exactly like a card labeled [`proxy`](/list-format/#card-labels). One rule covers both: custom art or proxy means no price, no quotes, no sale.
+A card with custom art is priced at 0 everywhere, like a card labeled [`proxy`](/list-format/#card-labels). Neither is priced, quoted or sold.
 
 - [`ritual price`](/commands/price/) skips the lookup. Price and lowest price are `0`, the unpriced reason is `custom-art`, and it counts toward the card count but **not** the unpriced count. A card that is both custom-arted and labeled `proxy` reports `custom-art`; custom art wins.
 - [`ritual sell`](/commands/sell/) drops the entry before matching, so it is never quoted against a buylist and never counted as a card the buyer declined.
@@ -113,7 +113,7 @@ On the public site and in the editors, a card with custom art shows it on:
 
 - card tiles in every art view (grid, binder, stacks) and the list view's hover preview,
 - the [card detail modal](/public-site/browsing/#card-detail-modal)'s main image,
-- the list's cover image on the site index, when that card is the one the cover picks (a deck's commander, or a collection's or wanted list's priciest entry). The cover ranks entries by the **printing's** price rather than the zero above, so a custom-art copy of an expensive card can still be a list's face.
+- the list's cover image on the site index, when that card is the one the cover picks (a deck's commander, or a collection's or wanted list's priciest entry). The cover ranks entries by the **printing's** price rather than the zero above, so a custom-art copy of an expensive card can still be a list's cover.
 
 Only the **front** image is replaced. A double-faced card's back keeps its real face, since the override belongs to the entry, not the printing. The modal's **Other Printings** grid and the editors' printing pickers keep real thumbnails: they exist to show actual printings.
 
@@ -128,7 +128,7 @@ Copied 3 files of custom art.
 
 A file that exists but cannot be read or copied (a permission denial, a broken symlink) gets the same warning and the same fallback. One bad image never fails the build.
 
-The **price** and the **CUSTOM** marker do not fall back with the picture. What makes a card priceless is the reference in the sidecar, not the image in the build. A card whose file could not be deployed still prices at `0`, contributes `0` to every total, is left out of the missing-price counts and every buylist quote, and reads `CUSTOM` everywhere a price would show (list pages, the [combined view](/public-site/combined-view/) and its find view, the card detail modal, the selection totals, and the trade board). That holds for the built site as well as [`ritual price`](/commands/price/) and [`ritual sell`](/commands/sell/), which read the sidecar and never see the build's output. Only the picture is missing: the tile shows the printing's own art until you put the file back.
+The **price** and the **CUSTOM** marker do not fall back with the picture. A card has no price because of the reference in the sidecar, whether or not its image reached the build. A card whose file could not be deployed still prices at `0`, contributes `0` to every total, is left out of the missing-price counts and every buylist quote, and reads `CUSTOM` everywhere a price would show (list pages, the [combined view](/public-site/combined-view/) and its find view, the card detail modal, the selection totals, and the trade board). That holds for the built site as well as [`ritual price`](/commands/price/) and [`ritual sell`](/commands/sell/), which read the sidecar and never see the build's output. Only the picture is missing: the tile shows the printing's own art until you put the file back.
 
 Under [`serve --api`](/commands/serve/#live-api-mode---api) nothing is copied. The server answers `GET /art/<relpath>` from the workspace's art directory directly, so a new image or an edited sidecar shows up without a rebuild. The [admin server](/commands/admin/) mounts the same route behind authentication so the editors can preview local files.
 

@@ -7,7 +7,7 @@ sidebar:
 
 ## First, run `ritual doctor`
 
-[`ritual doctor`](/commands/doctor/) checks your setup and says what to fix: which Ritual is running, the workspace, `ritual.config.json`, pending updates, the card cache, and the last update check. It only reads; it changes nothing. Run it in the workspace where the problem happens:
+[`ritual doctor`](/commands/doctor/) checks your setup and says what to fix: which Ritual is running, the workspace, `ritual.config.json`, pending updates, the card cache, and the last update check. It is read-only. Run it in the workspace where the problem happens:
 
 ```bash
 ritual doctor
@@ -23,7 +23,7 @@ Each line is `ok`, `warn` or `fail`. A line that found a problem ends with a one
 
 ## Running commands
 
-**Ritual finds no lists.** Ritual works in the current directory. Run it from your [workspace](/workspace/), or pass `--base-dir <path>` (or set `RITUAL_BASE_DIR`). `ritual doctor` warns when the folder looks like no workspace at all.
+**Ritual finds no lists.** Ritual works in the current directory. Run it from your [workspace](/workspace/), or pass `--base-dir <path>` (or set `RITUAL_BASE_DIR`). `ritual doctor` warns when the folder does not look like a workspace.
 
 **A command can't tell which list you mean.** A name can match a deck and a collection, or several lists. See [List Names](/list-resolution/) for how names are matched and how to pick one.
 
@@ -33,7 +33,7 @@ Each line is `ok`, `warn` or `fail`. A line that found a problem ends with a one
 
 **The admin says "Refused a request sent from another site."** The request came from a page that is not the admin site itself: a bookmarklet, another local app, the admin opened under a different address or port. Use the admin site directly. Behind a reverse proxy that rewrites the `Host` header, turn on `admin.trustProxy`. See [Cross-site requests](/commands/admin/#cross-site-requests).
 
-**`ritual.config.json` is broken.** A file that is not valid JSON stops every command except `ritual doctor`, which shows the parser's complaint. A setting with a wrong value is ignored with a warning, and its default is used. Fix the file, or reset one setting with `ritual config unset <key>`.
+**`ritual.config.json` is broken.** A file that is not valid JSON stops every command except `ritual doctor`, which shows the parser's error. A setting with a wrong value is ignored with a warning, and its default is used. Fix the file, or reset one setting with `ritual config unset <key>`.
 
 ## The card cache
 

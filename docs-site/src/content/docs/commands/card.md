@@ -55,7 +55,7 @@ A name Scryfall does not know prints `Card '…' not found.` and, unless `--fuzz
 
 `--stdin` and `--from-file` look up every name in the input.
 
-- **`--output json`**: an input of two or more names emits **one** JSON array for the whole batch, like a multi-page [`scry`](/commands/scry/) search. Cards that were found are still emitted when some lookups fail (failures go to stderr and set the exit code); if all fail, the output is `[]`. A single name, as an argument or a one-line batch, emits a bare card object.
+- **`--output json`**: an input of two or more names emits one JSON array for the whole batch, like a multi-page [`scry`](/commands/scry/) search. Cards that were found are still emitted when some lookups fail (failures go to stderr and set the exit code); if all fail, the output is `[]`. A single name, as an argument or a one-line batch, emits a bare card object.
 - **`--output ndjson`** streams one JSON object per card as it arrives. Use this for large inputs.
 - **Text** (the default) prints each card's block, separated by a blank line.
 

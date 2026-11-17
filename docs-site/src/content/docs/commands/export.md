@@ -35,7 +35,7 @@ ritual export --collection --preset archidekt --out archidekt.csv
 | ------------ | ------------------------------------------------------------------------------------------------------------------- | -------- |
 | `[lists...]` | Lists to export. See [List Names](/list-resolution/); a `deck:` / `collection:` / `wanted:` prefix selects the type | No       |
 
-With no lists and no `--card` picks, a headless run exports **every list**, so `ritual export --format json` dumps everything. A completely bare `ritual export` opens the [interactive wizard](#interactive-wizard) instead. Where prompting is unavailable, it fails with a usage error asking for `--all` or another flag.
+With no lists and no `--card` picks, a headless run exports **every list**, so `ritual export --format json` dumps everything. A bare `ritual export` opens the [interactive wizard](#interactive-wizard) instead. Where prompting is unavailable, it fails with a usage error asking for `--all` or another flag.
 
 ## Options
 
@@ -65,7 +65,7 @@ Filters apply to the assembled set, list entries and card picks alike.
 Notes:
 
 - `--condition`: an explicit grade matches only cards with it marked on their line; `none` matches cards with no condition marked (e.g. `--condition NM,none`). Wanted entries never carry a condition, so they never match.
-- `--labels`: a card's effective labels are the list's front-matter default adjusted by its own `[labels]` override (see [Card labels](/list-format/#card-labels)). `none` matches unlabeled cards. A filter may combine exclusive labels freely; it selects, it does not declare. A deck line carries `proxy` alone, so `--labels proxy` selects a deck's proxies. Wanted entries carry no labels, so they never match, not even `none`.
+- `--labels`: a card's effective labels are the list's front-matter default adjusted by its own `[labels]` override (see [Card labels](/list-format/#card-labels)). `none` matches unlabeled cards. A filter may combine exclusive labels, since it selects cards and does not declare their labels. A deck line carries `proxy` alone, so `--labels proxy` selects a deck's proxies. Wanted entries carry no labels, so they never match, not even `none`.
 - `--tags`: exact and case-sensitive (`Signed`, `Card Draw`). Spaces are part of a tag, so quote the value. Matches on every list type, wanted lists included; a card with no tags never matches. There is no `none` value; `none` is an ordinary tag.
 
 ### Output
@@ -82,7 +82,7 @@ Notes:
 | `--save-preset <name>` | Save the resolved format/columns/CSV options as a named preset                                        |
 | `--quiet`              | Suppress progress and status messages (never the results or the warnings)                             |
 
-The rendered export goes to stdout (or `--out`) raw, with no envelope. `export` has no scripting `--output` flag because what it prints _is_ the export.
+The rendered export goes to stdout (or `--out`) raw, with no envelope. `export` has no scripting `--output` flag because what it prints is the export.
 
 The same engine backs the admin API's [`POST /api/export`](/admin/api/imports/#export-cards). That route returns the export inline by default, or, with `write: true`, writes it to a server-named file under a gitignored `exports/` directory in the base dir and returns the relative path. Files written that way are byte-identical to `--out` output.
 
@@ -124,11 +124,11 @@ Sideboard
 
 <a id="maybeboard-and-token-sections"></a>
 
-**Maybeboard and token sections are not part of a decklist**, and neither Arena nor Moxfield has a board for them, so an `arena` or `moxfield` export leaves those cards out. If your selection reached any, a warning on stderr reports the count and the sections dropped; `--quiet` never silences it. The `ritual` and `archidekt` text forms are flat lists, so they carry every selected entry, maybeboard included.
+Maybeboard and token sections are not part of a decklist, and neither Arena nor Moxfield has a board for them, so an `arena` or `moxfield` export leaves those cards out. If your selection reached any, a warning on stderr reports the count and the sections dropped; `--quiet` never silences it. The `ritual` and `archidekt` text forms are flat lists, so they carry every selected entry, maybeboard included.
 
 ### `md` — grouped canonical markdown
 
-The canonical list markdown, grouped by source: a `# List Name` H1 per list (first-seen order), `## Section` H2 blocks within it, and each card's canonical line for its list type. Every line is a `- ` bullet, deck lines carry their quantity, and finish/condition/note tokens appear as stored. Card `&N` IDs are **never included**.
+The canonical list markdown, grouped by source: a `# List Name` H1 per list (first-seen order), `## Section` H2 blocks within it, and each card's canonical line for its list type. Every line is a `- ` bullet, deck lines carry their quantity, and finish/condition/note tokens appear as stored. Card `&N` IDs are never included.
 
 ```markdown
 # burn
@@ -147,7 +147,7 @@ The canonical list markdown, grouped by source: a `# List Name` H1 per list (fir
 
 ### Conflicts
 
-`--columns`, `--no-header`, and `--quote-all` only shape `csv`/`json` output. Giving any of them **explicitly** with `--format text` or `--format md` is a usage error (exit `2`). `--dialect` also shapes `text`, so it conflicts only with `--format md`. A preset whose stored columns accompany a `text`/`md` format is fine; the columns are simply unused.
+`--columns`, `--no-header`, and `--quote-all` only shape `csv`/`json` output. Giving any of them **explicitly** with `--format text` or `--format md` is a usage error (exit `2`). `--dialect` also shapes `text`, so it conflicts only with `--format md`. A preset whose stored columns accompany a `text`/`md` format is fine; the columns are unused.
 
 ## Properties
 
@@ -199,7 +199,7 @@ From the main menu you can:
 - **Add lists**: an autocomplete over every deck, collection, and wanted list.
 - **Add individual cards**: an autocomplete over every card entry across all your lists. Search by name, set, or list.
 - **Filters**: the same name/set/finish/condition/labels/tags filters as the flags (tags typed comma-separated).
-- **Load preset**: apply a saved or built-in output shape (the built-in `archidekt` preset is always listed). It sits above the three items it overwrites, so you never set format and columns by hand only to lose them to a preset. This is also the only way to pick a [dialect](#dialects) in the wizard. The header line names the dialect when it actually shapes the chosen format's output (`moxfield lines` on a `text` export, `archidekt values` on a `csv` one) and stays silent when it changes nothing (`archidekt` on `text`, `arena` on `csv`).
+- **Load preset**: apply a saved or built-in output shape (the built-in `archidekt` preset is always listed). It sits above the three items it overwrites, so you never set format and columns by hand only to lose them to a preset. This is also the only way to pick a [dialect](#dialects) in the wizard. The header line names the dialect when it shapes the chosen format's output (`moxfield lines` on a `text` export, `archidekt values` on a `csv` one) and stays silent when it changes nothing (`archidekt` on `text`, `arena` on `csv`).
 - **Format, Columns, CSV options**: pick `csv`/`json`/`text`/`md`. For `csv`/`json` you then pick columns in output order (each pick appends; `Done` finishes, `Reset to default` restores the standard columns) and toggle the header row and quoting mode. For `text`/`md` the Columns and CSV options menus disappear; a `text` export's line form comes from its dialect, and `md` is always Ritual's canonical markdown.
 - **Save current settings as a preset**: store the current output shape under a name.
 - **Review**: print the assembled cards before exporting.

@@ -5,7 +5,7 @@ description: Compact and rewrite a list's change log from the browser.
 
 import Screenshot from '../../../components/Screenshot.astro'
 
-The **Change History** page edits the change log (`.changes.md`) of a deck, collection, or wanted list. It mirrors the CLI [`history`](/commands/history/) command. Every edit is held in memory until you save, and saving **only ever writes the change log**. The list's own `.md` file is never modified.
+The **Change History** page edits the change log (`.changes.md`) of a deck, collection, or wanted list. It mirrors the CLI [`history`](/commands/history/) command. Every edit is held in memory until you save, and saving writes only the change log. The list's own `.md` file is never modified.
 
 ## Choosing a list
 
@@ -33,7 +33,7 @@ Notes:
 
 - **Combine** is disabled when the log holds only one change set. How lines are merged is described under [Combining sets](#combining-sets).
 - After **Edit time**, sets are re-sorted chronologically on save.
-- Deleted the wrong set? Use **Undo**.
+- **Undo** restores a set deleted by mistake.
 
 ## Global actions
 

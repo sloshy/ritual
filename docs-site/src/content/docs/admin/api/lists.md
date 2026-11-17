@@ -47,7 +47,7 @@ List all deck files in the decks directory.
 POST /api/deck/create
 ```
 
-Create a new deck file, named after the deck — see [List file names](/commands/new/#list-file-names). A name with no usable file-name characters returns `400`.
+Create a new deck file, named after the deck. See [List file names](/commands/new/#list-file-names). A name with no usable file-name characters returns `400`.
 
 **Request Body:**
 
@@ -63,7 +63,7 @@ Create a new deck file, named after the deck — see [List file names](/commands
 | `name`   | Deck name (used to generate the slug) | Yes      |
 | `format` | Deck format (default: `"commander"`)  | No       |
 
-`format` must be a canonical deck format key — see [Deck Format](/commands/new/#deck-format). An unrecognized value returns `400` and creates nothing. The new deck starts with the sections its format expects: an empty `## Commander` and `## Main` for a format with a command zone, otherwise `## Main` alone (see [`new`](/commands/new/#output)).
+`format` must be a canonical deck format key. See [Deck Format](/commands/new/#deck-format). An unrecognized value returns `400` and creates nothing. The new deck starts with the sections its format expects: an empty `## Commander` and `## Main` for a format with a command zone, otherwise `## Main` alone (see [`new`](/commands/new/#output)).
 
 **Response:**
 
@@ -101,7 +101,7 @@ A refusal is the shared [error envelope](/admin/api/#error-responses) at one of 
 POST /api/deck/:slug/rename
 ```
 
-Rename a deck. Rewrites the `# Title` heading and renames the `.md` together with every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses).
+Rename a deck. Rewrites the `# Title` heading and renames the `.md` together with every sidecar it has. See [List lifecycle responses](#list-lifecycle-responses).
 
 **Request Body:**
 
@@ -129,7 +129,7 @@ Rename a deck. Rewrites the `# Title` heading and renames the `.md` together wit
 DELETE /api/deck/:slug
 ```
 
-Delete a deck and every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses).
+Delete a deck and every sidecar it has. See [List lifecycle responses](#list-lifecycle-responses).
 
 **Request Body:**
 
@@ -173,20 +173,20 @@ Load a deck at the depth `view` asks for. The same parameters apply to [Load Col
 | `limit`        | Max entries returned. A positive integer; anything else is a `400`                                        | No       |
 | `offset`       | Entries to skip before `limit` applies. A non-negative integer (`0` is allowed)                           | No       |
 
-`summary` and `cards` return **before** the changelog-name pass, the Scryfall card/printing/price load, and the mana-symbol fetch, so a filtered read is cheap for the server. `full` applies the filters and then loads card data for the filtered names only.
+`summary` and `cards` return before the changelog-name pass, the Scryfall card/printing/price load, and the mana-symbol fetch, so a filtered read is cheap for the server. `full` applies the filters and then loads card data for the filtered names only.
 
-`totalCount` is always present: the number of entries that matched **before** `limit`/`offset` applied (the list's whole line count when nothing was filtered), so a client can page. `offset`/`limit` count lines, and a line is never split: a `4 Lightning Bolt` deck entry travels whole.
+`totalCount` is always present: the number of entries that matched before `limit`/`offset` applied (the list's whole line count when nothing was filtered), so a client can page. `offset`/`limit` count lines, and a line is never split: a `4 Lightning Bolt` deck entry travels whole.
 
-Any of `section`, `nameContains`, `limit`, or `offset` makes the body a **slice**: the response carries `"partial": true` and **no** `contentHash`, because only a full load shows the whole list a save's changes are replayed over. Reload without filters to get a hash you can save with. This applies to every view, `summary` included.
+Any of `section`, `nameContains`, `limit`, or `offset` makes the body a **slice**: the response carries `"partial": true` and no `contentHash`, because only a full load shows the whole list a save's changes are replayed over. Reload without filters to get a hash you can save with. This applies to every view, `summary` included.
 
-`warnings` is always present on all three views. It lists everything in the file a re-serializing write would not reproduce, as an array of [message triples](/admin/api/#the-message-triple) (empty for a clean file): the English `message`, plus `messageKey` and `messageParams`. A line the card-line grammar refused is located (`domain.card.line.atLine`, `{ line, text }`) with the grammar's own diagnostic nested as `text` (`domain.card.line.*` — for example `domain.card.line.unknownToken`, wrapped in `domain.card.line.withHint` when it suggests a fix):
+`warnings` is always present on all three views. It lists everything in the file a re-serializing write would not reproduce, as an array of [message triples](/admin/api/#the-message-triple) (empty for a clean file): the English `message`, plus `messageKey` and `messageParams`. A line the card-line grammar refused is located (`domain.card.line.atLine`, `{ line, text }`) with the grammar's own diagnostic nested as `text` (`domain.card.line.*`, for example `domain.card.line.unknownToken`, wrapped in `domain.card.line.withHint` when it suggests a fix):
 
-- Body lines the parser could not read — malformed card lines, prose, comments, or any other text the list grammar does not model.
+- Body lines the parser could not read: malformed card lines, prose, comments, or any other text the list grammar does not model.
 - One summary entry per file holding a [fenced code block](/list-format/#fenced-code-blocks) (`Fenced code block content (N lines) — …`). A fenced block parses cleanly, so it gets no per-line warning, but the serializers cannot emit it.
 
-A deck's empty extras section (`## Maybeboard`, `## Tokens`) is deliberately **not** listed: it holds nothing to lose and the next write clears it.
+A deck's empty extras section (`## Maybeboard`, `## Tokens`) is not listed: it holds nothing to lose and the next write clears it.
 
-**A non-empty `warnings` also blocks saving that list** — see [Unreadable lines block a save](#unreadable-lines-block-a-save).
+A non-empty `warnings` also blocks saving that list. See [Unreadable lines block a save](#unreadable-lines-block-a-save).
 
 A missing list is a `404` whose message points at `GET /api/lists` for the real slugs. A slug carrying a path separator is a `400` (`Invalid list slug`) on all three routes.
 
@@ -211,7 +211,7 @@ A missing list is a `404` whose message points at `GET /api/lists` for the real 
 
 A `full` deck load also carries `lowestPriceCards`, `lowestPriceCardsEur` and `lowestPriceCardsTix`: the cheapest printing per card name, per currency.
 
-`cardsCardKingdom` (and, on decks, `lowestPriceCardsCardKingdom`) is [Card Kingdom's own printing pick](/public-site/prices/#which-printing-a-card-is-priced-at) per card name — the printing CK sells, chosen at CK's prices — which a client shows instead of the Scryfall pick while the Card Kingdom price store is selected. Both are **sparse** (a card CK stocks no printing of has no entry; fall back to the Scryfall pick) and both are **absent entirely** unless [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom` and a buylist feed is cached. A load never downloads the feed.
+`cardsCardKingdom` (and, on decks, `lowestPriceCardsCardKingdom`) is [Card Kingdom's own printing pick](/public-site/prices/#which-printing-a-card-is-priced-at) per card name (the printing CK sells, chosen at CK's prices), which a client shows instead of the Scryfall pick while the Card Kingdom price store is selected. Both are **sparse** (a card CK stocks no printing of has no entry; fall back to the Scryfall pick) and both are absent unless [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom` and a buylist feed is cached. A load never downloads the feed.
 
 **Response (`view=cards`):**
 
@@ -237,13 +237,13 @@ A narrowed request replaces `contentHash` with `"partial": true`.
 
 **Custom art.** Every non-summary load carries `customArt` when the list has any: a `{ "<cardId>": { "file": … } | { "url": … } }` record of the **raw** [custom art](/custom-art/) references for the cards in the body. Clients derive display URLs themselves, since an editor needs the path the user typed. Omitted when none of the returned cards has art.
 
-Problems with the `.art.json` sidecar — it cannot be read, or it holds art under a card id the **whole** list no longer has — come back in a separate `artWarnings` array rather than failing the load. Unlike `warnings`, they never [block a save](#unreadable-lines-block-a-save). `artWarnings` is omitted when the sidecar is clean or absent. The orphan check ignores the filters, so a paged read never reports cards it did not ask for.
+Problems with the `.art.json` sidecar (it cannot be read, or it holds art under a card id the whole list no longer has) come back in a separate `artWarnings` array rather than failing the load. Unlike `warnings`, they never [block a save](#unreadable-lines-block-a-save). `artWarnings` is omitted when the sidecar is clean or absent. The orphan check ignores the filters, so a paged read never reports cards it did not ask for.
 
-**Categories.** Every non-summary load carries the list's [categories](/list-format/#categories-namecategoriesjson) when it has any, as `categories` — `{ "order": ["Ramp", "Artifacts"], "cards": { "Sol Ring": ["Ramp", "Artifacts"] } }` — and every returned card carries its own resolved `categories`, primary first. **Absent means none at both levels**: never an empty array. `order` is the resolved order the next Ritual write persists. `categories` always describes the **whole list**, never just the returned page: a filtered read still reports every categorized name, while each card's own `categories` covers only the cards in the body.
+**Categories.** Every non-summary load carries the list's [categories](/list-format/#categories-namecategoriesjson) when it has any, as `categories` (`{ "order": ["Ramp", "Artifacts"], "cards": { "Sol Ring": ["Ramp", "Artifacts"] } }`), and every returned card carries its own resolved `categories`, primary first. Absent means none at both levels, never an empty array. `order` is the resolved order the next Ritual write persists. `categories` always describes the whole list, never just the returned page: a filtered read still reports every categorized name, while each card's own `categories` covers only the cards in the body.
 
 Keys in `cards` are card names as the sidecar stores them, matched case- and whitespace-insensitively. Read each card's own `categories` field rather than joining `cards` by raw name, or you will miss entries the list still resolves.
 
-Problems with the `.categories.json` sidecar — it cannot be read, or it records categories for names the list no longer holds — come back in a separate `categoryWarnings` array, like `artWarnings`. A read reports stale names and never removes them; the next save prunes them. The stale-name check is skipped when the list has unreadable lines, since those lines may still hold the named cards.
+Problems with the `.categories.json` sidecar (it cannot be read, or it records categories for names the list no longer holds) come back in a separate `categoryWarnings` array, like `artWarnings`. A read reports stale names and never removes them; the next save prunes them. The stale-name check is skipped when the list has unreadable lines, since those lines may still hold the named cards.
 
 A `view=summary` body carries neither `categories` nor `categoryWarnings`: it returns before the sidecar is read.
 
@@ -274,7 +274,7 @@ POST /api/collection/:slug/save
 POST /api/wanted/:slug/save
 ```
 
-Save an editing session: the request carries **only the changes**, never the list. The route reads the file, replays the changes over it with the same rules the editors apply, and writes the result plus a changelog entry. A save therefore scales with the edit rather than the list, and a client cannot write content its changes do not describe.
+Save an editing session: the request carries only the changes, never the list. The route reads the file, replays the changes over it with the same rules the editors apply, and writes the result plus a changelog entry. A save therefore scales with the edit rather than the list, and a client cannot write content its changes do not describe.
 
 What the route takes from the file rather than the request:
 
@@ -319,7 +319,7 @@ What the route takes from the file rather than the request:
 
 - A `move-from {to}` adds the copy to its destination. The copy keeps the event's `tags` and `note`, and its `labels` (the copy's labels as this list states them) land by the [move rule](/commands/move/): a proxy stays a proxy and a real card real wherever both types carry `proxy`, a stated label keeps its state, an unstated one takes the destination's default, as far as the destination type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list), written as the smallest override that says so. On a deck, the copy merges onto a line whose effective labels, printing and tags match, only within the `section` the move names (any section when it names none). A copy that merges onto a deck line with a different note keeps the line's note, and the dropped one is reported in `droppedNotes`.
 - A `move-to {from}` (an incoming move) takes the copy out of its source: by the `sourceCardId` line when it still holds the card, else by printing, else by name for a printing-less source line. Each fallback prefers a line whose effective labels equal the move's positive `labels`, so a `[proxy]` copy leaves from the proxy line. The copy lands here with its labels written against this list's default, and a merge onto a deck line with a different note is reported in `droppedNotes` too.
-- A `move-to` carrying `replacesCardId` pins one of this list's own name-only lines rather than adding a copy. When it equals the move's `cardId`, the line is converted in place — on a deck only when the copy's labels, landed against the deck default, equal the line's effective labels (`proxy` is a fact a pin never changes); an in-place pin that fails this is refused. Otherwise one copy leaves that line and lands on `cardId` as a normal arrival, with its own labels, tags and note.
+- A `move-to` carrying `replacesCardId` pins one of this list's own name-only lines rather than adding a copy. When it equals the move's `cardId`, the line is converted in place, on a deck only when the copy's labels, landed against the deck default, equal the line's effective labels (`proxy` is a fact a pin never changes); an in-place pin that fails this is refused. Otherwise one copy leaves that line and lands on `cardId` as a normal arrival, with its own labels, tags and note.
 - A `move-to` that pins a line (`replacesCardId`) may also carry `replacement` (`{ set, collectorNumber, finish?, language? }`): that printing is added to the source list in place of the copy taken, logged there as an `Added` line. A `replacement` without `replacesCardId` is a `400`.
 
 Every move is validated in memory before anything is written. A missing list, a source with no copy to take, or a printing-less card headed into a collection fails the save with nothing written.
@@ -373,7 +373,7 @@ The [save route](#save-a-list) answers with an `effects` array describing what t
 
 `previousCardId` appears only on an `updated` effect whose line was **renumbered**: another entry in the same save claimed its `&N` (a cross-list move carrying its source id, a replayed change bundle), so the serializer gave the older line a fresh number.
 
-A card's `&N` id is allocated inside the save (see [Save a List](#save-a-list)), so the response is the **only** place a client that added a card without one can learn the id its line got. Set codes inside `printing` are lowercase.
+A card's `&N` id is allocated inside the save (see [Save a List](#save-a-list)), so the response is the only place a client that added a card without one can learn the id its line got. Set codes inside `printing` are lowercase.
 
 A save also re-files the list's [custom-art](/custom-art/) sidecar from the **changes**, not from the file it produced: a card the changes remove loses its art even when they re-add the same card and the new line takes the same `&N` back. To put art on a card you are adding, wait for the save to answer, then aim a [Card Art](#card-art) write at the id the effects report (following `previousCardId` where a line was renumbered). The admin editors' [add-card dialog](/admin/editors/#card-options) does this.
 
@@ -387,7 +387,7 @@ When that re-filing could not happen, the save still succeeds and reports the pr
 
 The field is omitted when everything re-filed cleanly, and shares its name with the load routes' [sidecar problems](#load-deck) channel.
 
-The card lines were written correctly; the only casualty is that art may now sit under an `&N` the save freed or renumbered. Fix the sidecar by hand (the message names the file and the parse failure) and the art applies again, or comes off the list with the next art write.
+The card lines were written correctly, but art may now sit under an `&N` the save freed or renumbered. Fix the sidecar by hand (the message names the file and the parse failure) and the art applies again, or comes off the list with the next art write.
 
 ### `categoryWarnings` and `prunedCategories`
 
@@ -428,7 +428,7 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
 - Top-level `description` — the collection's front-matter blurb, absent when none is declared.
 - Top-level `labels` — its [default card labels](/list-format/#default-labels-and-descriptions), absent when none are declared. An entry's own `labels` is its per-card override, signed (`["trade", "no-sale"]`); its effective labels are the default adjusted by it: the positives added, the negated labels taken away. Each entry also carries `effectiveLabels`, those labels resolved by the server (empty when it has none), so a client never re-implements the rule.
 - Entry `tags` — the line's [tags](/list-format/#card-tags), canonical and without the `#`, absent when it has none.
-- Entry `categories` — the card name's [categories](/list-format/#categories-namecategoriesjson) in this list, primary first, absent when it has none. The list's own vocabulary is the top-level `categories` — see [Load Deck](#load-deck).
+- Entry `categories` — the card name's [categories](/list-format/#categories-namecategoriesjson) in this list, primary first, absent when it has none. The list's own vocabulary is the top-level `categories`. See [Load Deck](#load-deck).
 
 **Response:**
 
@@ -466,7 +466,7 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
 POST /api/collection/create
 ```
 
-Create a new collection file, named after the collection — see [List file names](/commands/new/#list-file-names).
+Create a new collection file, named after the collection. See [List file names](/commands/new/#list-file-names).
 
 **Request Body:**
 
@@ -492,7 +492,7 @@ Create a new collection file, named after the collection — see [List file name
 POST /api/collection/:slug/rename
 ```
 
-Rename a collection. Replaces the first `# <Title>` line in the file and renames the `.md` together with every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses).
+Rename a collection. Replaces the first `# <Title>` line in the file and renames the `.md` together with every sidecar it has. See [List lifecycle responses](#list-lifecycle-responses).
 
 **Request Body:**
 
@@ -520,7 +520,7 @@ Rename a collection. Replaces the first `# <Title>` line in the file and renames
 DELETE /api/collection/:slug
 ```
 
-Delete a collection file and every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses). `confirmName` must match the parsed `# Title` exactly.
+Delete a collection file and every sidecar it has. See [List lifecycle responses](#list-lifecycle-responses). `confirmName` must match the parsed `# Title` exactly.
 
 **Request Body:**
 
@@ -569,7 +569,7 @@ GET /api/wanted/:slug
 Load a wanted list with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck, plus the top-level `description` when the list declares one.
 
 - Entry `tags` — the line's [tags](/list-format/#card-tags), canonical and without the `#`, absent when it has none. Wanted entries carry tags exactly as deck and collection cards do; they are the one list type without `labels`.
-- Entry `categories` — the card name's [categories](/list-format/#categories-namecategoriesjson) in this list, primary first, absent when it has none. The list's own vocabulary is the top-level `categories` — see [Load Deck](#load-deck).
+- Entry `categories` — the card name's [categories](/list-format/#categories-namecategoriesjson) in this list, primary first, absent when it has none. The list's own vocabulary is the top-level `categories`. See [Load Deck](#load-deck).
 
 **Response:**
 
@@ -598,7 +598,7 @@ Load a wanted list with full card data, printings, and mana symbol map. Accepts 
 POST /api/wanted/create
 ```
 
-Create a new wanted list file, named after the list — see [List file names](/commands/new/#list-file-names).
+Create a new wanted list file, named after the list. See [List file names](/commands/new/#list-file-names).
 
 **Request Body:**
 
@@ -624,7 +624,7 @@ Create a new wanted list file, named after the list — see [List file names](/c
 POST /api/wanted/:slug/rename
 ```
 
-Rename a wanted list. Replaces the first `# <Title>` line in the file and renames the `.md` together with every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses).
+Rename a wanted list. Replaces the first `# <Title>` line in the file and renames the `.md` together with every sidecar it has. See [List lifecycle responses](#list-lifecycle-responses).
 
 **Request Body:**
 
@@ -652,7 +652,7 @@ Rename a wanted list. Replaces the first `# <Title>` line in the file and rename
 DELETE /api/wanted/:slug
 ```
 
-Delete a wanted list file and every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses). `confirmName` must match the parsed `# Title` exactly.
+Delete a wanted list file and every sidecar it has. See [List lifecycle responses](#list-lifecycle-responses). `confirmName` must match the parsed `# Title` exactly.
 
 **Request Body:**
 
@@ -682,9 +682,9 @@ Delete a wanted list file and every sidecar it has — see [List lifecycle respo
 PUT /api/metadata/:type/:slug
 ```
 
-Write a list's YAML front matter. Decks take the deck vocabulary below; decks and collections take `labels` (their [default card labels](/list-format/#card-labels)); **all three types** take `description` (the blurb the built site prints above the cards) and `image` (the list's [cover image](/list-images/)). Those two are the only fields a wanted list accepts; a `labels` key on a wanted body is a `400` naming the field. Shares its engine with the [`metadata`](/commands/metadata/) CLI command (which covers all three types and does not write `image`), [`set-list-image`](/commands/set-list-image/), and the MCP `set_list_metadata` tool.
+Write a list's YAML front matter. Decks take the deck vocabulary below; decks and collections take `labels` (their [default card labels](/list-format/#card-labels)); all three types take `description` (the blurb the built site prints above the cards) and `image` (the list's [cover image](/list-images/)). Those two are the only fields a wanted list accepts; a `labels` key on a wanted body is a `400` naming the field. Shares its engine with the [`metadata`](/commands/metadata/) CLI command (which covers all three types and does not write `image`), [`set-list-image`](/commands/set-list-image/), and the MCP `set_list_metadata` tool.
 
-Only the fields present in the body are written; every other front-matter key (including user-authored ones) round-trips untouched. A field sent as `null` is deleted, as is a `description` sent as an empty string. The markdown body below the front matter is left byte for byte as it was: card lines are never re-serialized and no card IDs are assigned. **No changelog entry is written**, since metadata is not a card change.
+Only the fields present in the body are written; every other front-matter key (including user-authored ones) round-trips untouched. A field sent as `null` is deleted, as is a `description` sent as an empty string. The markdown body below the front matter is left byte for byte as it was: card lines are never re-serialized and no card IDs are assigned. No changelog entry is written, since metadata is not a card change.
 
 **Request Body (deck):**
 
@@ -774,7 +774,7 @@ When git auto-commit is enabled, the deck file and its `.sha256` hash sidecar ar
 PUT /api/art/:type/:slug
 ```
 
-Set or clear one card's [custom art](/custom-art/) on any list type. Like the metadata route this is a **direct** write: no change event, no changelog entry, and **no `contentHash` round trip**. Card lines and the `<list>.art.json` sidecar are separate files, so the write is safe alongside an editor's pending card edits.
+Set or clear one card's [custom art](/custom-art/) on any list type. Like the metadata route this is a direct write: no change event, no changelog entry, and no `contentHash` round trip. Card lines and the `<list>.art.json` sidecar are separate files, so the write is safe alongside an editor's pending card edits.
 
 **Request Body:**
 
@@ -789,7 +789,7 @@ Set or clear one card's [custom art](/custom-art/) on any list type. Like the me
 
 Any other field is a `400` naming it.
 
-The save, move, and remove routes re-file this sidecar themselves — see [Art follows the card](/custom-art/#art-follows-the-card):
+The save, move, and remove routes re-file this sidecar themselves (see [Art follows the card](/custom-art/#art-follows-the-card)):
 
 - A save or removal that drops a card drops its art, even when the same save re-adds that card.
 - A renumbered line takes its entry with it.
@@ -821,7 +821,7 @@ Each refusal is keyed (see [Error responses](/admin/api/#error-responses)). A re
 
 An unknown list is a `404`.
 
-Clearing the last card's art removes the sidecar rather than writing `{}`. When git auto-commit is enabled the sidecar is committed with the message `Update custom art for <type> <slug>`, but only when a file was actually written or removed.
+Clearing the last card's art removes the sidecar rather than writing `{}`. When git auto-commit is enabled the sidecar is committed with the message `Update custom art for <type> <slug>`, but only when a file was written or removed.
 
 The images themselves are served read-only, behind the same login, at `GET /art/<relpath>` from the configured [`artDir`](/configuration/#directory-options), which lets the editor preview a local file. Only `.avif`, `.gif`, `.jpeg`, `.jpg`, `.png`, and `.webp` are served (the same allowlist a `file` reference is validated against), and any path leaving the art directory is a `404`. That `404`'s body is the shared refusal, `{"success": false, "message": "Not found", "messageKey": "admin.api.server.notFound"}`.
 
@@ -831,7 +831,7 @@ The images themselves are served read-only, behind the same login, at `GET /art/
 GET /api/diff?a=<[type:]name>&b=<[type:]name>&by=<name|printing>
 ```
 
-Compare two lists (any mix of deck, collection, and wanted list) and return the matched identities with per-side quantities plus the entries only one side has. Exposed as the MCP `diff_lists` tool; shares its engine with the [`diff`](/commands/diff/) CLI command — see that page for the identity rules (nonfoil folding, the no-printing bucket, all sections included).
+Compare two lists (any mix of deck, collection, and wanted list) and return the matched identities with per-side quantities plus the entries only one side has. Exposed as the MCP `diff_lists` tool; shares its engine with the [`diff`](/commands/diff/) CLI command. See that page for the identity rules (nonfoil folding, the no-printing bucket, all sections included).
 
 **Query Parameters:**
 
@@ -934,7 +934,7 @@ Overwrite the list's change log with the supplied change sets. Each set needs:
 - a valid ISO-8601 `timestamp`;
 - a `lines` array of strings, each starting with `- `;
 - an `events` array of typed change events, one per line in the same order, echoed back from `GET` (empty only for a prose-only set that had none). An event that does not decode is a `400` naming it (`Set #1 event #2 is missing its "id".`), keyed `domain.changes.problem.*` with the event nested as its `subject`.
-- optionally a `trailing` array of preserved hand-written lines. These must **not** start with `- ` or `## ` (they would be re-parsed as change lines or set headers on the next load) and are written back verbatim after the set's change lines.
+- optionally a `trailing` array of preserved hand-written lines. These must not start with `- ` or `## ` (they would be re-parsed as change lines or set headers on the next load) and are written back verbatim after the set's change lines.
 
 Only the `.changes.md` file is written; the list's own `.md` is never touched, and the existing header is preserved. When git auto-commit is enabled, the change log is committed (`Rewrite change history for <slug>`).
 

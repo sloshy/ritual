@@ -207,13 +207,13 @@ ritual build-site --locale-file ./de-AT.json --locales en de-AT
 
 `--locales` tags are **space-separated**, like `--decks` and `--theme-file`. (`--price-sources` is the one comma-separated flag.) English is always published whether or not you list it.
 
-`--locale-file` lets a released binary publish a language it was never built with. Hand it a validated dictionary and that locale becomes selectable like a built-in one.
+`--locale-file` lets a released binary publish a language it was never built with. Pass it a validated dictionary and that locale becomes selectable like a built-in one.
 
 Details:
 
-- **The `--locale` language is always published.** `--locale de` implies `de` in the emitted set.
-- **A `--locale` with no dictionary is a warning, not a failure.** Messages fall back to English key by key and the build continues. A tag named by `--locales` with no dictionary **is** an error.
-- **The language switcher appears only when more than one locale was published.** An English-only build shows none.
+- The `--locale` language is always published. `--locale de` implies `de` in the emitted set.
+- A `--locale` with no dictionary is a warning, not a failure. Messages fall back to English key by key and the build continues. A tag named by `--locales` with no dictionary is an error.
+- The language switcher appears only when more than one locale was published. An English-only build shows none.
 - A failed locale build leaves the previously published site standing, like any other build failure. See [Output](#the-output-directory-is-replaced-never-half-written).
 
 For per-locale URL prefixes (SEO or CDN path routing), build once per locale:
@@ -224,7 +224,7 @@ for tag in en de ja; do
 done
 ```
 
-`--locale` changes Ritual's own text, **not** the card language. Which printing of a card is shown is [`defaultLanguage`](/configuration/#default-language)'s job. See [Localization](/localization/), including the note that no translations ship yet.
+`--locale` changes Ritual's own text, not the card language. Which printing of a card is shown is set by [`defaultLanguage`](/configuration/#default-language). See [Localization](/localization/), including the note that no translations ship yet.
 
 ## Output
 
@@ -367,7 +367,7 @@ ritual build-site --refresh no-bulk  # refresh prices without the big download
 ritual build-site --refresh never    # build from the existing cache
 ```
 
-> **Note on `never`:** a card the cache does not hold at all is still fetched individually in step 3, since a card with no data cannot be rendered. With no cached symbology, the build warns and the site renders without mana symbols. Re-run with `--refresh auto` to download them.
+> **Note on `never`:** a card the cache does not hold is still fetched individually in step 3, since a card with no data cannot be rendered. With no cached symbology, the build warns and the site renders without mana symbols. Re-run with `--refresh auto` to download them.
 
 > **Note:** `no-bulk` and `never` suppress the bulk download (step 1). On an empty or very stale cache every card is then fetched individually, which is slow and can hit Scryfall rate limits. Use them when you already have a populated cache.
 

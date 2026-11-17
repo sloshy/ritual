@@ -32,9 +32,9 @@ ritual import-account [username] [options]
 | `--output <format>`   | Output format: `text` (default), `json`, or `ndjson`                                                  |
 | `--quiet`             | Suppress progress lines; never the JSON output, errors, or essential warnings                         |
 
-The account's deck list is fetched **in full**. Archidekt paginates it, and every page is followed through the same rate-limited client the sync commands use, so `Found N decks.` and `--all` cover the whole account. The one exception is a list Archidekt stops serving part way (a next-page link that leads off Archidekt or cannot be read, a page it already served, or more than 100 pages): the run keeps what it got, warns on stderr that the list may be incomplete, and `--output json` says why in `listIncomplete`.
+The account's deck list is fetched in full. Archidekt paginates it, and every page is followed through the same rate-limited client the sync commands use, so `Found N decks.` and `--all` cover the whole account. The one exception is a list Archidekt stops serving part way (a next-page link that leads off Archidekt or cannot be read, a page it already served, or more than 100 pages): the run keeps what it got, warns on stderr that the list may be incomplete, and `--output json` says why in `listIncomplete`.
 
-Whether imported decks keep the exact printings Archidekt states is the same choice [`import`](/commands/import/#printings-from-a-url-import) makes. It is asked **once for the whole run**, before anything is fetched (default yes), so an unanswerable run fails without wasted requests. `--sync-printings` / `--no-sync-printings` answer it up front. Under `--no-input` with neither flag, the printings are kept and a line says so.
+Whether imported decks keep the exact printings Archidekt states is the same choice [`import`](/commands/import/#printings-from-a-url-import) makes. It is asked once for the whole run, before anything is fetched (default yes), so an unanswerable run fails without wasted requests. `--sync-printings` / `--no-sync-printings` answer it up front. Under `--no-input` with neither flag, the printings are kept and a line says so.
 
 ## Scripting Without Prompts
 

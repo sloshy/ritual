@@ -10,7 +10,7 @@ This guide connects a Ritual workspace to an Archidekt account: sign in, bring y
 Two commands do the syncing:
 
 - [`deck-sync`](/commands/deck-sync/) works per deck. Each local deck is linked to one Archidekt deck.
-- [`collection-sync`](/commands/collection-sync/) treats **all** your collection lists as one Archidekt collection, since an Archidekt account has only one.
+- [`collection-sync`](/commands/collection-sync/) treats all your collection lists as one Archidekt collection, since an Archidekt account has only one.
 
 ## Before You Start: Preview Everything
 
@@ -21,13 +21,13 @@ ritual deck-sync push --dry-run --verbose
 ritual collection-sync push --dry-run --verbose
 ```
 
-Make a dry run your habit before every real run, and keep your workspace in git so a bad pull is one `git checkout` away.
+Do a dry run before every real run, and keep your workspace in git so you can undo a bad pull with `git checkout`.
 
 :::caution[A sync mirrors one side onto the other, removals included]
 
-A sync is not a merge. `collection-sync push` makes your **whole** Archidekt collection match your local collection lists: a card on Archidekt that no local list holds is deleted, including cards you added on archidekt.com since your last sync. A pull does the same in the other direction: it makes your local lists match Archidekt by name and quantity, so local cards you added or changed and never pushed are removed. Neither direction asks first. Preview with a dry run, and use `--only additions` when both sides have changed or you only want to send new cards.
+A sync is not a merge. `collection-sync push` makes your whole Archidekt collection match your local collection lists: a card on Archidekt that no local list holds is deleted, including cards you added on archidekt.com since your last sync. A pull does the same in the other direction: it makes your local lists match Archidekt by name and quantity, so local cards you added or changed and never pushed are removed. Neither direction asks first. Preview with a dry run, and use `--only additions` when both sides have changed or you only want to send new cards.
 
-The one thing a sync refuses outright is removing **everything**: when the side it copies from holds no cards and the other side holds some (an empty Archidekt collection or deck, or empty local files), the run, or that deck, stops before writing anything. Pass `--allow-remove-all` only when emptying one side is what you want.
+The only thing a sync refuses is removing everything: when the side it copies from holds no cards and the other side holds some (an empty Archidekt collection or deck, or empty local files), the run, or that deck, stops before writing anything. Pass `--allow-remove-all` only when emptying one side is what you want.
 
 :::
 
@@ -61,7 +61,7 @@ ritual import https://archidekt.com/decks/123456
 
 Both ask once whether to keep the exact printings Archidekt lists (set, collector number, finish). The default is yes. Archidekt categories become the deck's [categories](/commands/categories/), except the ones that stand for boards (Commander, Sideboard, Maybeboard, and so on), which decide the card's section.
 
-An imported deck's front matter records `sourceUrl` and `sourceId`. That is the link `deck-sync` uses.
+An imported deck's front matter records `sourceUrl` and `sourceId`, which are the link `deck-sync` uses.
 
 ### A deck you built in Ritual
 
@@ -99,7 +99,7 @@ ritual deck-sync push "Winota Stax" --dry-run
 ritual deck-sync push "Winota Stax"
 ```
 
-Decks you do not own are skipped. If the Archidekt deck changed since your last sync, the push **refuses** that deck rather than undo those edits. You can pull it first, but a pull makes the local deck match Archidekt, so local changes you have not pushed yet are removed. Run `ritual deck-sync pull "Winota Stax" --dry-run --verbose` to see what it would drop, then decide; or pass `--force` to overwrite the remote changes on purpose. See [Divergence Guard](/commands/deck-sync/#divergence-guard-push).
+Decks you do not own are skipped. If the Archidekt deck changed since your last sync, the push refuses that deck rather than undo those edits. You can pull it first, but a pull makes the local deck match Archidekt, so local changes you have not pushed yet are removed. Run `ritual deck-sync pull "Winota Stax" --dry-run --verbose` to see what it would drop, then decide; or pass `--force` to overwrite the remote changes. See [Divergence Guard](/commands/deck-sync/#divergence-guard-push).
 
 ### What a deck sync compares
 
@@ -134,7 +134,7 @@ An Archidekt account has one collection, while a Ritual workspace can have many 
 
 A pull removes every local copy that Archidekt does not hold. If your Archidekt collection is only partly filled, a first pull removes most of your local collection, without asking. For a collection that has never been synced, preview first and pull with `--only additions`.
 
-A pull against an Archidekt collection with **no** cards (a new account, or one emptied elsewhere) is refused rather than emptying your lists; pass `--allow-remove-all` only if you really mean to remove everything. See [Empty-side guard](/commands/collection-sync/#empty-side-guard).
+A pull against an Archidekt collection with no cards (a new account, or one emptied elsewhere) is refused rather than emptying your lists; pass `--allow-remove-all` only if you mean to remove everything. See [Empty-side guard](/commands/collection-sync/#empty-side-guard).
 
 :::
 
@@ -151,7 +151,7 @@ To change the default once:
 ritual config set collectionSync.pullTarget "New Arrivals"
 ```
 
-**Ambiguous removals.** When Archidekt has fewer copies of a printing than you do, the pull removes the difference. If every copy is going, or the copies all sit in one list, that is clear. If only some copies are going and they live in several lists, Ritual cannot know which binder lost them, and **the run writes nothing** until you decide. In a terminal it offers to walk through them one copy at a time. Anywhere else, name the lists that may give up copies, in order:
+**Ambiguous removals.** When Archidekt has fewer copies of a printing than you do, the pull removes the difference. If every copy is going, or the copies all sit in one list, that is clear. If only some copies are going and they are in several lists, Ritual cannot know which binder lost them, and the run writes nothing until you decide. In a terminal it offers to walk through them one copy at a time. Anywhere else, name the lists that may give up copies, in order:
 
 ```bash
 ritual collection-sync pull --removal-priority "Long Box" --removal-priority "Blue Binder"
@@ -195,7 +195,7 @@ Both pages sign you in inline when needed, sharing the login with the CLI.
 
 ## Rate Limits
 
-Archidekt allows about 80 requests per minute. Ritual spaces its requests 1.5 seconds apart and retries when Archidekt answers `429 Too Many Requests`, so a large sync is slow but steady. A run that fails part way is safe to repeat: only the remaining differences are sent. See [Rate Limiting](/commands/collection-sync/#rate-limiting).
+Archidekt allows about 80 requests per minute. Ritual spaces its requests 1.5 seconds apart and retries when Archidekt answers `429 Too Many Requests`, so a large sync is slow. A run that fails part way is safe to repeat: only the remaining differences are sent. See [Rate Limiting](/commands/collection-sync/#rate-limiting).
 
 ## Scripting a Sync
 

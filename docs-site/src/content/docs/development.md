@@ -44,7 +44,7 @@ This launches `scripts/dev.ts`, which:
 
 - Spawns `bun index.ts <subcommand>` as a child process. For `serve`, it appends `--build` when absent.
 - Watches `src/` (TypeScript, TSX, CSS, SVG) and, for `serve`, `decks/`, `collections/`, and `wanted/` (Markdown).
-- Fully restarts the child on any change, so edits to **any** part of the codebase (core logic, server handlers, parsers, the sites' browser code, themes) take effect on the next request. Running from source, `admin` and `serve --build` rebuild their CSS and browser bundle on each start. There is no separate compile step; the gitignored `*.compiled.*` artifacts are only used by the compiled binary.
+- Fully restarts the child on any change, so edits to any part of the codebase (core logic, server handlers, parsers, the sites' browser code, themes) take effect on the next request. Running from source, `admin` and `serve --build` rebuild their CSS and browser bundle on each start. There is no separate compile step; the gitignored `*.compiled.*` artifacts are only used by the compiled binary.
 - **Live-reloads the browser** (`admin` only, source mode). The page holds an `EventSource` to a dev-only `/__dev_reload` endpoint carrying an id the server picks at each start, and reloads when that id changes (a real restart), not on every reconnect. The restarted server rebuilds `styles.css`/`app.js`, and the reload refetches them.
 - Catches changes the OS file watcher drops. `fs.watch` can miss events under bursts (a formatter touching many files, "save all", atomic-rename saves). The orchestrator snapshots the watched tree at each build launch and re-checks it in a ~1s background scan; if any file drifted, the child restarts.
 
@@ -61,7 +61,7 @@ The dev orchestrator is a source-tree-only tool, not part of the compiled binary
 
 ### Answering cache prompts
 
-The orchestrator owns the terminal, so the child cannot read interactive prompts such as the "Card cache is N days old, refresh?" prompt under the default `--refresh ask`. `bun run dev` therefore **requires** an explicit `--refresh` mode and fails fast without one:
+The orchestrator owns the terminal, so the child cannot read interactive prompts such as the "Card cache is N days old, refresh?" prompt under the default `--refresh ask`. `bun run dev` therefore requires an explicit `--refresh` mode and exits with an error without one:
 
 ```bash
 bun run dev serve --refresh auto     # refresh stale cache (bulk download allowed)
@@ -69,7 +69,7 @@ bun run dev serve --refresh no-bulk  # refresh prices per-card, no bulk download
 bun run dev serve --refresh never    # use the existing cache as-is
 ```
 
-The same applies to `bun run dev admin`. The flag is forwarded to [`serve`](/commands/serve/) / [`admin`](/commands/admin/) and behaves as documented there. `--refresh ask` does **not** count, since it restates the prompting default. `--no-input` also satisfies the check, because the child then skips the refresh instead of prompting. For day-to-day work use `--refresh never`. To refresh the Scryfall cache, use `--refresh auto` on the next restart or run `ritual cache preload-all` separately.
+The same applies to `bun run dev admin`. The flag is forwarded to [`serve`](/commands/serve/) / [`admin`](/commands/admin/) and behaves as documented there. `--refresh ask` does not count, since it restates the prompting default. `--no-input` also satisfies the check, because the child then skips the refresh instead of prompting. For day-to-day work use `--refresh never`. To refresh the Scryfall cache, use `--refresh auto` on the next restart or run `ritual cache preload-all` separately.
 
 ## Building
 
@@ -101,7 +101,7 @@ bun run build:assets
 
 This project uses `bun test`.
 
-Tests never touch your real [card cache](/card-cache/). The test preload (`test/preload.ts`) and `playwright.config.ts` set `RITUAL_CACHE_DIR=cache`, which resolves against each workspace, so every temporary workspace a test creates keeps its own `cache/` folder, and spawned CLIs inherit the setting — but only when the spawn passes `env` (`runCli` does): `Bun.spawn` without `env` hands a child the environment Bun started with, missing what the preload set. A test of the location itself passes its own environment.
+Tests never touch your real [card cache](/card-cache/). The test preload (`test/preload.ts`) and `playwright.config.ts` set `RITUAL_CACHE_DIR=cache`, which resolves against each workspace, so every temporary workspace a test creates keeps its own `cache/` folder, and spawned CLIs inherit the setting, but only when the spawn passes `env` (`runCli` does): `Bun.spawn` without `env` hands a child the environment Bun started with, missing what the preload set. A test of the location itself passes its own environment.
 
 ### Local check suite
 
@@ -111,7 +111,7 @@ Tests never touch your real [card cache](/card-cache/). The test preload (`test/
 bun run test
 ```
 
-Unit tests run with `--parallel` (one worker per core), the type check is Bun's native checker (`bun check`), and lint uses two workers (`--concurrency 2`; each worker loads the whole TypeScript project, so more workers cost a lot of memory) plus `--cache`, so repeat runs take a few seconds. It does **not** check formatting; use `bun run check-format` or `bun run verify` for that.
+Unit tests run with `--parallel` (one worker per core), the type check is Bun's native checker (`bun check`), and lint uses two workers (`--concurrency 2`; each worker loads the whole TypeScript project, so more workers cost a lot of memory) plus `--cache`, so repeat runs take a few seconds. It does not check formatting; use `bun run check-format` or `bun run verify` for that.
 
 ### Integration Tests
 
@@ -193,7 +193,7 @@ How the three modes differ:
 - `bun run precommit` scopes **lint** and **format** to the staged files. The build, type check, and unit tests still run over the whole project. When no `.js`/`.ts`/`.tsx` files are staged, only the staged files' format check, the message-catalog check, and the untranslated-baseline guard run.
 - `bun run verify` lints and formats the entire repository. Run it before pushing to catch drift in files a commit did not touch; CI runs it on every pull request.
 
-> **Note:** the hook checks the working-tree version of staged files. If you stage only part of a file (`git add -p`), the unstaged remainder is included in lint/format. Run `bun run verify` for an airtight whole-repo check.
+> **Note:** the hook checks the working-tree version of staged files. If you stage only part of a file (`git add -p`), the unstaged remainder is included in lint/format. Run `bun run verify` for a whole-repo check.
 
 ## Repository Lints
 
@@ -256,7 +256,7 @@ Each recording types its commands into a shell in a 100-column pseudo-terminal, 
 
 ## Docs Deploy
 
-**Docs deploy from the latest release.** `.github/workflows/deploy-docs.yml` publishes the docs site and the [demo](#demo-site): it builds Ritual, then the demo into `docs-site/dist/demo/` after the Starlight build, and publishes both together. The card cache is kept between runs with `actions/cache`, keyed by day: the first build each day downloads fresh card data, and later builds that day reuse it.
+`.github/workflows/deploy-docs.yml` publishes the docs site and the [demo](#demo-site): it builds Ritual, then the demo into `docs-site/dist/demo/` after the Starlight build, and publishes both together. The card cache is kept between runs with `actions/cache`, keyed by day: the first build each day downloads fresh card data, and later builds that day reuse it.
 
 Both are built from the **latest stable release**, not from `main`, so they describe the Ritual people install. A docs change merged to `main` goes live with the next release. The deploy runs:
 

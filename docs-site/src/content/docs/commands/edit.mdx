@@ -40,7 +40,7 @@ Digital-only sets (Alchemy sets, plus `OM1`) have no paper printings and are fil
 
 ## Opening a List Directly
 
-`ritual edit <listName>` opens that list immediately. The name is resolved across all three list types with the shared [list name](/list-resolution/) rules. Narrow it with a type flag, or with a `deck:` / `collection:` / `wanted:` prefix on the name. A prefix that **contradicts** the flag is a usage error (exit `2`) naming both.
+`ritual edit <listName>` opens that list immediately. The name is resolved across all three list types with the shared [list name](/list-resolution/) rules. Narrow it with a type flag, or with a `deck:` / `collection:` / `wanted:` prefix on the name. A prefix that contradicts the flag is a usage error (exit `2`) naming both.
 
 ```bash
 ritual edit Burn                # any list named Burn
@@ -48,7 +48,7 @@ ritual edit "To Buy" --wanted   # only wanted lists are searched
 ritual edit collection:Binder   # prefix form of the same idea
 ```
 
-Once open, the session behaves exactly as if you had picked the list from the menu. `🔀 Switch List` (or <kbd>Esc</kbd>) backs out to the selection menu rather than quitting, so a direct open can still grow into a multi-list session.
+Once open, the session behaves as if you had picked the list from the menu. `🔀 Switch List` (or <kbd>Esc</kbd>) backs out to the selection menu rather than quitting, so a direct open can still become a multi-list session.
 
 A name that matches nothing, or more than one list, fails before the editor starts. See [Exit Codes](#exit-codes).
 
@@ -115,7 +115,7 @@ Four menu entries open several lists at once in one session:
 
 Each behaves like a normal list session with two differences.
 
-**Adding a card asks where it goes.** After you pick a card name (or a collector number), an `Add to which list?` prompt lists every list in scope plus the `➕ New …` items. The list you pick then runs **its own** add flow for the remaining prompts. In `All Lists`, adding to a deck may leave the printing unspecified and ask for a section, while adding the next card to a collection still demands a specific printing:
+**Adding a card asks where it goes.** After you pick a card name (or a collector number), an `Add to which list?` prompt lists every list in scope plus the `➕ New …` items. The list you pick then runs its own add flow for the remaining prompts. In `All Lists`, adding to a deck may leave the printing unspecified and ask for a section, while adding the next card to a collection still demands a specific printing:
 
 ```text
 ? Enter card name to add › Sol Ring
@@ -203,11 +203,11 @@ The save actions:
 - `💾 Save all changes (N across M lists)` writes every open list's file and appends each list's session changelog while you keep working. Everything saved is committed, and the undo and discard menus reset.
 - `💾 Save current list changes (N)` writes only the list you are editing, keeping the other lists' changes in memory. A list receiving cards from its pending [moves](#moving-cards-to-another-list) is saved in the same step, other pending changes included.
 
-The save-current item appears only when the list you are editing has unsaved changes **and** at least one other open list does too. When just one list is dirty, both saves would do the same thing, so a single `💾 Save N changes (keep editing)` item is shown, even when that dirty list is not the one you are in. In a [multi-list mode](#multi-list-modes) there is no current list, so the save-current item is never shown.
+The save-current item appears only when the list you are editing has unsaved changes and at least one other open list does too. When just one list is dirty, both saves would do the same thing, so a single `💾 Save N changes (keep editing)` item is shown, even when that dirty list is not the one you are in. In a [multi-list mode](#multi-list-modes) there is no current list, so the save-current item is never shown.
 
 The counts track card changes. Pending work that is not a card change (a changed [deck format](#deck-format), edited deck tags, or an edited list [default-labels block](/list-format/#default-labels-and-descriptions)) still surfaces the save items but is left out of the counts. A list whose only pending work is such an edit shows count-less labels (`💾 Save changes (keep editing)`, `💾 Save current list changes`, `💾 Save all changes (M lists)`).
 
-Saving repeatedly in one session does **not** create a new changelog entry per save. Later changes are folded into the list's existing entry (bumping its timestamp), so one session is one changelog entry per list.
+Saving repeatedly in one session does not create a new changelog entry per save. Later changes are folded into the list's existing entry (bumping its timestamp), so one session is one changelog entry per list.
 
 `🚪 Exit` (from a session or the selection menu) opens the exit menu when anything is unsaved: **Save and exit** writes every open list, **Exit without saving** discards every open list's pending changes, and **Cancel** keeps editing.
 
@@ -239,7 +239,7 @@ If no printings can be found for a chosen card, decks and wanted lists fall back
 
 Look up printings by **set code and collector number**, across every printing in your local card cache. `🔢 Switch to Collector Number Mode` switches into it, and `--collector` starts a session there. Rows read `MKM:123 — Card Name`, ordered by set code and then collector number.
 
-The search matches only the set code and the collector number. **Card names are not matched in this mode**; `🔤 Switch to Name Mode` is one row away when you want them. Type either half, in either order:
+The search matches only the set code and the collector number, not card names; use `🔤 Switch to Name Mode` to search by name. Type either half, in either order:
 
 | You type  | Matches                                                                             |
 | --------- | ----------------------------------------------------------------------------------- |
@@ -340,7 +340,7 @@ For a **wanted list** entry:
 | `📝 Edit Note`            | Edit or clear the entry's note                                                                                                  |
 | `🗑️ Remove`               | Delete the entry (asks for confirmation); releases its `&N` id                                                                  |
 
-Every edit is undoable with `↩️ Undo Last Edit` (newest first). Undoing a removal restores the entry with its original `&N` id when the id has not been reused. Edits are folded into the session changelog with "latest wins" semantics: changing a card and then changing it back leaves no changelog entry, and removing a card that was added this session simply cancels the add. `➕ Switch to Add Mode` returns to the add flow; you can toggle between the two modes freely.
+Every edit is undoable with `↩️ Undo Last Edit` (newest first). Undoing a removal restores the entry with its original `&N` id when the id has not been reused. Edits are folded into the session changelog with "latest wins" semantics: changing a card and then changing it back leaves no changelog entry, and removing a card that was added this session cancels the add. `➕ Switch to Add Mode` returns to the add flow; you can toggle between the two modes freely.
 
 ## Moving Cards to Another List
 
@@ -348,8 +348,8 @@ Every edit is undoable with `↩️ Undo Last Edit` (newest first). Undoing a re
 
 Like every session edit, the move is **deferred until you save**. The card leaves the in-memory list immediately (recorded as a `Moved … to …` changelog entry), and the destination receives it when the source list is saved. `↩️ Undo Last Edit` or discarding the change from `📋 View Session Changes` takes the whole move back, and exiting without saving moves nothing. On save:
 
-- A destination that is open in the editor receives the card in memory and is saved in the same step, along with its other pending changes. Its _own_ pending moves commit too, so a chain of moves resolves in one save.
-- Any other destination's file is written directly, exactly as [`ritual move`](/commands/move/) writes it, with a `Moved … from …` entry in its changelog.
+- A destination that is open in the editor receives the card in memory and is saved in the same step, along with its other pending changes. Its own pending moves commit too, so a chain of moves resolves in one save.
+- Any other destination's file is written directly, as [`ritual move`](/commands/move/) writes it, with a `Moved … from …` entry in its changelog.
 - The destination line gets a fresh `&N` id, and the source id is released.
 
 A new line at a deck destination lands in the deck's default section (the first non-Commander, non-Sideboard section, creating `Main` if there is none). The move never prompts for a section. The action refuses up front when the edited list is the only list, or when a name-only card is headed into a collection and the printing picker finds nothing.
@@ -374,11 +374,11 @@ Tags (`#Ramp, Staple` on the line) are described on [List Files](/list-format/#c
 
 ## Card Categories
 
-A card entry on **any** list type can carry **categories**: its role in _this_ list (`Ramp`, `Removal`, `Board Wipes`), what Archidekt calls a category and Moxfield a tag. Unlike a tag, a category belongs to the card's **name** rather than to the copy. One assignment covers every line of that name in the list, it is never written on the card line, and it does **not** follow the card to another list. Categories are ordered, and the first is the card's **primary** category, which the site groups by. They live in the list's `<list>.categories.json` file; see [the list format](/list-format/#categories-namecategoriesjson).
+A card entry on any list type can carry **categories**: its role in this list (`Ramp`, `Removal`, `Board Wipes`), what Archidekt calls a category and Moxfield a tag. Unlike a tag, a category belongs to the card's **name** rather than to the copy. One assignment covers every line of that name in the list, it is never written on the card line, and it does not follow the card to another list. Categories are ordered, and the first is the card's **primary** category, which the site groups by. They live in the list's `<list>.categories.json` file; see [the list format](/list-format/#categories-namecategoriesjson).
 
 `🗂 Edit Categories` in [edit mode](#edit-mode) opens one free-text field prefilled with the card's current categories, **comma-separated** (`Ramp, Artifacts` is two categories, with `Ramp` primary). An input the grammar refuses is reported and asked again; empty clears them. The list's vocabulary (its declared order, then the configured [`defaultCategories`](/configuration/)) is printed above the prompt as a hint.
 
-The edit is recorded as **one** `set-categories` event per card, a whole-list replacement (`Set categories of "Sol Ring" to Ramp, Artifacts`, or `Cleared categories of "Sol Ring"`). It is latest-wins: repeated edits of one card consolidate into the last one, and setting a card back to what it had when the session opened leaves nothing in the changelog. `↩️ Undo Last Edit` reverts it like any other edit.
+The edit is recorded as one `set-categories` event per card, a whole-list replacement (`Set categories of "Sol Ring" to Ramp, Artifacts`, or `Cleared categories of "Sol Ring"`). It is latest-wins: repeated edits of one card consolidate into the last one, and setting a card back to what it had when the session opened leaves nothing in the changelog. `↩️ Undo Last Edit` reverts it like any other edit.
 
 The list menu carries two list-level rows, on all three list types:
 
@@ -395,7 +395,7 @@ One-shot equivalents outside a session: [`set-card --categories` / `--no-categor
 
 ## Custom Art
 
-`🎨 Set Custom Art` gives the selected card a picture of its own (a proxy scan, an altered card, commissioned art), shown in place of the printing's Scryfall image on the site and in the editors. It is available on **every** list type and any card; a proxy label is not required, and neither implies the other. The prompt names what the card wears now and offers:
+`🎨 Set Custom Art` gives the selected card a picture of its own (a proxy scan, an altered card, commissioned art), shown in place of the printing's Scryfall image on the site and in the editors. It is available on every list type and any card; a proxy label is not required, and neither implies the other. The prompt names the card's current art and offers:
 
 | Choice                  | What it does                                                                  |
 | ----------------------- | ----------------------------------------------------------------------------- |
@@ -423,7 +423,7 @@ Every card entry has a [language](/list-format/#card-language) token (`[ja]`), o
 
 A session starts on the configured [`defaultLanguage`](/configuration/#default-language), English when the key is absent. Two menu rows move it:
 
-- `🌐 Card Language (English)` sets the language for **every card added from here on**, across every list the session has open. It shows the current language, and the change applies only to this session; use [`ritual config set defaultLanguage <code>`](/configuration/#default-language) to make it stick.
+- `🌐 Card Language (English)` sets the language for **every card added from here on**, across every list the session has open. It shows the current language, and the change applies only to this session; use [`ritual config set defaultLanguage <code>`](/configuration/#default-language) to change the configured default.
 - `🌐 Change Language (Sol Ring)` re-picks the language of the card you **just added**, without re-asking for its printing, finish, or condition the way `✏️ Edit Previous Card` does. It appears only once a card has been added this session.
 
 Adding another copy never re-asks either. `➕ Add Similar Copy` uses the current session language, and `➕ Add Exact Copy` reproduces the copied card's line exactly, language included, even if the session language has moved since. The same language picker is reachable for any card from [Edit Mode](#edit-mode) and from [the session-changes screen](#reviewing-session-changes).
@@ -557,14 +557,14 @@ Start the editor at the list selection menu:
 ritual edit
 ```
 
-Jump straight into a list, a deck by file name or any list with a type prefix:
+Open a list directly, a deck by file name or any list with a type prefix:
 
 ```bash
 ritual edit Burn
 ritual edit collection:Binder
 ```
 
-A cataloging session with defaults, hopping between a collection and a wanted list:
+A cataloging session with defaults, switching between a collection and a wanted list:
 
 ```bash
 ritual edit --sets "FDN" --finish nonfoil --condition NM

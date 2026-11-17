@@ -7,7 +7,7 @@ Every Ritual command, grouped the way `ritual help --all` groups them. Each page
 
 ## Help in the terminal
 
-`ritual --help` is short on purpose. It describes the core commands a newcomer needs (the first three groups below) and names the rest in one line. `ritual help --all` (or `ritual --help --all`) describes every command, including the **Advanced** group of CI and maintenance commands. `ritual help <command>` (or `ritual <command> --help`) shows one command's arguments and options. Every command runs the same whichever list shows it.
+`ritual --help` describes only the core commands a newcomer needs (the first three groups below) and names the rest in one line. `ritual help --all` (or `ritual --help --all`) describes every command, including the **Advanced** group of CI and maintenance commands. `ritual help <command>` (or `ritual <command> --help`) shows one command's arguments and options. Every command runs the same whichever list shows it.
 
 ## Core commands
 

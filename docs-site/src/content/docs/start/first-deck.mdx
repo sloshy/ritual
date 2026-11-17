@@ -15,7 +15,7 @@ ritual new deck "My Commander Deck"    # add --format modern (or standard, …) 
 ritual add-card "My Commander Deck" Sol Ring
 ```
 
-The first command that needs card data offers to download Scryfall's card database into a local cache. Say yes. Later commands read from that cache, so they are fast and work offline. The cache is one folder for your user account (the prompt says where), so another workspace you create later reuses it instead of downloading again. See [Card Cache](/card-cache/).
+The first command that needs card data offers to download Scryfall's card database into a local cache. Answer yes, and later commands read from that cache, so they are fast and work offline. The cache is one folder for your user account (the prompt says where), so another workspace you create later reuses it instead of downloading again. See [Card Cache](/card-cache/).
 
 <Recording name="first-deck" />
 
@@ -43,7 +43,7 @@ Beside it, Ritual keeps `My Commander Deck.changes.md`, a dated log of the cards
 
 ## Import Instead
 
-Already have a deck online? Import it from Archidekt, Moxfield, or MTGGoldfish instead:
+To start from a deck you already have online, import it from Archidekt, Moxfield, or MTGGoldfish:
 
 ```bash
 ritual import https://archidekt.com/decks/12345

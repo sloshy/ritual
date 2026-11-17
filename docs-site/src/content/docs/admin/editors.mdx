@@ -71,7 +71,7 @@ Collections and wanted lists write one line per copy with no quantity. A collect
 
 ## Keyboard Shortcuts
 
-The editors can be driven entirely from the keyboard. Page-level shortcuts are suppressed while a dialog is open, so the dialog's own keys always win:
+The editors can be driven entirely from the keyboard. Page-level shortcuts are suppressed while a dialog is open, so the dialog's own keys take precedence:
 
 | Key            | Action                                                                                                             |
 | -------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -109,7 +109,7 @@ Click **+ Add Card** or press **Ctrl+Enter** to open the card search modal. Shor
 ### Step 1: Search
 
 - Type at least 2 characters. The search waits 500 ms after your last keystroke by default; change it with [`searchDebounceMs`](/configuration/#search-debounce)
-- Your text is split on whitespace and **every term must appear in the card name**, in any order. `in tre` finds "In the Trenches"; `bolt light` finds "Lightning Bolt". Case, accents, and punctuation need not match (`jaces archivist` finds "Jace's Archivist"). The CLI prompts match the same way
+- Your text is split on whitespace and every term must appear in the card name, in any order. `in tre` finds "In the Trenches"; `bolt light` finds "Lightning Bolt". Case, accents, and punctuation need not match (`jaces archivist` finds "Jace's Archivist"). The CLI prompts match the same way
 - Closest matches lead: a name you typed in full, then names your query prefixes, then names whose words your terms begin, then mid-word matches
 - **↑**/**↓** move through results; **Enter** selects
 - Hovering or moving to a card shows a preview image of its cheapest printing
@@ -201,7 +201,7 @@ The Deck Editor adds **Set as Commander**, which moves the card to the Commander
 
 ### Move to Section
 
-**Move to section…** opens a picker listing every section except the card's current one, plus **New section…**, which asks for a name and moves the card into the new section. The move is a `set-section` change. Latest wins: moving a card back to its original section cancels the pending move.
+**Move to section…** opens a picker listing every section except the card's current one, plus **New section…**, which asks for a name and moves the card into the new section. The move is a `set-section` change. The latest move wins, so moving a card back to its original section cancels the pending move.
 
 ### Change Printing
 
@@ -223,11 +223,11 @@ Every list type supports named **sections**, which render as headed groups on th
 
 Click **Sections** in the bottom [action bar](#editor-action-bar) to open the **Manage Sections** dialog:
 
-- **Add a section**: type a name and click **Add Section** (or press Enter). New sections start empty. Names must be unique **case-insensitively**: typing a name that already exists in any casing marks the input invalid, highlights the clashing row, and disables **Add Section**.
+- **Add a section**: type a name and click **Add Section** (or press Enter). New sections start empty. Names must be unique case-insensitively: typing a name that already exists in any casing marks the input invalid, highlights the clashing row, and disables **Add Section**.
 - **Rename a section**: click **Rename** on a row. All cards in that section move with it. A rename that collides with another section (case-insensitive) is rejected.
-- **Delete a section**: click **Delete** on a row. Only **empty** sections can be deleted; the button is disabled while the section holds cards.
+- **Delete a section**: click **Delete** on a row. Only empty sections can be deleted; the button is disabled while the section holds cards.
 
-One kind of deck section does not survive a save while empty. An **extras** section (`## Maybeboard`, `## Tokens` or `## Token`, matched exactly as on [List Files](/list-format/#title-and-sections)) is dropped when it holds no cards, whether you just created it or just removed its last card. Extras count toward no total, so an empty header is a leftover rather than content. Add a card to it in the same save if you want it to stick.
+In a deck, an **extras** section (`## Maybeboard`, `## Tokens` or `## Token`, matched exactly as on [List Files](/list-format/#title-and-sections)) is dropped by a save when it holds no cards, whether you just created it or just removed its last card. Extras count toward no total, so an empty header is a leftover rather than content. To keep it, add a card to it in the same save.
 
 Cards with no explicit section belong to an implicit **Main** section, written out explicitly on the next save. On the public site, a list with two or more sections defaults to grouping by section, and **Section** becomes a grouping option in the toolbar. The **Category** and **Categories** groupings and the **Category** sort are offered on every list (a list with no categories shows one **Uncategorized** group). See [Card Categories](#card-categories).
 
@@ -249,7 +249,7 @@ The public site adds an **Add to Trade** action here. The admin site has no Trad
 
 While a list is open in edit mode, the **Selected (N)** menu gains an **edit** section. It applies the same operations as a single card's **+** / **−** buttons and **⋯** menu, over the whole selection at once:
 
-- **Add a copy** / **Remove a copy**: bump each selected card up or down by one copy
+- **Add a copy** / **Remove a copy**: raise or lower each selected card by one copy
 - **Remove from list** (decks: **Remove from deck**): remove every copy of each selected card
 - **Set as Foil** / **Set as Nonfoil**: set the finish on each selected card that supports it; others are skipped. **Set as Foil** is disabled while any selected card has no printing, since a finish belongs to a printing ([Change Printing](#change-printing) sets one). **Set as Nonfoil** stays available, since it clears a finish rather than asserting one
 - **Change Printing…**: runs the printing picker over the selected cards one at a time (cancelling skips that card and continues)
@@ -265,7 +265,7 @@ These edits go through the same pending-changes/undo flow as per-card edits, so 
 
 ### Selecting across lists
 
-Selections are held globally, so switching to another list or list type keeps them. Whenever anything is selected, an **All Selected (N)** button appears in the admin header on every page, with the total across all lists. Its menu runs the copy actions over the whole cross-list selection, and **Clear all selections** wipes every list.
+Selections are held globally, so switching to another list or list type keeps them. Whenever anything is selected, an **All Selected (N)** button appears in the admin header on every page, with the total across all lists. Its menu runs the copy actions over the whole cross-list selection, and **Clear all selections** clears the selection in every list.
 
 **View all selections…** in that menu opens a dialog listing every selected card with its quantity, printing, finish, condition, and source list, in selection order or grouped by source. Each row's ✕ removes one copy, and the copy/clear actions are repeated there. In the editor and on [Move Cards](/admin/move-cards/), the **Selected (N)** menu's **View selected cards…** opens the same dialog scoped to that page. A **Show** toggle switches between **This page** and **All lists**, and the dialog's actions apply to whichever it is showing.
 
@@ -281,17 +281,17 @@ While editing a list you can move a card into another list without leaving the e
 
 Choosing it opens a picker listing your other decks, collections, and wanted lists. Pick one as the destination.
 
-For the per-card and per-list **Selected** moves, choosing a destination removes the card from the list you are editing and **stages** a move. **When you Save, both lists are written.** The card is removed from the source (with a "Move … to …" changelog entry) and added to the destination (with a matching "Move … from …" entry). Moving a card with no printing into a collection, which requires one, opens a printing picker first.
+For the per-card and per-list **Selected** moves, choosing a destination removes the card from the list you are editing and stages a move. When you Save, both lists are written. The card is removed from the source (with a "Move … to …" changelog entry) and added to the destination (with a matching "Move … from …" entry). Moving a card with no printing into a collection, which requires one, opens a printing picker first.
 
 Whichever way it moves, the card's [custom art](#custom-art) and its [tags](#card-tags), its note, and its [labels](#card-labels) go with it: a proxy stays a proxy and a real card stays real wherever both lists carry `proxy`, a `sale`/`trade`/`keep` state the source list stated (in its default or on the card) is kept, and a label the source never stated takes the destination's default. The destination keeps only the labels its type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list) and writes the smallest token that says so. A copy that merges onto a deck line with a different note keeps that line's note, and the save reports the dropped one.
 
-The cross-list **All Selected** move does not go through the editor's Save button. It is applied **immediately** and atomically across every affected file via `POST /api/move/selected`, each card moving from its own list to the chosen destination.
+The cross-list **All Selected** move does not go through the editor's Save button. It is applied immediately and atomically across every affected file via `POST /api/move/selected`, each card moving from its own list to the chosen destination.
 
 ### Incoming moves
 
-Pending changes can also carry **incoming** moves: a `move-to` recording a copy that arrives in the list you are editing from another list. A printing swap that pulls a copy you own elsewhere produces one, as does a bundle loaded through **Import…**. Save handles these symmetrically: the copy is added here and **taken out of the source list**, and both changelogs are written ("Move … from …" here, "Move … to …" on the source). The source copy is found by the source line id the change names when that line still holds the card; otherwise by the exact printing; otherwise (for a source line with no printing, such as a wanted entry) by name.
+Pending changes can also carry **incoming** moves: a `move-to` recording a copy that arrives in the list you are editing from another list. A printing swap that pulls a copy you own elsewhere produces one, as does a bundle loaded through **Import…**. Save handles these symmetrically: the copy is added here and taken out of the source list, and both changelogs are written ("Move … from …" here, "Move … to …" on the source). The source copy is found by the source line id the change names when that line still holds the card; otherwise by the exact printing; otherwise (for a source line with no printing, such as a wanted entry) by name.
 
-A move from the **Swap Printings** wizard that gives one of this list's name-only lines a printing carries `replacesCardId` instead. The line is converted in place, keeping its `&N`, or split when only some of its copies are filled — or when the copy's labels differ from the line's (a proxy never turns a real line into proxies, nor the reverse), in which case the copy lands beside it with its own labels. No copy is added. Such a move may also carry a `replacement`: a printing added back to the source list in the section the departed line left, logged there as an `Added` line (see [Save a List](/admin/api/lists/#save-a-list)).
+A move from the **Swap Printings** wizard that gives one of this list's name-only lines a printing carries `replacesCardId` instead. The line is converted in place, keeping its `&N`, or split when only some of its copies are filled, or when the copy's labels differ from the line's (a proxy never turns a real line into proxies, nor the reverse), in which case the copy lands beside it with its own labels. No copy is added. Such a move may also carry a `replacement`: a printing added back to the source list in the section the departed line left, logged there as an `Added` line (see [Save a List](/admin/api/lists/#save-a-list)).
 
 Every move, in either direction, is validated in memory before anything is written. A missing list, a source with no copy left to take, or a card with no printing headed into a collection fails the save with nothing written. A swap that leaves and enters the same other list stages both halves against one copy of its file. The moved copy's tags, note, labels and custom art follow it both ways, by the rules above. An incoming copy that merges onto a deck line with a different note keeps that line's note, and the save's `droppedNotes` reports it. When the source holds several lines of the printing, the one whose effective labels match the copy's is taken first, so a `[proxy]` copy leaves from the proxy line.
 
@@ -313,7 +313,7 @@ The wizard's steps:
    - A **finish** filter (any / foil / nonfoil) over the candidates, which also seeds the picker's quick-filter.
    - Where **displaced** copies go: back to the list each replacement came from (default), or one chosen deck or collection for all of them. A displaced copy can never land in a wanted list, so if a replacement comes from a wanted list and no override is set, the summary asks for a destination.
    - Price modes only: what to do with a card that has an **unpriced** candidate (no declared market value; not "worthless"). **Skip** it unchanged and flag it for review (default), **Ignore** unpriced options and rank the rest, or **Ask me** to force a pick by hand. A name-only card's missing printing is not an unpriced option; the price modes plan it from its priced candidates.
-   - Every mode, when a checked card has no printing: **Cards without a printing** → **Replace the copies taken from other lists** (off by default). A name-only card displaces nothing, so its source list is simply one copy short afterwards. With this on, a **Replacements** step asks which printing each of those lists gets back.
+   - Every mode, when a checked card has no printing: **Cards without a printing** → **Replace the copies taken from other lists** (off by default). A name-only card displaces nothing, so its source list is one copy short afterwards. With this on, a **Replacements** step asks which printing each of those lists gets back.
 4. **Pick** (manual mode, forced cards, and any card you **Change…**): per card, the candidate copies across the chosen sources (source list, printing, finish, price, copies available), with the same collector-grammar type-to-filter as the printing picker and a finish quick-filter. Copies are allocated per candidate row, so a card's copies may come from several printings. Unfilled copies keep their current printing. A candidate with **no printing** in its source (a wanted line, or a name-only deck line) first asks you to confirm it is that entry, then opens the full printing dialog to say which printing it actually is.
 5. **Review** (price modes only; manual mode goes straight on from picking): every card, current → chosen printing with prices where known, flags (unpriced candidates, no candidates, partial), and a **Change…** button to override the pick.
 6. **Replacements** (only with the replace-taken option on, and only when a name-only card was given a printing): one row per source list and printing taken from it (`1× Lightning Bolt (LEA:161) taken from Binder`), each with **Choose replacement…** (**Change printing…** once picked) opening the full printing grid. Rows fold by source list and printing, so two cards taking the same printing from the same list share one row and one pick. The chosen printing is added back to that list in the same quantity when the swap is saved. A row left empty leaves the list a copy short. **No replacement** clears a pick.
@@ -321,19 +321,19 @@ The wizard's steps:
 
 **Apply** records the plan into the editor's pending changes. Each replacement is a **move in** from its source list and each displaced copy a **move out** to its destination, one change per physical copy (a deck line's copies share its `&N`; a collection tile's copies each carry their own). A copy arriving on a **name-only** line fills that line instead of adding to the list: the line keeps its `&N` and quantity when one printing fills it whole. A deck line filled partially or from several printings is split: one copy comes off the name-only line for each filled copy, which lands as an add would, and the name-only line goes (its id released) when its last copy is taken. No copy is displaced, so no move out accompanies it.
 
-The edited view updates immediately, the moves appear in the [Changes](#change-tracking) dialog, and undo walks them back one change at a time. Nothing is written until you **Save**, which, as with **Move to list…**, updates **both** sides: the edited list and every source/destination list, each with its own changelog entry. A source list promised a replacement gets that printing added (logged as an `Added` line) in the same save. On the public site the moves travel in the exported bundle's top-level `moves` array instead, with a filling move marked `pinsCardId` and carrying its `replacement`.
+The edited view updates immediately, the moves appear in the [Changes](#change-tracking) dialog, and undo reverts them one change at a time. Nothing is written until you **Save**, which, as with **Move to list…**, updates both sides: the edited list and every source/destination list, each with its own changelog entry. A source list promised a replacement gets that printing added (logged as an `Added` line) in the same save. On the public site the moves travel in the exported bundle's top-level `moves` array instead, with a filling move marked `pinsCardId` and carrying its `replacement`.
 
 ## Card Language
 
 Every card entry has a [language](/list-format/#card-language): a Scryfall code written on the line as a lowercase bracket token (`[ja]`) and omitted for English, so a bare line always means `en`.
 
 - **Set Language…** in a card's **⋯** menu (and in the multi-select **Selected** menu) opens a picker over the 17 Scryfall languages, with the current one marked. Picking **English** clears the token. The change is a pending `set-language` edit like any other: undoable, listed in **Changes**, and written on save (changelog: `Set language of "Sol Ring" to Japanese &7`).
-- **Adding never asks for a language.** New cards get the configured [`defaultLanguage`](/configuration/#default-language), editable on the admin **Settings** page. Change a copy afterwards with **Set Language…**.
+- Adding a card never asks for a language. New cards get the configured [`defaultLanguage`](/configuration/#default-language), editable on the admin **Settings** page. Change a copy afterwards with **Set Language…**.
 - The **printing picker** shows one tile per physical printing (set + collector number), never one per language. Under a non-English default, a printing that does not exist in that language is marked with a notice. Picking it records the copy in a language that does exist (English when available) rather than inventing one Scryfall has no card for.
 
 ## Card Tags
 
-Every card entry on every list type can carry [tags](/list-format/#card-tags): your own words for the card as a copy (`Signed`, `Trade Binder`), as many as you like. Tags follow the card when it moves to another list. Unlike a [label](#card-labels), a tag is not an instruction to Ritual. It is your word for the card, and it drives the **Tags** grouping, sort, and filter row on the [public site](/public-site/filtering/#grouping-sorting-and-filtering-by-tags).
+Every card entry on every list type can carry [tags](/list-format/#card-tags): your own words for the card as a copy (`Signed`, `Trade Binder`), as many as you like. Tags follow the card when it moves to another list. Unlike a [label](#card-labels), a tag is not an instruction to Ritual. It drives the **Tags** grouping, sort, and filter row on the [public site](/public-site/filtering/#grouping-sorting-and-filtering-by-tags).
 
 - **Edit Tags…** in a card's **⋯** menu opens a dialog with one field holding the card's whole tag set. Type tags **separated by commas** (`My Tag, My Other Tag` is two tags; spaces are part of a tag). The field validates as you type: a tag cannot contain `#`, `,`, `&`, brackets, braces, or parentheses. An invalid one is explained under the field and blocks **Save**. Tags already used on other cards in the list appear as one-click suggestions. Saving an empty field removes every tag. On a collection tile that groups identical copies, the edit applies to every copy.
 - Saving records **one change per tag that differs**: an `add-tag` for each tag added and a `remove-tag` for each removed. Each is its own **Undo** step, most recent first. A `remove-tag` cancels a pending `add-tag` of the same tag (and vice versa), so adding a tag and removing it again in one session leaves nothing pending. Changes are listed in **Changes** and written on save (changelog: `Added tag "Ramp" to "Sol Ring" &5`).
@@ -344,7 +344,7 @@ Every card entry on every list type can carry [tags](/list-format/#card-tags): y
 Every list type can carry [categories](/commands/categories/): a card's **role in this list** (`Ramp`, `Board Wipes`), ordered so the first is its **primary** category. Unlike a tag, a category belongs to a card **name in this list**: one assignment covers every line of that name, and it never follows a card to another list. Categories drive the [Category groupings, sort, and filter](/public-site/filtering/#grouping-sorting-and-filtering-by-category) on the public site.
 
 - **Edit Categories…** in a card's **⋯** menu opens a dialog with one field holding the card's ordered category list. Type categories **separated by commas** (`Ramp, Artifacts` is two; spaces are part of a name). The field validates as you type: a category cannot contain a control character, and a comma always separates two categories. An invalid entry is explained under the field and blocks **Save**. Above the field, the parsed categories appear as chips in order, the first marked **primary**; the ◀ and ▶ buttons on a chip move it, so changing the primary is one click. Categories already used in the list, followed by the configured [`defaultCategories`](/configuration/#default-categories), appear as one-click suggestions. Saving an empty field clears the card's categories.
-- Saving records **one** `set-categories` change for the card, whatever changed inside it, and it is **one** Undo step. Repeated edits of the same card consolidate into the last one, and restoring the card's on-disk categories cancels the pending change outright.
+- Saving records one `set-categories` change for the card, whatever changed inside it, and it is one Undo step. Repeated edits of the same card consolidate into the last one, and restoring the card's on-disk categories cancels the pending change outright.
 - **Categories** in the bottom [action bar](#editor-action-bar) opens the **Manage categories** dialog: every category the list uses, with how many cards hold it. **▲ ▼** reorder (that order is the site's group-heading order), **Rename** (refused if another category already has that name, case-insensitively), and **Remove** takes the category off every card holding it. The list here is the list's whole **vocabulary**, including categories its `order` declares that no card currently holds (shown with a count of 0). Reorder and rename are one Undo step each. **Remove** records one `set-categories` change per card that held the category plus one order change, so undoing it takes one step per recorded change.
 - Saving writes the list's `<list>.categories.json` file and records the changes in the changelog. If the save's removals left that file naming cards the list no longer holds, those entries are pruned and the status line names them. The same status line carries any categories-file warning the save reported (an unreadable file, entries for cards the list no longer holds). A warning reported when the list **loads** is shown once as an editor error.
 
@@ -365,12 +365,12 @@ Proxied cards show their badge and, in place of a price, the **PROXY** marker, i
 
 - Pick an **Image source**: _File in the art directory_ (a path like `proxies/sol-ring.jpg`, relative to [`artDir`](/configuration/#directory-options)) or _Image on the web_ (an `http(s)` URL). A live preview renders as you type, and says so when the image cannot be loaded.
 - **Save** writes immediately through the [Card Art](/admin/api/lists/#card-art) route. **Remove art** clears the card's entry. Both take effect at once: the tile and the card modal re-render with the new image.
-- _Setting_ custom art is **metadata, not a pending change**. It is never listed in **Changes**, never part of a save, and never recorded in the changelog. It is safe to set while card edits are pending. A save still moves art entries with the ids it changed: a removed card's art goes with it, a renumbered line takes its entry along, and **Move to list…** / **Swap Printings…** carry it to the destination in either direction. See [Art follows the card](/custom-art/#art-follows-the-card).
+- Setting custom art is metadata, not a pending change. It is never listed in **Changes**, never part of a save, and never recorded in the changelog. It is safe to set while card edits are pending. A save still moves art entries with the ids it changed: a removed card's art goes with it, a renumbered line takes its entry along, and **Move to list…** / **Swap Printings…** carry it to the destination in either direction. See [Art follows the card](/custom-art/#art-follows-the-card).
 - The dialog targets a card's `&N` id. On a tile that groups identical copies, the art goes on the **first** copy, the one the tile renders.
 - A card **added this session** has no card line yet, so there is nothing to write against. The dialog says so and holds the reference with your pending changes. The save that writes the card's line writes its art right after. If that write fails (a missing file, for instance) the error banner says which card and why; the list is saved either way, so re-open the dialog and fix the reference.
 - **Undo** of a removal brings the card's art back as long as its id has not been reused. An undo that has to allocate a fresh id restores the card without its art.
 - A card with custom art [carries no price](/custom-art/#custom-art-carries-no-price), like a `proxy` label; `custom-art` is the reason shown when a card has both. It shows **CUSTOM** where a price would be, counts as `0` in every total, and is never quoted against a buylist, even if the image file is missing.
-- A local file must already exist under the art directory. The route refuses a path with nothing behind it and names the location it checked. The admin server serves the art directory read-only, behind the same login, so the preview can show local files.
+- A local file must already exist under the art directory. The route refuses a path where no file exists and names the location it checked. The admin server serves the art directory read-only, behind the same login, so the preview can show local files.
 
 ## Cover Image
 
@@ -382,7 +382,7 @@ The action bar's **Cover Image…** button opens a modal that writes the list's 
 
 ## Toolbar and Filters
 
-The list toolbar is the one the public site uses. Its right-aligned **Filters** dropdown groups every card filter, with a badge counting the active ones and a **Clear** action at the top. Filters combine, and on deck pages the commander section is never filtered. The [Filtering Cards](/public-site/filtering/) page has the full rules for each; in brief:
+The list toolbar is the one the public site uses. Its right-aligned **Filters** dropdown groups every card filter, with a badge counting the active ones and a **Clear** action at the top. Filters combine, and on deck pages the commander section is never filtered. Each filter in brief, with its full rules on [Filtering Cards](/public-site/filtering/):
 
 - **Hide Lands** / **Hide Unpriced** / **Hide Extras** (decks only: maybeboard and token sections). Hide Unpriced goes by the price, so it also hides cards [priceless by rule](/custom-art/#custom-art-carries-no-price): proxies and custom-art copies price at `0`
 - **Name**: space-separated terms, every one of which must appear in the name, ignoring case and accents (`jotun` matches `Jötun Grunt`, as in the CLI session filter)
@@ -401,7 +401,7 @@ The toolbar also has the [quick filter](/public-site/filtering/#quick-filter): s
 
 ### Prices in the editors
 
-The editors follow the [`priceSources`](/configuration/#price-stores-pricesources) config. The admin header has the same **Prices** store dropdown as the public site (shown when more than one store is enabled), opening on the configured [`defaultPriceSource`](/configuration/#default-price-store); with an empty list, price displays hide entirely. The public site reads prices stored in its built list data, but the editors quote **live** against the admin's own API, so a card added mid-edit is priced immediately.
+The editors follow the [`priceSources`](/configuration/#price-stores-pricesources) config. The admin header has the same **Prices** store dropdown as the public site (shown when more than one store is enabled), opening on the configured [`defaultPriceSource`](/configuration/#default-price-store); with an empty list, price displays hide entirely. The public site reads prices stored in its built list data, but the editors quote live against the admin's own API, so a card added mid-edit is priced immediately.
 
 ### Sell mode in the editors
 
@@ -409,13 +409,13 @@ The editors follow the [`priceSources`](/configuration/#price-stores-pricesource
 Sell mode on the sites is in beta and may change in any release. See [Sell Mode](/public-site/sell/).
 :::
 
-When [sell mode](/public-site/sell/) is enabled, the toolbar gains a **Sell mode** toggle and a buyer selector, and the editors offer buylist prices, the Buylist filters, buylist grouping and sorting, and the Card Kingdom cart export. It is **off by default** on the admin site too. Enable it with the **Offer sell mode** checkbox on the [Settings](/admin/dashboard/#settings) page, with `ritual config set site.sellMode true`, or by starting the server as [`ritual admin --sell-mode`](/commands/admin/#sell-mode). With it off, the toggle and buyer selector are not rendered and the sell routes answer `404`, unless the `cardkingdom` [price store](/public-site/prices/), which uses the same feed, is enabled. Saving the checkbox applies at once: reopen an editor and the toggle is there (or gone) with no reload.
+When [sell mode](/public-site/sell/) is enabled, the toolbar gains a **Sell mode** toggle and a buyer selector, and the editors offer buylist prices, the Buylist filters, buylist grouping and sorting, and the Card Kingdom cart export. It is off by default on the admin site too. Enable it with the **Offer sell mode** checkbox on the [Settings](/admin/dashboard/#settings) page, with `ritual config set site.sellMode true`, or by starting the server as [`ritual admin --sell-mode`](/commands/admin/#sell-mode). With it off, the toggle and buyer selector are not rendered and the sell routes answer `404`, unless the `cardkingdom` [price store](/public-site/prices/), which uses the same feed, is enabled. Saving the checkbox applies at once: reopen an editor and the toggle is there (or gone) with no reload.
 
 Quotes come from the locally cached buylist, and the first download never happens on its own. Press **Refresh buylist** on the **Refresh Cache** page, or run `ritual sell --refresh auto`. After that, [`admin`](/commands/admin/) refreshes a day-old copy at startup and the button forces one mid-session. A press that downloads a new feed also clears the quotes this browser session has already resolved, so an editor opened afterwards prices against the new feed.
 
 ## Differences Between List Types
 
-The editor is the same for all three types. What differs is what a card line must carry.
+The editor is the same for all three types, which differ in what a card line must carry.
 
 ### Deck Editor
 

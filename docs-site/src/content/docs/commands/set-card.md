@@ -119,7 +119,7 @@ If the cache has no entry for the card at all, the pinned printing is verified w
 
 Whenever `--finish` is given, alone or with other flags, the finish is validated against the printing the line will carry: the new one when pinned, otherwise the one the entry already has. A finish the printing doesn't come in is a usage error listing the finishes it does offer.
 
-When you change the printing **without** `--finish`, the card's current finish is carried onto the new printing and validated there too. Repinning a `[foil]` entry to a printing with no foil is a usage error telling you to pass `--finish` to record an available one.
+When you change the printing without `--finish`, the card's current finish is carried onto the new printing and validated there too. Repinning a `[foil]` entry to a printing with no foil is a usage error telling you to pass `--finish` to record an available one.
 
 Validating `--finish` against an entry's **existing** printing uses only the cache; no network fetch is made for an in-place edit. When the cache cannot vouch for the printing, the check is skipped with a note on stderr and the edit proceeds. The note names one of two reasons: the cache holds no complete printing list for the card (fixable with `ritual cache preload-all`), or the entry is pinned to a printing the cache does not know at all (no preload will fix that).
 
@@ -153,7 +153,7 @@ There is no standalone "set condition" change event. A condition change is recor
 - **Deck**: `proxy` and `no-proxy` only.
 - **Wanted list**: no labels.
 
-A label the type does not carry is a usage error (exit `2`) naming the offending labels and the ones that type supports. It is never silently dropped. A label both set and negated (`proxy,no-proxy`) is refused at parse time.
+A label the type does not carry is a usage error (exit `2`) naming the offending labels and the ones that type supports. A label both set and negated (`proxy,no-proxy`) is refused at parse time.
 
 `--label` is also the only edit that can **repair** a line whose existing `[labels]` token the parser refuses (`[sale,keep]`, or a label the type does not carry). It replaces the token outright; every other edit to that line refuses rather than dropping the token.
 
@@ -187,7 +187,7 @@ The line is rewritten with its tags in canonical order (`- Sol Ring (C21:240) #C
 
 ### Category Updates
 
-`--categories` sets the card's [categories](/commands/categories/) in this list, on **every** list type, and `--no-categories` clears them. A category is neither a tag nor a label. It belongs to the card's **name** in **this one list**: the assignment covers every line of that name whatever its printing, section or quantity, it is never written on the card line, and it does **not** follow the card when it moves to another list.
+`--categories` sets the card's [categories](/commands/categories/) in this list, on **every** list type, and `--no-categories` clears them. A category is neither a tag nor a label. It belongs to the card's name in this one list: the assignment covers every line of that name whatever its printing, section or quantity, it is never written on the card line, and it does not follow the card when it moves to another list.
 
 The value is one or more categories **separated by commas**. Spaces and case are part of a name, so `--categories "Board Wipes, Ramp"` is two categories. The **first one is the card's primary category**, which the site groups by. A name cannot contain a comma or a control character; one that does is rejected at parse time (exit `2`). Repeating the flag appends (`--categories Ramp --categories Draw` is `--categories "Ramp, Draw"`), because order matters.
 
@@ -201,9 +201,9 @@ ritual set-card --wanted needs "Mana Crypt" --no-categories
 
 The card line is byte-identical afterwards. When `--categories`/`--no-categories` is the run's **only** change, the list `.md` is not rewritten, so neither it nor its `.sha256` appears in `writtenFiles`. The assignment is written to the list's `<list>.categories.json` sidecar file and its `.sha256`, both reported in `writtenFiles`. The hash is refreshed only when it matched the sidecar before the write, so a hand-edited sidecar keeps its stale hash. The changelog records `Set categories of "Sol Ring" to Ramp, Artifacts` or `Cleared categories of "Sol Ring"`, even when the new list equals the old.
 
-If `<list>.categories.json` cannot be parsed, `set-card` does **not** fail. It writes the card line and changelog entry as usual and leaves the sidecar untouched, so nothing on disk is destroyed, but the assignment is not stored. Run [`ritual categories list`](/commands/categories/), which exits `1` with the parse error, to see why.
+If `<list>.categories.json` cannot be parsed, `set-card` does not fail. It writes the card line and changelog entry as usual and leaves the sidecar untouched, so nothing on disk is destroyed, but the assignment is not stored. Run [`ritual categories list`](/commands/categories/), which exits `1` with the parse error, to see why.
 
-This command never **prunes** the sidecar. An entry naming a card the list no longer holds survives until the list's own save, a cross-list `move` that rewrites the list, or [`ritual cleanup`](/commands/cleanup/).
+This command never prunes the sidecar. An entry naming a card the list no longer holds survives until the list's own save, a cross-list `move` that rewrites the list, or [`ritual cleanup`](/commands/cleanup/).
 
 ### Custom Art
 
@@ -219,13 +219,13 @@ ritual set-card --collection main "Lightning Bolt" --art https://example.com/bol
 ritual set-card --wanted "My Wants" "Mana Crypt" --art none
 ```
 
-A path is checked against the configured art directory **before** anything is written. A missing file is a `not_found` (exit `3`) naming the absolute path checked and the art directory; an unreadable file is a runtime error (exit `1`); a directory is a usage error. A malformed value (a backslash, an absolute path, a `..` escape, a non-image extension, a non-`http(s)` URL) is rejected by argument parsing, exit `2`.
+A path is checked against the configured art directory before anything is written. A missing file is a `not_found` (exit `3`) naming the absolute path checked and the art directory; an unreadable file is a runtime error (exit `1`); a directory is a usage error. A malformed value (a backslash, an absolute path, a `..` escape, a non-image extension, a non-`http(s)` URL) is rejected by argument parsing, exit `2`.
 
-The reference is filed under the card's `&N` id in the list's `<list>.art.json` sidecar, so a line with no id yet is refused rather than guessed at. Art is list **metadata**: it is written straight to the sidecar with no change event, no changelog entry, and no `.sha256` refresh. `--art` counts as a change, so it can be the only flag, and an `--art`-only run does not rewrite the list file at all.
+The reference is filed under the card's `&N` id in the list's `<list>.art.json` sidecar, so a line with no id yet is refused rather than guessed at. Art is list **metadata**: it is written straight to the sidecar with no change event, no changelog entry, and no `.sha256` refresh. `--art` counts as a change, so it can be the only flag, and an `--art`-only run does not rewrite the list file.
 
 Applied output reads `custom art → proxies/sol-ring.jpg` (or `custom art → none (cleared)`).
 
-A card with custom art is priced at zero everywhere and excluded from buylist and sell reports, exactly like a `proxy`. See [Custom art carries no price](/custom-art/#custom-art-carries-no-price).
+A card with custom art is priced at zero everywhere and excluded from buylist and sell reports, like a `proxy`. See [Custom art carries no price](/custom-art/#custom-art-carries-no-price).
 
 ### Language Updates
 
@@ -251,7 +251,7 @@ Every applied change is recorded in the list's `.changes.md` changelog in a sing
 
 `--categories` is recorded as `Set categories of "Sol Ring" to Ramp, Artifacts` (or `Cleared categories of "Sol Ring"`) even when the value is unchanged, because it is a whole-list event rather than a per-category delta.
 
-`--art` is the exception: [custom art](/custom-art/) is list metadata, written to the `.art.json` sidecar with no changelog entry at all.
+`--art` is the exception: [custom art](/custom-art/) is list metadata, written to the `.art.json` sidecar with no changelog entry.
 
 ## Exit Codes
 

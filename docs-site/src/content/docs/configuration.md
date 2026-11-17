@@ -3,7 +3,7 @@ title: 'Configuration'
 description: The optional ritual.config.json file, every key it accepts, and where each one is edited.
 ---
 
-Ritual reads its settings from `ritual.config.json` in the base directory: the directory you run it from, or the one named by [`--base-dir`](/cli-conventions/#--base-dir). The file is **optional**. Every setting has a built-in default, so a workspace with no config file behaves like one holding the defaults. Directory paths in the file are resolved relative to the base directory.
+Ritual reads its settings from `ritual.config.json` in the base directory: the directory you run it from, or the one named by [`--base-dir`](/cli-conventions/#--base-dir). The file is optional. Every setting has a built-in default, so a workspace with no config file behaves like one holding the defaults. Directory paths in the file are resolved relative to the base directory.
 
 ## Default settings
 
@@ -80,7 +80,7 @@ Ritual never creates `artDir`. It reads the directory only when a list reference
 
 The store decides the currency too (`tcgplayer` and `cardkingdom` are USD, `cardmarket` is EUR, `cardhoarder` is MTGO tix). Leave the key unset to use the first enabled [price store](#price-stores-pricesources), or TCGplayer when none is enabled. It sets the starting point for:
 
-- the [price](/commands/price/) command, and the admin price API and MCP `get_price_report`, when no store is given. There is no separate currency setting or flag anywhere; a store's currency always comes with it.
+- the [price](/commands/price/) command, and the admin price API and MCP `get_price_report`, when no store is given. There is no separate currency setting or flag; a store's currency comes with it.
 - the CLI editor's [printing and finish picker price columns](/commands/edit/#printing-and-finish-prices) and the price lines shown when adding or editing cards. These read Scryfall prices in the store's currency.
 - the public and admin sites' initial price store. The sites can only open on a store listed in `priceSources`; otherwise they open on the first store in the header's dropdown (the first enabled store of the first offered currency).
 
@@ -179,7 +179,7 @@ The tag is stored canonicalized (`de-at` is persisted as `de-AT`).
 
 :::caution[`uiLocale` is not `defaultLanguage`]
 
-- **`uiLocale`** picks the language **Ritual speaks to you**. BCP-47 tags. Free to change.
+- **`uiLocale`** picks the language of **Ritual's own text**. It takes BCP-47 tags and is free to change.
 - **[`defaultLanguage`](#default-language)** picks which **printing of a card** is recorded. Scryfall's own codes (`ja`, `zhs`, `ph`, …). A non-English value switches the card cache to the [much larger `all_cards` bulk file](#the-all-cards-consequence).
 
 The two are independent, and every combination is valid. Setting one never changes the other.
@@ -199,7 +199,7 @@ Where the value takes effect:
 - The public site picks it up on the next [build-site](/commands/build-site/#localized-builds), where `--locale` overrides it for one build.
 - A live-backend [`serve --api`](/commands/serve/#live-api-mode---api) deployment reports the current value on every index request with no rebuild.
 
-**Translations are separate from this setting.** No translated catalogs ship yet, so every value renders English text today. Dates, numbers, and currency do follow the tag. See [Localization](/localization/), including how to contribute a translation.
+**Translations.** No translated catalogs ship yet, so every value renders English text today. Dates, numbers, and currency do follow the tag. See [Localization](/localization/), including how to contribute a translation.
 
 ## Cache directory (`cacheDir`)
 
@@ -256,7 +256,7 @@ With `feed`, a refresh checks the feed's infohashes and downloads only when they
 | --------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------- |
 | `collectionSync.pullTarget` | `Inbox` | The collection list [`collection-sync pull`](/commands/collection-sync/) adds new cards to. Non-empty list name. |
 
-Every card that appeared on Archidekt lands in this list, which is created on first use. Only you know which binder it belongs in, so move it from there. The key falls back to its default when omitted. Override it for one run with `collection-sync pull --into <list>`.
+Every card that appeared on Archidekt lands in this list, which is created on first use. Ritual cannot tell which of your lists a card belongs in, so move it from there. The key falls back to its default when omitted. Override it for one run with `collection-sync pull --into <list>`.
 
 ## Export presets (`exportPresets` key)
 
@@ -388,7 +388,7 @@ or tick **Offer sell mode** on the admin's [Settings](/admin/dashboard/#settings
 
 The `cardkingdom` entry of [`priceSources`](#price-stores-pricesources) uses the same feed and turns on the same feed behavior: the build's buylist download and quote generation, the servers' startup refresh, and the buylist API routes. (`cache preload-all` refreshes the buylist only under `site.sellMode`.) Sell mode itself (the toggle, filters, and cart export) is governed by this key alone.
 
-The key governs **every** surface, the admin site included:
+The key governs every surface, the admin site included:
 
 - [`build-site`](/commands/build-site/#sell-mode---sell-mode) refreshes the buylist under the run's `--refresh` policy and writes each list's buy prices into its JSON, so a fully static site offers sell mode with no backend.
 - [`serve`](/commands/serve/) includes the same quotes in its live list data. `serve --api` reads the key at startup to decide whether to refresh a day-old buylist, so turning it on for a running server leaves that process's feed unrefreshed until it restarts.
@@ -399,7 +399,7 @@ The key governs **every** surface, the admin site included:
 
 A single run can opt in without a config write: `--sell-mode` on `build-site`, `serve`, `admin`, or [`mcp`](/commands/mcp/#sell-tools-need-sell-mode) (see [Sell mode](/commands/build-site/#sell-mode---sell-mode)). The flag is enable-only and lasts for that process, so `config get site.sellMode` keeps reporting the stored value, and an `admin --sell-mode` server keeps offering sell mode even after its Settings checkbox is unticked and saved.
 
-A **running** server started with the flag reports it: [`GET /api/config`](/admin/api/site/#get-config) and the MCP [`get_config`](/commands/mcp/#stored-config-vs-what-this-server-runs-with) tool answer with the stored config as `config` plus `overrides: {"site.sellMode": true}`. The CLI never reports overrides, since each command is a fresh process.
+A running server started with the flag reports it: [`GET /api/config`](/admin/api/site/#get-config) and the MCP [`get_config`](/commands/mcp/#stored-config-vs-what-this-server-runs-with) tool answer with the stored config as `config` plus `overrides: {"site.sellMode": true}`. The CLI never reports overrides, since each command is a fresh process.
 
 ### Choosing which lists to publish
 
@@ -414,9 +414,9 @@ Each `include*` list controls which lists in that category [`build-site`](/comma
 
 - `[]` publishes **none** of that category.
 
-Each category also has an `exclude*` list. Any display name in it is dropped even when the `include*` list selects it, including under the wildcard. **Exclusion always wins.** The exclude lists default to `[]` and have no wildcard. To publish everything except a few lists, keep `includeDecks` at `["*"]` and add the exceptions to `excludeDecks`. The admin **Manage Lists** page's per-list visibility toggles edit only these exclude lists.
+Each category also has an `exclude*` list. Any display name in it is dropped even when the `include*` list selects it, including under the wildcard. The exclude lists default to `[]` and have no wildcard. To publish everything except a few lists, keep `includeDecks` at `["*"]` and add the exceptions to `excludeDecks`. The admin **Manage Lists** page's per-list visibility toggles edit only these exclude lists.
 
-The `build-site` flags `--decks`, `--collections`, and `--wanted-lists` override these settings for one run. They accept display names or file base names, case- and accent-insensitive. A name they cannot resolve **fails the build** rather than warning. See [When a list will not build](/commands/build-site/#when-a-list-will-not-build).
+The `build-site` flags `--decks`, `--collections`, and `--wanted-lists` override these settings for one run. They accept display names or file base names, case- and accent-insensitive. A name they cannot resolve fails the build rather than warning. See [When a list will not build](/commands/build-site/#when-a-list-will-not-build).
 
 ## Ritual bookkeeping (`managed` key)
 
@@ -454,7 +454,7 @@ Values edited into the file by hand are validated when the config loads. A malfo
 
 ## When the file is created
 
-Reading the config never creates it. The file appears only when something **writes** a setting:
+Reading the config never creates it. The file appears only when something writes a setting:
 
 - [`ritual config set`](/commands/config/) (or `config unset`)
 - [`ritual init-site`](/commands/init-site/), which records the `site` key and the `managed` block
@@ -468,7 +468,7 @@ The first write puts the full defaulted document on disk, not just the key you s
 
 ## Malformed files are a hard error
 
-If `ritual.config.json` exists but is not valid JSON, or is not a JSON object, the command **fails** instead of falling back to defaults. The file is never rewritten:
+If `ritual.config.json` exists but is not valid JSON, or is not a JSON object, the command fails instead of falling back to defaults. The file is never rewritten:
 
 ```
 $ ritual lists
@@ -477,6 +477,6 @@ ritual.config.json is not valid JSON: /home/you/mtg/ritual.config.json
 Fix the file (or delete it to fall back to defaults) and try again.
 ```
 
-The exit code is `1`. The message is in the CLI's language — but a file that does not parse cannot supply its own `uiLocale`, so that language is the one `--locale`, `RITUAL_LOCALE` or the OS environment chose (English when none names one). Under `--output json`/`ndjson` it is the standard error envelope on stderr, keyed `domain.config.fileNotJson`. An admin server whose file breaks while it runs answers every request with a `500` carrying the same message in English plus that key (see [error responses](/admin/api/#error-responses)). Failing loudly protects your settings: treating a broken file as "no config" would let the next write replace what is still on disk. Fix the syntax, or delete the file to start again from defaults.
+The exit code is `1`. The message is in the CLI's language, but a file that does not parse cannot supply its own `uiLocale`, so that language is the one `--locale`, `RITUAL_LOCALE` or the OS environment chose (English when none names one). Under `--output json`/`ndjson` it is the standard error envelope on stderr, keyed `domain.config.fileNotJson`. An admin server whose file breaks while it runs answers every request with a `500` carrying the same message in English plus that key (see [error responses](/admin/api/#error-responses)). Failing protects your settings, because treating a broken file as "no config" would let the next write replace what is still on disk. Fix the syntax, or delete the file to start again from defaults.
 
 This applies to the whole document. A single field with a bad value is a softer failure; see [Validation](#validation).

@@ -56,7 +56,7 @@ image:
   card: 12
 ```
 
-A `--file` path follows the same rules as [custom art](/custom-art/#the-sidecar): forward slashes, relative to the art directory, never escaping it, and ending in `.avif`, `.gif`, `.jpeg`, `.jpg`, `.png`, or `.webp`. Only the **shape** is checked. Unlike [`set-card --art`](/commands/set-card/#custom-art), the image may be added later; until it exists, the site build prints a `Custom art file not found` warning and falls back to the default cover. A `--card` id, by contrast, is checked against the file being written, so a stale one is refused and nothing is written.
+A `--file` path follows the same rules as [custom art](/custom-art/#the-sidecar): forward slashes, relative to the art directory, never escaping it, and ending in `.avif`, `.gif`, `.jpeg`, `.jpg`, `.png`, or `.webp`. Only the shape is checked. Unlike [`set-card --art`](/commands/set-card/#custom-art), the image may be added later; until it exists, the site build prints a `Custom art file not found` warning and falls back to the default cover. A `--card` id, by contrast, is checked against the file being written, so a stale one is refused and nothing is written.
 
 The stored `card` reference follows the list's card lines: removing that card clears the key, and a save that renumbers the line rewrites it. See [List cover images](/list-images/#the-card-reference-follows-the-card).
 
@@ -73,7 +73,7 @@ A value the wizard cannot parse is reported (`Cover image unchanged — …`) an
 
 ## `--no-input`
 
-Every prompt goes through the shared [prompt gate](/cli-conventions/#when-prompts-are-unavailable). With piped stdin, `--no-input`, or `RITUAL_NO_INPUT`, a run that would have to ask (no list name, or no mode option) exits `2` with `Input required: …` instead of prompting. A fully flagged invocation is always safe to script.
+Every prompt goes through the shared [prompt gate](/cli-conventions/#when-prompts-are-unavailable). With piped stdin, `--no-input`, or `RITUAL_NO_INPUT`, a run that would have to ask (no list name, or no mode option) exits `2` with `Input required: …` instead of prompting. A fully flagged invocation never prompts, so it is safe to script.
 
 ## Examples
 
@@ -94,8 +94,8 @@ With `--output json` the output is `{ type, list, mode, image }`. `mode` is `def
 
 ## Behavior
 
-- **The card-ID backfill is conditional.** This command [backfills `&N` ids](/cli-conventions/#the-card-id-backfill) only when the run consumes one: `--card`, or the wizard's card picker. A `--file`, `--url`, or `--default` run writes nothing but the front matter and triggers no backfill, and neither does any `--dry-run`.
-- **One validator, three surfaces.** The card-id check, the path rules, and the URL rule are shared with the [admin route](/admin/api/lists/#list-metadata), the MCP `set_list_metadata` tool, and the admin editors, so all of them refuse the same values in the same words.
+- **Card-ID backfill.** This command [backfills `&N` ids](/cli-conventions/#the-card-id-backfill) only when the run consumes one: `--card`, or the wizard's card picker. A `--file`, `--url`, or `--default` run writes nothing but the front matter and triggers no backfill, and neither does any `--dry-run`.
+- **Shared validation.** The card-id check, the path rules, and the URL rule are shared with the [admin route](/admin/api/lists/#list-metadata), the MCP `set_list_metadata` tool, and the admin editors, so all of them refuse the same values in the same words.
 - **The `.sha256` content hash** is refreshed only when it matched the file before the write. A hand-edited file keeps its stale hash, so [`detect-changes`](/commands/detect-changes/) still records the edit.
 - **Wanted lists are in scope**, as they are for [`metadata`](/commands/metadata/): `image` and `description` are the two front-matter keys they carry.
 

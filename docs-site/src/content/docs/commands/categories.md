@@ -7,7 +7,7 @@ sidebar:
 
 Inspect and edit a list's **card categories**: a card's role in that one list, such as `Ramp`, `Removal`, or `Board Wipes`. It is what Archidekt calls a category and Moxfield a tag. Categories are not Ritual's [tags](/list-format/#card-tags) or [labels](/list-format/#card-labels); see [Labels, tags, and categories](/list-format/#labels-tags-and-categories) for how the three differ.
 
-A category belongs to a card **name**, not to a card line. One assignment covers every line of that name in the list, whatever its printing, section, or quantity. It is never written on the line, and it **never follows a move**. A card's categories are ordered, and the **first one is its primary category**, which is what the site groups by. Categories are stored in a `<list>.categories.json` file beside the list; see [Categories in the list format](/list-format/#categories-namecategoriesjson).
+A category belongs to a card name, not to a card line. One assignment covers every line of that name in the list, whatever its printing, section, or quantity. It is never written on the line, and it never follows a move. A card's categories are ordered, and the **first one is its primary category**, which is what the site groups by. Categories are stored in a `<list>.categories.json` file beside the list; see [Categories in the list format](/list-format/#categories-namecategoriesjson).
 
 ## Usage
 
@@ -30,7 +30,7 @@ Print the list's category vocabulary in display order, each with how many cards 
 | ------------ | ---------------------------------------- |
 | `[listName]` | The list to read (prompted when omitted) |
 
-Read-only: it takes no `--dry-run`, never writes, and never prunes. It **does** report stale entries (see [Stale names](#stale-names)).
+Read-only: it takes no `--dry-run`, never writes, and never prunes. It does report stale entries (see [Stale names](#stale-names)).
 
 ### `rename`
 
@@ -57,7 +57,7 @@ Names the list does not use yet are accepted: `order` declares a vocabulary. An 
 
 ### `remove`
 
-Remove a category from the list's vocabulary **and** from every card that uses it. A card left with no categories loses its entry in the categories file.
+Remove a category from the list's vocabulary and from every card that uses it. A card left with no categories loses its entry in the categories file.
 
 | Argument     | Description            |
 | ------------ | ---------------------- |
@@ -89,13 +89,13 @@ ritual categories remove --collection main Ramp --dry-run
 
 ### What this command writes
 
-Every mutating subcommand writes the list's `<list>.categories.json` and `<list>.categories.json.sha256` **when the edit changes them**, then appends one entry to the list's `.changes.md` changelog. Those paths come back in `writtenFiles`. The list `.md` file is **never** rewritten. This command writes no card lines and reads no `&N`, so it does not trigger the [card-ID backfill](/cli-conventions/#the-card-id-backfill).
+Every mutating subcommand writes the list's `<list>.categories.json` and `<list>.categories.json.sha256` when the edit changes them, then appends one entry to the list's `.changes.md` changelog. Those paths come back in `writtenFiles`. The list `.md` file is never rewritten. This command writes no card lines and reads no `&N`, so it does not trigger the [card-ID backfill](/cli-conventions/#the-card-id-backfill).
 
-An edit that changes nothing (`rename Draw Draw`, or an `order` equal to the one on disk) reports `wouldWrite: false`, writes no file **and no changelog entry**, and returns an empty `writtenFiles`. A real run and its `--dry-run` preview always agree about whether the command touches disk.
+An edit that changes nothing (`rename Draw Draw`, or an `order` equal to the one on disk) reports `wouldWrite: false`, writes no file and no changelog entry, and returns an empty `writtenFiles`. A real run and its `--dry-run` preview always agree about whether the command touches disk.
 
 A categories file left with no vocabulary and no cards is deleted rather than written as `{}`, and its `.sha256` goes with it.
 
-The `.sha256` is refreshed only when it matched the categories file before the write. A **hand-edited** file therefore keeps its stale hash (its `.sha256` is not in `writtenFiles`), so [`detect-changes`](/commands/detect-changes/) still records the hand edit.
+The `.sha256` is refreshed only when it matched the categories file before the write. A hand-edited file therefore keeps its stale hash (its `.sha256` is not in `writtenFiles`), so [`detect-changes`](/commands/detect-changes/) still records the hand edit.
 
 ### Changelog entries
 
@@ -109,19 +109,19 @@ The changelog records:
 
 ### Stale names
 
-An entry naming a card the list no longer holds is **kept**. `categories list` reports it on stderr:
+An entry naming a card the list no longer holds is kept. `categories list` reports it on stderr:
 
 ```
 Categories are recorded for cards this list no longer holds: Sol Ring. They are kept until the list is saved or cleaned up.
 ```
 
-`--quiet` does not hide it, because the next save will drop that data. The check needs a **complete** read of the list. When the file holds a body line the card-line parser cannot read, `categories list` reports that instead and names no entry stale, since a card it could not see is not a card that is gone.
+`--quiet` does not hide it, because the next save will drop that data. The check needs a complete read of the list. When the file holds a body line the card-line parser cannot read, `categories list` reports that instead and names no entry stale, since a card it could not see is not a card that is gone.
 
 Nothing in this command prunes. Pruning happens on the list's own save (an [editor](/commands/edit/) session, an admin save), on a cross-list [`move`](/commands/move/) that rewrites the list from a clean parse, and in [`ritual cleanup`](/commands/cleanup/).
 
 ### Dry runs
 
-`-n` / `--dry-run` resolves the list, validates the arguments, computes the edit, reports it, and stops. Nothing is written: no categories file, no `.sha256`, no changelog. `wouldWrite` says whether a real run would touch the categories file. It is `false` for a no-op edit, in which case a real run writes nothing at all, changelog included. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true` alongside the usual fields.
+`-n` / `--dry-run` resolves the list, validates the arguments, computes the edit, reports it, and stops. Nothing is written: no categories file, no `.sha256`, no changelog. `wouldWrite` says whether a real run would touch the categories file. It is `false` for a no-op edit, in which case a real run writes nothing, changelog included. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true` alongside the usual fields.
 
 ### JSON output
 

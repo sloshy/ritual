@@ -83,7 +83,7 @@ When both a name and `--card-id` are given they must agree. A disagreement is a 
 
 ### Dry Runs
 
-`-n` / `--dry-run` resolves the list and the card, runs every validation, and reports the removal it _would_ perform. Nothing is written: no list file, changelog, or `.sha256` file, and no card-ID backfill. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`. Use it before a fuzzy-name removal, which otherwise deletes on a single unique substring match with no confirmation.
+`-n` / `--dry-run` resolves the list and the card, runs every validation, and reports the removal it would perform. Nothing is written: no list file, changelog, or `.sha256` file, and no card-ID backfill. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`. Use it before a fuzzy-name removal, which otherwise deletes on a single unique substring match with no confirmation.
 
 ### Deck Quantities
 
@@ -99,7 +99,7 @@ Each removal is recorded in the list's `.changes.md` changelog: one `Removed "<C
 
 ### Custom Art
 
-Deleting a line also drops that card's entry from the list's [custom-art sidecar](/custom-art/#art-follows-the-card), so the released `&N` cannot hand the image to the next card added. A deck decrement that leaves copies on the line keeps both the ID and the art. Art writes record no changelog entry.
+Deleting a line also drops that card's entry from the list's [custom-art sidecar](/custom-art/#art-follows-the-card), so the next card added under the released `&N` does not get the image. A deck decrement that leaves copies on the line keeps both the ID and the art. Art writes record no changelog entry.
 
 ## Exit Codes
 

@@ -48,7 +48,7 @@ The steps:
 6. **Replacements** (only with the replace option on). One row per source list and printing taken (`1× Lightning Bolt (LEA:161) taken from Binder`), each with **Choose replacement…** to say which printing that list gets back. **No replacement** leaves it a copy short.
 7. **Summary.** The moves grouped by list, and the value before → after. Apply from here.
 
-Picking a copy that has no printing in its source list (a wanted line, or a name-only deck line) first confirms it is that entry, then asks which printing it actually is.
+Picking a copy that has no printing in its source list (a wanted line, or a name-only deck line) first confirms it is that entry, then asks which printing it is.
 
 Applying records each replacement as a move into the edited list and each displaced copy as a move out. The result shows in the edited view and the **Changes** dialog, and travels in the exported bundle's top-level `moves` array. A copy arriving on a **name-only** line pins that line instead of adding a copy; nothing is displaced, so no move out accompanies it, and the bundle records it as a move carrying `pinsCardId` (plus its `replacement`, when one was chosen). Nothing is written until the bundle is imported into the admin editor and saved.
 

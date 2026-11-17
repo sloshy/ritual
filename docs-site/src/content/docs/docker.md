@@ -37,7 +37,7 @@ Each release publishes an image for `linux/amd64` and `linux/arm64` to the GitHu
 
 ## Updating
 
-The image, not the binary inside it, is what you update: pull a newer image (`docker pull ghcr.io/sloshy/ritual`). The image sets `RITUAL_INSTALL=docker`, so [`ritual self-update`](/commands/self-update/) refuses inside a container (`--check` included) and says so, and no [update notice](/commands/self-update/#update-notice) is ever shown. The [releases page](https://github.com/sloshy/ritual/releases) lists what is available. After pulling a newer image, run [`ritual migrate`](/commands/migrate/) in it if your workspace has pending updates.
+To update, pull a newer image (`docker pull ghcr.io/sloshy/ritual`) instead of updating the binary inside it. The image sets `RITUAL_INSTALL=docker`, so [`ritual self-update`](/commands/self-update/) refuses inside a container (`--check` included) and says so, and no [update notice](/commands/self-update/#update-notice) is ever shown. The [releases page](https://github.com/sloshy/ritual/releases) lists what is available. After pulling a newer image, run [`ritual migrate`](/commands/migrate/) in it if your workspace has pending updates.
 
 ## Health Check
 
@@ -102,7 +102,7 @@ services:
 
 `--refresh never` stops the container from downloading anything on startup. The default `ask` would offer the bulk download an empty or week-old cache needs, and a container has no terminal to answer it, so it is declined. Populate the cache first with `ritual cache preload-all`, point the container at a shared cache server with `--cache-server`, or pass `--refresh auto` to let the container download what it needs on startup.
 
-An empty `dist/` mount is fine: `--api` builds the site on startup when there is none. That build needs card data, so with `--refresh never` **and** an empty cache it fails and the container exits 1. Add `--build` to rebuild the site on every start.
+An empty `dist/` mount is fine: `--api` builds the site on startup when there is none. That build needs card data, so with `--refresh never` and an empty cache it fails and the container exits 1. Add `--build` to rebuild the site on every start.
 
 `--refresh never` also skips the startup [buylist](/commands/sell/) refresh, which runs only when [sell mode](/public-site/sell/) is enabled. A long-lived container then quotes the feed it started with until you refresh it from the admin site or a CLI run.
 
@@ -122,9 +122,9 @@ Mount these directories to keep your data and work with the files Ritual uses:
 | `./.trash`      | `/app/.trash`       | Lists you [delete](/commands/delete/#restoring-a-deleted-list), kept for restoring.         |
 | `./.backups`    | `/app/.backups`     | Copies [`ritual migrate`](/commands/migrate/#numbered-migrations) takes before a migration. |
 
-Outside a container, the [card cache](/card-cache/) lives in one per-user folder every workspace shares. The image instead sets `RITUAL_CACHE_DIR=/app/cache`, so the cache is the `/app/cache` mount and survives the container being recreated; a `cacheDir` in a mounted `ritual.config.json` does not move it, because the variable outranks the key. Set `RITUAL_CACHE_DIR` (`-e` or `environment:`) to keep it somewhere else. Several containers can mount the same cache directory: cache refreshes take a lock in it, so they wait for one another.
+Outside a container, the [card cache](/card-cache/) is in one per-user folder every workspace shares. The image instead sets `RITUAL_CACHE_DIR=/app/cache`, so the cache is the `/app/cache` mount and survives the container being recreated; a `cacheDir` in a mounted `ritual.config.json` does not move it, because the variable outranks the key. Set `RITUAL_CACHE_DIR` (`-e` or `environment:`) to keep it somewhere else. Several containers can mount the same cache directory: cache refreshes take a lock in it, so they wait for one another.
 
-Without the last two mounts, deleted lists and migration backups live in the container's own filesystem and are lost when the container is recreated. Mount directories rather than single files: Ritual saves a file by writing a new copy and renaming it into place, which a single-file bind mount does not allow, so such a file is written in place instead, without that protection.
+Without the last two mounts, deleted lists and migration backups are kept in the container's own filesystem and are lost when the container is recreated. Mount directories rather than single files: Ritual saves a file by writing a new copy and renaming it into place, which a single-file bind mount does not allow, so such a file is written in place instead, without that protection.
 
 ## Building the Image
 

@@ -1,9 +1,9 @@
 ---
 title: 'Card Cache'
-description: "The local copy of Scryfall's card data Ritual keeps, where it lives, how big it is, how it is refreshed, and how to use Ritual offline."
+description: "The local copy of Scryfall's card data Ritual keeps, where it is stored, how big it is, how it is refreshed, and how to use Ritual offline."
 ---
 
-Ritual does not ask Scryfall about every card each time it needs one. It keeps a local copy of Scryfall's card data, the **card cache**: card names, printings, Oracle text, images and prices. Lookups, pricing, autocomplete and site builds all read from it.
+Ritual keeps a local copy of Scryfall's card data, the **card cache**: card names, printings, Oracle text, images and prices. Lookups, pricing, autocomplete and site builds all read from it, so Ritual does not query Scryfall each time it needs a card.
 
 ## What is in it
 
@@ -55,7 +55,7 @@ To refresh by hand, run [`ritual cache preload-all`](/commands/cache/#preload-al
 
 ## Offline use
 
-Once the cache is downloaded, most of Ritual works without a network connection: editing lists, looking cards up, pricing with the prices you have, and building the site. Pass `--refresh never` so Ritual uses the cache as it is and skips refresh downloads, for example `ritual price "My Deck" --refresh never`. A card that is not in the cache at all is still looked up on Scryfall, which needs the network.
+Once the cache is downloaded, most of Ritual works without a network connection: editing lists, looking cards up, pricing with the prices you have, and building the site. Pass `--refresh never` so Ritual uses the cache as it is and skips refresh downloads, for example `ritual price "My Deck" --refresh never`. A card that is not in the cache is still looked up on Scryfall, which needs the network.
 
 Signing in to and syncing with Archidekt, importing from a website, and checking for updates need the network.
 

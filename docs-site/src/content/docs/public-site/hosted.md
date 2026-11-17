@@ -49,7 +49,7 @@ ritual build-site
 
 The URL is written into `index.json`. On load, the site fetches the live index from that base and switches to hosted behavior. The API's routes answer with `Access-Control-Allow-Origin: *`, so the cross-origin fetches need no further setup.
 
-If the API is unreachable (down, or the visitor is offline), the site **degrades gracefully**: it falls back to the built data and Scryfall search for the rest of the session, exactly like the static site, and the header badge switches to **Offline**. Refreshing the page retries the backend.
+If the API is unreachable (down, or the visitor is offline), the site falls back to the built data and Scryfall search for the rest of the session, as the static site behaves, and the header badge switches to **Offline**. Refreshing the page retries the backend.
 
 If the static site and the API sit behind one reverse proxy on the same origin, set `site.apiBaseUrl` to the empty string instead.
 

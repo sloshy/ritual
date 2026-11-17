@@ -63,7 +63,7 @@ The old `.sha256` content hash is removed. A fresh one is written only when the 
 
 Renaming onto a name that already [resolves](/list-resolution/#names-that-would-collide-are-refused-at-creation) to another list of the same type is refused. That includes a name that merely folds onto it (`atraxa superfriends` onto `Atraxa Superfriends`), which would leave two lists sharing one addressable name.
 
-Renaming a list to a different spelling of **its own** name is never a collision. Changing only capitalization (`burn` → `Burn`) or punctuation is a display-name change. On a case-insensitive file system (macOS, Windows) the new path names the same file, so the list and its companion files are moved through a temporary name to make the new spelling stick. A failure part-way puts everything back.
+Renaming a list to a different spelling of its own name is never a collision. Changing only capitalization (`burn` → `Burn`) or punctuation is a display-name change. On a case-insensitive file system (macOS, Windows) the new path names the same file, so the list and its companion files are moved through a temporary name so the new spelling takes effect. A failure part-way puts everything back.
 
 ## Exit Codes
 

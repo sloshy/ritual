@@ -47,7 +47,7 @@ ritual move [cardName...] --from <list> --to <list> [options]
 
 With both `--from` and `--to`, the move runs with no prompts, so it is safe for scripts and agents. A card selector is required: a card name or `--card-id`. Passing any scripting flag (a card name, `--quantity`, `--card-id`, `--set`, `--collector-number`, `--finish`, `--to-section`) without both `--from` and `--to` is a usage error (exit `2`); the command never falls back to the interactive session.
 
-Scripted moves behave exactly like interactive ones: deck sources decrement quantity, notes travel with the card, both lists get changelog entries, and the destination assigns a fresh `&N` ID.
+Scripted moves behave like interactive ones: deck sources decrement quantity, notes travel with the card, both lists get changelog entries, and the destination assigns a fresh `&N` ID.
 
 `--to-section <name>` places the card in that deck section instead of the default (the first main-deck section: not Commander, Companion, Sideboard, Maybeboard or Tokens). The name is matched exactly and created when missing. Using it with a collection or wanted-list destination is a usage error.
 
@@ -107,14 +107,14 @@ ritual move --card-id 7 --from wanted:needs --to deck:storm --output json
 - **By name**: punctuation-, case-, and accent-insensitive. An exact name match wins; otherwise substring matches are used.
 - **By card ID**: `--card-id <N>` targets an entry by its `&N` suffix. A card name given alongside it must match that entry, or the move is refused with a usage error naming both (`--card-id 2 is 'Brainstorm', which does not match 'Sol Ring'.`). This guards against a stale ID moving the wrong card.
 - **Narrowing**: when the name matches several variants (set, collector number, finish, or language), the command exits with a usage error listing them rather than picking one. Narrow with `--set`, `--collector-number`, `--finish`, or `--card-id`. A bare English line beside a `[ja]` one counts as two variants; `--card-id` picks between them.
-- **Quantity**: `-q` moves that many copies of the _same_ printing. Asking for more copies than the source holds is an error, and nothing is moved.
+- **Quantity**: `-q` moves that many copies of the same printing. Asking for more copies than the source holds is an error, and nothing is moved.
 
 ### Printings for Collection Destinations
 
 Collections require a concrete printing. A card that already has one keeps it. A name-only card (such as a wanted entry) gets its printing resolved in this order:
 
 1. `--set` + `--collector-number`, when given (both are required together). The pair is checked against the card's printings in the local card cache. A pair the card was never printed as is a usage error listing the printings that exist.
-2. The card's **single** known printing in the local cache, accepted automatically.
+2. The card's single known printing in the local cache, accepted automatically.
 3. Otherwise a usage error listing the cached printings to pick from.
 
 Both steps read the local cache only. For a card the cache does not hold, step 2 cannot apply, so `--set`/`--collector-number` is required. In that case Ritual verifies the given printing with one direct Scryfall request, so the purchase flow above works on a workspace that has never bulk-downloaded the cache, as long as it is online. Offline, that check fails with exit `1`. Running [`ritual cache preload-all`](/commands/cache/) once makes that network check unnecessary.
@@ -138,7 +138,7 @@ Key behaviors:
 - **Name-only wanted entries**: a card with no printing headed into a collection prompts you to pick one before the move is queued. The picker shows each printing's price in the currency of your configured `defaultPriceSource`; see [Printing and Finish Prices](/commands/edit/#printing-and-finish-prices).
 - **Single destination**: in the single-card flow, when only one enabled destination is not the card's own list, the destination prompt is skipped. [Batch Mode](#batch-mode) always asks.
 - **Change tracking**: the source gets a `Moved … to …` changelog entry and the destination a `Moved … from …` entry.
-- **Deck files are rewritten in canonical form**: a move touching a deck re-serializes that deck file. The move is **refused** when the parser cannot read part of the file (prose or a fenced code block), since the write would delete it. An empty section heading is kept and written back bare, except an empty extras section (`## Maybeboard`, `## Tokens`), which holds nothing and is dropped rather than refused. Moving a section's last card out leaves its heading behind, as removing it does. Collection and wanted-list files are edited as text and keep such lines.
+- **Deck files are rewritten in canonical form**: a move touching a deck re-serializes that deck file. The move is refused when the parser cannot read part of the file (prose or a fenced code block), since the write would delete it. An empty section heading is kept and written back bare, except an empty extras section (`## Maybeboard`, `## Tokens`), which holds nothing and is dropped rather than refused. Moving a section's last card out leaves its heading behind, as removing it does. Collection and wanted-list files are edited as text and keep such lines.
 
 ### Interactive Flow
 
@@ -184,7 +184,7 @@ The rows above the cards are:
 
 Escape at the destination or section question returns to the checklist with the selection intact, and so does a batch in which nothing could be queued. Your selection is never thrown away.
 
-After a batch is queued the session stays in Batch Mode and reopens at the list picker with the same lists ticked. When every card of the viewed lists is already queued (or those lists are empty), Batch Mode reports `No cards left to move in the selected lists.` and returns to the card search. So Batch Mode ends in four ways: `⬅ Exit batch mode`, Escape on the checklist, emptying the list picker, or running the viewed lists dry.
+After a batch is queued the session stays in Batch Mode and reopens at the list picker with the same lists ticked. When every card of the viewed lists is already queued (or those lists are empty), Batch Mode reports `No cards left to move in the selected lists.` and returns to the card search. So Batch Mode ends in four ways: `⬅ Exit batch mode`, Escape on the checklist, emptying the list picker, or having no cards left to move in the viewed lists.
 
 Cards can drop out of a queued batch, each reported with a count:
 
@@ -247,15 +247,15 @@ A moved card takes its [custom art](/custom-art/#art-follows-the-card) with it: 
 
 ## Categories
 
-A card's [categories](/commands/categories/) do **not** travel with it. A category belongs to a card **name in one list**, so the arriving copy has whatever categories the destination already recorded for that name, if any.
+A card's [categories](/commands/categories/) do not travel with it. A category belongs to a card name in one list, so the arriving copy has whatever categories the destination already recorded for that name, if any.
 
-The move does rewrite the categories sidecars of the lists it writes. Each is pruned to the names that list still holds, so a source that lost its **last** copy of a name loses that name's entry. Pruned names are reported on stderr, and `<list>.categories.json` and its `.sha256` are staged by an auto-commit. A list holding a bullet the card-line parser could not read is skipped: its sidecar keeps every entry, stale or not, until a later clean parse (a save, or [`ritual cleanup`](/commands/cleanup/)) prunes them.
+The move does rewrite the categories sidecars of the lists it writes. Each is pruned to the names that list still holds, so a source that lost its last copy of a name loses that name's entry. Pruned names are reported on stderr, and `<list>.categories.json` and its `.sha256` are staged by an auto-commit. A list holding a bullet the card-line parser could not read is skipped: its sidecar keeps every entry, stale or not, until a later clean parse (a save, or [`ritual cleanup`](/commands/cleanup/)) prunes them.
 
 ## Fenced Code Blocks
 
 Collection and wanted-list sides of a move are line-preserving. A card-looking bullet inside a [fenced code block](/list-format/#fenced-code-blocks) is prose, never the line a move removes, and the block survives byte-for-byte. A **deck** on either side is re-serialized whole, which cannot reproduce a fenced block, so a move touching a deck whose file holds one (or any line the parser cannot read) is refused before anything is written.
 
-A destination whose file ends inside an **unclosed** fence is also refused, since the new line would be appended inside the fence and read back as prose.
+A destination whose file ends inside an unclosed fence is also refused, since the new line would be appended inside the fence and read back as prose.
 
 ## Exit Codes
 

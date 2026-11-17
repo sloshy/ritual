@@ -13,7 +13,7 @@ Compare two lists, in any mix of deck, collection, and wanted list. The report s
 ritual diff <listA> <listB> [options]
 ```
 
-Both names resolve like every list command (see [List Names](/list-resolution/)). A `deck:` / `collection:` / `wanted:` prefix selects the type. The prefix matters more here than elsewhere: a deck and a collection sharing a name is exactly what you diff, so `ritual diff deck:vampires collection:vampires` disambiguates each side. An unprefixed ambiguous name is a usage error; see [what the ambiguity error advises](/list-resolution/#what-the-ambiguity-error-advises).
+Both names resolve like every list command (see [List Names](/list-resolution/)). A `deck:` / `collection:` / `wanted:` prefix selects the type. The prefix matters more here than elsewhere, because a deck and a collection sharing a name are a likely pair to diff, and `ritual diff deck:vampires collection:vampires` disambiguates each side. An unprefixed ambiguous name is a usage error; see [what the ambiguity error advises](/list-resolution/#what-the-ambiguity-error-advises).
 
 ## Arguments
 

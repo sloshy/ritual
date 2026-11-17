@@ -1,7 +1,7 @@
 # Ritual demo workspace
 
-A small, made-up Ritual workspace: a few decks, a trade binder, and a wanted list, built into the
-live demo at <https://ritual.rpeters.dev/demo/>. The cards are real; the lists are invented.
+A small Ritual workspace of invented lists of real cards (a few decks, a trade binder, and a wanted
+list), built into the live demo at <https://ritual.rpeters.dev/demo/>.
 
 Rebuild it locally from the repository root:
 
