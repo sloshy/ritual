@@ -71,7 +71,7 @@ ritual dep-license --list
 
 ```text
 Primary:
-  commander 15.0.0 MIT
+  commander 15.1.0 MIT
   prompts 2.4.2 MIT
 Transitive:
   kleur 3.0.3 MIT
@@ -87,7 +87,7 @@ ritual dep-license --list --output json
 
 ```json
 [
-  { "name": "commander", "version": "15.0.0", "license": "MIT", "isPrimary": true },
+  { "name": "commander", "version": "15.1.0", "license": "MIT", "isPrimary": true },
   { "name": "kleur", "version": "3.0.3", "license": "MIT", "isPrimary": false }
 ]
 ```
