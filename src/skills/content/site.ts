@@ -17,9 +17,9 @@ ritual init-site                 # scaffold the CI workflow + gitignore for publ
 ritual init-site --force         # regenerate all managed files
 \`\`\`
 
-Run bare in a terminal, \`init-site\` walks through its choices interactively. When
+Run bare in a terminal, \`init-site\` asks for its choices interactively. When
 prompts are unavailable (\`--no-input\`, \`RITUAL_NO_INPUT\`, or no terminal), every
-prompt must be pre-answered with a flag — a missing one is a usage error (exit 2)
+prompt must be pre-answered with a flag. A missing one is a usage error (exit 2)
 naming the flag:
 
 \`\`\`bash
@@ -34,14 +34,14 @@ Flags: \`--ci github-actions|manual\`, \`--deploy publish-for-me|local-build\`
 \`--price-source tcgplayer|cardkingdom|cardmarket|cardhoarder\` (the default
 price store; it is added to \`priceSources\` when missing), and \`--skills\`/\`--no-skills\` (install the Ritual agent
 skills). Flags that do not apply to the chosen CI system or deploy mode are usage
-errors — including either form of \`--change-detection\` outside
+errors, including either form of \`--change-detection\` outside
 \`--deploy publish-for-me\`. An existing \`README.md\` additionally needs
 \`--overwrite-readme\`, \`--no-overwrite-readme\`, or \`--force\`.
 
 Re-running \`init-site\` on an initialized repository never changes it and exits
 **0**: it prints \`Already initialized and up to date; nothing to do.\`, or, when a
-newer Ritual has updates for the workspace, tells you to run \`ritual migrate\` —
-so it is safe in an idempotent setup script. The exception: a workspace a newer
+newer Ritual has updates for the workspace, tells you to run \`ritual migrate\`.
+Re-running is therefore safe in an idempotent setup script. The exception: a workspace a newer
 Ritual already updated (or whose config cannot be made valid) is refused with
 exit **1**, exactly as \`ritual migrate\` refuses it.
 
@@ -59,7 +59,7 @@ ritual migrate --yes       # apply without the confirmation prompt
 \`\`\`
 
 Always run \`--check\` or \`--dry-run\` first and show the user the plan.
-**Always ask before applying** — migrate rewrites \`ritual.config.json\` and
+**Always ask before applying**: migrate rewrites \`ritual.config.json\` and
 generated files. Before a numbered migration changes anything it copies the config
 and every file it will rewrite, delete or move into
 \`.backups/<time>-migration-<n>/\` (paths kept) and prints that folder; copying the
@@ -81,7 +81,7 @@ and the command proceeds with its normal exit code and output:
 > them, then \`ritual migrate\` to apply them.
 
 When you see it, run \`ritual migrate --dry-run\`, show the user the plan, and
-ask before running \`ritual migrate --yes\` — never apply on your own. If
+ask before running \`ritual migrate --yes\`. Never apply on your own. If
 \`--dry-run\` refuses (exit 1), show the user its message instead: the config
 needs a hand fix first. A stderr
 line starting \`Warning: this workspace was\` that calls the workspace's Ritual
@@ -95,11 +95,11 @@ program itself.
 \`managed.version\` (a \`RITUAL_VERSION\` repository variable set to a tag such as
 \`v1.0.0\` overrides it). Only a Ritual **release** build writes the pin; a dev
 build leaves it alone and warns that CI keeps running the pinned release, which
-does not know any migrations the dev build just applied. CI therefore moves to a
+does not include any migrations the dev build just applied. CI therefore moves to a
 newer Ritual only when the user runs \`ritual migrate\` with that newer release and
 commits \`ritual.config.json\`. For a publish-for-me workspace, a release newer
-than the pin (or no pin at all) is itself pending work — \`--check\` exits 4 and
-the plan shows \`Pin CI to Ritual <version>\` — even when nothing else changed. A
+than the pin (or no pin at all) is itself pending work (\`--check\` exits 4 and
+the plan shows \`Pin CI to Ritual <version>\`), even when nothing else changed. A
 workspace with no pin builds with the latest stable release (or the newest
 prerelease while no stable release exists), and the CI run logs a warning
 naming the release it picked.
@@ -110,11 +110,11 @@ command renders \`--out-dir <distDir>\` when that directory is not \`dist\`.
 
 ## CI / publishing pipeline
 
-The generated GitHub Actions workflow is wired around three commands, just as
-useful in a hand-rolled pipeline:
+The generated GitHub Actions workflow is built on three commands, equally
+useful in a hand-written pipeline:
 
 **\`ritual list-all-cards\`** prints a deduplicated, deterministically sorted
-manifest of every unique card across all decks, collections, and wanted lists —
+manifest of every unique card across all decks, collections, and wanted lists:
 a stable fingerprint of what a build needs from Scryfall, designed to be a CI
 cache key. \`--out <file>\` writes it to a file (relative to the base dir; \`-\`
 means stdout), and \`--output text|json|ndjson\` picks the format (\`text\` is a
@@ -125,8 +125,8 @@ emitted. The generated workflow sets \`RITUAL_CACHE_DIR: cache\` for the job (so
 the card cache in the checkout's \`cache/\` folder rather than the runner's per-user cache),
 writes \`all-cards.md\`, restores that \`cache/\` directory keyed on the file's hash (with a
 prefix fallback to the newest previous cache), then runs
-\`./ritual build-site --refresh auto\` — so the bulk download reruns only when the cards the
-site needs actually changed. A hand-written CI job that caches the card cache must likewise
+\`./ritual build-site --refresh auto\`, so the bulk download reruns only when the cards the
+site needs have changed. A hand-written CI job that caches the card cache must likewise
 point \`RITUAL_CACHE_DIR\` at the path it caches.
 
 **\`ritual detect-changes <commit>\`** (e.g. \`HEAD~1\`) makes hand-edited
@@ -143,23 +143,23 @@ stamped, so it keeps showing as drifted under \`--verify\` until
 changelogsUpdated, renames, results, warnings}\`, where each warning is
 \`{kind: 'missing-file' | 'parse', file, revision?, message}\`. Outside a git
 repo, or with an unknown ref, it fails with a named error (exit 1) instead of
-raw git output — a git failure that is neither is reported as such rather than
+raw git output. A git failure that is neither is reported as such rather than
 as "not a git repository". A file that changed in the range but is gone from
 the working tree is skipped with a \`missing-file\` warning (the rest still
 runs, exit 1); an unparseable line is a \`parse\` warning that does not change
 the exit code. The card-ID backfill that
 list-writing commands run refreshes a file's \`.sha256\` only when the sidecar
 already matched the file, so a hand edit keeps its stale or absent sidecar and
-\`detect-changes\` still records it — and \`detect-changes\` itself never
+\`detect-changes\` still records it, and \`detect-changes\` itself never
 backfills, in any mode. With change detection enabled, the generated workflow
 diffs against the pushed-from commit (falling back to the previous commit),
 commits any updated changelogs back as \`github-actions[bot]\`, and skips the
-rest of the build — that push re-triggers the workflow, and the second run
+rest of the build: that push re-triggers the workflow, and the second run
 builds from the updated tree.
 
 **\`ritual detect-changes --hash-only\`** stamps the \`.sha256\` sidecar for
 every list file from its current content (never a \`.changes.md\` or
-\`.primer.md\`), with no git and no changelog entries — the manual
+\`.primer.md\`), with no git and no changelog entries: the manual
 "ritual-clean" stamp. It is destructive to history: any stamped file whose
 content diverged from its sidecar (or never had one) will never receive
 changelog entries for those edits, so the command names every such file in a
@@ -171,7 +171,7 @@ unrecordedEdits}\` where \`priorState\` is the sidecar state the stamp
 overwrote.
 
 **\`ritual detect-changes --verify\`** answers "which lists have been
-hand-edited since Ritual last wrote them?" — it writes nothing and reports each
+hand-edited since Ritual last wrote them?" It writes nothing and reports each
 list file as \`clean\`, \`diverged\`, or \`no sidecar\`, exiting 1 when
 anything has drifted (like \`cleanup --check\`, so CI or a pre-commit hook can
 gate on it). \`--output json\` emits \`{mode: 'verify', files, clean,
@@ -200,9 +200,9 @@ ritual build-site --sell-mode                      # offer sell mode for this ru
                                                    #   buylist and bake its buy prices into the site
 \`\`\`
 
-The opening theme is configurable, so a build that passes no theme flags — the
+The opening theme is configurable, so a build that passes no theme flags (the
 \`init-site\` deploy workflow's, which \`ritual migrate\` rewrites, so never edit
-flags into it — still opens on it. Precedence is flag > config > \`default\`, per
+flags into it) still opens on it. Precedence is flag > config > \`default\`, per
 key: \`--theme\` replaces \`site.theme\`, \`--theme-file\` replaces (never extends)
 \`site.themeFiles\`.
 
@@ -218,8 +218,8 @@ custom theme (unset or change the theme first). The admin **Settings** page's
 **Site theme** select writes \`site.theme\`, and the admin **Build Site** action
 and MCP \`build_site\` honour both keys (they run \`ritual build-site\`).
 An invalid \`site\` block (any malformed field, e.g. a typo'd theme) stops every
-publish — \`build-site\` (exit 1, naming the field, no \`dist/\` written) and
-\`serve --api\` list requests — rather than publishing every list with the
+publish, \`build-site\` (exit 1, naming the field, no \`dist/\` written) and
+\`serve --api\` list requests, rather than publishing every list with the
 block's exclusions dropped; fix the named field.
 
 \`--cache-images\` downloads card images locally instead of hot-linking Scryfall;
@@ -229,12 +229,12 @@ A card with **custom art** (see the **ritual** skill) publishes it too: every
 file a list's \`<name>.art.json\` references is copied from the configured
 \`artDir\` into \`dist/art/\` (once per unique path, so lists share files) and baked
 onto the card, while a \`url\` reference is baked verbatim. The build reports how
-many files it copied, and names any referenced file that is missing — that card
+many files it copied, and names any referenced file that is missing: that card
 falls back to the printing's own scan rather than failing the build. \`ritual
 serve --api\` needs no copy: it serves the art directory live at \`/art/*\`, and an
 edit to a sidecar invalidates that list's cached detail. Such a card is baked at
-price **0** and left out of the totals and the missing-price counts — the same
-rule the \`proxy\` label carries — and the pages show \`CUSTOM\` (or \`PROXY\`)
+price **0** and left out of the totals and the missing-price counts (the same
+rule the \`proxy\` label carries), and the pages show \`CUSTOM\` (or \`PROXY\`)
 where a price would be, with no buylist quote in sell mode.
 
 A deck or wanted-list total that includes a card with no pinned printing (priced at
@@ -243,15 +243,15 @@ tiles, page and section totals, the Filtered stat); collections never are.
 
 ### Site language
 
-The three locale flags decide what language the published site speaks. They are
-about **Ritual's own interface text** — the \`defaultLanguage\` config key is a
+The three locale flags decide what language the published site uses. They are
+about **Ritual's own interface text**. The \`defaultLanguage\` config key is a
 different setting entirely (which printing of a card is used), and the two are
 independent.
 
 - \`--locale <tag>\` bakes the default: the shell's \`<html lang>\`/\`dir\`, the
   \`uiLocale\` field of \`index.json\`, and the language the site opens in. Defaults
   to the \`uiLocale\` config value. The baked locale is always published, and a
-  baked locale this build has no dictionary for is a **warning** — the site
+  baked locale this build has no dictionary for is a **warning**: the site
   renders English rather than failing.
 - \`--locales <tags...>\` (space-separated, not comma-separated) picks which
   dictionaries land in \`dist/locales/\`, which is exactly what the in-app language
@@ -259,13 +259,13 @@ independent.
   \`en\`; \`all\` publishes every locale this build carries. A tag with no
   dictionary is a usage error (exit 2).
 - \`--locale-file <path...>\` loads dictionary JSON files from disk, each named for
-  its tag (\`de-AT.json\`), and adds them to the selectable set — the same escape
-  hatch \`--theme-file\` gives themes, and the way a **released binary publishes a
+  its tag (\`de-AT.json\`), and adds them to the selectable set. \`--theme-file\` is the
+  counterpart for themes, and this is the way a **released binary publishes a
   locale it was never built with**. A file that cannot be read or is not a valid
   dictionary fails the build (exit 1); a file overrides a built-in dictionary for
   the same tag.
 
-Per-locale URL prefixes are just a loop — no flag needed:
+Per-locale URL prefixes need no flag, only a loop:
 
 \`\`\`bash
 for tag in en fr ja; do
@@ -274,10 +274,10 @@ done
 \`\`\`
 
 Visitors switch language in the running site without a reload, and the choice
-sticks (remembered in \`localStorage\`). A \`locale=<tag>\` parameter in the hash
-query (\`#/decks?locale=de-AT\`) wins at load without replacing what is
+persists (remembered in \`localStorage\`). A \`locale=<tag>\` parameter in the hash
+query (\`#/decks?locale=de-AT\`) takes precedence at load without replacing what is
 remembered, which is how a link can be shared in a chosen language. Card names
-and oracle text are unaffected — those follow \`defaultLanguage\` and the per-card
+and oracle text are unaffected: those follow \`defaultLanguage\` and the per-card
 \`[ja]\` tokens.
 
 ${wrapProse(
@@ -296,17 +296,17 @@ ${wrapProse(
   that could not be fetched.
 - Names given to those flags match the display name **or** the file base name,
   ignoring case, accents and \`-\`/\`_\` separators (so \`--decks winota-stax\`
-  finds \`Winota Stax\`) — the same matching every other list-taking command uses.
+  finds \`Winota Stax\`), the same matching every other list-taking command uses.
   \`site.include*\` is stricter: display name, exactly.
 - A workspace with no lists at all says so and points at \`ritual new deck\`.
 - Nothing priced reports which cause it was: every selected list empty, or no
   price data in the cache (remedy: \`ritual cache preload-all\`, or
   \`--refresh auto\`).
-- A \`site.include*\` entry matching no list is only a **warning** — the build
+- A \`site.include*\` entry matching no list is only a **warning**: the build
   continues without it (rename drift), so check stderr in CI.
 - A list the build **discovered itself** (config selection, not a flag) that
   cannot be loaded is reported and skipped, and the rest of the site **is**
-  published — exit 0. Check stderr in CI for these too.
+  published (exit 0). Check stderr in CI for these too.
 - Passing a selection flag with **no names** (\`ritual build-site --decks\`) is a
   usage error (exit 2), not "build everything".
 
@@ -324,8 +324,8 @@ ${wrapProse(
 
 Each published list shows a cover: its commander when it is a commander deck,
 otherwise its most expensive printing. A list overrides that with the \`image:\`
-key in its own front matter — see the **ritual** skill's *List cover images*
-section for the grammar and \`ritual set-list-image\`. Two things the **build**
+key in its own front matter (see the **ritual** skill's *List cover images*
+section for the grammar and \`ritual set-list-image\`). Two things the **build**
 does with it: a \`file\` cover is copied into \`dist/art/\` alongside the
 per-card custom art (a path with nothing behind it prints the same
 \`Custom art file not found\` warning and falls back to the default cover), and a
@@ -361,14 +361,14 @@ ritual serve --build --out-dir ./preview  # build into ./preview and serve THAT 
 \`--out-dir\` names the directory the server uses, with or without \`--build\`:
 \`serve --out-dir X\` serves an existing build in X, and \`serve --build --out-dir X\`
 builds into X and serves X (a successful build replaces X, so the Ritual
-directory itself — or any ancestor of it, like \`.\` — is refused).
+directory itself, or any ancestor of it, like \`.\`, is refused).
 
 Serving a directory with no \`index.html\` is **refused** (exit 1) rather than
 answered with bare 404s; the message names \`ritual build-site\` and \`--build\`.
 Under \`--api\` it is not refused: the data is served live, so a missing build is
-just a missing app shell and the command builds one itself before serving.
-The startup line prints the address actually bound — \`localhost\` for a wildcard
-or loopback bind, the \`--host\` value otherwise, and it prints only after the
+only a missing app shell and the command builds one itself before serving.
+The startup line prints the address actually bound (\`localhost\` for a wildcard
+or loopback bind, the \`--host\` value otherwise), and it prints only after the
 port is bound: a port already in use is also exit 1
 (\`Failed to start the server on <host>:<port>: ...\`) with no startup line.
 
@@ -377,7 +377,7 @@ passing one without it is a usage error. \`--refresh\`, \`--out-dir\` and
 \`--sell-mode\` are the exceptions: \`--out-dir\` names the directory to serve
 whether or not a build runs, while \`--refresh\` (\`--api\` startup cache warming)
 and \`--sell-mode\` (a session setting the live server reads per request) are
-exempt **only under \`--api\`** — a plain \`serve --sell-mode\` has no reader and
+exempt **only under \`--api\`**: a plain \`serve --sell-mode\` has no reader and
 stays a usage error.
 
 ### Hosted mode (\`--api\`)
@@ -388,9 +388,9 @@ Hosted mode is **beta**: it may change in any release.
 JSON is computed from the markdown files per request (CLI/admin edits appear
 without rebuilding), and the public editor's card search uses the card cache
 with the admin editor's term matching instead of Scryfall. The trade page
-follows suit: its search covers the wanted lists and the cache together (no
+does the same: its search covers the wanted lists and the cache together (no
 Scryfall toggle), and shared trade links resolve their cards from the cache.
-There are no write routes — public edits still travel as export/import change
+There are no write routes: public edits are still sent as export/import change
 bundles. The live index also carries the current \`uiLocale\`, so a
 \`config set uiLocale\` takes effect on the next page load with no rebuild; the
 dictionaries offered in the switcher are still the files in the served
@@ -398,12 +398,12 @@ directory's \`locales/\`, so publishing a *new* language needs a
 \`build-site --locales\` run.
 
 Live payloads come from the card cache with no Scryfall fallback, so startup
-applies the **same cache freshness gates \`build-site\` applies** — over the cards
+applies the **same cache freshness gates \`build-site\` applies**, over the cards
 the served lists reference, under the same \`--refresh\` policy: a bulk download
 when the cache is empty, over a week old, or missing many of those cards; then
 the day-old price redownload offer; then the oracle/art tag download the tag
 filters need. There is no per-card Scryfall fetch (that is a build-only step),
-so \`--refresh never\` and \`--refresh no-bulk\` both warm nothing — what a
+so \`--refresh never\` and \`--refresh no-bulk\` both warm nothing, which is what a
 cache-server deployment wants.
 
 For a split deployment (static site on a CDN, API hosted separately), set
@@ -419,37 +419,37 @@ The **stores the site prices cards from** come from the \`priceSources\` config 
 (default \`["tcgplayer"]\`): \`tcgplayer\` is Scryfall's USD market price, \`cardmarket\`
 Scryfall's EUR trend price, \`cardhoarder\` Scryfall's MTGO tix price, and \`cardkingdom\` Card
 Kingdom's NM retail price, read off the same baked buylist quotes sell mode uses. The stores
-also decide the site's **currencies** — each store has exactly one (Card Kingdom is USD
+also decide the site's **currencies**: each store has exactly one (Card Kingdom is USD
 only), and a currency is never chosen on its own, so tix appears only with \`cardhoarder\`.
 \`build-site --price-sources\` can only narrow the stores for one build (a list naming no
 enabled store exits 2, and \`serve --api\` refuses the flag). The header's **Prices** dropdown (on the public and admin sites alike)
-picks the **store** — and so the currency — every price comes from, across list pages, the
+picks the **store** (and so the currency) every price comes from, across list pages, the
 index tiles, Quick Switch and Combine Lists (the build bakes each list's totals per store,
 Card Kingdom included); it appears only when more than one store is offered, and opens on
 the configured \`defaultPriceSource\` when offered. A store pick is shareable in the view URL
 (\`prices=cardmarket\` opens the recipient on Cardmarket, in EUR); switching stores clears
 price filters. With both USD stores
 enabled, a USD-store selector also appears in the card modal's **Other Printings** grid and
-in the printing pickers (trade/edit, and the add-card dialog's printing step) — the same
+in the printing pickers (trade/edit, and the add-card dialog's printing step). It is the same
 choice, so switching it in a dialog switches the page behind it. Each printing there is
 priced under the selected store, with its alternate finishes listed underneath, and the
-grid's price sort follows the store too. Under the Card Kingdom view a printing CK does not sell shows no price —
-there is deliberately no TCGplayer fallback — and the sell-mode spread compares CK's offer
+grid's price sort follows the store too. Under the Card Kingdom view a printing CK does not sell shows no price
+(there is deliberately no TCGplayer fallback), and the sell-mode spread compares CK's offer
 against the *selected* store's price (entering sell mode switches a USD view to Card Kingdom
 retail unless the user picked a store; a EUR or tix view keeps its store).
 
 Each store also **picks its own printing** for a card line that names none: the
 representative printing, and the cheapest one behind the "Lowest Price" toggle, are chosen
 from that store's catalog at that store's prices. So switching to Card Kingdom swaps the
-printing such a card displays — its art and set change with the price — on the public site
+printing such a card displays (its art and set change with the price) on the public site
 and in the admin editors alike. Two carve-outs: a line that *names* its printing displays
 and prices at that printing under every store (reading unpriced if CK does not sell it), and
-a card CK stocks no printing of keeps its Scryfall pick and simply reads unpriced. Because
+a card CK stocks no printing of keeps its Scryfall pick and reads unpriced. Because
 entering sell mode defaults the store to Card Kingdom, turning sell mode on can itself change
-which printing a name-only card shows — and therefore its buylist offer and the Buylist
+which printing a name-only card shows, and therefore its buylist offer and the Buylist
 total. An **empty** \`priceSources\` array hides every
-price surface on the sites — per-card prices, totals, price sort/filter/grouping, and the
-header's store picker — while \`ritual price\` and sell mode are unaffected:
+price surface on the sites (per-card prices, totals, price sort/filter/grouping, and the
+header's store picker) while \`ritual price\` and sell mode are unaffected:
 
 \`\`\`bash
 ritual config set priceSources tcgplayer cardkingdom   # offer both USD stores
@@ -462,8 +462,8 @@ cardkingdom enabled"), and the admin Settings page edits the key as **Price Stor
 checkboxes. The same page edits \`defaultCategories\` as a comma-separated **Default
 Categories** field.
 
-**Card categories** — a card's role in one list (\`Ramp\`, \`Board Wipes\`), kept in the list's
-\`.categories.json\` sidecar and keyed by card *name*, ordered with the first one *primary* —
+**Card categories**, a card's role in one list (\`Ramp\`, \`Board Wipes\`), kept in the list's
+\`.categories.json\` sidecar and keyed by card *name*, ordered with the first one *primary*,
 reach the site in four places:
 
 - **Group by → Category** puts each card under its primary category only.
@@ -475,27 +475,27 @@ reach the site in four places:
   category vocabulary. Matching is case-insensitive; the names keep their case in the chips and
   in the shared link.
 
-**Card tags** — the owner's own free-form tags, distinct from the Scryfall Oracle Tags / Art
-Tags rows — also get a **Tags** filter row (Include / Exclude / Exact), shown only on a list
+**Card tags** (the owner's own free-form tags, distinct from the Scryfall Oracle Tags / Art
+Tags rows) also get a **Tags** filter row (Include / Exclude / Exact), shown only on a list
 whose cards carry tags (the combined view included). Matching is exact and case-sensitive
 (\`Ramp\` and \`ramp\` are two tags) and the field commits on commas only.
 
-On a **deck** the board comes first and the categories nest inside it — headings read
-\`Main › Ramp\`, \`Sideboard › Draw\` — for both category groupings: every board takes part
+On a **deck** the board comes first and the categories nest inside it (headings read
+\`Main › Ramp\`, \`Sideboard › Draw\`) for both category groupings: every board takes part
 (commander, mainboard, sideboard, then each extras section under its own name). The other
 groupings (type, mana value, tags, …) still group the mainboard only.
 
-Group headings follow the list's own \`order\` from the sidecar, with **Uncategorized** last —
-on a deck, last within each board.
+Group headings follow the list's own \`order\` from the sidecar, with **Uncategorized** last
+(on a deck, last within each board).
 Shared links carry \`group=category\` / \`group=categories\`, \`sort=category\`, and the filter
-row's \`cats=Ramp,Board Wipes\` plus \`catMode=include|exclude|exact\`; the tags row rides as
+row's \`cats=Ramp,Board Wipes\` plus \`catMode=include|exclude|exact\`; the tags row is carried as
 \`tags=Signed,Trade Binder\` plus \`tagMode=include|exclude|exact\`. The combined multi-list
 view offers none of the three category controls, because each list has its own vocabulary.
 
 The \`defaultCategories\` config key is the **global suggestion vocabulary**: it seeds a list
 that has declared no order of its own, and it seeds the one-click suggestions in the site
-editors' category dialogs. It reaches both sites — \`build-site\` bakes it into \`index.json\`,
-and the admin SPA reads it from \`/api/config\` — so an empty array means "no suggested
+editors' category dialogs. It reaches both sites (\`build-site\` bakes it into \`index.json\`,
+and the admin SPA reads it from \`/api/config\`), so an empty array means "no suggested
 vocabulary" on both, never the shipped default:
 
 \`\`\`bash
@@ -530,18 +530,18 @@ updates it without a rebuild.
 The key gates every server surface too: with it off, \`admin\` and \`serve --api\` skip the
 startup buylist refresh, their \`/api/sell/*\` and \`/api/buylist/*\` routes answer 404, the admin
 UI hides its sell toggle and *Refresh buylist* card, and the four MCP buylist tools error
-\`Not found\`. \`ritual sell\` on the CLI is the one exception — running it is itself the
+\`Not found\`. \`ritual sell\` on the CLI is the one exception: running it is itself the
 request, so it is never gated. The gate re-reads the config on every request and the admin UI
 re-reads the effective value after a Settings save, so flipping the key takes effect without a
-restart or a page reload — but a server started with \`--sell-mode\` keeps sell mode on for that
+restart or a page reload, but a server started with \`--sell-mode\` keeps sell mode on for that
 whole run, whatever the stored key is later set to.
 
-The *first* buylist download is always deliberate — \`ritual sell --refresh auto\`, the admin
+The *first* buylist download is always deliberate: \`ritual sell --refresh auto\`, the admin
 **Refresh Cache** page's *Refresh buylist* button, the \`refresh_buylist\` tool,
 \`ritual cache preload-all\` with sell mode on, or a
 \`build-site --refresh auto\` run with sell mode on. After that \`serve --api\` and \`admin\` each
 redownload a day-old feed at startup (Card Kingdom regenerates it daily), under the same
-\`--refresh\` policy — \`no-bulk\`/\`never\` skip it. No page load ever triggers the ~70 MB fetch.
+\`--refresh\` policy (\`no-bulk\`/\`never\` skip it). No page load ever triggers the ~70 MB fetch.
 
 ## Web admin
 
@@ -558,14 +558,14 @@ ritual admin --sell-mode           # offer sell mode this run even with site.sel
 The admin's **Settings** page edits the same config keys the CLI does, including
 \`uiLocale\`, \`site.theme\` (a **Site theme** select) and \`site.sellMode\` (an **Offer sell
 mode** checkbox; saving it shows or hides this admin's sell surfaces at once, with no
-reload) — the admin serves every
+reload). The admin serves every
 locale the binary carries and reads its own
 language from \`GET /api/config\`, so switching it rebuilds nothing. There is no
 \`--locale\` build flag here: \`ritual admin\` regenerates its bundle (and its
 dictionaries) on every start, and \`--locale\`/\`RITUAL_LOCALE\` still set the
 language of the command's **terminal** output.
 
-Each card's context menu in the admin editors carries **Set Custom Art…** — a
+Each card's context menu in the admin editors carries **Set Custom Art…**, a
 file-or-URL field with a live preview that writes the list's \`<name>.art.json\`
 immediately (metadata, not part of the deferred change batch), the same
 operation as \`ritual set-card --art\` and the MCP \`set_card_art\` tool. The admin
@@ -583,15 +583,15 @@ auto-commit.
 The admin's **Import Changes** page applies a change-list JSON exported from the
 public site's edit mode (a version-1 bundle covering one or more lists, with
 cross-list moves normalized into a top-level \`moves\` array) with a per-list
-preview — moves listed in their own group — before applying; each move is written
+preview (moves listed in their own group) before applying; each move is written
 to both its lists. It is the same operation as \`ritual import-changes\` (see the
 **ritual-edit** skill) and the MCP \`import_change_bundle\` tool.
 
 Both web editors (admin and public, decks and collections only) offer a **Swap
 Printings…** wizard that re-picks many lines' printings at once from copies owned in
-the other lists and records the result as cross-list moves — see the **ritual-edit**
-skill for the flow. On the public site it sits in the navbar's edit row (plus the
-**Selected** menu and a card's ⋯ menu — name-only lines take part too, and a copy given to one exports as a move carrying \`pinsCardId\` (plus its \`replacement\`)), and the moves it plans export in the
+the other lists and records the result as cross-list moves (see the **ritual-edit**
+skill for the flow). On the public site it sits in the navbar's edit row (plus the
+**Selected** menu and a card's ⋯ menu; name-only lines take part too, and a copy given to one exports as a move carrying \`pinsCardId\` (plus its \`replacement\`)), and the moves it plans export in the
 bundle's top-level \`moves\` array like any other move.
 
 The admin's **Sync Decks** page runs \`deck-sync\` in the browser: pick a
@@ -607,7 +607,7 @@ would delete them) and shown with a "Sync anyway" confirmation. Same operation a
 \`get_sync_status\` / \`sync_decks\` tools.
 
 The admin's **Build Site** page runs the same build as \`ritual build-site\`, as a
-child process so the server stays responsive, and publishes atomically — a failed
+child process so the server stays responsive, and publishes atomically: a failed
 or interrupted build never replaces the live \`dist/\`. It streams the build as it
 runs: a progress bar over four structural steps (starting, building, publishing,
 done) and a live log of the build's own output, falling back to one plain request
@@ -621,21 +621,21 @@ build. The MCP \`build_site\` tool is the same operation.
 The admin's **Sync Collection** page is its counterpart for collections, running
 \`ritual collection-sync\`: pick a direction, scope the run to the whole
 collection or to selected lists, narrow it to additions or removals only, and
-(on a pull) choose the list new cards land in — defaulting to the
+(on a pull) choose the list new cards land in, defaulting to the
 \`collectionSync.pullTarget\` config key, created on first use. A pull also takes
 an ordered **removal priority**, offering the lists in scope: the browser cannot
 be prompted mid-run, so a removal whose copies span several lists is placed from
 the lists named there, or the whole run fails without writing anything (not even
 the account's last-sync time) and lists what it could not place. A **Preview
 only** run reports such a removal instead of failing on it.
-A push offers one control of its own — **Upload new cards as one CSV import**, on
+A push offers one control of its own, **Upload new cards as one CSV import**, on
 by default: the browser cannot be asked mid-run either, and with it off a push
 adding more new printings than Ritual will create one at a time fails without
 pushing anything. What the import did (rows, requests, and any row Archidekt
 refused) is reported when the run finishes.
 Progress streams per list with a copies-moved tally, and lists holding lines the
 parser cannot read are refused behind the same "Sync anyway" confirmation. The account's
-last sync time is shown above the controls — a collection belongs to an account,
+last sync time is shown above the controls: a collection belongs to an account,
 not to a file. Same operation as \`ritual collection-sync\` (see the
 **ritual-collections** skill) and the MCP \`sync_collection\` tool.
 
@@ -651,7 +651,7 @@ ritual admin --mcp --mcp-token "$RITUAL_MCP_TOKEN" --mcp-port 9100
 carrying a one-time token; the browser setup form refuses to create the account
 without it (\`RITUAL_ADMIN_SETUP_TOKEN\` pins the token for scripted setup).
 
-**Account setup and recovery** (headless — no server started): \`ritual admin setup\`
+**Account setup and recovery** (headless, no server started): \`ritual admin setup\`
 creates the admin account ahead of the first browser visit, no token needed (\`--username\` is
 required, even on a terminal), \`ritual admin reset-password\` resets a lost
 password (\`--username <name>\` also replaces the username; the TOTP enrollment is
@@ -668,7 +668,7 @@ ritual admin disable-totp --output json
 ## MCP server (for AI agents)
 
 \`ritual mcp\` runs a Model Context Protocol server exposing deck/collection/wanted
-operations as tools — an alternative to driving the CLI for MCP-native clients:
+operations as tools, an alternative to driving the CLI for MCP-native clients:
 
 \`\`\`bash
 ritual mcp                                         # stdio transport (default)
@@ -676,8 +676,8 @@ ritual mcp --transport http --port 8765 --token "$RITUAL_MCP_TOKEN"
 ritual mcp --sell-mode                             # answer the sell/buylist tools for this run
 \`\`\`
 
-The four buylist tools — \`get_sell_report\`, \`get_sell_cart\`, \`get_buylist_quotes\`
-and \`refresh_buylist\` — reuse the admin's sell routes, which are gated on sell
+The four buylist tools (\`get_sell_report\`, \`get_sell_cart\`, \`get_buylist_quotes\`
+and \`refresh_buylist\`) reuse the admin's sell routes, which are gated on sell
 mode (off by default): without \`--sell-mode\` or \`site.sellMode\` they fail with a
 \`Not found\` tool error, which \`refresh_buylist\` cannot fix. Every other tool is
 unaffected.
@@ -690,14 +690,14 @@ No \`overrides\` key means the instance follows the stored config.
 
 **MCP prose is English by contract.** Tool names, titles, descriptions, parameter
 docs, the server instructions, and the \`message\` field of every tool result stay
-English no matter what \`--locale\` / \`RITUAL_LOCALE\` / \`uiLocale\` say — those
+English no matter what \`--locale\` / \`RITUAL_LOCALE\` / \`uiLocale\` say (those
 settings move the CLI's own terminal output and the two web UIs, never this
-surface — with two exceptions the client shows its user, which follow the UI
+surface), with two exceptions the client shows its user, which follow the UI
 locale: the \`sync_collection\` elicitation form and a task's \`statusMessage\`
 (the MCP Tasks extension). Results that come from an admin handler carry \`messageKey\` (plus
 \`messageParams\` when the sentence interpolates) beside the English \`message\`: a
 stable, locale-invariant identifier to match on instead of matching prose. Params
-may nest — a param may itself be a message, a list, a duration (\`elapsedMs\`, or
+may nest. A param may itself be a message, a list, a duration (\`elapsedMs\`, or
 \`durationMs\` for an age or a time-out) or a card language: in the \`import_csv\`,
 \`import_deck\` and \`import_change_bundle\` results (a count with its noun — and
 \`get_list\`'s \`warnings\`, the sync tools' \`report.unreadable[].warnings\`,
@@ -709,11 +709,11 @@ nested as \`text\`, each \`import_csv\` failure carrying \`reasonKey\`/\`reasonP
 the sync tools' per-item \`reasonParams\`, and in their run-level
 \`report.errorMessages[].messageParams\`. Each failed list of
 \`import_change_bundle\` carries \`errorKey\`/\`errorParams\` beside \`error\`. A
-tool *error* carries only \`{error, code, message}\` — branch on \`code\`.
+tool *error* carries only \`{error, code, message}\`. Branch on \`code\`.
 
 The HTTP transport binds \`--host\` (default \`127.0.0.1\`). Without a token
-(\`--token\` or \`RITUAL_MCP_TOKEN\`) it serves unauthenticated on loopback only —
-on a non-loopback host it refuses to start unless \`--allow-unauthenticated\` is
+(\`--token\` or \`RITUAL_MCP_TOKEN\`) it serves unauthenticated on loopback only.
+On a non-loopback host it refuses to start unless \`--allow-unauthenticated\` is
 passed explicitly.
 
 Register it with Claude Code:

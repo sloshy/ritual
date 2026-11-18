@@ -38,7 +38,7 @@ count: \`--output json\` emits ONE array of cards for the whole batch, and
 \`--output ndjson\` streams one object per line as results arrive. (A
 single-name lookup emits a bare card object; the default text output prints each
 card's block, separated by a blank line.) A name that cannot be found makes the
-run exit 3 — in text mode with a plain "Card '…' not found." line on stderr, in
+run exit 3: in text mode with a plain "Card '…' not found." line on stderr, in
 \`--output json\` as the error envelope with \`messageKey: cli.card.notFound\`. A
 fetch failure exits 1, and in a batch the failure code outranks not-found.
 
@@ -63,7 +63,7 @@ request), and \`--count\` is capped at 50; a larger value is refused at parse
 time. There is no fetch-all flag.
 
 \`--output json\` emits ONE array of cards on a scripted run, whatever the page
-count — a single-page run and a five-page run produce the same shape, and a run
+count: a single-page run and a five-page run produce the same shape, and a run
 that matched nothing emits \`[]\`. Interactive paging prints each page as it
 arrives instead. \`--output ndjson\` streams one document per card as pages
 arrive, and the default text output prints one \`Name · SET:CN · Type line ·
@@ -95,13 +95,13 @@ or \`--output csv\`.
 
 ## Live queries vs. the local cache
 
-\`card\` and \`scry\` always query Scryfall **live** — they never read or refresh
+\`card\` and \`scry\` always query Scryfall **live**: they never read or refresh
 the local bulk cache that the list commands (\`add-card\`, \`edit\`, \`price\`,
 \`build-site\`, ...) use. To warm that cache for offline or CI work, run
 \`ritual cache preload-all\` (bulk download: cards, prices, and tags) or
-\`ritual cache preload-set <code>\` for a single set — see the **ritual** skill's
-Setup section. Read cached card data (EDHREC rank, market prices) through \`export\`,
-\`price\` and \`sell\` output rather than by parsing the cache's \`cache.json\` — the **ritual**
+\`ritual cache preload-set <code>\` for a single set (see the **ritual** skill's
+Setup section). Read cached card data (EDHREC rank, market prices) through \`export\`,
+\`price\` and \`sell\` output rather than by parsing the cache's \`cache.json\`. The **ritual**
 skill's Workspace layout lists which command carries which field.
 `,
 }

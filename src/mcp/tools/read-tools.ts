@@ -258,7 +258,7 @@ const buylistPrintingSchema = z.object({
   scryfallId: z
     .string()
     .optional()
-    .describe('Scryfall id of this exact printing — the primary join key when known.'),
+    .describe('Scryfall id of this exact printing, the primary join key when known.'),
 })
 
 /** `get_history` result: a list's change sets plus the default-rewrite events. */
@@ -349,19 +349,19 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get list',
       description:
-        'Read one list. view "summary" returns counts only — cheap, and the right first call on ' +
+        'Read one list. view "summary" returns counts only: cheap, and the right first call on ' +
         'a list you have not seen. section and nameContains filter in either view; limit and ' +
         'offset page the cards view and are ignored by summary, whose counts always describe the ' +
         'whole filtered set. totalCount reports how many entries matched before limit and offset ' +
         'applied, so you can page. A cards view also carries the list’s front-matter blurb ' +
-        '(description — on a flat list; a deck’s rides in deck.description), its default card ' +
+        '(description, on a flat list; a deck’s is in deck.description), its default card ' +
         'labels (labels), its cover image override (image, absent when the built-in cover rule ' +
         'applies) and, when any returned card has custom art, customArt keyed by &N id, and the ' +
         'list’s categories (categories: the vocabulary’s order plus each card NAME’s ordered ' +
         'assignments), with every returned card also carrying its own resolved categories, ' +
         'primary first, absent when it has none. ' +
-        'warnings holds what a whole-file save cannot write back as it is — lines the parser ' +
-        'could not read and fenced code blocks — as message objects ' +
+        'warnings holds what a whole-file save cannot write back as it is (lines the parser ' +
+        'could not read and fenced code blocks) as message objects ' +
         '({ message, messageKey, messageParams }); a mutation refuses a list that has any, and ' +
         'only the user can settle them by editing the file. ' +
         'artWarnings holds custom-art sidecar problems and categoryWarnings holds ' +
@@ -411,8 +411,8 @@ export function registerReadTools(server: McpServer): void {
       title: 'Search Scryfall',
       description:
         'Search the live Scryfall API with its raw query syntax (e.g. "t:goblin c:r cmc<=2") and ' +
-        'return card summaries — name, set, collector number, rarity, mana cost, CMC, type line, ' +
-        'oracle text, color identity, prices — most popular first. The name says the data ' +
+        'return card summaries (name, set, collector number, rarity, mana cost, CMC, type line, ' +
+        'oracle text, color identity, prices), most popular first. The name says the data ' +
         'source: this always goes to the network, unlike find_cards (your own lists) and ' +
         'autocomplete_card (the local card cache). ' +
         'warm additionally writes results into the local card cache under names it does not ' +
@@ -487,8 +487,8 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Find cards in your lists',
       description:
-        'Find where a card physically lives across every deck, collection, and wanted list — the ' +
-        'local cross-list index, no network. Each result is one physical copy (a deck line with ' +
+        'Find where the physical copies of a card are across every deck, collection, and wanted list (the ' +
+        'local cross-list index, no network). Each result is one physical copy (a deck line with ' +
         'quantity 3 yields three), carrying exactly the fields move_selected_cards and ' +
         'remove_selected_cards address entries by. Filters intersect: name matches every ' +
         'whitespace-separated term in any order (as autocomplete_card matches), listType/slug/set ' +
@@ -503,7 +503,7 @@ export function registerReadTools(server: McpServer): void {
           .boolean()
           .optional()
           .describe(
-            'Also return every list as { listType, slug, name } — the destinations a move can ' +
+            'Also return every list as { listType, slug, name }, the destinations a move can ' +
               'name. Default false; the roster does not depend on the filters.',
           ),
       }),
@@ -536,7 +536,7 @@ export function registerReadTools(server: McpServer): void {
         'Tagger oracle/art tags, the faces of a multi-faced card, and how many printings exist. ' +
         'A false `printingsComplete` means the cache holds no printing list for the name, so ' +
         '`printingCount` is only what one Scryfall lookup returned. ' +
-        'Names are matched exactly and case-sensitively — resolve a partial name with ' +
+        'Names are matched exactly and case-sensitively, so resolve a partial name with ' +
         'autocomplete_card first.',
       inputSchema: z.object({ name: z.string().min(1).describe('Exact card name.') }),
       outputSchema: outputSchemaFor<CardDetails>('get_card_details'),
@@ -561,12 +561,12 @@ export function registerReadTools(server: McpServer): void {
       description:
         'List the printings of a card, newest first, which is what a set/collectorNumber ' +
         'argument on the edit tools needs. Capped at 20 distinct printings by default; with a ' +
-        'non-English cache every language object of an included printing rides along (its lang ' +
-        'field says which — absent means "en"), and languages summarizes every language the ' +
+        'non-English cache every language object of an included printing is returned too (its lang ' +
+        'field says which; absent means "en"), and languages summarizes every language the ' +
         'card exists in. Prices are left out unless ' +
         'includePrices is set; use get_card_price for the cheapest and representative printings ' +
         'instead. When `complete` is false the local card cache holds no printing list for this ' +
-        'name, so the printings shown are whatever one lookup returned — run refresh_cache before ' +
+        'name, so the printings shown are whatever one lookup returned. Run refresh_cache before ' +
         'concluding a card has only one printing.',
       inputSchema: z.object({
         name: z.string().min(1).describe('Exact card name.'),
@@ -645,7 +645,7 @@ export function registerReadTools(server: McpServer): void {
         'cache is empty (run refresh_cache first). source picks the store, and the store sets ' +
         'the currency (default: the configured defaultPriceSource): tcgplayer (Scryfall USD), ' +
         'cardmarket (Scryfall EUR), cardhoarder (Scryfall MTGO tix), or cardkingdom (USD NM ' +
-        'retail from the cached Card Kingdom feed — errors when no feed is downloaded; run ' +
+        'retail from the cached Card Kingdom feed, and errors when no feed is downloaded; run ' +
         'refresh_buylist, which itself needs sell mode or "cardkingdom" in priceSources).',
       inputSchema: z
         .object({
@@ -703,7 +703,7 @@ export function registerReadTools(server: McpServer): void {
         'matching, so CK’s buy caps go to those cards); filter with sets / minPrice / minRatio ' +
         '(offer ÷ TCGplayer market) / minOwned (total copies owned). Entries carry the cardIds ' +
         '(&N) of their lines for follow-up edits, ownedCopies, edhrecRank and ' +
-        'tcgplayerPrice / offerRatio. Strictly cache-backed — errors ' +
+        'tcgplayerPrice / offerRatio. Strictly cache-backed: it errors ' +
         'when the card cache is empty (run refresh_cache) or no buylist feed has been ' +
         'downloaded (run refresh_buylist). Requires sell mode or the cardkingdom price source: with ' +
         'site.sellMode off, no "cardkingdom" in priceSources, and no --sell-mode flag on this ' +
@@ -728,7 +728,7 @@ export function registerReadTools(server: McpServer): void {
       title: 'Sell-cart CSV',
       description:
         'Render the cards CK is buying as their sell-cart CSV import format (card name, ' +
-        'edition, foil, quantity, no header row — CK’s own listing titles, including their ' +
+        'edition, foil, quantity, no header row; CK’s own listing titles, including their ' +
         'variant note for variant printings, quantities capped at their buy ' +
         'limits), over the same scope and filters as get_sell_report. Upload the csv at ' +
         'cardkingdom.com/static/csvImport; warnings flag CK’s 500-title/5,000-card upload ' +
@@ -756,8 +756,8 @@ export function registerReadTools(server: McpServer): void {
         'Look up the buyer’s current offer for specific printings, keyed by ' +
         '"set:collectorNumber:finish". Use this to price an arbitrary set of cards ' +
         '(a trade, a selection) without building a whole sell report; use get_sell_report ' +
-        'to price entire lists. Printings the buyer has no product for are simply absent ' +
-        'from the result. Strictly cache-backed — errors when no buylist feed has been ' +
+        'to price entire lists. Printings the buyer has no product for are absent ' +
+        'from the result. Strictly cache-backed: it errors when no buylist feed has been ' +
         'downloaded (run refresh_buylist). Requires sell mode, like get_sell_report.',
       inputSchema: z.object({
         printings: z
@@ -787,8 +787,8 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get change history',
       description:
-        'Load a list’s change history (newest first) — each set’s prose lines plus its typed ' +
-        'events — and the defaultEvents a rewrite-with-defaults would write.',
+        'Load a list’s change history, newest first (each set’s prose lines plus its typed ' +
+        'events), and the defaultEvents a rewrite-with-defaults would write.',
       inputSchema: z.object({ listType: listTypeSchema, slug: slugField }),
       outputSchema: outputSchemaFor<HistoryResult>('get_history'),
       annotations: { readOnlyHint: true },
@@ -808,12 +808,12 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get config',
       description:
-        'Get the current Ritual configuration, including defaultLanguage — the Scryfall ' +
+        'Get the current Ritual configuration, including defaultLanguage, the Scryfall ' +
         'language code stamped on newly added cards (and what decides which Scryfall bulk ' +
-        'backs the card cache) — and uiLocale, the unrelated BCP-47 tag naming the language ' +
-        'the interface speaks. Two different settings; uiLocale costs nothing to change. ' +
+        'backs the card cache), and uiLocale, the unrelated BCP-47 tag naming the language ' +
+        'the interface is shown in. Two different settings; uiLocale costs nothing to change. ' +
         'config is the stored configuration; overrides is what this running server is ' +
-        'actually operating with where a session flag displaced it — a server started with ' +
+        'operating with where a session flag displaced it: a server started with ' +
         '--sell-mode reports overrides {"site.sellMode": true} while config.site.sellMode ' +
         'stays as stored (often unset). No overrides key means the two agree.',
       inputSchema: z.object({}),
@@ -839,11 +839,11 @@ export function registerReadTools(server: McpServer): void {
         'Scryfall Tagger tags are present, where the cache is served from, the local cache ' +
         'directory (cacheDir) and which setting chose it (cacheDirSource: env, config, or the ' +
         'shared per-user default), and which Scryfall ' +
-        'bulk built it (cardBulkType — default_cards for an English defaultLanguage, all_cards ' +
+        'bulk built it (cardBulkType: default_cards for an English defaultLanguage, all_cards ' +
         'otherwise; bulkTypeStale means the cache and the configured defaultLanguage disagree ' +
         'and a full refresh_cache is needed). ' +
         'Check empty before pricing (an empty cache is what get_price_report errors on) and ' +
-        'priceStale before trusting the numbers; refresh_cache fixes both. Diagnostic only — ' +
+        'priceStale before trusting the numbers; refresh_cache fixes both. Diagnostic only: ' +
         'reading this never refreshes or writes the cache.',
       inputSchema: z.object({}),
       outputSchema: outputSchemaFor<CacheStatusResult>('get_cache_status'),
@@ -861,7 +861,7 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get setup diagnostics',
       description:
-        'Check the Ritual setup — what `ritual doctor` reports: the running build (version, ' +
+        'Check the Ritual setup (what `ritual doctor` reports): the running build (version, ' +
         'release or development, binary/source/Docker install, platform, Bun version, and the ' +
         'issuesUrl bugs are reported at), the workspace (base directory, which list folders ' +
         'exist, list counts), ritual.config.json (absent, valid, invalid with every refused ' +
@@ -915,7 +915,7 @@ export function registerReadTools(server: McpServer): void {
       description:
         'Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collections, ' +
         'and wanted lists. Select whole lists and/or pick cards by name terms; filter by name, ' +
-        'set, finish, condition, labels, or tags; choose the columns and their order (csv/json only — ' +
+        'set, finish, condition, labels, or tags; choose the columns and their order (csv/json only, since ' +
         'text and md have fixed line formats). With no lists and no cards, every list is exported. ' +
         'By default the rendered export comes back inline and nothing is written to disk; with ' +
         'write: true it instead writes a server-named file under exports/ in the base dir and ' +
@@ -958,7 +958,7 @@ export function registerReadTools(server: McpServer): void {
               .describe(
                 'Only cards carrying one of these tags (exact, case-sensitive; every list ' +
                   'type, wanted lists included). A card with no tags never matches; there is ' +
-                  "no 'none' value — none is an ordinary tag.",
+                  "no 'none' value: none is an ordinary tag.",
               ),
           })
           .optional(),
@@ -979,7 +979,7 @@ export function registerReadTools(server: McpServer): void {
               'edhrecRank (lower is more popular) is also read from the cache, by card name, ' +
               'so unpinned lines get one too; an unranked card exports an empty cell. ' +
               "categories is the card name's categories in that list, comma-joined primary " +
-              'first, and primaryCategory is just the first; both are empty for an ' +
+              'first, and primaryCategory is the first; both are empty for an ' +
               'uncategorized card and are dropped by the text and md formats.',
           ),
         header: z.boolean().optional().describe('CSV: include the header row (default true).'),

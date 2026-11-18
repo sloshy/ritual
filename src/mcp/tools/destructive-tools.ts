@@ -70,7 +70,7 @@ const changeSetSchema = z.object({
   events: z
     .array(z.record(z.string(), z.unknown()))
     .describe(
-      'The set’s typed change events, one per line in the same order — echo them back from ' +
+      'The set’s typed change events, one per line in the same order. Echo them back from ' +
         'get_history. Empty only for a prose-only set that had none.',
     ),
   trailing: z
@@ -99,7 +99,7 @@ const SYNC_DRY_RUN_DESCRIPTION = 'Report what would sync without writing files o
 function allowRemoveAllDescription(subject: string): string {
   return (
     `Sync ${subject} even when the side being copied from holds no cards (Archidekt on a ` +
-    'pull, the local files on a push) while the other side holds some — mirroring it would ' +
+    'pull, the local files on a push) while the other side holds some, where mirroring it would ' +
     `remove every card. Without it that is refused before anything is written (dry runs ` +
     'too): a deck fails with reasonKey domain.sync.emptyRemoteDeck / emptyLocalDeck; a ' +
     'collection run fails with report.errorMessages key domain.sync.emptyRemoteCollection / ' +
@@ -210,8 +210,8 @@ export function registerDestructiveTools(
       description:
         'Replace a list’s entire change log with the supplied sets (newest or oldest order is ' +
         'preserved as given). Only the .changes.md file is rewritten; the list itself is untouched. ' +
-        'Sets you did not author should be echoed back exactly as get_history returned them — ' +
-        'including each set’s `trailing` array — or the hand-written text it holds is deleted.',
+        'Sets you did not author should be echoed back exactly as get_history returned them, ' +
+        'including each set’s `trailing` array, or the hand-written text it holds is deleted.',
       inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,
@@ -236,34 +236,34 @@ export function registerDestructiveTools(
     {
       title: 'Update config',
       description:
-        'Merge a partial Ritual configuration into the current one (e.g. admin git settings, ' +
-        'defaultLanguage — the canonical Scryfall code stamped on newly added cards, whose ' +
-        'non-"en" values switch cache downloads to the much larger all-cards bulk — ' +
-        'uiLocale — the unrelated interface language, a BCP-47 tag such as "de-AT" with no ' +
+        'Merge a partial Ritual configuration into the current one, for example admin git settings or any of the following keys. ' +
+        'defaultLanguage: the canonical Scryfall code stamped on newly added cards, whose ' +
+        'non-"en" values switch cache downloads to the much larger all-cards bulk. ' +
+        'uiLocale: the unrelated interface language, a BCP-47 tag such as "de-AT" with no ' +
         'download cost; do not reach for defaultLanguage when the user asks to change the ' +
-        'interface language — site.bannedPrintings — "SET:COLLECTOR" printings barred from auto-selection as a ' +
-        "card's default printing — or priceSources — which stores the sites offer prices from " +
+        'interface language. site.bannedPrintings: "SET:COLLECTOR" printings barred from auto-selection as a ' +
+        "card's default printing. priceSources: which stores the sites offer prices from " +
         '(any of "tcgplayer", "cardmarket", "cardkingdom", "cardhoarder"; the sites offer only ' +
         'the currencies an enabled store quotes in, so MTGO tix needs "cardhoarder"; [] hides ' +
         'all site prices; enabling ' +
-        'cardkingdom makes builds/servers download the Card Kingdom feed like sell mode does) — ' +
-        'or defaultCategories — the global category vocabulary new lists suggest and order by — ' +
-        'or updateCheck — a boolean turning the CLI\'s daily "newer Ritual available" notice on or off — ' +
-        'or cacheDir — where the card cache lives, absolute or workspace-relative ("" returns to ' +
+        'cardkingdom makes builds/servers download the Card Kingdom feed like sell mode does). ' +
+        'defaultCategories: the global category vocabulary new lists suggest and order by. ' +
+        'updateCheck: a boolean turning the CLI\'s daily "newer Ritual available" notice on or off. ' +
+        'cacheDir: where the card cache is stored, absolute or workspace-relative ("" returns to ' +
         'the per-user cache every workspace shares; RITUAL_CACHE_DIR outranks it; changing it does ' +
         'not move the existing cache; a leading "~", a root, the home folder, the workspace or a ' +
-        'list folder is refused) — ' +
-        'or site.theme — the theme the built public site opens on (a built-in such as "izzet" or ' +
+        'list folder is refused). ' +
+        'site.theme: the theme the built public site opens on (a built-in such as "izzet" or ' +
         '"boros-inverted", or a custom theme name from the custom theme JSON files listed in ' +
         'site.themeFiles, workspace-relative paths); build_site reads both. ' +
-        'Nested "admin" fields merge; other top-level keys replace — "site" too, so send the ' +
+        'Nested "admin" fields merge; other top-level keys replace ("site" too), so send the ' +
         'whole site object read from get_config with your change applied. ' +
-        'Unknown keys — top-level or nested in "admin" — are rejected. Writing a key a session ' +
+        'Unknown keys (top-level or nested in "admin") are rejected. Writing a key a session ' +
         'flag overrides (get_config reports these under overrides) persists the value but does ' +
-        'not change what this running server operates with — e.g. under --sell-mode, sell mode ' +
-        'stays on whatever site.sellMode you store. The "managed" block is Ritual bookkeeping: ' +
-        'accepted so a full config read by get_config can be sent back, but ignored — ' +
-        'workspace migration is the `ritual migrate` CLI command, not an MCP tool.',
+        'not change what this running server operates with (e.g. under --sell-mode, sell mode ' +
+        'stays on whatever site.sellMode you store). The "managed" block is Ritual bookkeeping: ' +
+        'accepted so a full config read by get_config can be sent back, but ignored. ' +
+        'Workspace migration is the `ritual migrate` CLI command, not an MCP tool.',
       inputSchema: z.object({
         config: z.record(z.string(), z.unknown()).describe('Partial RitualConfig object to merge.'),
       }),
@@ -322,18 +322,18 @@ export function registerDestructiveTools(
         'Archidekt. Both directions diff per board (Commander, Main, Sideboard, Maybeboard) ' +
         'and always move a card that sits on a different board on each side, keeping the ' +
         'local line (and its ID) or the Archidekt entry rather than removing and re-adding ' +
-        'it — never onto a board already holding the card, where the copies are a quantity ' +
+        'it, but never onto a board already holding the card, where the copies are a quantity ' +
         'change instead. The "only" filter never drops a move (a move adds and removes no ' +
         'copies); each deck entry that moved cards carries boardMoves. Omit decks to sync every ' +
         'linked deck. Each deck entry with changes carries changes: every card change the run ' +
-        'applied (or would apply on a dry run), narrowed by only — added, removed, quantity, ' +
+        'applied (or would apply on a dry run), narrowed by only: added, removed, quantity, ' +
         'move, printing and categories entries, discriminated by kind. It lists what went ' +
-        'through; when the push itself failed (nothing was sent), what it attempted — the ' +
+        'through; when the push itself failed (nothing was sent), what it attempted, and the ' +
         'deck’s reason says so. ' +
         'A push whose remote deck changed ' +
-        'since that deck’s recorded lastSynced fails rather than reverting those remote edits ' +
-        '— pull first, or pass force: true to overwrite them. Returns a per-deck report; ' +
-        'a run with failures still reports success — check report.failedCount. Branch on ' +
+        'since that deck’s recorded lastSynced fails rather than reverting those remote edits. ' +
+        'Pull first, or pass force: true to overwrite them. Returns a per-deck report; ' +
+        'a run with failures still reports success, so check report.failedCount. Branch on ' +
         'each deck’s outcome (changed, unchanged, dry-run, cancelled; absent on a failure or ' +
         'another kind of skip), never on its reason, which is English prose. ' +
         'A push whose list of owned decks Archidekt stopped serving part way carries ' +
@@ -361,14 +361,14 @@ export function registerDestructiveTools(
           .describe(
             'Push a deck whose remote copy changed since the remote updatedAt its last sync ' +
               'recorded (sourceUpdatedAt), overwriting those remote changes. Without it such a ' +
-              'deck fails; a pull of that deck records the new baseline — even when it finds no ' +
-              'card changes — after which the push succeeds. Ignored on a pull.',
+              'deck fails; a pull of that deck records the new baseline, even when it finds no ' +
+              'card changes, after which the push succeeds. Ignored on a pull.',
           ),
         syncPrintings: z
           .boolean()
           .optional()
           .describe(
-            'Also sync each card’s exact printing — set, collector number, and foil/etched ' +
+            'Also sync each card’s exact printing: set, collector number, and foil/etched ' +
               'finish (the CLI’s --sync-printings). Off by default, the diff compares names and ' +
               'quantities only. With it, a card held at several printings at once is reconciled ' +
               'printing by printing: copies are added, removed, or re-pinned so both sides hold ' +
@@ -383,7 +383,7 @@ export function registerDestructiveTools(
           .boolean()
           .optional()
           .describe(
-            'Also sync each card’s categories — its role in the deck, such as Ramp or ' +
+            'Also sync each card’s categories: its role in the deck, such as Ramp or ' +
               'Removal (the CLI’s --sync-categories). Off by default. A pull makes the local ' +
               'categories file hold Archidekt’s categories for every card; a push makes each ' +
               'Archidekt card hold the local ones beside the board category of the board it ends ' +
@@ -448,25 +448,25 @@ export function registerDestructiveTools(
         'remote records to match the local lists. An account has ONE collection while Ritual ' +
         'has many collection lists, so a run compares the union of the lists in scope against ' +
         'the whole remote collection. A pull that must take only SOME of a printing’s copies ' +
-        'when they live in several lists cannot know which list lost the card. Without a ' +
-        'decision — removalPriority or removalAssignments — such a run ASKS: when the client ' +
+        'when they are held in several lists cannot know which list lost the card. Without a ' +
+        'decision (removalPriority or removalAssignments) such a run ASKS: when the client ' +
         'declares the elicitation capability the call returns input_required with one form ' +
         'per ambiguous removal (how many copies each list gives up), and the answers rerun ' +
         'the sync with them; a client that cannot be asked gets the report back with ' +
-        'unresolvedAmbiguity: true instead, having written nothing at all — not even the ' +
+        'unresolvedAmbiguity: true instead, having written nothing at all, not even the ' +
         'account’s lastSynced. report.ambiguous lists every ambiguity the planner found ' +
         'whether or not a strategy went on to place them, so read report.unresolvedAmbiguity ' +
         `to tell a run that stopped on them from a resolved one. A push adding more than ${CSV_UPLOAD_THRESHOLD} new printings likewise ` +
         'fails without pushing anything unless csv: true lets it upload them as one CSV import ' +
         '(report.csv then says what that import did). Each list entry with changes carries ' +
-        'changes: every card it gained or lost (added — via: "csv" when the CSV import ' +
-        'created it — or removed), narrowed by only; the list’s counts are its totals. It ' +
+        'changes: every card it gained or lost (added, with via: "csv" when the CSV import ' +
+        'created it, or removed), narrowed by only; the list’s counts are its totals. It ' +
         'lists what went through; a card whose write failed is left out and the list’s reason ' +
         'says so. On a push a card held in several lists is one key, listed under each with ' +
         'the key’s whole quantity. A push’s removals of cards no list holds any more are in ' +
         'report.unlisted. Returns a per-list report; a run with ' +
-        'failures still reports success — check report.failedCount and report.errors. Branch on each list’s ' +
-        'outcome (changed, unchanged, dry-run, cancelled, not-run — the last for a list a ' +
+        'failures still reports success, so check report.failedCount and report.errors. Branch on each list’s ' +
+        'outcome (changed, unchanged, dry-run, cancelled, or not-run for a list a ' +
         'refused run never reached; absent on a failure or another kind of skip), never on ' +
         'its reason, which is English prose. Emits one progress ' +
         'notification per list when the call supplies a progressToken, and honours ' +
@@ -481,9 +481,9 @@ export function registerDestructiveTools(
           .describe(
             'Collection list slugs or names to scope the local side to; omit to compare every ' +
               'collection list. The remote side is always the whole Archidekt collection, so ' +
-              'naming a subset declares that those lists are what it mirrors — cards living ' +
+              'naming a subset declares that those lists are what it mirrors: cards held ' +
               'only in unnamed lists read as absent. Pair it with only: "additions" when the ' +
-              'named lists are not the whole story.',
+              'named lists do not hold the whole collection.',
           ),
         dryRun: z.boolean().optional().describe(SYNC_DRY_RUN_DESCRIPTION),
         ignoreUnreadableLines: z
@@ -506,7 +506,7 @@ export function registerDestructiveTools(
             'Collection list a pull adds new cards to, created if it does not exist. A name TWO ' +
               'lists answer to fails the run before anything is fetched or written. Defaults ' +
               'to the collectionSync.pullTarget config key ("Inbox" unless configured). A push ' +
-              'ignores it — it writes nothing locally.',
+              'ignores it, because it writes nothing locally.',
           ),
         removalPriority: z
           .array(z.string().min(1))
@@ -515,7 +515,7 @@ export function registerDestructiveTools(
             'Collection lists an ambiguous removal may take copies from, IN PRIORITY ORDER: ' +
               'copies come only from these lists, walking them in the order given. Names are ' +
               'matched exactly (never by the substring rule), and an unknown one fails the run. ' +
-              'It applies to ambiguous removals only — taking every copy of a printing, or ' +
+              'It applies to ambiguous removals only: taking every copy of a printing, or ' +
               'copies held in a single list, never needs it. A priority that cannot cover a ' +
               'removal fails the run and writes nothing, so ask the user which binders may ' +
               'lose cards rather than guessing. Given, the tool never elicits. A push ignores it.',
@@ -544,8 +544,8 @@ export function registerDestructiveTools(
           .optional()
           .describe(
             'An explicit decision per ambiguous removal: which lists lose copies and how many ' +
-              'each — what a previous run’s report.ambiguous asked about, or what the user ' +
-              'answered an elicitation with. Validated against the ambiguity the run finds: a ' +
+              'each (what a previous run’s report.ambiguous asked about, or what the user ' +
+              'answered an elicitation with). Validated against the ambiguity the run finds: a ' +
               'list holding no copies, or counts that do not add up to the removal’s quantity, ' +
               'fail the run and write nothing. Cannot be combined with removalPriority. A push ' +
               'ignores it.',
@@ -558,12 +558,12 @@ export function registerDestructiveTools(
               'Scryfall cache) instead of resolving and creating them one at a time. Adding a ' +
               `printing costs a search plus a create, so a push with more than ${CSV_UPLOAD_THRESHOLD} ` +
               'new printings and no csv: true FAILS before writing anything remote rather than ' +
-              'spending that many paced requests — there is nobody to prompt over MCP. Set it for ' +
+              'spending that many paced requests, because there is nobody to prompt over MCP. Set it for ' +
               'any large push (a dry run never needs it: it reports the upload it would make). ' +
               'The rows come from the local Scryfall cache, so an empty or day-old cache is ' +
               'refreshed automatically before the upload is built (there is nobody to ask). ' +
               'report.csv then says what the import did, including rows Archidekt refused. ' +
-              'Quantity changes and removals never ride the CSV, and a pull ignores the field. ' +
+              'Quantity changes and removals are never sent in the CSV, and a pull ignores the field. ' +
               'Writing the CSV to a file instead of pushing it is CLI-only (--csv-file).',
           ),
       }),
@@ -669,7 +669,7 @@ export function registerDestructiveTools(
         'strictly from this cache, so run this first when it errors or looks out of date. ' +
         'Gated like get_sell_report: with site.sellMode off, no "cardkingdom" in priceSources, ' +
         'and no --sell-mode flag on this server, this tool errors "Not found". refresh_cache ' +
-        'never refreshes the buylist — only this tool and `ritual cache preload-all` do.',
+        'never refreshes the buylist; only this tool and `ritual cache preload-all` do.',
       inputSchema: z.object({
         force: z
           .boolean()

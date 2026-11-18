@@ -53,13 +53,13 @@ export function asBullet(paragraph: string): string {
  */
 export const NO_INPUT_GUARANTEE = wrapProse(
   `\`--no-input\` — **the** headless switch (the \`RITUAL_NO_INPUT\` environment ` +
-    `variable does the same, and a falsy value — \`0\`/\`false\`/\`no\`/\`off\` — ` +
+    `variable does the same, and a falsy value, \`0\`/\`false\`/\`no\`/\`off\`, ` +
     `counts as unset): works on **every** command and guarantees no prompting; ` +
     `where input would be required the command fails fast with exit code 2 and a ` +
     `\`Input required: ...\` message naming the flag that would have supplied it, ` +
     `or what the prompt asked for when no flag exists (or uses a ` +
     `documented default) instead of hanging or exiting 0 having done nothing. A ` +
-    `non-terminal stdin — every agent invocation — is treated exactly the same ` +
+    `non-terminal stdin (every agent invocation) is treated exactly the same ` +
     `way, so the flag is never strictly required. No command has its own ` +
     `non-interactive switch; flags such as \`--yes\`, \`--confirm\`, or \`--all\` ` +
     `supply the answer a prompt would have asked for.`,
@@ -71,7 +71,7 @@ export const NO_INPUT_GUARANTEE = wrapProse(
  */
 export const IMPORT_DRY_RUN_GUARANTEE = wrapProse(
   `\`--dry-run\` resolves and validates everything but leaves the workspace ` +
-    `byte-for-byte untouched — it does not even create the \`decks/\`, ` +
+    `byte-for-byte untouched: it does not even create the \`decks/\`, ` +
     `\`collections/\`, or \`wanted/\` directory it would have written into.`,
 )
 
@@ -95,20 +95,20 @@ export const REFRESH_SESSION = wrapProse(
  */
 export const REFRESH_COMMANDS = wrapProse(
   `Commands that read the Scryfall card cache (\`add-card\`, \`edit\`, \`price\`, ` +
-    `\`sell\` — where the mode also governs its Card Kingdom buylist cache — ` +
+    `\`sell\` (where the mode also governs its Card Kingdom buylist cache), ` +
     `\`build-site\`, \`serve --build\`/\`--api\`, \`admin\`) share a \`--refresh <mode>\` ` +
-    `option controlling cache freshness: \`ask\` (the default — prompt about stale ` +
-    `or empty caches, skipping the prompt when prompts are unavailable — so a ` +
+    `option controlling cache freshness: \`ask\` (the default: prompt about stale ` +
+    `or empty caches, skipping the prompt when prompts are unavailable, so a ` +
     `headless \`build-site\` passes \`--refresh auto\` to get its bulk download; one ` +
     `exception downloads without asking: a ` +
     `Card Kingdom buylist already downloaded is redownloaded once it is a day ` +
-    `old — by \`sell\`, and, wherever sell mode is enabled, by \`build-site\` and ` +
-    `by \`admin\`/\`serve --api\` at startup — since a ` +
+    `old, by \`sell\`, and, wherever sell mode is enabled, by \`build-site\` and ` +
+    `by \`admin\`/\`serve --api\` at startup, since a ` +
     `day-old feed quotes yesterday's offers; only the first buylist download ` +
     `prompts), \`auto\` ` +
     `(refresh stale data without asking, bulk download allowed), \`no-bulk\` ` +
     `(refresh stale prices per-card, never a bulk download), and \`never\` (use ` +
-    `the cache as-is, making no request of any kind — under \`never\`, \`price\` ` +
+    `the cache as-is, making no request of any kind: under \`never\`, \`price\` ` +
     `reports uncached cards as unpriced instead of fetching them, and a ` +
     `\`build-site\` run with no cached symbology renders without mana symbols).`,
 )
@@ -147,17 +147,17 @@ export type SessionSavingSemanticsOptions = {
  */
 export function sessionSavingSemantics(options: SessionSavingSemanticsOptions): string {
   return wrapProse(
-    `**Saving:** changes accumulate **in memory** — \`💾 Save\` writes the ` +
+    `**Saving:** changes accumulate **in memory**. \`💾 Save\` writes the ` +
       `${options.fileNoun} and changelog without exiting. Backing out ` +
       `(\`🔀 Switch List\` or Esc) returns to the list selection menu **keeping ` +
       `unsaved changes in memory**, so edits can span several lists before one ` +
-      `save — Save flushes every open list, and a separate \`💾 Save current ` +
+      `save. Save flushes every open list, and a separate \`💾 Save current ` +
       `list changes\` item appears when more than one open list has unsaved ` +
       `changes. \`🚪 Exit\` with anything unsaved opens an exit menu: save and ` +
       `exit, exit without saving (discards everything unsaved), or cancel to ` +
       `keep editing. Saving more than once in one session folds the later ` +
       `changes into that list's existing changelog entry (bumping its ` +
-      `timestamp) — each saved list gets exactly one changelog entry per ` +
+      `timestamp): each saved list gets exactly one changelog entry per ` +
       `session.`,
   )
 }
@@ -173,7 +173,7 @@ export function sessionSemantics(options: SessionSemanticsOptions): string {
   const saving = sessionSavingSemantics({ fileNoun: options.fileNoun })
   const editMode = wrapProse(
     `**Edit mode:** \`🛠️ Switch to Edit Mode\` turns the search prompt into a ` +
-      `picker over ${options.editScope} — ${options.editFields}. With nothing ` +
+      `picker over ${options.editScope}: ${options.editFields}. With nothing ` +
       `typed it lists every entry below the menu rows, so the list can be ` +
       `scrolled as well as searched, and \`↩️ Undo Last Edit\` reverts the ` +
       `latest edit.` +
@@ -182,7 +182,7 @@ export function sessionSemantics(options: SessionSemanticsOptions): string {
   const undo = wrapProse(
     `**Undo within the session:** \`↩️ Undo Last Add\` ${options.undoAddVerb} the ` +
       `most recent card, and \`📋 View Session Changes\` opens a picker over ` +
-      `every change made this session — ${options.changeKinds} — where ` +
+      `every change made this session (${options.changeKinds}), where ` +
       `selecting one opens an action menu: **Edit This Card** (that card's own ` +
       `edit-mode menu), **Change This Card's Language**, or **Discard This ` +
       `Change** (${options.discardTarget} must be discarded newest-first; a ` +
@@ -208,7 +208,7 @@ export function interactiveEditIntro(options: InteractiveEditIntroOptions): stri
   return wrapProse(
     `\`ritual edit\` opens the interactive editor (covered in full by the ` +
       `**ritual-edit** skill); ${options.pick}. It **requires a terminal**, so ` +
-      `it is not suitable for non-interactive agents — use the one-shot ` +
+      `it is not suitable for non-interactive agents. Use the one-shot ` +
       `commands instead.`,
   )
 }
@@ -224,11 +224,11 @@ export function priceIntro(options: PriceIntroOptions): string {
   return wrapProse(
     `The unified \`price\` command covers all list types; scope it with ` +
       `\`${options.scopeFlag}\` or a name. \`--source\` picks the store, and the ` +
-      `store sets the currency (default: config \`defaultPriceSource\`) — ` +
+      `store sets the currency (default: config \`defaultPriceSource\`): ` +
       `\`tcgplayer\` (Scryfall USD), \`cardmarket\` (Scryfall EUR), ` +
       `\`cardhoarder\` (Scryfall MTGO tix), or ` +
       `\`cardkingdom\` (NM retail from the cached Card Kingdom feed; errors when no ` +
-      `feed is downloaded — a bulk-allowing \`--refresh\` downloads it). There is ` +
+      `feed is downloaded; a bulk-allowing \`--refresh\` downloads it). There is ` +
       `no currency flag: to see EUR, pick \`cardmarket\`. Each store ` +
       `also picks its own printing for an entry that names none: under ` +
       `\`cardkingdom\` that is the newest printing CK actually sells, so an unpinned ` +
@@ -238,8 +238,8 @@ export function priceIntro(options: PriceIntroOptions): string {
       `printing marks one the line does not pin, the cheapest-printing total reads ` +
       `\`Lowest possible $X\`, and a legend under the listing explains whichever ` +
       `of these it shows (\`--quiet\` drops it). An ` +
-      `interactive browser opens on a TTY — ` +
-      `for agents, always pass \`--summary\`, \`--output json\`, or the global ` +
+      `interactive browser opens on a TTY. ` +
+      `For agents, always pass \`--summary\`, \`--output json\`, or the global ` +
       `\`--no-input\` flag:`,
   )
 }
@@ -256,24 +256,24 @@ export const PRICE_SOURCE_COMMENT =
  */
 export const SYNC_CHANGE_FILTER = wrapProse(
   '`--only additions` / `--only removals` narrows a run to one side of the ' +
-    'diff. The vocabulary is relative to the **sync destination** — the local ' +
-    'files on a pull, Archidekt on a push — so additions are new cards and ' +
+    'diff. The vocabulary is relative to the **sync destination** (the local ' +
+    'files on a pull, Archidekt on a push), so additions are new cards and ' +
     'quantity increases *there*, removals are deleted cards and quantity ' +
     'decreases. The other side is still reported ("Skipped 3 removals (--only ' +
-    'additions).") and simply not applied.',
+    'additions).") and not applied.',
 )
 
 /** The remove-everything guard both sync commands share, and its `--allow-remove-all` override. */
 export const SYNC_REMOVE_ALL_GUARD = wrapProse(
   '**Empty-side guard:** a run whose source is empty while its destination holds ' +
-    'cards would remove every one of them — an empty Archidekt collection or deck ' +
-    'on a pull, empty local files on a push — so it is **refused** before anything ' +
+    'cards would remove every one of them (an empty Archidekt collection or deck ' +
+    'on a pull, empty local files on a push), so it is **refused** before anything ' +
     'is written (a dry run reports the same refusal). `deck-sync` fails just that ' +
     'deck (`reasonKey` `domain.sync.emptyRemoteDeck` / `emptyLocalDeck`); ' +
     '`collection-sync` fails the run (`errorMessages` key ' +
     '`domain.sync.emptyRemoteCollection` / `emptyLocalCollection`, every list ' +
     '`not-run`). Both exit 1. `--only additions` removes nothing and is never ' +
-    'refused. `--allow-remove-all` overrides it — pass it only when the user has ' +
+    'refused. `--allow-remove-all` overrides it: pass it only when the user has ' +
     'confirmed they want that side emptied; `--force` does not.',
 )
 
@@ -326,7 +326,7 @@ export function textImportSection(options: TextImportSectionOptions): string {
       `global \`--no-input\` flag the type defaults to a deck, so agents should ` +
       `always pass \`--type ${options.typeFlag}\`. A body line that is neither a ` +
       `section header nor a card line is skipped, listed on stderr, carried in ` +
-      `the JSON \`warnings\` array, and exits 1 — the import is still written. ` +
+      `the JSON \`warnings\` array, and exits 1. The import is still written. ` +
       `Each \`warnings\`/\`advisories\` entry is an object: the English ` +
       `\`message\`, plus a \`messageKey\` to match on when present (never the ` +
       `prose). ` +
@@ -334,8 +334,8 @@ export function textImportSection(options: TextImportSectionOptions): string {
       `(\`4 Lightning Bolt (M10) 146\`, bare \`Deck\`/\`Sideboard\` markers, a ` +
       `\`*F*\`/\`*E*\` foil marker either trailing or between the set and the ` +
       `collector number, as Moxfield writes it) are both read, as is the inside of a ` +
-      `\`\`\` fence — on the import path only, since a pasted decklist usually ` +
-      `arrives wrapped in one. A \`(SET)\` with no collector number is left in the ` +
+      `\`\`\` fence (on the import path only, since a pasted decklist usually ` +
+      `arrives wrapped in one). A \`(SET)\` with no collector number is left in the ` +
       `card name rather than read as a printing; a line that imports but still ` +
       `holds a printing token in its name prints an advisory (stderr, JSON ` +
       `\`advisories\`) without failing the run.` +
@@ -371,13 +371,13 @@ export function csvImportSection(options: CsvImportSectionOptions): string {
   const closing = wrapProse(
     `\`--columns\` maps fields to 1-based column numbers (fields: ` +
       `${CSV_FIELDS.map((field) => `\`${field}\``).join(', ')}` +
-      ` — a tags cell (header \`tags\` or \`tag\`) ` +
+      `; a tags cell (header \`tags\` or \`tag\`) ` +
       `holds the card's tags comma-separated, as \`Ramp, Card Draw\`, and a ` +
       `cell that is not tag-shaped fails that row; a categories cell (header ` +
       `\`category\` or \`categories\`) holds the card's categories comma-separated ` +
-      `as \`Ramp, Artifacts\`, first is primary — a value that is not ` +
+      `as \`Ramp, Artifacts\`, first is primary; a value that is not ` +
       `category-shaped (one holding a control character such as a tab) is ignored with a warning and the card ` +
-      `still imports — the refusal prints on stderr and rides the \`--output json\` ` +
+      `still imports, and the refusal prints on stderr, is carried in the \`--output json\` ` +
       `payload's \`advisories\` array (objects: English \`message\`, plus ` +
       `\`messageKey\` when present), and never changes the exit code; and on a ` +
       `deck a value naming a board (\`Sideboard\`, ` +
@@ -389,7 +389,7 @@ export function csvImportSection(options: CsvImportSectionOptions): string {
       `language column is mapped, pinned rows are stamped with the configured ` +
       `\`defaultLanguage\` when the printing exists in it); ` +
       `${options.requiredColumns}. Add \`--no-header\` when the ` +
-      `first row is data — a scripted run without it drops the first row as a ` +
+      `first row is data: a scripted run without it drops the first row as a ` +
       `header and warns when that row looks like data. Add \`--overwrite\` to replace an existing ` +
       `${options.typeNoun}, or \`--append\` to add to one (${options.appendNote}).` +
       (options.typeNotes === undefined ? '' : ` ${options.typeNotes}`) +

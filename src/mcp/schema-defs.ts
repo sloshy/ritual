@@ -173,7 +173,7 @@ export const LIST_CATEGORIES: JsonSchemaType = obj(
 
 const LANGUAGE = enumOf(
   CARD_LANGUAGES,
-  'Scryfall language code; absent means English ("en") — entries carry it only when not English.',
+  'Scryfall language code; absent means English ("en"), since entries carry it only when not English.',
 )
 
 /**
@@ -396,8 +396,8 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
       ),
       effectiveLabels: arr(
         CARD_LABEL,
-        'The labels in force for this card: the list default adjusted by its own labels — ' +
-          'what pricing, sell mode, filters and exports act on. Empty when it has none.',
+        'The labels in force for this card: the list default adjusted by its own labels, ' +
+          'which is what pricing, sell mode, filters and exports act on. Empty when it has none.',
       ),
       ...ENTRY_META_PROPS,
       section: str(),
@@ -462,7 +462,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
     'One typed change event: `action` (add, remove, set-commander, unset-commander, set-finish, ' +
       'set-printing, set-language, set-note, set-label, add-tag, remove-tag, set-categories, ' +
       'rename-category, set-category-order, move-from, move-to, add-section, remove-section, ' +
-      'rename-section, set-section) plus that action’s fields — cardName, cardId (&N), set, ' +
+      'rename-section, set-section) plus that action’s fields. The fields are cardName, cardId (&N), set, ' +
       'collectorNumber, finish, condition, language, labels, tags, tag, categories, category, ' +
       'newCategory, order, board, section, newSection, note, to/from ({type, name}). ' +
       'set-categories is keyed by card name and carries no cardId; rename-category and ' +
@@ -659,13 +659,13 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
       lineNumber: int(),
       raw: str(),
       reason: str(
-        'Why the row failed, in English; several reasons are joined with "; ". Never match on it — read `reasonKey`.',
+        'Why the row failed, in English; several reasons are joined with "; ". Never match on it; read `reasonKey`.',
       ),
       reasonKey: str(
         'Catalog key `reason` was rendered from, for a client that renders it in its own language. Absent when the reason is text another part of Ritual worded (a tag refusal).',
       ),
       reasonParams: openObject(
-        'What `reasonKey` interpolates; a param may itself be a message (`messageKey`, `messageParams`) or a list (`list`, `join`) — several reasons are a list of messages.',
+        'What `reasonKey` interpolates; a param may itself be a message (`messageKey`, `messageParams`) or a list (`list`, `join`). Several reasons are a list of messages.',
       ),
     } as const satisfies Record<keyof CsvRowFailureType, JsonSchemaType>,
     ['lineNumber', 'raw', 'reason'],

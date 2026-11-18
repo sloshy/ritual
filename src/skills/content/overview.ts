@@ -28,7 +28,7 @@ describes every command, the advanced ones (\`migrate\`, \`detect-changes\`,
 - \`wanted/<name>.md\` — cards you want to acquire
 - \`<name>.changes.md\` — append-only changelog next to each list (auto-maintained;
   each entry is prose \`- \` lines plus a fenced \`ritual-changes\` block of JSON-Lines
-  events — the block is what Ritual reads back, the prose is rendered only and is
+  events: the block is what Ritual reads back, the prose is rendered only and is
   always English whatever the UI locale; an entry with no block is prose-only: its
   prose is kept, and it shows no events)
 - \`<name>.md.sha256\` — a hash of the list as Ritual last wrote it, which lets
@@ -38,7 +38,7 @@ describes every command, the advanced ones (\`migrate\`, \`detect-changes\`,
 - \`<name>.art.json\` — optional custom-art sidecar next to a list, mapping card
   \`&N\` ids to a replacement image (see **Custom art** below)
 - \`<name>.categories.json\` — optional per-list category sidecar (plus its
-  \`.sha256\`), mapping card **names** to their categories — see **Categories** below
+  \`.sha256\`), mapping card **names** to their categories (see **Categories** below)
 - \`ritual.config.json\` — configuration (optional: reading config never creates
   it, so a workspace only has one once \`config set\`/\`unset\`, \`init-site\`, the
   admin Settings page, or the MCP \`update_config\` tool writes it)
@@ -56,7 +56,7 @@ describes every command, the advanced ones (\`migrate\`, \`detect-changes\`,
   legalities), \`cardkingdom.json\` is Card Kingdom's buylist feed, and \`tags.json\` holds
   Scryfall Tagger tags.
   These are **internal formats** that change without notice, and \`cache.json\` can run to
-  hundreds of MB — **do not parse them**. Every value in them reaches you through a command:
+  hundreds of MB, so **do not parse them**. Every value in them reaches you through a command:
   \`export --columns ...,scryfallId,edhrecRank\` (per line), \`price --output json\`
   (\`price\`, \`edhrecRank\`, \`typeLine\`, \`cmc\` per entry), and \`sell --output json\`
   (CK's \`priceBuy\` beside \`tcgplayerPrice\`, \`offerRatio\`, \`edhrecRank\`, \`ownedCopies\`
@@ -64,25 +64,25 @@ describes every command, the advanced ones (\`migrate\`, \`detect-changes\`,
 
 A list is addressed by its **name** = the file basename without \`.md\`
 (e.g. \`decks/Winota Stax.md\` → \`Winota Stax\`). A name typed **exactly** as the file
-spells it always selects that one list, before any folding — the escape hatch when
+spells it always selects that one list, before any folding, which is the escape hatch when
 two names look alike. Otherwise most commands resolve a name across all three types,
 ignoring case, accents, separators, apostrophes, and the punctuation a file name
 cannot hold (so \`cafe\` matches \`Café\`, \`winota-stax\` matches \`Winota Stax\`, and
 \`Atraxa: Praetors' Voice\` matches the \`Atraxa Praetors' Voice.md\` that name created);
 then by unique substring. When a name matches lists of **different**
 types, pass a type flag (\`--deck\`, \`--collection\`, \`--wanted\`) or prefix the name
-(\`deck:staples\`) — commands taking more than one list (\`diff\`'s two sides,
+(\`deck:staples\`). Commands taking more than one list (\`diff\`'s two sides,
 \`export\`'s list arguments, \`move\`'s \`--from\`/\`--to\`) suggest the prefix, since one
 whole-command flag cannot scope a single argument. A prefix that contradicts a type
 flag (\`delete deck:X --collection\`) is a usage error, not a silent override. When the
 matches are all the **same** type, no type selector can help: type more of the name,
 or the full name exactly as spelled. The error's last line always names the
-remedy that actually applies. A name that matches nothing gets up to three
+remedy that applies. A name that matches nothing gets up to three
 existing lists close to it as a suggestion ("No collection named 'Trade Bindr'
 found. Did you mean 'Trade Binder'?"); under \`--output json\` its \`messageKey\` is
 then \`errors.resolveList.didYouMean\`.
 
-**Discovering lists:** \`ritual lists\` is the discovery primitive — it enumerates
+**Discovering lists:** \`ritual lists\` is the discovery primitive: it enumerates
 every deck, collection, and wanted list as a headed table of type and name, plus a
 file column (the slug) only when some list's file name differs from its name (the
 text type column is worded in the UI language, e.g. \`wanted list\`). Filter with
@@ -97,8 +97,8 @@ empty \`## Commander\` section before \`## Main\`), \`ritual rename <list> "<new
 renames one (file, sidecars, and front matter together), and
 \`ritual delete <list> --confirm "<name>"\` deletes one (\`--confirm\` must repeat the
 display name; without it a terminal prompts). \`new\` and \`rename\` **refuse** a name
-that resolves to an existing list of the same type — \`atraxa superfriends\` beside
-\`Atraxa Superfriends\` is an error, not a second deck — so no two lists ever share
+that resolves to an existing list of the same type (\`atraxa superfriends\` beside
+\`Atraxa Superfriends\` is an error, not a second deck), so no two lists ever share
 one addressable name; re-spelling a list's own name (capitalization, punctuation) is
 allowed. \`rename --output json\` returns \`newFilePath\`/\`oldFilePath\`, and
 \`delete --output json\` returns \`deletedFiles\` and \`trashDir\`: a deleted list's files move into the
@@ -106,7 +106,7 @@ workspace's \`.trash/<time>-<type>-<slug>/\` folder (\`trashDir\` is absolute; w
 inside it), so moving them back restores it. \`ritual diff <listA> <listB>\` compares any two lists by card name
 (\`--by printing\` for exact printings).
 
-**File naming:** creating a list names its file exactly as the list is named — case,
+**File naming:** creating a list names its file exactly as the list is named: case,
 spaces, and punctuation are kept (\`ritual new deck "Winota Stax"\` → \`decks/Winota Stax.md\`,
 not \`winota-stax.md\`). Only what file systems reject is cleaned up: the characters
 \`/ \\ : * ? " < > |\` are stripped, runs of dots collapse to a single dot, leading and
@@ -122,7 +122,7 @@ moving their category assignments along.
 ## File format
 
 Full reference: the **List File Format** docs page (\`/list-format/\`). Every list is
-optional YAML front matter, a \`# Title\` H1 (all three types — there is no \`name:\`
+optional YAML front matter, a \`# Title\` H1 (all three types; there is no \`name:\`
 key), then \`## Section\` headings and \`- \` bulleted card lines. The canonical line
 every write emits, in this order, with defaults omitted:
 
@@ -162,11 +162,11 @@ format: commander
 - **Decks** carry the copies as a quantity on the line; **collections and wanted lists
   hold one line per copy** and write no quantity.
 - \`(SET:CollectorNumber)\` pins a printing; set codes are written **UPPERCASE** in
-  files. **Collection lines always carry a printing** — a printing-less collection line
+  files. **Collection lines always carry a printing**: a printing-less collection line
   is refused (\`missing-printing\`) and blocks whole-file writes until fixed. Deck and
   wanted lines may be name-only.
 - \`[foil]\`/\`[etched]\` is the finish (\`nonfoil\` unwritten), \`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\`
-  the condition (\`NM\` unwritten), \`[ja]\`-style tokens the **language** — a lowercase
+  the condition (\`NM\` unwritten), \`[ja]\`-style tokens the **language**: a lowercase
   Scryfall code (\`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph\`; \`zhs\`/\`zht\`
   for Chinese, not ISO codes), omitted for English so a bare line always means \`en\`.
   \`{...}\` is a note, greedy to the last \`}\`.
@@ -177,16 +177,16 @@ format: commander
   inherited label they cannot combine with); a label both set and negated is a warning.
   Collections take all four, **decks take \`proxy\`/\`no-proxy\` only** (another label on a deck line
   is a warning that keeps the card and drops the token), and **wanted lists carry
-  neither labels nor a condition** — such a token on a wanted line is a named refusal of
+  neither labels nor a condition**: such a token on a wanted line is a named refusal of
   that line. A card's *effective* labels are its positives plus the default minus its
-  negated labels — see the **ritual-collections** and **ritual-decks** skills.
+  negated labels. See the **ritual-collections** and **ritual-decks** skills.
 - **Read tolerances** (rewritten to the canonical form on the next save): bracket
   tokens in any order; any whitespace run; the \`- \` bullet is optional on a deck line
   (a deck line is recognized by its leading quantity; a flat-list line by its bullet);
-  \`4x\` quantities (four or more digits are a quantity **only** with the \`x\` —
-  \`1996 World Champion\` is a name — so 1,000+ copies are written \`- 1234x Sol Ring\`);
+  \`4x\` quantities (four or more digits are a quantity **only** with the \`x\`:
+  \`1996 World Champion\` is a name, so 1,000+ copies are written \`- 1234x Sol Ring\`);
   a quantity on a collection/wanted line (\`- 4 Sol Ring (C21:240)\`
-  reads as four copies and is **expanded to four lines on save** — an advisory, never a
+  reads as four copies and is **expanded to four lines on save**, an advisory, never a
   refusal; the first copy keeps the \`&N\`); Arena/MTGO \`Name (SET) CN\` and Moxfield
   \`Name (SET) *F* CN\` printings; \`//\` comment lines (dropped on write); \`_\` in set
   codes. A refused line (an unknown or disallowed token, a collection line with no
@@ -199,22 +199,22 @@ format: commander
 - **Sections** are matched by exact name (case-insensitive) against a closed table:
   \`Commander\`/\`Commanders\`/\`Command Zone\`, \`Companion\`, \`Oathbreaker\`/\`Signature
   Spell\`, \`Sideboard\`, \`Maybeboard\`, \`Tokens\`/\`Token\`, \`Main\`/\`Mainboard\`/\`Deck\`.
-  **Every other name is a main-deck section** — \`## Token Generators\` or
+  **Every other name is a main-deck section**: \`## Token Generators\` or
   \`## Sideboard (post-board)\` is not special. Maybeboard and Tokens count toward no
   total and are left out of every decklist export.
-- \`&N\` is a **stable internal card ID**. Never hand-author or renumber these — the tools manage them.
+- \`&N\` is a **stable internal card ID**. Never hand-author or renumber these: the tools manage them.
   Commands that add or edit card lines (editors, card mutations, imports, syncs \`deck-sync pull\`/\`push\`
-  and \`collection-sync\` — not \`deck-sync status\`/\`link\` — \`cleanup\`,
+  and \`collection-sync\` (not \`deck-sync status\`/\`link\`), \`cleanup\`,
   the site build, and the admin/MCP servers) backfill missing IDs on startup and persist
   them to the files. \`set-list-image\` backfills **conditionally**: only when the run names a
   card (\`--card\`, or the wizard's card picker), since \`--file\`/\`--url\`/\`--default\` never
-  read an \`&N\` at all. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`sell\`, \`export\`,
+  read an \`&N\`. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`sell\`, \`export\`,
   \`list-all-cards\`, \`history --show\`, ...), the front-matter-only \`metadata\` command, the
   sidecar-only \`categories\` command (it writes a sidecar and a changelog, never card lines)
   and the \`new\`/\`rename\`/\`delete\` lifecycle never touch card lines, and \`-n\`/\`--dry-run\` writes nothing, including that backfill.
-- A card line may carry tags — one \`#\` token holding a comma-separated list (\`#Ramp, Card
-  Draw\`), after the labels and before the note, on every list type — the owner's free-form
-  vocabulary, spaces and case kept, the \`#\` being file punctuation no UI shows; see the
+- A card line may carry tags: one \`#\` token holding a comma-separated list (\`#Ramp, Card
+  Draw\`), after the labels and before the note, on every list type. Tags are the owner's free-form
+  vocabulary, spaces and case kept, and the \`#\` is file punctuation no UI shows; see the
   **ritual-edit** skill (\`set-card --tag\`/\`--untag\`, \`add-card --tag\`, the editor's
   \`🔖 Edit Tags\` action). Front-matter \`tags:\` on a deck describes the list, not its cards.
 
@@ -223,7 +223,7 @@ ignored by card parsing: a card-looking line there is not a card, a \`## Heading
 not a section, an \`&N\` there is not an ID in use, and none of it warns. Fenced lines are
 never a mutation target and never get an ID stamped into them, so a block survives every
 line-preserving edit byte-for-byte. An **unclosed fence extends to the end of the file**
-(CommonMark), so a stray fence hides every card below it — and an \`add-card\`/\`move\` that
+(CommonMark), so a stray fence hides every card below it, and an \`add-card\`/\`move\` that
 would append past it is refused rather than write a line no parse can see. The whole-file
 rewrite paths cannot re-emit a fenced block: admin editor saves, \`import --append\`, and a
 \`move\` with a deck on either side refuse such a file; \`cleanup\` skips its content rewrite;
@@ -232,22 +232,22 @@ load but still drops the block on save.
 
 One shape the whole-file paths **do** delete, on purpose and without refusing: a deck's
 empty **extras** section (a \`## Maybeboard\`/\`## Tokens\` header with no cards under it).
-Extras count toward no total, so the header holds nothing to lose — every whole-file write
+Extras count toward no total, so the header holds nothing to lose. Every whole-file write
 clears it, and \`cleanup\` names it (\`Dropped empty section: Maybeboard\`) while still
 rewriting. Any other empty heading (\`## Sideboard\`, \`## Commander\`, \`## Creatures\`) in a
 deck with cards elsewhere is kept instead: it is written back bare, with no warning, and
 removing or moving a section's last card leaves its heading the same way.
 
-A deck's YAML front matter carries its \`format:\` and \`tags:\` (a fixed set of keys — see
+A deck's YAML front matter carries its \`format:\` and \`tags:\` (a fixed set of keys, see
 the **ritual-decks** skill; the deck's name is its \`# Title\` H1, never a front-matter key). A deck with no \`format:\` is treated as Commander when it
 has a \`## Commander\` section, and the tools write that down on the next save.
 A **collection's** YAML front matter carries its default card labels
 (\`labels: [sale, trade]\` or \`labels: [keep]\`), and a **deck's** carries
-\`labels: [proxy]\` — the same key, restricted to the labels that type takes;
+\`labels: [proxy]\`, the same key restricted to the labels that type takes;
 wanted lists carry no labels. All three types carry \`description:\`, the prose
 blurb the published site prints above the cards (\`ritual metadata set <list>
 description "…"\`), and \`image:\`, the list's cover on the published site (see
-**List cover images** below) — between them, the only front-matter keys a wanted
+**List cover images** below). Between them, these are the only front-matter keys a wanted
 list defines. A flat list's block round-trips byte-for-byte through every save.
 
 **Three kinds of thing you can say about a card**, deliberately different:
@@ -259,7 +259,7 @@ list defines. A flat list's block round-trips byte-for-byte through every save.
 | **Category** | a card **name** in one list | open, per list + config defaults | yes — the first is *primary* | **never**                             | \`<name>.categories.json\` sidecar |
 
 A label instructs Ritual (\`[proxy]\` changes pricing). A tag is a property of the physical
-copy. A **category** is the card's role in this one list — what Archidekt calls a category
+copy. A **category** is the card's role in this one list, which is what Archidekt calls a category
 and Moxfield a tag.
 
 ## Categories
@@ -297,7 +297,7 @@ list, plus the vocabulary's display order:
 
 Edit them with \`ritual categories\` (\`list\`/\`rename\`/\`order\`/\`remove\`),
 \`set-card --categories\`/\`--no-categories\`, or the editors' \`🗂 Edit Categories\` action and
-the list menu's \`🗂 Rename Category…\` / \`🗂 Reorder Categories…\` rows — see the
+the list menu's \`🗂 Rename Category…\` / \`🗂 Reorder Categories…\` rows. See the
 **ritual-edit** skill.
 
 Over MCP: \`get_list\` reports the list's \`categories\` and each card's own; \`apply_changes\`
@@ -307,8 +307,8 @@ takes \`set-categories\` (by name, whole list, \`[]\` clears), \`rename-category
 ## Custom art
 
 Any card in any list can show a **custom image** in place of the printing's own
-scan — a proxy's artwork, an altered card, a photo of the physical copy. The
-mapping lives in a per-list \`<name>.art.json\` sidecar keyed by the card's \`&N\`
+scan (a proxy's artwork, an altered card, a photo of the physical copy). The
+mapping is stored in a per-list \`<name>.art.json\` sidecar keyed by the card's \`&N\`
 id, each entry naming either a file under the configured art directory or an
 image URL:
 
@@ -321,7 +321,7 @@ image URL:
 
 \`ritual config set artDir <path>\` picks the directory (default \`./art\`,
 resolved against the workspace like \`decks/\`); nothing creates it, and a missing
-one simply means no local art. Files are **referenced, never uploaded** — put the
+one means no local art. Files are **referenced, never uploaded**: put the
 image there yourself, then point at it with a forward-slash relative path that
 stays inside the directory and ends in \`.avif\`, \`.gif\`, \`.jpeg\`, \`.jpg\`,
 \`.png\` or \`.webp\` (the extensions the art route serves; a URL is not
@@ -330,16 +330,16 @@ extension-checked). Set it with \`ritual set-card <list> <card> --art\`
 action (the one deferred writer: staged in the session and written by its save), the
 admin editors' **Set Custom Art…** card action, or the MCP \`set_card_art\` tool. Custom art is list *metadata* like a primer: it never
 touches the card line and records **no** changelog entry (every writer but the
-\`edit\` TUI's also writes it immediately, needing no save). Building the site copies referenced files into \`dist/art/\` and bakes the
-URL into the card; \`ritual serve --api\` serves them live from the art directory.
+\`edit\` TUI's also writes it immediately, needing no save). Building the site copies referenced files into \`dist/art/\` and embeds the
+URL in the card; \`ritual serve --api\` serves them live from the art directory.
 
 Custom art **also removes the card's price**, on the same rule as the \`proxy\`
-label: a card wearing art of its own is not the printing a price is quoted for.
+label: a card with art of its own is not the printing a price is quoted for.
 It prices as **0** in \`ritual price\` and on the site (unpriced reason
 \`custom-art\`, which is *not* counted as an unpriced card), and it never appears
 in \`ritual sell\`, the buylist quotes, or the sell cart. Surfaces show
-\`CUSTOM\` where a price would be — \`PROXY\` for a proxy without custom art,
-and \`CUSTOM\` when a card is both.
+\`CUSTOM\` where a price would be (\`PROXY\` for a proxy without custom art,
+and \`CUSTOM\` when a card is both).
 
 The sidecar follows the card lines automatically, because an \`&N\` freed by a
 removal is handed to the next card added: removing a card (or a whole deck line)
@@ -351,13 +351,13 @@ entries of the cards it removed. A removal is final for the art even when the
 same edit re-adds the card and the new line takes the same \`&N\` back: a re-added
 card is a new copy, so set its art again if it should have one. Art returns on
 its own only by *undoing* the removal (the \`edit\` TUI's \`↩️ Undo Last Edit\` and
-the web editors' undo, which reclaim the original id). Only a hand edit —
-or another tool deleting a card line — can leave art behind pointing at an id the
+the web editors' undo, which reclaim the original id). Only a hand edit
+(or another tool deleting a card line) can leave art behind pointing at an id the
 list no longer has; that shows up as a load/build warning naming the raw ids.
 
 ## List cover images
 
-Every list shows one **cover image** on the published site — the picture on its
+Every list shows one **cover image** on the published site: the picture on its
 tile on the index page and in Quick Switch. By default that is chosen for
 you: a commander deck shows its commander, every other list its most expensive
 printing. A list overrides it with an \`image:\` key in its front matter, which
@@ -374,17 +374,17 @@ image:
 
 **The mapping is the only spelling.** A scalar \`image: &12\` is a YAML *anchor*
 that parses to \`null\`, not to the string \`&12\`, so scalars are rejected
-outright rather than half-understood; there is likewise no \`image: default\` —
+outright rather than half-understood; there is likewise no \`image: default\`:
 removing the key (or writing \`null\` through an API) is how a list goes back to
 the built-in rule. \`file\` obeys the custom-art rules exactly (forward slashes,
 inside the art directory, one of the servable extensions), and \`url\` is never
-validated at all — a broken one is the browser's problem.
+validated, so a broken one fails only in the browser.
 
 Set it with \`ritual set-list-image\` (\`--card\`, \`--file\`, \`--url\`,
-\`--default\`, or no flag at all for a wizard), the admin editors' **Cover
+\`--default\`, or no flag for a wizard), the admin editors' **Cover
 Image** button, the MCP \`set_list_metadata\` tool's \`image\` field, or by hand.
-\`ritual metadata\` deliberately does **not** write it — a cover is a mapping,
-which that command's scalar values cannot spell — though \`metadata list\`
+\`ritual metadata\` deliberately does **not** write it (a cover is a mapping,
+which that command's scalar values cannot spell), though \`metadata list\`
 still reports what is stored (\`get\`, like \`set\`, points you here instead).
 
 \`\`\`bash
@@ -399,29 +399,29 @@ The three modes fail differently, on purpose:
 
 - **\`card\`** is verified against the list *as it is written*: a write naming an
   \`&N\` the list does not carry is rejected (CLI exit 2, HTTP/MCP 400) rather than
-  stored. The reference then **follows the card lines** the way custom art does —
-  removing that card clears the key, and a save that renumbers the line rewrites
-  it — because an \`&N\` freed by a removal is handed to the next card added, and a
+  stored. The reference then **follows the card lines** the way custom art does
+  (removing that card clears the key, and a save that renumbers the line rewrites
+  it), because an \`&N\` freed by a removal is handed to the next card added, and a
   stale cover would silently show an unrelated card. A card whose printing cannot
   be resolved falls back to the default cover silently.
-- **\`file\`** has only its *shape* checked when written — unlike a card's custom
+- **\`file\`** has only its *shape* checked when written: unlike a card's custom
   art, which is refused when the file is not there, a cover may name an image you
   add later. The site build warns about a path with nothing behind it (the same
   \`Custom art file not found\` line a card's missing art produces) and falls back to
   the default cover.
-- **\`url\`** is never checked at all, at write time or build time.
+- **\`url\`** is never checked, at write time or build time.
 
 **Prefer the CLI (or the web admin / MCP server) over hand-editing files**, so the
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for
-inspection is fine. To normalize a whole workspace — canonical formatting (bullets,
+inspection is fine. To normalize a whole workspace, meaning canonical formatting (bullets,
 token order, expanded flat-list quantities, repeated-face card names like \`Steam Vents // Steam Vents\` folded onto the card with
-their categories following), file names that match list names, and a \`format:\` on every deck — run
+their categories following), file names that match list names, and a \`format:\` on every deck, run
 \`ritual cleanup\`
 (\`-n\`/\`--dry-run\` to preview; \`--check\` to also exit 1 when any file would
 change, for hooks and CI; \`--skip-formats\` to never prompt for deck formats,
 leaving formatless decks untouched and reported). A file it cannot read or parse
 is named, skipped, and reported with \`unreadable: true\` while its siblings are
-still cleaned — that exits 1 in **every** mode, including \`--dry-run\`. Under
+still cleaned. That exits 1 in **every** mode, including \`--dry-run\`. Under
 \`--no-input\`, a real run that needs the deck-format prompt is a usage error
 (exit 2), not an unreadable file; pass \`--skip-formats\` to avoid the prompt.
 
@@ -438,19 +438,19 @@ still cleaned — that exits 1 in **every** mode, including \`--dry-run\`. Under
 
 - \`--base-dir <path>\` — operate on a workspace other than the current directory
   (the \`RITUAL_BASE_DIR\` environment variable does the same; the flag wins). The
-  path must already be an existing directory — Ritual never creates it, and a
+  path must already be an existing directory: Ritual never creates it, and a
   path that is missing, not a directory, or unreadable is a usage error
   (exit 2), so a typo can never read as an empty workspace
 - \`--cache-server <host:port>\` — share a card/price cache with other instances
   (the \`RITUAL_CACHE_SERVER\` environment variable does the same; host one with
   \`ritual cache server\`). A malformed address is a usage error (exit 2)
-- \`--locale <tag>\` — the language Ritual's **own interface text** speaks, as a
+- \`--locale <tag>\` — the language of Ritual's **own interface text**, as a
   BCP-47 tag (\`de-AT\`, \`ja\`). The \`RITUAL_LOCALE\` environment variable and the
-  \`uiLocale\` config key say the same thing at lower precedence:
+  \`uiLocale\` config key do the same at lower precedence:
   \`--locale\` → \`RITUAL_LOCALE\` → \`uiLocale\` → the OS environment → \`en\`.
   A malformed tag on the flag is a usage error (exit 2); a malformed
   \`RITUAL_LOCALE\`/\`uiLocale\` warns and falls through to the next tier. This is
-  **not** \`defaultLanguage\` (which picks which *printing* of a card is used) —
+  **not** \`defaultLanguage\` (which picks which *printing* of a card is used):
   the two are independent, and a Japanese interface listing English cards is a
   valid combination. A locale Ritual ships no dictionary for renders in English
   rather than failing. The OS-environment tier reads \`LC_ALL\`/\`LC_MESSAGES\`/
@@ -459,8 +459,8 @@ still cleaned — that exits 1 in **every** mode, including \`--dry-run\`. Under
 ${asBullet(NO_INPUT_GUARANTEE)}
 
 Exit codes are uniform across commands: **1** runtime error, **2** usage error,
-**3** not found. A missing resource — a list, file, or sidecar that is simply
-not there — is always **3**, never 1. **4** means updates are pending, and only
+**3** not found. A missing resource (a list, file, or sidecar that is
+not there) is always **3**, never 1. **4** means updates are pending, and only
 \`ritual migrate --check\` (workspace updates) and \`ritual self-update --check\`
 (a newer Ritual release) use it.
 
@@ -477,7 +477,7 @@ release exists, and nothing changed. Mention it if relevant, but never run
 refusal) prints its message plus one line: **This looks like a bug in Ritual**,
 how to see details (\`RITUAL_DEBUG=1\`, which prints the full stack trace), and
 the issue tracker to report it at. Re-run with \`RITUAL_DEBUG=1\` to capture the
-trace, and run \`ritual doctor\` (read-only, offline) to see the setup — Ritual
+trace, and run \`ritual doctor\` (read-only, offline) to see the setup: Ritual
 version and install, the workspace and its list counts, every invalid
 \`ritual.config.json\` setting, pending workspace updates, and the card cache.
 Its text output is meant to be pasted into a bug report; offer to draft one, but
@@ -491,7 +491,7 @@ error, no network) prints just its message.
   card batch or a multi-page search is still one array); \`ndjson\` streams one
   object per line. Errors go to stderr as
   \`{"error":{"code","messageKey?","messageParams?","message","details?"}}\` in the structured
-  modes — \`code\` and \`messageKey\` are locale-invariant (match on those, never
+  modes: \`code\` and \`messageKey\` are locale-invariant (match on those, never
   on prose), while \`message\` follows the UI locale. A keyed engine failure (a
   cache lock that timed out, a failed Archidekt request) is \`code:
   "runtime_error"\` with its \`messageKey\`/\`messageParams\` and exit \`1\`. An
@@ -502,15 +502,15 @@ error, no network) prints just its message.
   \`RITUAL_DEBUG=1\` adds the stack trace as \`details.stack\`. Three
   exceptions, all deliberate: \`scry\` and \`sell\` add a fourth value
   \`--output csv\` (Scryfall's server-side CSV and Card Kingdom's sell-cart
-  upload format, respectively — \`sell\`'s csv is a different payload, not the
-  report re-rendered), and \`export\` has no \`--output\` at all (its stdout
-  payload *is* the export — pick the format with \`--format csv|json|text|md\`,
+  upload format, respectively; \`sell\`'s csv is a different payload, not the
+  report re-rendered), and \`export\` has no \`--output\` (its stdout
+  payload *is* the export; pick the format with \`--format csv|json|text|md\`,
   redirect with \`--out\`).
 - \`--quiet\` suppresses progress and status chatter **only**. The structured
   payload always emits, so \`--quiet --output json\` is clean JSON with no
   surrounding noise. Errors and data-loss warnings (an unparseable card line, a
   change skipped as a conflict, a truncated result set) always reach stderr
-  regardless. A command with no chatter does not register the flag at all
+  regardless. A command with no chatter does not register the flag
   (\`card\`, \`diff\`, \`scry\`, \`cache status\`, \`dep-license\`, \`history\`,
   \`login status\`, \`deck-sync status\`, \`skills list\`).
 - Piping structured output into an early-closing reader (\`… --output ndjson |
@@ -596,11 +596,11 @@ are usage errors (exit 2), and \`cacheSource: feed\` without \`cacheFeedUrl\` wa
 refreshes from Scryfall. \`cache server\` has no authentication and
 unauthenticated write routes: keep it on loopback or a trusted private network.
 
-\`ritual.config.json\` is created only by a genuine write — \`config set\`/\`unset\`,
-\`init-site\`, the admin Settings page, or the MCP \`update_config\` tool — reading
+\`ritual.config.json\` is created only by a genuine write (\`config set\`/\`unset\`,
+\`init-site\`, the admin Settings page, or the MCP \`update_config\` tool); reading
 config never does. If the file exists but is not valid JSON, every command fails with exit 1
-and a message naming the path — under \`--output json\` an error envelope with
-\`messageKey: domain.config.fileNotJson\`, as for a \`--base-dir\` that is not a directory
+and a message naming the path (under \`--output json\`, an error envelope with
+\`messageKey: domain.config.fileNotJson\`), as for a \`--base-dir\` that is not a directory
 (\`cli.baseDir.*\`, exit 2). It is worded in the language \`--locale\`/\`RITUAL_LOCALE\`/the
 OS chose, since a broken file cannot name its own \`uiLocale\`. The file is never
 rewritten, so fix (or delete) it rather than trying to overwrite it with \`config set\`.
@@ -610,7 +610,7 @@ one); \`PUT /api/config\` refuses a value in English plus that key, and \`update
 with the same English.
 
 Cache refreshes take an exclusive lock (\`.ritual-cache-lock\` in the cache folder); a refresh
-started while another process — in this workspace or any other sharing the cache — is
+started while another process (in this workspace or any other sharing the cache) is
 refreshing waits up to the configurable \`cacheLockTimeoutSeconds\` (default 300) instead of
 interleaving writes. Workspaces with different \`defaultLanguage\` values should not share a
 cache (each refresh replaces the other's bulk); give one its own \`cacheDir\`.

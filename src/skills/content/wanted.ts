@@ -18,14 +18,14 @@ export const wantedSkill: RitualSkill = {
     'Manage and price a Magic: The Gathering wanted list (cards to acquire) with Ritual. Use when the user wants to track cards they want to buy, add cards to a wishlist, record a purchase by moving a wanted card into a collection, import a wanted list from a CSV or text file, or price a wanted list.',
   body: `# Managing wanted lists with Ritual
 
-Wanted lists (cards to acquire) live in \`wanted/<name>.md\`. Entries may be
-name-only — no printing required. See the **ritual** skill for the file format.
+Wanted lists (cards to acquire) are stored in \`wanted/<name>.md\`. Entries may be
+name-only (no printing required). See the **ritual** skill for the file format.
 
 ## One-shot edits (non-interactive — best for agents)
 
 Use the one-shot commands (covered in full by the **ritual-edit** skill).
-\`add-card\` works on wanted lists, and — when the type is pinned with \`--wanted\`
-or a \`wanted:\` prefix — creates the list if the workspace has no wanted list yet;
+\`add-card\` works on wanted lists, and, when the type is pinned with \`--wanted\`
+or a \`wanted:\` prefix, creates the list if the workspace has no wanted list yet;
 beside existing ones a new name needs \`--create\` (otherwise it is refused as a
 likely typo, with the closest names suggested). The file is created only once the
 add is certain to succeed, so a failed add or a \`--dry-run\` leaves none behind. Every wanted
@@ -33,7 +33,7 @@ add chooses a specificity: \`--name-only\` (any copy), a specific printing via
 \`--set\`/\`--collector-number\`, or \`--specific\` (open the interactive printing
 picker; needs a terminal). A terminal prompts when none is given; a
 non-interactive run without one exits 2. A specific-printing add also needs
-\`-f\` when that printing comes in several finishes — headless runs never guess
+\`-f\` when that printing comes in several finishes, because headless runs never guess
 one:
 
 \`\`\`bash
@@ -54,7 +54,7 @@ set with \`set-card
 
 A finish belongs to a printing, so \`set-card --finish foil|etched\` needs the entry to
 pin one and exits 2 otherwise (pass \`--set\`/\`--collector-number\` in the same call to
-do both). \`--finish nonfoil\` always applies — it clears the token. An \`add-card\`
+do both). \`--finish nonfoil\` always applies: it clears the token. An \`add-card\`
 that states a finish while creating a \`--name-only\` entry is unaffected: that
 records "any printing, in foil", which is a wanted-list specificity rather than an
 edit to an existing line.
@@ -64,7 +64,7 @@ edit to an existing line.
 \`ritual move\` with \`--from\`/\`--to\` records a purchase in one command: the entry
 leaves the wanted list and lands in the collection. Collections need a concrete
 printing, so a name-only entry takes it from \`--set\`/\`--collector-number\` (or its
-single known printing in the local card cache — a card the cache does not hold has
+single known printing in the local card cache. A card the cache does not hold has
 no printing list, so pass the flags); already-pinned entries move as-is:
 
 \`\`\`bash
@@ -112,7 +112,7 @@ ${sessionSemantics({
   editFields:
     "change a card's printing (or make it name-only), finish, language, tags, or note, move it to another list, or remove it",
   editModeNote:
-    'The `✨ Change Finish` item is hidden for name-only entries — a finish only annotates a specific printing.',
+    'The `✨ Change Finish` item is hidden for name-only entries, because a finish only annotates a specific printing.',
   undoAddVerb: 'removes',
   changeKinds: 'adds, edits, and removals',
   discardTarget: 'same-card changes',
@@ -125,10 +125,10 @@ ${sessionSemantics({
 A wanted list carries two front-matter keys of its own. \`description:\` is the
 prose blurb the published site prints above the cards, written with
 \`ritual metadata\` (or the MCP \`set_list_metadata\` tool). \`image:\` is the
-cover the site shows for it (a mapping — \`{card: N}\`, \`{file: …}\` or
+cover the site shows for it (a mapping: \`{card: N}\`, \`{file: …}\` or
 \`{url: …}\`; see the **ritual** skill's *List cover images* section), written
 with \`set-list-image\` (or the same MCP tool's \`image\` field, or the admin
-editor's **Cover Image** button) — \`metadata\` cannot spell a mapping. A wanted
+editor's **Cover Image** button); \`metadata\` cannot spell a mapping. A wanted
 list carries no card labels. Any other block a file already has is preserved
 verbatim through every save.
 

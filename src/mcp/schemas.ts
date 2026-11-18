@@ -49,7 +49,9 @@ export const cardTagSchema = z
   .refine((raw) => isCardTagShaped(raw) && raw === normalizeCardTag(raw), {
     message: `Not a canonical tag: ${CARD_TAG_SHAPE_RULE}; no surrounding or doubled spaces.`,
   })
-  .describe('A card tag as its owner writes it, e.g. "Ramp" or "Card Draw" — plain text, no "#".')
+  .describe(
+    'A card tag as its owner writes it, in plain text with no "#", e.g. "Ramp" or "Card Draw".',
+  )
 /** The tags a newly added card starts with; omit for none. */
 export const tagsField = z
   .array(cardTagSchema)
@@ -67,7 +69,7 @@ export const cardCategorySchema = z
   .refine((raw) => isCardCategoryShaped(raw) && raw === normalizeCardCategory(raw), {
     message: `Not a canonical category: ${CARD_CATEGORY_SHAPE_RULE}; no surrounding or doubled spaces.`,
   })
-  .describe('A category as its owner writes it, e.g. "Ramp" or "Card Draw" — plain text.')
+  .describe('A category as its owner writes it, in plain text, e.g. "Ramp" or "Card Draw".')
 /**
  * A card's whole ordered category list, primary first. **No `.min(1)`**, unlike
  * {@link tagsField}: an empty array is a meaningful *clear*, because the event
@@ -76,7 +78,7 @@ export const cardCategorySchema = z
 export const categoriesField = z
   .array(cardCategorySchema)
   .describe(
-    'The card’s categories in this list, primary first — the whole list, replacing whatever ' +
+    'The card’s categories in this list, primary first: the whole list, replacing whatever ' +
       'it had. An empty array clears them.',
   )
 /**
@@ -199,13 +201,13 @@ export type ListRefInput = z.infer<typeof listRefSchema>
 export const slugField = z
   .string()
   .min(1)
-  .describe('List slug — the markdown file basename without ".md".')
+  .describe('List slug: the markdown file basename without ".md".')
 
 export const cardNameField = z
   .string()
   .min(1)
   .describe(
-    'Card name. Edits and removals match the entry name exactly (case-sensitive) — copy it from ' +
+    'Card name. Edits and removals match the entry name exactly (case-sensitive), so copy it from ' +
       'get_list. Validated against the local card cache: an unknown name is rejected with the ' +
       'closest cached names, unless the name is already in the list being edited.',
   )
@@ -306,7 +308,7 @@ export const languageField = languageSchema
   .optional()
   .describe(
     'Scryfall language code (e.g. "ja"; "zhs"/"zht" for Chinese). Omitted (or "en") means ' +
-      'English — a card line only carries a language token when it is not English. Adding never ' +
+      'English: a card line only carries a language token when it is not English. Adding never ' +
       'prompts for a language: the defaultLanguage config key stamps new cards.',
   )
 

@@ -27,14 +27,14 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   and report instead.
 - Every tool returns structuredContent against its declared outputSchema; read that, not
   content[0].text. A failure is isError with { error, code, message, conflict?, recovery?,
-  unmatched? } — code is "conflict" | "cancelled" | "invalid-request" | "internal".
+  unmatched? }, where code is "conflict" | "cancelled" | "invalid-request" | "internal".
 - Language: tool names, descriptions, these instructions, and every result "message" are
   English by contract, whatever UI locale the user configured (that setting moves Ritual's own
-  terminal output and its web UIs, never this surface — except the sync_collection elicitation
+  terminal output and its web UIs, never this surface, except the sync_collection elicitation
   form and a task's statusMessage, which the client shows its user, so they follow the user's
   UI locale). Results authored by the admin API carry
-  a "messageKey" (plus "messageParams" when it interpolates) beside the English "message" — a
-  locale-invariant identifier to match on instead of matching prose. Those params may nest — a
+  a "messageKey" (plus "messageParams" when it interpolates) beside the English "message", a
+  locale-invariant identifier to match on instead of matching prose. Those params may nest, and a
   param is then a message ({ messageKey, messageParams }), a list ({ list, join }), a duration
   ({ elapsedMs } or { durationMs }) or a card language ({ language }): import results' counts,
   the sync tools' per-item "reasonParams" and run-level "report.errorMessages[].messageParams",
@@ -70,7 +70,7 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   is just keep; ["no-proxy"] in a "proxy"-default deck is a real card). A card labeled "proxy" is
   not a real copy, and a card given custom art (set_card_art) is no longer the
   printing a price is quoted for: either one prices as 0 everywhere and is left out of unpriced
-  counts, sell reports, and buylist quotes entirely — its absence there is the rule, not a lookup
+  counts, sell reports, and buylist quotes entirely. Its absence there is the rule, not a lookup
   failure. In a price report such an entry carries unpricedReason "proxy" or "custom-art"
   ("custom-art" wins when both apply). A move (move_selected_cards, a bundle move) keeps a
   card's labels: a proxy stays a proxy and a real card stays real wherever both lists carry
@@ -78,18 +78,18 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   is kept, and a label the source never stated takes the destination's default. The destination
   keeps only what its type takes and writes the smallest override that says so.
 - Card tags are the owner's own free-form vocabulary, on any list type: get_list reports a card's
-  "tags" (canonical — trimmed, sorted, in the owner's own casing, without the "#" the card line
+  "tags" (canonical: trimmed, sorted, in the owner's own casing, without the "#" the card line
   writes), add_card and an apply_changes "add" take "tags" for a new card, and apply_changes
   "add-tag" / "remove-tag" put one tag on or take one off an existing card (one event per tag). A
-  tag is plain text such as "Ramp" or "Card Draw" — spaces and case are kept, but it can never
+  tag is plain text such as "Ramp" or "Card Draw". Spaces and case are kept, but it can never
   contain "#", ",", "&", brackets, braces or parentheses; anything else is a schema refusal. Tags
   are not labels: a "Keep" tag is a plain tag with none of the "keep" label's
   meaning, and a deck's front-matter "tags" (set_list_metadata) describe the deck, not a card.
-- Card categories are the card's role in one list — what Archidekt calls a category and Moxfield
-  a tag — and they are keyed by card NAME, not by the &N id: one assignment covers every line of
+- Card categories are the card's role in one list (what Archidekt calls a category and Moxfield
+  a tag), and they are keyed by card NAME, not by the &N id: one assignment covers every line of
   that name, and a category never follows a card to another list. They are ordered, first is
   primary. get_list reports them twice: the list's own "categories" ({order, cards}) beside the
-  entries, and each card's resolved "categories" on the entry itself — absent means none, at both
+  entries, and each card's resolved "categories" on the entry itself. Absent means none, at both
   levels. apply_changes writes them: "set-categories" (per card, by name, replacing the whole
   list; [] clears) and the two list-level actions "rename-category" and "set-category-order",
   which are the only changes that name no card. They are not tags: a tag belongs to the physical
@@ -97,8 +97,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 - A list's cover image is list front matter, not a card property: get_list reports it as "image"
   and set_list_metadata's image field overrides it for any list type; null there restores the
   built-in rule (a commander deck shows its commander, every other list its priciest printing).
-- Card language: an entry without a language field is English ("en" — a bare card line always
-  means English). Adds never prompt for one — the defaultLanguage config key stamps new cards;
+- Card language: an entry without a language field is English ("en"; a bare card line always
+  means English). Adds never prompt for one: the defaultLanguage config key stamps new cards;
   set-language / the language fields change it afterwards. Non-English copies are not quotable
   on the Card Kingdom buylist (its feed is English-only).
 - Network vs local, by name: search_scryfall always queries Scryfall; find_cards and
@@ -116,10 +116,10 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   get_buylist_quotes and refresh_buylist error "Not found" unless the workspace set the
   site.sellMode config key, listed "cardkingdom" in priceSources, or the server was started with
   --sell-mode; that is a configuration decision, not a missing feed, so refresh_buylist will not
-  fix it — say so instead of retrying. Either setting makes build_site bake the Card Kingdom feed
+  fix it. Say so instead of retrying. Either setting makes build_site bake the Card Kingdom feed
   into the published site; site.sellMode alone decides whether the site offers sell mode.
   get_config shows which one is on: "config" is the stored configuration, and "overrides"
-  (present only under a session flag) is what this running server is actually operating with,
+  (present only under a session flag) is what this running server is operating with,
   e.g. {"site.sellMode": true}.
 - About: Ritual ${SOURCE_OFFER.version}, free software under the ${SOURCE_OFFER.license}. The source
   of this version is at ${SOURCE_OFFER.revisionUrl}. When Ritual itself misbehaves, get_diagnostics

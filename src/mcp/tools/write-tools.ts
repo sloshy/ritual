@@ -214,7 +214,7 @@ const cardArtSchema = z
           'Image path relative to the configured art directory (the artDir config key), e.g. ' +
             '"proxies/sol-ring.jpg". Forward slashes; it may not escape that directory; it must ' +
             'end in .avif, .gif, .jpeg, .jpg, .png or .webp (the extensions the art route ' +
-            'serves); and the file must already exist — Ritual never uploads or downloads art.',
+            'serves); and the file must already exist. Ritual never uploads or downloads art.',
         ),
     }),
     z.strictObject({
@@ -223,7 +223,7 @@ const cardArtSchema = z
         .url()
         .describe(
           'http(s) URL of the image. Referenced verbatim; never downloaded or cached, and ' +
-            'never extension-checked — the browser decides what it can render.',
+            'never extension-checked: the browser decides what it can render.',
         ),
     }),
     z.null(),
@@ -285,7 +285,7 @@ const applyChangeSchema = z.discriminatedUnion('action', [
     action: z.literal('set-finish'),
     ...changeBase,
     finish: finishSchema.describe(
-      'The new finish. "foil"/"etched" require the entry to pin a printing — set the ' +
+      'The new finish. "foil"/"etched" require the entry to pin a printing, so set the ' +
         'printing first (a set-printing change earlier in the same batch counts). ' +
         '"nonfoil" always applies, and is how a finish token is cleared.',
     ),
@@ -442,19 +442,19 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       description:
         "Import a deck from a supported URL or from pasted decklist text (Ritual's own " +
         'format and MTG Arena/MTGO exports). Text lines the parser cannot read are skipped and ' +
-        'reported in `warnings` — check it, because a non-empty array means part of the pasted ' +
-        'text was not imported; `advisories` reports content that was read but is worth a ' +
-        'word (a line that looked off, or an empty Maybeboard/Tokens section the write drops). ' +
+        'reported in `warnings`. Check it, because a non-empty array means part of the pasted ' +
+        'text was not imported; `advisories` reports content that was read but is worth ' +
+        'mentioning (a line that looked off, or an empty Maybeboard/Tokens section the write drops). ' +
         'Each entry of both is a message: English `message`, plus a `messageKey` to match on ' +
         'when present; a warning whose card ' +
         'was imported without its labels is marked `labelsDropped: true`. ' +
-        'A URL import must state `syncPrintings` — the CLI asks the user interactively, and ' +
+        'A URL import must state `syncPrintings`: the CLI asks the user interactively, and ' +
         'this call is that decision, so ask the user when their intent is unclear. A URL ' +
         'import from Archidekt or Moxfield also writes each card’s categories (its role in ' +
         'the deck: Archidekt categories that are not boards, Moxfield tags) to the deck’s ' +
         'categories file, replacing any a replaced deck had. A name/ID ' +
         'conflict without `overwrite`, or a deck name with no characters usable in a file ' +
-        'name, fails with `code: "invalid-request"` — as does an Archidekt URL whose deck ' +
+        'name, fails with `code: "invalid-request"`, as does an Archidekt URL whose deck ' +
         'Archidekt does not show (missing or private). Archidekt failing any other way (a 5xx, ' +
         'a rate limit, a reply that cannot be read) fails with `code: "internal"`.',
       inputSchema: z.object({
@@ -468,7 +468,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           .optional()
           .describe(
             'Required for mode "url" (the handler refuses a URL import without it): true keeps ' +
-              'the exact printings — set, collector number, foil/etched finish — the source ' +
+              'the exact printings (set, collector number, foil/etched finish) the source ' +
               'lists; false imports bare card names. Not accepted for mode "text", whose ' +
               'printings come from the pasted lines themselves.',
           ),
@@ -494,8 +494,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Import CSV',
       description:
-        'Import cards from CSV text into a deck, collection, or wanted list — creating a new list, ' +
-        'overwriting one, or appending to an existing one. Columns map to card fields via a ' +
+        'Import cards from CSV text into a deck, collection, or wanted list (creating a new list, ' +
+        'overwriting one, or appending to an existing one). Columns map to card fields via a ' +
         `1-based spec like "name=1,set=2,collector-number=3" (fields: ${CSV_FIELDS.join(', ')}). ` +
         'Values are normalized (e.g. "Near Mint" ' +
         '→ NM, "F" → foil, "JP"/"Japanese" → ja; an empty language cell falls back to the ' +
@@ -505,10 +505,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         '"Commander", "Tokens", ...) sets the row\'s section instead, and a value the category ' +
         'grammar refuses is dropped with a warning rather than failing the row. Rows that fail validation ' +
         'are reported back and the rest still import, so a ' +
-        'partially-failed import still succeeds — read failedCount and failures rather than ' +
+        'partially-failed import still succeeds. Read failedCount and failures rather than ' +
         'treating the call as all-or-nothing. Each failure row has an English `reason` plus, ' +
         'when present, `reasonKey`/`reasonParams`; each `warnings` entry is a message (English ' +
-        '`message`, plus `messageKey`/`messageParams` when present) — match on the key when it ' +
+        '`message`, plus `messageKey`/`messageParams` when present). Match on the key when it ' +
         'is there, never on the prose.',
       inputSchema: z
         .object({
@@ -533,7 +533,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
             .boolean()
             .optional()
             .describe(
-              "Whether the first row is a header row. Defaults to true; the result's `warnings` state which row that skipped and whether it actually looked like one, so pass false for a headerless export rather than losing its first card.",
+              "Whether the first row is a header row. Defaults to true; the result's `warnings` state which row that skipped and whether it looked like one, so pass false for a headerless export rather than losing its first card.",
             ),
         })
         .superRefine(refineDeckOnlyFormat),
@@ -605,10 +605,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Set list metadata',
       description:
-        'Write a list’s front matter. Every list type takes description — the blurb the built ' +
-        'site prints above the cards — and image. Decks add tags, format, the Archidekt source ' +
+        'Write a list’s front matter. Every list type takes description (the blurb the built ' +
+        'site prints above the cards) and image. Decks add tags, format, the Archidekt source ' +
         'link, and labels ("proxy" alone). Collections add labels over the whole vocabulary ' +
-        '("sale"/"trade" combine; "keep" and "proxy" each stand alone) — the default every ' +
+        '("sale"/"trade" combine; "keep" and "proxy" each stand alone). Those labels are the default every ' +
         'entry inherits, adjusted by its own signed labels; a default is positive only. A wanted list carries description and image ' +
         'and nothing else (use rename_list to change its display name). Only the fields you ' +
         'send are touched; null (or "" for description) clears one. Setting sourceId together with an ' +
@@ -618,8 +618,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'the list, overriding the built-in rule (a commander deck shows its commander, every ' +
         'other list its most expensive printing): {"card": N} names a line in THIS list by its ' +
         '&N id and is rejected outright when the list has no such line; {"file": "path"} names an ' +
-        'image relative to the configured art directory, which — unlike set_card_art\u2019s file, ' +
-        'which must already be there — need NOT exist yet (a missing one is only a build-time ' +
+        'image relative to the configured art directory, which (unlike set_card_art\u2019s file, ' +
+        'which must already be there) need NOT exist yet (a missing one is only a build-time ' +
         'warning, so the art can be added later); {"url": "https://..."} is ' +
         'used verbatim and never validated. null restores the built-in rule. No changelog entry ' +
         'is recorded: the changelog is card-level, and metadata is not a card change.',
@@ -695,10 +695,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Add card',
       description:
-        'Add a card to any list (decks increment quantity if the same printing already exists — ' +
+        'Add a card to any list (decks increment quantity if the same printing already exists, ' +
         'within the named section when section is given, anywhere in the deck otherwise). ' +
         'Supply set + collectorNumber to pin the printing. quantity adds that many copies in ' +
-        'one save. Collections require set + collectorNumber together — an add without one is ' +
+        'one save. Collections require set + collectorNumber together, and an add without one is ' +
         'rejected. labels gives the new card a signed label override adjusting the list default ' +
         '("trade", "no-sale"; decks take "proxy"/"no-proxy" alone); tags ' +
         'gives it tags (plain text in the owner\'s casing, sent without any "#"; any list type). language records a ' +
@@ -767,7 +767,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       description:
         'Remove a card from any list. Decks remove quantity copies (deleting the line at zero); ' +
         'collections and wanted lists keep one entry per physical card, so quantity must stay 1 ' +
-        'there — remove entries individually (disambiguate with cardId). All-or-nothing: if any ' +
+        'there: remove entries individually (disambiguate with cardId). All-or-nothing: if any ' +
         'requested copy cannot be matched (names are exact and case-sensitive), the whole call ' +
         'fails and nothing is saved.',
       inputSchema: z
@@ -833,7 +833,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'list. Omit set and collectorNumber to clear the specific printing on a deck or ' +
         'wanted-list card; collections require both together, so omitting them there is ' +
         'rejected. Clearing the printing while passing a "foil"/"etched" finish is rejected ' +
-        'too — a finish belongs to a printing; clear both together instead. ' +
+        'too, because a finish belongs to a printing; clear both together instead. ' +
         'condition accepts a grade or "NONE" to clear a recorded grade. language ' +
         'sets the card’s language alongside the printing ("en" = English, which clears the ' +
         'line’s token); omitting it leaves the current language alone.',
@@ -881,10 +881,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Set card art',
       description:
-        'Set or clear the custom art of one card in any list — the image the published site and ' +
+        'Set or clear the custom art of one card in any list, the image the published site and ' +
         'the editors show in place of the printing’s own scan. The card is addressed by its &N ' +
         'id alone (get_list reports it), and art is either a file under the configured art ' +
-        'directory (artDir) or an image URL; null clears it. A file must already exist there — ' +
+        'directory (artDir) or an image URL; null clears it. A file must already exist there: ' +
         'Ritual references images, it never uploads or downloads them. Custom art is list ' +
         'metadata like the primer sidecar: it is written immediately to <list>.art.json, leaves ' +
         'the card line untouched, and records no changelog entry, so it neither needs nor ' +
@@ -918,8 +918,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'set-language/set-note/set-label/add-tag/remove-tag/set-commander/unset-commander/' +
         'set-section/set-categories/rename-category/set-category-order) to one list ' +
         'atomically: ' +
-        'one load, one save, one changelog block. The batch is all-or-nothing — if any change ' +
-        'fails to match (names are exact and case-sensitive), nothing is saved — but a later ' +
+        'one load, one save, one changelog block. The batch is all-or-nothing: if any change ' +
+        'fails to match (names are exact and case-sensitive), nothing is saved, but a later ' +
         'change may target a card an earlier change in the same batch added. Change ids and ' +
         'timestamps are stamped by the server. On a collection, add and ' +
         'set-printing require set + collectorNumber together. A set-finish of "foil"/"etched" ' +
@@ -927,24 +927,24 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'satisfies it); "nonfoil" always applies. For cross-list moves use ' +
         'move_selected_cards. ' +
         'This is also the only way to set or clear a card note (set-note), change a card’s ' +
-        'language on its own (set-language — "en" clears the token, since a bare line means ' +
-        'English), set or clear a card’s signed label override (set-label — "trade", "no-sale" ' +
+        'language on its own (set-language, where "en" clears the token, since a bare line means ' +
+        'English), set or clear a card’s signed label override (set-label, taking "trade", "no-sale" ' +
         'and the rest of the vocabulary on a collection, "proxy"/"no-proxy" alone on a deck, ' +
         'never on a wanted list), put a tag on or take one ' +
-        'off a card (add-tag / remove-tag — one event per tag, the tag as its owner writes it, without any "#", ' +
+        'off a card (add-tag / remove-tag: one event per tag, the tag as its owner writes it, without any "#", ' +
         'on any list type), move a card to a section ' +
         '(set-section), and set or clear a deck commander ' +
         '(set-commander/unset-commander); the commander actions apply to decks only and fail ' +
         'on a collection or wanted list. ' +
-        'Categories are a card’s role in this one list, keyed by card NAME — one set-categories ' +
+        'Categories are a card’s role in this one list, keyed by card NAME: one set-categories ' +
         'covers every line of that name, whatever its printing, section or quantity, and it ' +
         'carries no cardId. It replaces the card’s whole ordered list (first = primary); an ' +
         'empty categories array clears it. rename-category and set-category-order target the ' +
         'LIST, not a card, and are the only changes here that name none: rename-category ' +
-        'rewrites every card that uses the name, set-category-order sets the display order — ' +
-        'an empty order array clears the declared order, and the next write re-derives one from ' +
+        'rewrites every card that uses the name, set-category-order sets the display order. ' +
+        'An empty order array clears the declared order, and the next write re-derives one from ' +
         'the categories the cards use, listing the configured defaultCategories first. ' +
-        'Removing a category is those two together — clear it off its cards, then send an order ' +
+        'Removing a category is those two together: clear it off its cards, then send an order ' +
         'without it. A set-categories naming a card this list does not hold applies and is then ' +
         'pruned at save time, so check the list first. ' +
         'A removal drops the card’s custom art even when a later change in the same batch adds ' +
@@ -993,14 +993,14 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         "a deck line with a different note keeps that line's note; see droppedNotes), and so " +
         'do its labels: a proxy stays a proxy and a real card stays real wherever both lists ' +
         'carry "proxy"; a sale/trade/keep state the source list stated (by its default or on ' +
-        "the card) is kept, and a label it never stated takes the destination's default — as far " +
+        "the card) is kept, and a label it never stated takes the destination's default, in both cases as far " +
         'as the destination type accepts them (proxy into a deck; sale/trade/keep into a ' +
         'collection only; nothing into a wanted list), written as the smallest override that ' +
         'says so. Its custom art ' +
         "follows too: the entry is re-filed under the destination line's new cardId, except for " +
         'a copy that merges ' +
         'onto a line the destination already had, which keeps its own art. ' +
-        'Categories do NOT follow a moved card — a category belongs to a card name in one list — ' +
+        'Categories do NOT follow a moved card (a category belongs to a card name in one list), ' +
         'so a source list that loses its last copy of a name drops that name’s assignment and ' +
         'reports it in prunedCategories.',
       inputSchema: z.object({
