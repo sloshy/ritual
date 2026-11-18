@@ -377,8 +377,9 @@ that parses to \`null\`, not to the string \`&12\`, so scalars are rejected
 outright rather than half-understood; there is likewise no \`image: default\`:
 removing the key (or writing \`null\` through an API) is how a list goes back to
 the built-in rule. \`file\` obeys the custom-art rules exactly (forward slashes,
-inside the art directory, one of the servable extensions), and \`url\` is never
-validated, so a broken one fails only in the browser.
+inside the art directory, one of the servable extensions), and \`url\` must be an
+absolute \`http(s)\` URL but is never fetched, so one that points at nothing fails
+only in the browser.
 
 Set it with \`ritual set-list-image\` (\`--card\`, \`--file\`, \`--url\`,
 \`--default\`, or no flag for a wizard), the admin editors' **Cover
@@ -409,7 +410,8 @@ The three modes fail differently, on purpose:
   add later. The site build warns about a path with nothing behind it (the same
   \`Custom art file not found\` line a card's missing art produces) and falls back to
   the default cover.
-- **\`url\`** is never checked, at write time or build time.
+- **\`url\`** must be an absolute \`http(s)\` URL (anything else is rejected) and is
+  never fetched, at write time or build time.
 
 **Prefer the CLI (or the web admin / MCP server) over hand-editing files**, so the
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for

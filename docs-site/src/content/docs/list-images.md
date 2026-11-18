@@ -84,7 +84,7 @@ A `file` cover obeys the [custom-art reference rules](/custom-art/#the-sidecar):
 
 Unlike a card id, and unlike a card's custom art, **a cover file is not required to exist when you set it**. Only the shape of the path is checked, so you may point at an image you are about to add. A path with nothing behind it at build time prints the usual `Custom art file not found in …` warning and the list falls back to its default cover.
 
-A `url` cover is never validated, when written or at build time. A broken one is the browser's problem, as for a custom-art URL. Under `serve --api`, a `file` cover goes into the page data without any check that the file exists, so a missing file shows as a `404` in the page rather than a fallback.
+A `url` cover is checked only for its shape, an absolute `http(s)` URL. It is never fetched, when written or at build time, so one that points at nothing shows as a broken image in the browser, as for a custom-art URL. Under `serve --api`, a `file` cover goes into the page data without any check that the file exists, so a missing file shows as a `404` in the page rather than a fallback.
 
 ## Public-site downloads
 

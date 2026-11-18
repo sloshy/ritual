@@ -454,7 +454,7 @@ An `add` may also carry `labels` and `tags` for the fresh card; `add` and `set-p
 `set_list_metadata` writes deck front matter (tags, format, source link) and, on a deck or a collection, `labels`, the [default card labels](/list-format/#card-labels) every entry inherits, adjusted by its own signed labels (`null` clears them; a default is positive only). All three list types take:
 
 - `description`, the blurb the built site prints above the cards (`null` or `""` clears it).
-- `image`, the list's [cover image](/list-images/): a single-key mapping, `{"card": N}` (the `&N` of a line in that same list), `{"file": "rel/path"}` (relative to the art directory) or `{"url": "https://…"}`, with `null` restoring the built-in cover rule. There is no scalar spelling. The three modes fail differently: a `card` id the list does not carry is rejected outright, a `file` with nothing behind it is accepted and only warned about at build time, and a `url` is never validated.
+- `image`, the list's [cover image](/list-images/): a single-key mapping, `{"card": N}` (the `&N` of a line in that same list), `{"file": "rel/path"}` (relative to the art directory) or `{"url": "https://…"}`, with `null` restoring the built-in cover rule. There is no scalar spelling. The three modes fail differently: a `card` id the list does not carry is rejected outright, a `file` with nothing behind it is accepted and only warned about at build time, and a `url` must be an absolute `http(s)` URL but is never fetched.
 
 `description` and `image` are the **only** fields a wanted list accepts (use `rename_list` to change its display name); a `labels` key on a wanted body is refused by name.
 
