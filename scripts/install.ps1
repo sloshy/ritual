@@ -1,7 +1,7 @@
 param(
     # Install the newest release, including prereleases.
     [switch]$Prerelease,
-    # Install a specific release tag (e.g. v0.3.0), or "prerelease".
+    # Install a specific release tag (e.g. v1.0.0), or "prerelease".
     [string]$Version
 )
 
@@ -104,17 +104,13 @@ try {
         $archivePath = Get-VerifiedAsset -Name $archiveName
     }
     catch {
-        # An HTTP error means the release has no archive; say why that may be.
-        # Anything else, a checksum mismatch included, is reported as it is.
-        # (StrictMode forbids reading a property an exception does not have.)
+        # An HTTP error for a named release means it has no archive; say why
+        # that may be. Anything else, a checksum mismatch included, is
+        # reported as it is. (StrictMode forbids reading a property an
+        # exception does not have.)
         $response = $_.Exception.PSObject.Properties["Response"]
-        if ($response -and $response.Value) {
-            if ($Version) {
-                Write-Warning "Releases before v0.1.0-rc4 publish no archive, and this script cannot install them."
-            }
-            else {
-                Write-Warning "If $repoOwner/$repoName has only prereleases so far, re-run with -Prerelease."
-            }
+        if ($Version -and $response -and $response.Value) {
+            Write-Warning "Releases before v0.1.0-rc4 publish no archive, and this script cannot install them."
         }
         throw
     }

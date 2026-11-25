@@ -742,7 +742,7 @@ export const cliInfraMessages = {
   'cli.migrate.devBuild':
     'Warning: {version} is a development build, so {configKey} was left unchanged. CI keeps building with the pinned release {pinned}, which does not know the migrations just applied. Run `{command}` with a Ritual release build and commit to move the pin.',
   'cli.migrate.devBuildNoPin':
-    'Warning: {version} is a development build, so it did not pin a release in {configKey}. With no pin, CI builds with the newest Ritual release (the latest stable one, or the newest prerelease when there is none), which may not know the migrations just applied. Run `{command}` with a Ritual release build and commit to pin one.',
+    'Warning: {version} is a development build, so it did not pin a release in {configKey}. With no pin, CI builds with the latest stable Ritual release, which may not know the migrations just applied. Run `{command}` with a Ritual release build and commit to pin one.',
   'cli.migrate.ahead':
     'This workspace was last updated by a newer Ritual ({version}). Run `{command} {version}` and try again.',
   'cli.migrate.aheadNoVersion':
@@ -797,7 +797,7 @@ export const cliInfraMessages = {
     'GitHub redirected {url} to {location}, another site; Ritual does not send {envVar} there. Unset {envVar} and try again.',
   'cli.selfUpdate.error.badResponse': 'GitHub sent an unexpected response for {url}: {error}',
   'cli.selfUpdate.error.noStableRelease':
-    'No stable Ritual release has been published yet. Run `{command}` for the newest prerelease.',
+    'There is no stable Ritual release to install. Run `{command}` for the newest prerelease.',
   'cli.selfUpdate.error.noRelease': 'No Ritual release has been published yet.',
   'cli.selfUpdate.error.tagNotFound': 'No Ritual release is tagged {tag}.',
   'cli.selfUpdate.error.missingAsset':

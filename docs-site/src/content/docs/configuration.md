@@ -425,18 +425,18 @@ The `managed` key belongs to Ritual. [`init-site`](/commands/init-site/) stamps 
 ```json
 {
   "managed": {
-    "version": "0.1.0",
+    "version": "1.0.0",
     "migration": 0,
     "output": "sha256:…"
   }
 }
 ```
 
-| Field       | Description                                                                                                                                                                                                                                                                                                                                                                      |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `version`   | The Ritual **release** that last brought the workspace up to date, and the release a "Publish for me" workflow downloads ([the CI pin](/commands/init-site/#the-pinned-ritual-release-github-actions)). Development builds never write it. Without a pin, the workflow uses the latest stable release (or the newest prerelease while none exists) and logs a warning naming it. |
-| `migration` | The highest [numbered migration](/commands/migrate/#numbered-migrations) applied. Absent means `0`.                                                                                                                                                                                                                                                                              |
-| `output`    | A hash of the files Ritual generated for this workspace (workflow, `.gitignore` entries, agent skills). A different hash means a refresh is due.                                                                                                                                                                                                                                 |
+| Field       | Description                                                                                                                                                                                                                                                                                                                         |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`   | The Ritual **release** that last brought the workspace up to date, and the release a "Publish for me" workflow downloads ([the CI pin](/commands/init-site/#the-pinned-ritual-release-github-actions)). Development builds never write it. Without a pin, the workflow uses the latest stable release and logs a warning naming it. |
+| `migration` | The highest [numbered migration](/commands/migrate/#numbered-migrations) applied. Absent means `0`.                                                                                                                                                                                                                                 |
+| `output`    | A hash of the files Ritual generated for this workspace (workflow, `.gitignore` entries, agent skills). A different hash means a refresh is due.                                                                                                                                                                                    |
 
 ## Editing the file
 

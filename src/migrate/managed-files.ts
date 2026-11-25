@@ -72,9 +72,8 @@ const DETECT_AND_COMMIT_STEP = `
  * (`managed.version`, which `ritual migrate` records from a release build).
  * The pin is stored without the `v` that release tags carry, so a missing
  * prefix is added to either source. A workspace only ever migrated by dev
- * builds has no pin; it falls back to the latest stable release, else (while
- * only prereleases exist) the newest non-draft release, with a warning naming
- * the tag picked, and fails only when neither resolves.
+ * builds has no pin; it falls back to the latest stable release, with a
+ * warning naming the tag picked, and fails when none resolves.
  */
 const RITUAL_VERSION_STEP = `      - name: Get Ritual version
         id: ritual-version
@@ -84,16 +83,11 @@ const RITUAL_VERSION_STEP = `      - name: Get Ritual version
             VERSION=$(jq -r '.managed.version // empty' ritual.config.json)
           fi
           if [ -z "$VERSION" ]; then
-            # No pin: the latest stable release, else (while only prereleases
-            # exist) the newest release — the API omits drafts, newest first.
+            # No pin: the latest stable release (never a prerelease or draft).
             VERSION=$(curl -s ${GITHUB_RELEASES_API}/releases/latest \\
               | grep '"tag_name"' | head -1 | cut -d'"' -f4)
-            if [ -z "$VERSION" ]; then
-              VERSION=$(curl -s "${GITHUB_RELEASES_API}/releases?per_page=1" \\
-                | grep '"tag_name"' | head -1 | cut -d'"' -f4)
-            fi
             if [ -n "$VERSION" ]; then
-              echo "::warning::This workspace has no pinned Ritual release (managed.version in ritual.config.json), so $VERSION (the newest release) is used. Run 'ritual migrate' with a Ritual release build and commit ritual.config.json to pin one."
+              echo "::warning::This workspace has no pinned Ritual release (managed.version in ritual.config.json), so $VERSION (the latest stable release) is used. Run 'ritual migrate' with a Ritual release build and commit ritual.config.json to pin one."
             fi
           fi
           if [ -z "$VERSION" ]; then

@@ -100,9 +100,9 @@ newer Ritual only when the user runs \`ritual migrate\` with that newer release 
 commits \`ritual.config.json\`. For a publish-for-me workspace, a release newer
 than the pin (or no pin at all) is itself pending work (\`--check\` exits 4 and
 the plan shows \`Pin CI to Ritual <version>\`), even when nothing else changed. A
-workspace with no pin builds with the latest stable release (or the newest
-prerelease while no stable release exists), and the CI run logs a warning
-naming the release it picked.
+workspace with no pin builds with the latest stable release (never a
+prerelease), and the CI run logs a warning naming the release it picked; the
+step fails if no stable release resolves.
 
 With \`--deploy local-build\` the built site is **committed**, so the generated
 \`.gitignore\` does not ignore it (it appends \`!<distDir>/\`) and every generated

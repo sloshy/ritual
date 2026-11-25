@@ -27,7 +27,7 @@ Refresh generated files:
   write .github/workflows/deploy-site.yml
   add dist/, .dist-build-* to .gitignore
   overwrite agent skill ritual-site
-Pin CI to Ritual 0.3.0 (was 0.2.0)
+Pin CI to Ritual 1.1.0 (was 1.0.0)
 ? Apply these updates? (Y/n)
 ```
 
@@ -72,7 +72,7 @@ The same file caches the [update notice](/commands/self-update/#update-notice)'s
 
 Each migration is a numbered, one-time change. `migrate` records the highest one applied as `managed.migration` in `ritual.config.json` (see [the `managed` block](/configuration/#ritual-bookkeeping-managed-key)). Every migration checks the workspace itself rather than trusting that counter, so one whose change is already in place does nothing.
 
-Ritual 0.1.0 ships no numbered migrations, so a current workspace records `managed.migration: 0`. When a later release adds one, its plan line says what it changes, as `Migration <n>: <what it does>` followed by its steps.
+Ritual 1.0.0 ships no numbered migrations, so a current workspace records `managed.migration: 0`. When a later release adds one, its plan line says what it changes, as `Migration <n>: <what it does>` followed by its steps.
 
 The counter is written after each migration that changed something, so a run that fails part-way resumes at the failed migration next time.
 
@@ -101,7 +101,7 @@ Other workspaces (local-build, manual, or no `init-site`) run no Ritual in CI, s
 A newer Ritual may already have updated the workspace: `managed.migration` is higher than any migration this build knows, or, on a release build, `managed.version` names a newer release than the one running. `migrate` refuses (exit `1`) rather than move the workspace backwards, and names the release to install when one was recorded:
 
 ```
-This workspace was last updated by a newer Ritual (0.3.0). Run `ritual self-update --tag 0.3.0` and try again.
+This workspace was last updated by a newer Ritual (1.1.0). Run `ritual self-update --tag 1.1.0` and try again.
 ```
 
 When no release was recorded (a development build migrated the workspace), the message suggests plain [`ritual self-update`](/commands/self-update/) instead.
@@ -110,7 +110,7 @@ When no release was recorded (a development build migrated the workspace), the m
 
 ## Development builds
 
-Only a release build (one built by Ritual's release workflow, exactly at a release tag) records itself as `managed.version`. Any other build, including a local build or a Docker image you build yourself with `scripts/build-docker.sh`, can apply migrations but leaves `managed.version` unchanged. The published Docker images are release builds and record the pin like a release binary. When it applies a migration, it warns that CI keeps building with the pinned release, which does not know those migrations (or, when there is no pin, with the newest release: the latest stable one, or the newest prerelease while no stable release exists). Run `migrate` again with a release build and commit to move the pin.
+Only a release build (one built by Ritual's release workflow, exactly at a release tag) records itself as `managed.version`. Any other build, including a local build or a Docker image you build yourself with `scripts/build-docker.sh`, can apply migrations but leaves `managed.version` unchanged. The published Docker images are release builds and record the pin like a release binary. When it applies a migration, it warns that CI keeps building with the pinned release, which does not know those migrations (or, when there is no pin, with the latest stable release). Run `migrate` again with a release build and commit to move the pin.
 
 ## Not an MCP tool
 

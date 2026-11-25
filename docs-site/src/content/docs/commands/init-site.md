@@ -217,7 +217,7 @@ The "Publish for me" workflow builds with the Ritual release recorded as `manage
 
 Only a Ritual **release** build writes the pin, when it runs `init-site` or [`ritual migrate`](/commands/migrate/). CI therefore never jumps to a newer Ritual by itself. To move it forward, install the newer release (`ritual self-update`, which previews the workspace's pending updates right after), run `ritual migrate` (a newer release than the pin [counts as pending work](/commands/migrate/#the-ci-pin) for this deploy mode), and commit `ritual.config.json`. A development build never writes the pin, and warns when it applies migrations that the pinned release does not know.
 
-A workspace with no pin (one only ever set up by development builds) builds with the latest stable release, or, while Ritual has only prereleases, with the newest release (prereleases included). Each run logs a GitHub Actions warning naming the release it picked. If no release can be resolved, the step fails.
+A workspace with no pin (one only ever set up by development builds) builds with the latest stable release (never a prerelease). Each run logs a GitHub Actions warning naming the release it picked. If no stable release can be resolved, the step fails.
 
 ### Overriding the pin
 

@@ -165,10 +165,10 @@ Check the setup: the same report [`ritual doctor --output json`](/commands/docto
       "id": "ritual",
       "status": "ok",
       "summary": {
-        "message": "Ritual 0.1.0 (release build, installed binary) on linux x64, Bun 1.4.5",
+        "message": "Ritual 1.0.0 (release build, installed binary) on linux x64, Bun 1.4.5",
         "messageKey": "domain.doctor.ritual.summary",
         "messageParams": {
-          "version": "0.1.0",
+          "version": "1.0.0",
           "build": { "messageKey": "domain.doctor.build.release" },
           "install": { "messageKey": "domain.doctor.install.binary" },
           "platform": "linux",
@@ -181,7 +181,7 @@ Check the setup: the same report [`ritual doctor --output json`](/commands/docto
     }
   ],
   "ritual": {
-    "version": "0.1.0",
+    "version": "1.0.0",
     "build": "release",
     "install": "binary",
     "platform": "linux",
@@ -210,7 +210,7 @@ Check the setup: the same report [`ritual doctor --output json`](/commands/docto
   },
   "update": {
     "mode": "on",
-    "latest": "0.1.0",
+    "latest": "1.0.0",
     "checkedAt": "2026-10-30T09:00:00.000Z",
     "available": false
   }

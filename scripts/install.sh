@@ -13,7 +13,7 @@ Usage: install.sh [options]
 
 Options:
   --prerelease        Install the newest release, including prereleases.
-  --version <tag>     Install a specific release tag (e.g. v0.3.0).
+  --version <tag>     Install a specific release tag (e.g. v1.0.0).
   -h, --help          Show this help.
 
 Environment variables:
@@ -158,9 +158,7 @@ archive_name="${asset_name}.tar.gz"
 echo "Downloading ${archive_name}..."
 if ! fetch "$archive_name"; then
   echo "Failed to download ${base_url}/${archive_name}" >&2
-  if [ "$version" = "latest" ]; then
-    echo "If ${REPO_OWNER}/${REPO_NAME} has only prereleases so far, re-run with --prerelease." >&2
-  else
+  if [ "$version" != "latest" ]; then
     echo "Releases before v0.1.0-rc4 publish no archive, and this script cannot install them." >&2
   fi
   exit 1

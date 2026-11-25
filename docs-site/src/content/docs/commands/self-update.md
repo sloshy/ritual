@@ -25,18 +25,18 @@ ritual self-update [options]
 
 ```
 $ ritual self-update
-? Update Ritual 0.2.0 → 0.3.0? (Y/n) yes
-Downloading Ritual v0.3.0…
-✓ Updated Ritual 0.2.0 → 0.3.0 (/home/you/.local/bin/ritual)
+? Update Ritual 1.0.0 → 1.1.0? (Y/n) yes
+Downloading Ritual v1.1.0…
+✓ Updated Ritual 1.0.0 → 1.1.0 (/home/you/.local/bin/ritual)
 ```
 
-When nothing newer exists it prints `Ritual 0.3.0 is up to date (the newest release on this channel is 0.3.0).` and exits `0`.
+When nothing newer exists it prints `Ritual 1.1.0 is up to date (the newest release on this channel is 1.1.0).` and exits `0`.
 
 ## Channels
 
-By default, `self-update` follows the channel of the build you are running: a prerelease build (such as `0.3.0-beta2`) looks for the newest release including prereleases, and a stable build looks only at stable releases. `--prerelease` and `--stable` switch channels for one run; after that, the installed build's own channel applies again.
+By default, `self-update` follows the channel of the build you are running: a prerelease build (such as `1.1.0-beta2`) looks for the newest release including prereleases, and a stable build looks only at stable releases. `--prerelease` and `--stable` switch channels for one run; after that, the installed build's own channel applies again.
 
-- **Stable** reads GitHub's "latest release". While no stable release exists (or GitHub's latest release is marked as a prerelease), the stable channel refuses with exit `3` and suggests `--prerelease`.
+- **Stable** reads GitHub's "latest release". If no stable release exists (or GitHub's latest release is marked as a prerelease), the stable channel refuses with exit `3` and suggests `--prerelease`.
 - **Prerelease** picks the highest version among the 30 most recently published releases, stable or not. Drafts are never installed.
 
 ## Installing a specific release
@@ -44,10 +44,10 @@ By default, `self-update` follows the channel of the build you are running: a pr
 `--tag <tag>` installs exactly that release, newer or older. (It is not `--version`: `ritual --version` always prints the running version, wherever it appears on the command line.) Use it to match the release a workspace is [pinned to](/commands/migrate/#the-ci-pin), or the one a [newer-workspace warning](/commands/migrate/#a-workspace-from-a-newer-ritual) names:
 
 ```bash
-ritual self-update --tag v0.3.0
+ritual self-update --tag v1.0.0
 ```
 
-Installing an older release asks `Downgrade Ritual 0.3.0 → 0.2.0?` instead (default no). Naming the release that is already running prints `Ritual 0.3.0 is already installed.` and changes nothing.
+Installing an older release asks `Downgrade Ritual 1.1.0 → 1.0.0?` instead (default no). Naming the release that is already running prints `Ritual 1.1.0 is already installed.` and changes nothing.
 
 ## Checking without installing
 
@@ -55,14 +55,14 @@ Installing an older release asks `Downgrade Ritual 0.3.0 → 0.2.0?` instead (de
 
 ```
 $ ritual self-update --check
-Ritual 0.3.0 is available (installed: 0.2.0).
+Ritual 1.1.0 is available (installed: 1.0.0).
 ```
 
 It exits `4` when an update is available (with `--tag`, whenever that release differs from the running one, older or newer; the same "updates pending" code [`migrate --check`](/commands/migrate/#previewing-and-scripting) uses) and `0` when up to date, so a script can test for updates. `--check` never prompts. When `--tag` names an older release, the line says so instead:
 
 ```
-$ ritual self-update --check --tag v0.2.0
-Ritual 0.2.0 is older than the installed 0.3.0; installing it would downgrade 0.3.0 → 0.2.0.
+$ ritual self-update --check --tag v1.0.0
+Ritual 1.0.0 is older than the installed 1.1.0; installing it would downgrade 1.1.0 → 1.0.0.
 ```
 
 ## What happens when it installs
@@ -88,7 +88,7 @@ A newer Ritual may have [migrations or regenerated files](/commands/migrate/) fo
 A release build tells you when a newer release is out. After a command's own output, it prints one line on stderr:
 
 ```
-Ritual 0.3.0 is available (you have 0.2.0). Run `ritual self-update` to update.
+Ritual 1.1.0 is available (you have 1.0.0). Run `ritual self-update` to update.
 ```
 
 Nothing is installed until you run `self-update`. The notice follows the same [channel](#channels) `self-update` would, and appears at most once a day per release: a newer release than the one last announced is shown right away.
@@ -138,5 +138,5 @@ Replacing the Ritual binary is maintenance, like logging in or migrating a works
 | `0`  | Updated, already up to date, or the named release is already installed                                                                                                                                                                                                                              |
 | `1`  | The download, verification, unpacking, or swap failed (nothing was changed); the release has no archive or checksum for this platform (as for any release before 0.1.0-rc4); no binary exists for this OS/CPU; GitHub could not be reached or answered with an error; or the directory is read-only |
 | `2`  | Not a release build, inside Docker, the prompt was declined, `--yes` was needed, a bad `--tag`, or conflicting flags                                                                                                                                                                                |
-| `3`  | No release matches: no stable release yet, no release published at all (prerelease channel), or no release has the `--tag` tag                                                                                                                                                                      |
+| `3`  | No release matches: no stable release, no release published at all (prerelease channel), or no release has the `--tag` tag                                                                                                                                                                          |
 | `4`  | `--check` found an update                                                                                                                                                                                                                                                                           |

@@ -139,25 +139,23 @@ describe('the Get Ritual version step', () => {
   test('adds the v prefix release tags carry, to every source, without doubling it', () => {
     expect(run).toContain('v*) ;;')
     expect(run).toContain('*) VERSION="v$VERSION" ;;')
-    expect(run.indexOf('case "$VERSION"')).toBeGreaterThan(run.indexOf('/releases?per_page=1'))
+    expect(run.indexOf('case "$VERSION"')).toBeGreaterThan(run.indexOf('/releases/latest'))
   })
 
-  test('without a pin, tries the latest stable release, then the newest release', () => {
-    const stable = run.indexOf('/releases/latest')
-    const newest = run.indexOf('/releases?per_page=1')
-    expect(stable).toBeGreaterThan(run.indexOf('jq -r'))
-    expect(newest).toBeGreaterThan(stable)
-    // The newest-release lookup runs only when no stable release resolved.
-    expect(run.slice(stable, newest)).toMatch(
-      /if \[ -z "\$VERSION" \]; then\s+VERSION=\$\(curl -s "[^"\n]*$/,
+  test('without a pin, tries only the latest stable release', () => {
+    // Only when the pin came up empty, and only the latest stable release.
+    expect(run).toMatch(
+      /if \[ -z "\$VERSION" \]; then\s+# No pin[^\n]*\n\s+VERSION=\$\(curl -s \S+\/releases\/latest/,
     )
+    // No fallback to a prerelease: no other releases URL is ever queried.
+    expect(run.match(/\/releases[^\s"\\|]*/g)).toEqual(['/releases/latest'])
   })
 
   test('warns with the tag it picked, only once one resolved', () => {
     expect(run).toMatch(
-      /if \[ -n "\$VERSION" \]; then\s+echo "::warning::This workspace has no pinned Ritual release.*so \$VERSION \(the newest release\) is used.*ritual migrate/,
+      /if \[ -n "\$VERSION" \]; then\s+echo "::warning::This workspace has no pinned Ritual release.*so \$VERSION \(the latest stable release\) is used.*ritual migrate/,
     )
-    expect(run.indexOf('::warning::')).toBeGreaterThan(run.indexOf('/releases?per_page=1'))
+    expect(run.indexOf('::warning::')).toBeGreaterThan(run.indexOf('/releases/latest'))
   })
 
   test('fails the step when no release resolves at all', () => {

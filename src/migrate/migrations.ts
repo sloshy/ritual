@@ -1,7 +1,7 @@
 /**
  * The numbered workspace migrations, oldest first.
  *
- * Numbering restarted for the 0.1.0 release: the counter is back at 0 (none
+ * Numbering restarted for the 1.0.0 release: the counter is back at 0 (none
  * applied) and the first migration added from here is id 1. The migrations
  * written during pre-release development were dropped along with the code that
  * existed only for them. That reset was a one-time, pre-release event, not a

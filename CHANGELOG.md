@@ -4,15 +4,22 @@ Notable changes a Ritual user would notice. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and each release's section here
 is also its notes on the [releases page](https://github.com/sloshy/ritual/releases).
 
-**Ritual is in 0.x.** Until 1.0, any release may change commands, flags, output formats,
-MCP tools and the like; each change that needs something from you says so here.
+**Ritual follows [semantic versioning](https://semver.org/).** A change that breaks
+something you rely on (a command, flag or option, an exit code, the keys of
+`--output json` or `ndjson`, an MCP tool or its schema, an admin API route, an export
+column or a theme variable) ships only in a major release (2.0.0, 3.0.0, …); minor and
+patch releases never break them. A major release's notes mark each breaking change and say
+what to do. Features labelled **experimental** or **beta** are outside this promise and
+may change in a minor release.
 
 **Your data carries forward.** Your decks, collections, wanted lists, their changelogs and
-your `ritual.config.json` keep working as you upgrade from one version to the next. When a
+your `ritual.config.json` keep working as you upgrade from one version to the next, major releases included. When a
 release changes a file format or a generated file, it ships the change as a
 `ritual migrate` migration, and Ritual tells you when one is pending.
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-11-25
 
 The first release of Ritual. Ritual is a command-line program that keeps your Magic: The
 Gathering decks, collections and wanted lists as plain markdown files in a folder, usually a

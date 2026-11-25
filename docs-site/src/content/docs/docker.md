@@ -32,8 +32,8 @@ docker run --rm -p 3000:3000 -v "$PWD:/app" ghcr.io/sloshy/ritual serve
 Each release publishes an image for `linux/amd64` and `linux/arm64` to the GitHub Container Registry, `ghcr.io/sloshy/ritual`:
 
 - `latest` is the newest stable release. Prereleases never move it.
-- Every release is also tagged with its version (`0.1.0`, or `0.2.0-rc1` for a prerelease).
-- A stable release is also tagged with its minor line (`0.1`), and from 1.0 on its major line (`1`), so you can pin as tightly as you like. There is no bare `0` tag, because a 0.x minor release may break things (see [Upgrading](/reference/upgrading/#what-0x-means)).
+- Every release is also tagged with its version (`1.0.0`, or `1.1.0-rc1` for a prerelease).
+- A stable release is also tagged with its minor line (`1.0`) and its major line (`1`), so you can pin as tightly as you like. Only a major release breaks anything (see [Upgrading](/reference/upgrading/#version-numbers)), so `1` is safe to follow; `latest` moves to the next major too.
 
 ## Updating
 

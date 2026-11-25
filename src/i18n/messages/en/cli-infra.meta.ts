@@ -1414,7 +1414,7 @@ export const cliInfraMeta = {
   },
   'cli.migrate.devBuildNoPin': {
     description:
-      'The same warning when the workspace has no pinned release, so CI falls back to the newest release (latest stable, else newest prerelease). {version} is the running version. {configKey} is the `managed.version` config key; {command} is the `ritual migrate` command line. Each is typed or matched exactly by the user, so never translate them.',
+      'The same warning when the workspace has no pinned release, so CI falls back to the latest stable release. {version} is the running version. {configKey} is the `managed.version` config key; {command} is the `ritual migrate` command line. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.migrate.ahead': {
     description:
@@ -1543,7 +1543,7 @@ export const cliInfraMeta = {
   },
   'cli.selfUpdate.error.noStableRelease': {
     description:
-      'Only prereleases exist so far, so the stable channel has nothing to install. {command} is the `ritual self-update --prerelease` command line. It is typed or matched exactly by the user, so never translate it.',
+      'GitHub has no stable release to offer (only prereleases), so the stable channel has nothing to install. {command} is the `ritual self-update --prerelease` command line. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.selfUpdate.error.noRelease': {
     description: 'The prerelease channel found no release at all.',

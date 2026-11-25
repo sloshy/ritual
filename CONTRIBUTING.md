@@ -59,9 +59,9 @@ Besides the CLI, Ritual exposes its features to AI agents through the MCP server
 
 ## Changes and Compatibility
 
-Ritual is in 0.x, so commands, flags, output formats and the MCP tools may change from one release to the next. Two things go with every such change:
+Ritual follows semantic versioning. From 1.0.0, a breaking change to a public surface (commands, flags and options, exit codes, `--output json|ndjson` keys, MCP tools and their schemas, admin API routes, export columns, theme variables) ships only in a major release; minor and patch releases never break them. Majors are cheap: when a cleaner design calls for a breaking change, make it, with no deprecated aliases or compatibility shims, and update every call site, test and doc to match. Experimental and beta features are outside this promise and may change in a minor release. What goes with every change:
 
-- **A `CHANGELOG.md` entry** under `## [Unreleased]` for anything a user would notice, saying what to do when they need to act.
+- **A `CHANGELOG.md` entry** under `## [Unreleased]` for anything a user would notice, saying what to do when they need to act. A breaking change goes under `### Breaking`, so the next release is a major.
 - **A `ritual migrate` migration** (`src/migrate/migrations.ts`) for any change to what Ritual reads from or writes to a workspace: the list and card-line format, front matter, changelogs, sidecars, config keys, generated files. The migration is how users keep their data when they upgrade version by version.
 
 ## Tests
