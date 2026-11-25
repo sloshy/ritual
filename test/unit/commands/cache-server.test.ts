@@ -115,7 +115,12 @@ describe('scheduleRecurringTask', () => {
       (error) => errors.push(error),
     )
     try {
-      await new Promise((resolve) => setTimeout(resolve, 40))
+      // Wait for the second tick rather than a fixed delay: a loaded runner can
+      // fire the 5ms interval only once in 40ms.
+      const deadline = Date.now() + 2000
+      while (runs < 2 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+      }
       // The first tick rejected, was routed to onError, and did not stop the timer.
       expect(errors).toHaveLength(1)
       expect(runs).toBeGreaterThanOrEqual(2)
