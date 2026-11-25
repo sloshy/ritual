@@ -38,7 +38,9 @@
  * in step.
  *
  * Stall guard: a check with `stallTimeoutMs` runs in its own process group; a
- * run that outlives the limit has the whole group killed and is retried once.
+ * run that prints nothing for that long has the whole group killed and is
+ * retried once. It times silence, not the whole run: a healthy suite on a slow
+ * CI runner may take minutes, but it never goes a minute without output.
  */
 
 import type { Subprocess } from 'bun'
@@ -55,8 +57,8 @@ type Check = {
   needsBuild: boolean
   // Extra environment for the child, merged over this process's own.
   env?: Record<string, string>
-  // A run still going after this long is stalled: its whole process group is
-  // killed and the check retried once.
+  // A run that prints nothing for this long is stalled: its whole process
+  // group is killed and the check retried once.
   stallTimeoutMs?: number
 }
 
@@ -72,7 +74,7 @@ type CheckResult = {
 /** A run of a check's command that ended on its own. */
 type ExitedAttempt = { kind: 'exited'; exitCode: number; output: string }
 
-/** A run killed for outliving its check's `stallTimeoutMs`. */
+/** A run killed for going silent for its check's `stallTimeoutMs`. */
 type StalledAttempt = { kind: 'stalled'; limitMs: number; output: string }
 
 type Attempt = ExitedAttempt | StalledAttempt
@@ -157,11 +159,12 @@ const UNIT_TEST_CHECK: Check = {
   cmd: ['bun', 'test', 'test/unit', '--parallel'],
   needsBuild: false,
   env: { RITUAL_I18N_STRICT: '1' },
-  // The suite takes about 11s alone, nearer 20s beside lint and the build.
   // Bun 1.4.2's `spawnSync` (possibly later versions' too) can spin a
   // `--parallel` worker forever (see `test/preload.ts`), and a spinning worker
   // never trips the per-test timeout — so a hang would otherwise stall the
-  // commit (or the agent session running it) indefinitely.
+  // commit (or the agent session running it) indefinitely. The guard times
+  // silence: the suite's own length (40-65s on a CI runner beside lint and the
+  // build) is no sign of a hang, but a minute with no file reported is.
   stallTimeoutMs: 60_000,
 }
 
@@ -325,6 +328,24 @@ for (const [signal, code] of [
   })
 }
 
+/**
+ * Read a child's output stream to the end into `sink`, calling `onChunk` as
+ * each piece arrives. stdout and stderr share one sink, so the output keeps the
+ * order it was printed in and a stall note's tail is what came last.
+ */
+async function readInto(
+  stream: ReadableStream<Uint8Array>,
+  sink: string[],
+  onChunk: () => void,
+): Promise<void> {
+  const decoder = new TextDecoder()
+  for await (const chunk of stream) {
+    onChunk()
+    sink.push(decoder.decode(chunk, { stream: true }))
+  }
+  sink.push(decoder.decode())
+}
+
 async function runAttempt(check: Check): Promise<Attempt> {
   const limitMs = check.stallTimeoutMs
   const proc = Bun.spawn(check.cmd, {
@@ -337,24 +358,30 @@ async function runAttempt(check: Check): Promise<Attempt> {
     // killed coordinator, so the check gets its own process group to kill.
     detached: limitMs !== undefined,
   })
-  let stalled = false
-  const timer =
-    limitMs === undefined
-      ? undefined
-      : setTimeout(() => {
-          stalled = true
-          killGroup(proc)
-        }, limitMs)
+  // Set to the limit when the timer fires; a stalled run's verdict.
+  let stalledAfter: number | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
+  // (Re)start the silence timer; called at spawn and on every chunk of output.
+  const heardFrom = (): void => {
+    if (limitMs === undefined || stalledAfter !== undefined) return
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      stalledAfter = limitMs
+      killGroup(proc)
+    }, limitMs)
+  }
+  heardFrom()
   if (limitMs !== undefined) runningGuarded.add(proc)
   try {
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
+    const pieces: string[] = []
+    const [, , exitCode] = await Promise.all([
+      readInto(proc.stdout, pieces, heardFrom),
+      readInto(proc.stderr, pieces, heardFrom),
       proc.exited,
     ])
-    const output = stdout + stderr
-    return stalled && limitMs !== undefined
-      ? { kind: 'stalled', limitMs, output }
+    const output = pieces.join('')
+    return stalledAfter !== undefined
+      ? { kind: 'stalled', limitMs: stalledAfter, output }
       : { kind: 'exited', exitCode, output }
   } finally {
     clearTimeout(timer)
@@ -365,7 +392,7 @@ async function runAttempt(check: Check): Promise<Attempt> {
 /** The last few lines of a stalled run — which test files were still in flight. */
 function stallTail(attempt: StalledAttempt): string {
   const tail = attempt.output.trimEnd().split('\n').slice(-5).join('\n  ')
-  return `(first run stalled past ${formatSeconds(attempt.limitMs)}; retried. Its last output:\n  ${tail})`
+  return `(first run went silent for ${formatSeconds(attempt.limitMs)}; retried. Its last output:\n  ${tail})`
 }
 
 async function runCheck(check: Check): Promise<CheckResult> {
@@ -378,7 +405,7 @@ async function runCheck(check: Check): Promise<CheckResult> {
     durationMs: performance.now() - start,
     output:
       attempt.kind === 'stalled'
-        ? `Stalled past ${formatSeconds(attempt.limitMs)} twice; killed both runs. Output of the second:\n${attempt.output}`
+        ? `Went silent for ${formatSeconds(attempt.limitMs)} twice; killed both runs. Output of the second:\n${attempt.output}`
         : attempt.output,
     note: first.kind === 'stalled' ? stallTail(first) : undefined,
   }
