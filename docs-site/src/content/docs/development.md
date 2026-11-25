@@ -7,7 +7,7 @@ How to set up the project for local development and contribute to the codebase.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) 1.4.4, the version `.bun-version` pins for CI and the Docker build
+- [Bun](https://bun.sh) 1.4.5, the version `.bun-version` pins for CI and the Docker build
 - Node.js 22.23.4 or newer, the minimum the docs site's Astro version accepts (CI uses Node 24)
 
 ## Setup

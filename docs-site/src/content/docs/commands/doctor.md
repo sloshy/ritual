@@ -37,7 +37,7 @@ Paths under your home folder are shown as `~/…` in the text report, so it can 
 ## Output
 
 ```text
-ok    Ritual 0.1.0 (release build, installed binary) on linux x64, Bun 1.4.4
+ok    Ritual 0.1.0 (release build, installed binary) on linux x64, Bun 1.4.5
 ok    Workspace ~/mtg: 12 decks, 2 collections, 1 wanted list
 fail  ritual.config.json has 1 invalid setting
       - updateCheck: "updateCheck" must be a boolean
