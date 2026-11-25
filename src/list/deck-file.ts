@@ -12,6 +12,7 @@ import {
 import { listDeckFiles } from '../importers/text-file'
 import { isResolveListError, matchList, type ListLocation } from './resolve-list'
 import { isPathWithinDir } from '../util/path-validation'
+import { fileExistsExactly } from '../util/fs'
 import { assignMissingDeckCardIds } from '../card/card-id'
 import { readListDefaultLabels, type CardLabel } from '../card/card-labels'
 import { listDescriptionOrUndefined } from './list-description'
@@ -43,7 +44,7 @@ export async function resolveDeckFilePath(
     return null
   }
 
-  if (await Bun.file(deckFilePath).exists()) {
+  if (await fileExistsExactly(deckFilePath)) {
     return deckFilePath
   }
 

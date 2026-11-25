@@ -17,6 +17,7 @@ import { computeHash } from '../../src/changes/content-hash'
 import { LIST_SIDECAR_KINDS, listSidecarPath } from '../../src/list/list-sidecars'
 import { bindWorkspace, snapshotTree, type BoundWorkspace } from '../helpers/workspace'
 import { keyedMessage } from '../helpers/api-message'
+import { fileExistsExactly } from '../../src/util/fs'
 import { syncMessage } from '../../src/sync/message'
 
 let ws: BoundWorkspace
@@ -37,7 +38,9 @@ function unwrapError<S>(result: S | ListLifecycleError): ListLifecycleError {
   return result
 }
 
-const exists = (filePath: string): Promise<boolean> => Bun.file(filePath).exists()
+// Exact names: the case-only rename tests assert the old spelling is gone,
+// which a path lookup on a case-insensitive file system cannot tell.
+const exists = fileExistsExactly
 
 /** What `run` returned, every path it unlinked, and every rename it made. */
 type Unlinked<T> = { result: T; unlinked: string[]; renamed: [string, string][] }

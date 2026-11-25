@@ -10,6 +10,7 @@ import type { ListType } from './list-type'
 import { dirForType } from './resolve-list'
 import { ExitCode, messageCommandError } from '../util/errors'
 import { titleHeading } from './heading'
+import { fileExistsExactly } from '../util/fs'
 
 /**
  * Ensure `fileName` exists in `dir`, creating it (and the directory) with
@@ -52,7 +53,7 @@ async function ensureNamedListFile(
     throw messageCommandError('usage_error', ExitCode.UsageError, unusableFileNameMessage(name))
   }
   const dir = dirForType(type)
-  if (!(await Bun.file(path.join(dir, fileName)).exists())) {
+  if (!(await fileExistsExactly(path.join(dir, fileName)))) {
     const collision = await listNameCollision(type, name)
     // Mirrors `lifecycleErrorToCommandError` in src/cli/action.ts, which this
     // domain module must not import: a collision is a usage error (exit 2).

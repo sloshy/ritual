@@ -149,6 +149,11 @@ function displayNamesFor(locale: string): Intl.DisplayNames | null {
   return names
 }
 
+/** Whether a BCP-47 tag's language subtag is English (`en`, `en-GB`, `EN_us`). */
+function isEnglishLocale(locale: string): boolean {
+  return /^en(?:$|[-_])/i.test(locale)
+}
+
 /**
  * Scryfall's two Chinese codes as the BCP-47 tags ICU names: `zhs` / `zht` are
  * no language tag, but the script subtags are, so each gets its own name in
@@ -168,9 +173,9 @@ const INTL_LANGUAGE_TAGS: ReadonlyMap<CardLanguage, string> = new Map([
  * Scryfall's vocabulary is not BCP-47: `zhs` and `zht` are looked up by their
  * script tags ({@link INTL_LANGUAGE_TAGS}), and `ph` names no language ICU
  * knows, so `fallback: 'none'` returns `undefined` for it and the frozen
- * English name stands in. Under `en` this returns exactly
- * {@link LANGUAGE_PARSE_NAMES} for every one of the 17 codes, so English output
- * is unchanged by the split.
+ * English name stands in. Any English locale (`en`, `en-GB`, …) returns
+ * {@link LANGUAGE_PARSE_NAMES} directly, without asking ICU, so English output
+ * is unchanged by the split whatever ICU build the runtime carries.
  *
  * The locale is a required argument rather than read ambiently: this module is
  * imported by the changelog writer's dependency graph, and a hidden read of the
@@ -178,6 +183,10 @@ const INTL_LANGUAGE_TAGS: ReadonlyMap<CardLanguage, string> = new Map([
  */
 export function languageLabel(code: CardLanguage, locale: string): string {
   const frozen = LANGUAGE_PARSE_NAMES[code]
+  // The frozen names are the English names. Asking ICU under English would
+  // only let its data disagree with them: macOS's system ICU names `zh-Hans`
+  // "Chinese, Simplified" where Linux's bundled ICU says "Simplified Chinese".
+  if (isEnglishLocale(locale)) return frozen
   const names = displayNamesFor(locale)
   if (names === null) return frozen
   try {

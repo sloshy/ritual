@@ -231,7 +231,9 @@ export function fakeEnv(execPath: string, overrides: Partial<SelfUpdateEnv> = {}
 
 /** A temp directory holding an installed fake binary of `version`, named `ritual`. */
 export async function installedBinary(version: string): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-self-update-'))
+  // Real path: macOS's tmpdir sits behind the /var → /private/var symlink, and
+  // the installer works on the binary's resolved path.
+  const dir = await fs.realpath(await fs.mkdtemp(path.join(tmpdir(), 'ritual-self-update-')))
   const file = path.join(dir, 'ritual')
   await fs.writeFile(file, fakeBinary(version), { mode: 0o755 })
   return file

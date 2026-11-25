@@ -91,8 +91,16 @@ async function writeUiLocaleConfig(dir: string, uiLocale: string): Promise<void>
   )
 }
 
+/**
+ * Where the OS has a locale probe (`defaults read -g AppleLocale` on macOS, the
+ * PowerShell culture query on Windows), a spawned CLI finds the machine's own
+ * locale, so "nothing names a locale" cannot be set up through the binary.
+ * `test/unit/i18n/detect.test.ts` covers those tiers with injected probes.
+ */
+const OS_PROBES_LOCALE = process.platform === 'darwin' || process.platform === 'win32'
+
 describe('locale resolution (Integration)', () => {
-  test('falls back to English when nothing names a locale', async () => {
+  test.skipIf(OS_PROBES_LOCALE)('falls back to English when nothing names a locale', async () => {
     await withTempDir(async (dir) => {
       const report = await runLocale(dir, NO_LOCALE_ENV)
 
@@ -151,31 +159,34 @@ describe('locale resolution (Integration)', () => {
     })
   })
 
-  test('a malformed RITUAL_LOCALE degrades to the next tier and is reported', async () => {
-    await withTempDir(async (dir) => {
-      const result = await runCli(['locale', '--output', 'json'], dir, {
-        ...LOCALE_ENV,
-        RITUAL_LOCALE: 'zz-ZZ',
-      })
+  test.skipIf(OS_PROBES_LOCALE)(
+    'a malformed RITUAL_LOCALE degrades to the next tier and is reported',
+    async () => {
+      await withTempDir(async (dir) => {
+        const result = await runCli(['locale', '--output', 'json'], dir, {
+          ...LOCALE_ENV,
+          RITUAL_LOCALE: 'zz-ZZ',
+        })
 
-      expect(result.exitCode).toBe(0)
-      const report = JSON.parse(result.stdout) as LocaleReportJson
-      expect(report.uiLocale).toBe('en')
-      expect(report.source).toBe('default')
-      // The reason is English plus its key, so a script matches on the key.
-      expect(report.ignored).toEqual([
-        {
-          source: 'env',
-          value: 'zz-ZZ',
-          error:
-            'invalid UI locale "zz-ZZ": no such language is known (expected a BCP-47 tag such as "en" or "de-AT")',
-          errorKey: 'domain.config.uiLocaleUnknown',
-          errorParams: { tag: 'zz-ZZ' },
-        },
-      ])
-      expect(result.stderr).toContain('RITUAL_LOCALE')
-    })
-  })
+        expect(result.exitCode).toBe(0)
+        const report = JSON.parse(result.stdout) as LocaleReportJson
+        expect(report.uiLocale).toBe('en')
+        expect(report.source).toBe('default')
+        // The reason is English plus its key, so a script matches on the key.
+        expect(report.ignored).toEqual([
+          {
+            source: 'env',
+            value: 'zz-ZZ',
+            error:
+              'invalid UI locale "zz-ZZ": no such language is known (expected a BCP-47 tag such as "en" or "de-AT")',
+            errorKey: 'domain.config.uiLocaleUnknown',
+            errorParams: { tag: 'zz-ZZ' },
+          },
+        ])
+        expect(result.stderr).toContain('RITUAL_LOCALE')
+      })
+    },
+  )
 
   test('a malformed RITUAL_LOCALE reports the tag parser’s reason as a nested message', async () => {
     await withTempDir(async (dir) => {

@@ -129,6 +129,11 @@ describe('languageLabel', () => {
       expect(languageLabel(code, 'en')).toBe(LANGUAGE_PARSE_NAMES[code])
   })
 
+  test.each(['en-GB', 'en-US', 'en-AU', 'EN_us'])('%s gets the persisted names too', (locale) => {
+    for (const code of CARD_LANGUAGES)
+      expect(languageLabel(code, locale)).toBe(LANGUAGE_PARSE_NAMES[code])
+  })
+
   test('names each language in the locale passed, the Chinese scripts included', () => {
     expect(languageLabel('ja', 'de')).toBe('Japanisch')
     expect(languageLabel('zhs', 'de')).toBe('Chinesisch (vereinfacht)')

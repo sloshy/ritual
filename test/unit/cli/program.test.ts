@@ -320,10 +320,16 @@ describe('localized help annotations', () => {
   })
 
   test("join the values and the notes the way the reader's language lists them", () => {
-    const mode = new Option('--mode <m>', 'Mode').choices(['a', 'b', 'c']).default('a')
+    // Three items in each list: German's two-item unit join is CLDR data that
+    // differs by ICU build (", " in Linux's bundled ICU, " und " in macOS's), the
+    // three-item form ("a, b und c") does not.
+    const mode = new Option('--mode <m>', 'Mode')
+      .choices(['a', 'b', 'c'])
+      .default('a')
+      .env('RITUAL_MODE')
     withSyntheticLocale('de', {}, () => {
       expect(localizedOptionDescription(mode)).toBe(
-        'Mode (choices: "a", "b" und "c", default: "a")',
+        'Mode (choices: "a", "b" und "c", default: "a" und env: RITUAL_MODE)',
       )
     })
   })

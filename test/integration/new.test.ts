@@ -4,6 +4,7 @@ import path from 'node:path'
 import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import { readDeckName } from '../../src/importers/text-file'
 import { runCli } from './helpers/cli'
+import { CASE_INSENSITIVE_FS } from '../helpers/fs-case'
 import { withWorkspace } from '../helpers/workspace'
 import { t } from '../../src/i18n/t'
 import { FILE } from '../../src/util/cli-tokens'
@@ -167,27 +168,32 @@ describe('new CLI (Integration)', () => {
     })
   })
 
-  test('pre-existing lists that fold together stay individually targetable by exact name', async () => {
-    // A workspace created before the refusal existed (or by hand) still has to
-    // be repairable — the byte-exact tier is that escape hatch.
-    await withWorkspace(async (dir) => {
-      const decksDir = path.join(dir, 'decks')
-      await fs.mkdir(decksDir, { recursive: true })
-      await fs.writeFile(
-        path.join(decksDir, 'Atraxa Superfriends.md'),
-        '---\nname: Atraxa Superfriends\nformat: commander\n---\n\n## Main\n',
-      )
-      await fs.writeFile(
-        path.join(decksDir, 'atraxa superfriends.md'),
-        '---\nname: atraxa superfriends\nformat: commander\n---\n\n## Main\n',
-      )
+  // The fixture is two files differing only in case, which a case-insensitive
+  // file system holds as one.
+  test.skipIf(CASE_INSENSITIVE_FS)(
+    'pre-existing lists that fold together stay individually targetable by exact name',
+    async () => {
+      // A workspace created before the refusal existed (or by hand) still has to
+      // be repairable — the byte-exact tier is that escape hatch.
+      await withWorkspace(async (dir) => {
+        const decksDir = path.join(dir, 'decks')
+        await fs.mkdir(decksDir, { recursive: true })
+        await fs.writeFile(
+          path.join(decksDir, 'Atraxa Superfriends.md'),
+          '---\nname: Atraxa Superfriends\nformat: commander\n---\n\n## Main\n',
+        )
+        await fs.writeFile(
+          path.join(decksDir, 'atraxa superfriends.md'),
+          '---\nname: atraxa superfriends\nformat: commander\n---\n\n## Main\n',
+        )
 
-      const renamed = await runCli(['rename', 'atraxa superfriends', 'Atraxa Duplicate'], dir)
-      expect(renamed.exitCode).toBe(0)
-      expect(await fs.exists(path.join(decksDir, 'Atraxa Duplicate.md'))).toBe(true)
-      expect(await fs.exists(path.join(decksDir, 'Atraxa Superfriends.md'))).toBe(true)
-    })
-  })
+        const renamed = await runCli(['rename', 'atraxa superfriends', 'Atraxa Duplicate'], dir)
+        expect(renamed.exitCode).toBe(0)
+        expect(await fs.exists(path.join(decksDir, 'Atraxa Duplicate.md'))).toBe(true)
+        expect(await fs.exists(path.join(decksDir, 'Atraxa Superfriends.md'))).toBe(true)
+      })
+    },
+  )
 
   test('a display name with a stripped colon round-trips into resolution', async () => {
     await withWorkspace(async (dir) => {

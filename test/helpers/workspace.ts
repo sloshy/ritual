@@ -125,7 +125,9 @@ export async function writeBulkProvenance(dir: string, bulkType: string): Promis
 
 /** Create a fresh temp workspace: list subdirectories plus a ritual.config.json. */
 export async function createWorkspace(options: WorkspaceOptions = {}): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-it-'))
+  // Real path: macOS's tmpdir sits behind the /var → /private/var symlink, and
+  // the CLI reports resolved paths (the base dir, the cache dir).
+  const dir = await fs.realpath(await fs.mkdtemp(path.join(tmpdir(), 'ritual-it-')))
   for (const sub of options.dirs ?? STANDARD_DIRS) {
     await fs.mkdir(path.join(dir, sub), { recursive: true })
   }

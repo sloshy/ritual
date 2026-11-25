@@ -3,9 +3,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { computeHash } from '../../src/changes/content-hash'
 import { runCli } from './helpers/cli'
+import { fileExistsExactly } from '../../src/util/fs'
 import { withWorkspace, writeCollectionFile, writeDeckFile } from '../helpers/workspace'
 
-const exists = (filePath: string): Promise<boolean> => Bun.file(filePath).exists()
+// Exact names: on a case-insensitive file system `test.md` "exists" once
+// `TEST.md` does, and the re-spelling test asserts the old spelling is gone.
+const exists = fileExistsExactly
 
 /**
  * Seed deck `test` (display name 'Test Deck') with every sidecar type. The

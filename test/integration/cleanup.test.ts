@@ -11,6 +11,8 @@ import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import type { DeckFormatSignal } from '../../src/list/deck-format'
 import { computeHash, hashPath, writeFileWithHash } from '../../src/changes/content-hash'
 import { runCli } from './helpers/cli'
+import { CASE_INSENSITIVE_FS } from '../helpers/fs-case'
+import { fileExistsExactly } from '../../src/util/fs'
 import { pseudoString } from '../helpers/sync-text'
 import { readCategoriesSidecar, writeCategoriesSidecar } from '../helpers/card-categories'
 import {
@@ -172,19 +174,23 @@ describe('cleanup (Integration)', () => {
     expect(await Bun.file(path.join(dir(), 'collections', 'Trade Binder.md')).exists()).toBeTrue()
   })
 
-  test('refuses a name-derived rename that would fold onto another list', async () => {
-    // Renaming `trade binder.md` to `Trade-Binder.md` would leave the two lists
-    // mutually unaddressable, so cleanup reports it instead.
-    await writeCollectionFile(dir(), 'trade binder', { title: 'Trade-Binder', entries: [] })
-    await writeCollectionFile(dir(), 'Trade Binder', { title: 'Trade Binder', entries: [] })
+  // Two files differing only in case: one file on a case-insensitive file system.
+  test.skipIf(CASE_INSENSITIVE_FS)(
+    'refuses a name-derived rename that would fold onto another list',
+    async () => {
+      // Renaming `trade binder.md` to `Trade-Binder.md` would leave the two lists
+      // mutually unaddressable, so cleanup reports it instead.
+      await writeCollectionFile(dir(), 'trade binder', { title: 'Trade-Binder', entries: [] })
+      await writeCollectionFile(dir(), 'Trade Binder', { title: 'Trade Binder', entries: [] })
 
-    const results = await cleanupAllLists()
+      const results = await cleanupAllLists()
 
-    const result = resultFor(results, 'trade binder.md')
-    expect(result.renamedTo).toBeUndefined()
-    expect(warningText(result)).toContain('already exists')
-    expect(await Bun.file(path.join(dir(), 'collections', 'trade binder.md')).exists()).toBeTrue()
-  })
+      const result = resultFor(results, 'trade binder.md')
+      expect(result.renamedTo).toBeUndefined()
+      expect(warningText(result)).toContain('already exists')
+      expect(await Bun.file(path.join(dir(), 'collections', 'trade binder.md')).exists()).toBeTrue()
+    },
+  )
 
   test('prompts for a commander deck instead of silently inferring its format', async () => {
     const filePath = path.join(dir(), 'decks', 'Kenrith.md')
@@ -328,29 +334,33 @@ describe('cleanup (Integration)', () => {
     ).toEqual([])
   })
 
-  test('refuses a rename onto a distinct list whose name differs only in case', async () => {
-    // On a case-sensitive file system these are two different files; the rename
-    // must be treated as a conflict, not as a case-only rename of the same file.
-    const lowerPath = await writeDeckFile(dir(), 'jank', {
-      name: 'Jank',
-      frontMatter: { format: 'modern' },
-      cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
-    })
-    const occupiedPath = await writeDeckFile(dir(), 'Jank', {
-      name: 'Jank',
-      frontMatter: { format: 'modern' },
-      cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
-    })
-    const occupiedContent = await fs.readFile(occupiedPath, 'utf-8')
+  // Two files differing only in case: one file on a case-insensitive file system.
+  test.skipIf(CASE_INSENSITIVE_FS)(
+    'refuses a rename onto a distinct list whose name differs only in case',
+    async () => {
+      // On a case-sensitive file system these are two different files; the rename
+      // must be treated as a conflict, not as a case-only rename of the same file.
+      const lowerPath = await writeDeckFile(dir(), 'jank', {
+        name: 'Jank',
+        frontMatter: { format: 'modern' },
+        cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
+      })
+      const occupiedPath = await writeDeckFile(dir(), 'Jank', {
+        name: 'Jank',
+        frontMatter: { format: 'modern' },
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      })
+      const occupiedContent = await fs.readFile(occupiedPath, 'utf-8')
 
-    const results = await cleanupAllLists()
+      const results = await cleanupAllLists()
 
-    const result = resultFor(results, 'jank.md')
-    expect(result.renamedTo).toBeUndefined()
-    expect(warningText(result)).toContain('another list already has that file')
-    expect(await fs.readFile(lowerPath, 'utf-8')).toContain('Lightning Bolt')
-    expect(await fs.readFile(occupiedPath, 'utf-8')).toBe(occupiedContent)
-  })
+      const result = resultFor(results, 'jank.md')
+      expect(result.renamedTo).toBeUndefined()
+      expect(warningText(result)).toContain('another list already has that file')
+      expect(await fs.readFile(lowerPath, 'utf-8')).toContain('Lightning Bolt')
+      expect(await fs.readFile(occupiedPath, 'utf-8')).toBe(occupiedContent)
+    },
+  )
 
   test('warns instead of renaming when the list name has no usable characters', async () => {
     const filePath = path.join(dir(), 'collections', 'Weird.md')
@@ -487,13 +497,13 @@ describe('cleanup CLI (Integration)', () => {
       const dryRun = await runCli(['cleanup', '--dry-run'], dir)
       expect(dryRun.exitCode).toBe(0)
       expect(dryRun.stdout).toContain("renamed to 'Binder.md'")
-      expect(await Bun.file(path.join(dir, 'wanted', 'binder.md')).exists()).toBeTrue()
+      expect(await fileExistsExactly(path.join(dir, 'wanted', 'binder.md'))).toBeTrue()
 
       const result = await runCli(['cleanup'], dir)
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain("renamed to 'Binder.md'")
-      expect(await Bun.file(path.join(dir, 'wanted', 'Binder.md')).exists()).toBeTrue()
-      expect(await Bun.file(path.join(dir, 'wanted', 'binder.md')).exists()).toBeFalse()
+      expect(await fileExistsExactly(path.join(dir, 'wanted', 'Binder.md'))).toBeTrue()
+      expect(await fileExistsExactly(path.join(dir, 'wanted', 'binder.md'))).toBeFalse()
 
       const clean = await runCli(['cleanup'], dir)
       expect(clean.exitCode).toBe(0)
@@ -518,7 +528,7 @@ describe('cleanup CLI (Integration)', () => {
       // The formatless deck is untouched — no inferred format stamped.
       expect(await fs.readFile(deckPath, 'utf-8')).toBe(deckContent)
       // The rest of the workspace is still cleaned.
-      expect(await Bun.file(path.join(dir, 'wanted', 'Binder.md')).exists()).toBeTrue()
+      expect(await fileExistsExactly(path.join(dir, 'wanted', 'Binder.md'))).toBeTrue()
     })
   })
 
@@ -538,8 +548,8 @@ describe('cleanup CLI (Integration)', () => {
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('--skip-formats')
       // The refusal happens before any file is touched — no partial cleanup.
-      expect(await Bun.file(path.join(dir, 'wanted', 'binder.md')).exists()).toBeTrue()
-      expect(await Bun.file(path.join(dir, 'wanted', 'Binder.md')).exists()).toBeFalse()
+      expect(await fileExistsExactly(path.join(dir, 'wanted', 'binder.md'))).toBeTrue()
+      expect(await fileExistsExactly(path.join(dir, 'wanted', 'Binder.md'))).toBeFalse()
     })
   })
 
@@ -555,7 +565,7 @@ describe('cleanup CLI (Integration)', () => {
       expect(check.exitCode).toBe(1)
       expect(check.stdout).toContain('[check] wanted/binder.md: ')
       expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
-      expect(await Bun.file(path.join(dir, 'wanted', 'Binder.md')).exists()).toBeFalse()
+      expect(await fileExistsExactly(path.join(dir, 'wanted', 'Binder.md'))).toBeFalse()
 
       // The marker is the catalog's, like every other command's dry-run marker.
       const pseudo = await runCli(['cleanup', '--check'], dir, { RITUAL_LOCALE: 'en-XA' })
