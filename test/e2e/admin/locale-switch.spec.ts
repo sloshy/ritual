@@ -33,7 +33,7 @@ import {
   mockImportCsvApi,
   mockMoveCardsApi,
   MOCK_SYNC_COLLECTION_LISTS,
-  MOCK_SYNC_DECKS,
+  mockSyncDecks,
   mockStatusApi,
   mockTotpApi,
   skippedLineWarning,
@@ -167,7 +167,7 @@ test.describe('admin language switch', () => {
   test('relabels a streaming sync run, nested parts and all, from the keys the engine sent', async ({
     page,
   }) => {
-    const [winota] = MOCK_SYNC_DECKS
+    const [winota] = mockSyncDecks()
     await offerLocales(page, ['en', PSEUDO_LOCALE])
     await mockDeckSyncApi(page)
     await gotoAdminDashboard(page, '#/sync/decks')
@@ -241,7 +241,7 @@ test.describe('admin language switch', () => {
   test('relabels the unreadable-lines panel, the parser’s line kept as it was written', async ({
     page,
   }) => {
-    const [winota] = MOCK_SYNC_DECKS
+    const [winota] = mockSyncDecks()
     await offerLocales(page, ['en', PSEUDO_LOCALE])
     await mockDeckSyncApi(page)
     await gotoAdminDashboard(page, '#/sync/decks')
@@ -273,7 +273,7 @@ test.describe('admin language switch', () => {
   })
 
   test('relabels a finished sync’s summary, its error and a replayed reason', async ({ page }) => {
-    const [winota, soldiers] = MOCK_SYNC_DECKS
+    const [winota, soldiers] = mockSyncDecks()
     await offerLocales(page, ['en', PSEUDO_LOCALE])
     await mockDeckSyncApi(page)
     // The non-streaming fallback's answer, carrying a keyed reason to replay.

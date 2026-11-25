@@ -9,7 +9,7 @@ import {
   skippedLineWarning,
   unreadableLinesFrame,
   mockDeckSyncApi,
-  MOCK_SYNC_DECKS,
+  mockSyncDecks,
   streamUrl,
   type DeckSyncMocks,
 } from '../helpers/mock-admin'
@@ -21,7 +21,7 @@ import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
  * login. The sync itself is covered by test/integration/deck-sync-api.test.ts.
  */
 
-const [WINOTA, SOLDIERS] = MOCK_SYNC_DECKS
+const [WINOTA, SOLDIERS] = mockSyncDecks()
 
 async function gotoSyncDecks(page: Page): Promise<void> {
   await page.locator('.admin-sidebar .admin-nav-item:has-text("Sync Decks")').click()

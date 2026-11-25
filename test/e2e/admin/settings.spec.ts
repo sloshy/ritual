@@ -285,6 +285,50 @@ test.describe('Settings Page', () => {
     expect(second.defaultCategories).toEqual(['Ramp'])
   })
 
+  test('a saved Default Categories draft is shown in its canonical spelling', async ({ page }) => {
+    const main = page.locator('main')
+    const field = main.locator('input[name="defaultCategories"]')
+    await expect(field).toHaveValue('Ramp, Draw, Removal')
+
+    // Typed spelling is kept while editing…
+    await field.fill('Ramp,Board  Wipes')
+    await expect(field).toHaveValue('Ramp,Board  Wipes')
+    await main.locator('button:has-text("Save")').click()
+    await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
+    // …and an untouched draft takes the parsed, canonical form once saved.
+    await expect(field).toHaveValue('Ramp, Board Wipes')
+  })
+
+  test('Default Categories typed while a save is in flight survive the save landing', async ({
+    page,
+  }) => {
+    const main = page.locator('main')
+    const field = main.locator('input[name="defaultCategories"]')
+    await expect(field).toHaveValue('Ramp, Draw, Removal')
+
+    // Hold the PUT until the field has been edited again.
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    await page.route('**/api/config', async (route) => {
+      if (route.request().method() !== 'PUT') return route.fallback()
+      await held
+      return route.fallback()
+    })
+
+    await field.fill('Ramp, Board Wipes')
+    const response = page.waitForResponse(
+      (res) => res.url().includes('/api/config') && res.request().method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    await field.fill('Ramp, Tokens,')
+    release()
+    await response
+    await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
+
+    // The newer draft keeps its typed spelling, trailing comma and all.
+    await expect(field).toHaveValue('Ramp, Tokens,')
+  })
+
   test('editing public-site include and exclude lists persists to the config and shows success', async ({
     page,
   }) => {

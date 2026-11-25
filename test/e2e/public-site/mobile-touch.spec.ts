@@ -201,15 +201,21 @@ test.describe('Touch toolbar', () => {
     await expect(page.locator('[data-view="overlap"]')).toHaveCount(0)
     await expect(page.locator('[data-view="stack"]')).toHaveCount(0)
   })
+})
+
+// Its own block so the filter deck is the page's first list: opened after
+// another list, `gotoList`'s `.card-item` wait passes on the old list's cards,
+// and a sheet opened then is replaced along with the old toolbar.
+test.describe('Touch toolbar — filter sheet', () => {
+  test.beforeEach(async ({ page }) => {
+    // A deck with a land in it, so Hide Lands has something to remove.
+    await mockPublicSiteDeckForFilters(page)
+    await gotoList(page, '#/deck/test-filter-deck')
+  })
 
   test('opens the filter menu as a bottom sheet whose filters reach the cards', async ({
     page,
   }) => {
-    // A deck with a land in it, so Hide Lands has something to remove.
-    await mockPublicSiteDeckForFilters(page)
-    await gotoList(page, '#/deck/test-filter-deck')
-    await expect(page.locator('.card-item[data-name="test forest"]')).toBeVisible()
-
     await page.locator('.filter-menu .toolbar-toggle', { hasText: 'Filters' }).click()
     const sheet = page.locator('.sheet-shell[open]')
     await expect(sheet.locator('.filter-menu-panel')).toBeVisible()
@@ -225,8 +231,6 @@ test.describe('Touch toolbar', () => {
   // buttons, and touch bumps the input to a 16px font with roomier padding — so
   // the field has to be sized for that, or a typed value scrolls out of sight.
   test('numeric filter fields show a long value without clipping it', async ({ page }) => {
-    await mockPublicSiteDeckForFilters(page)
-    await gotoList(page, '#/deck/test-filter-deck')
     await page.locator('.filter-menu .toolbar-toggle', { hasText: 'Filters' }).click()
     const sheet = page.locator('.sheet-shell[open]')
     await expect(sheet.locator('.filter-menu-panel')).toBeVisible()
@@ -246,8 +250,6 @@ test.describe('Touch toolbar', () => {
   // That hold is on a timer, so the thing worth pinning is that it always ends:
   // if it ever failed to clear, the content would stay in the DOM indefinitely.
   test('closing the sheet tears its content down once the slide-out ends', async ({ page }) => {
-    await mockPublicSiteDeckForFilters(page)
-    await gotoList(page, '#/deck/test-filter-deck')
     await page.locator('.filter-menu .toolbar-toggle', { hasText: 'Filters' }).click()
     const filterPanel = page.locator('.sheet-shell .filter-menu-panel')
     await expect(filterPanel).toBeVisible()

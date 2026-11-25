@@ -83,7 +83,10 @@ test.describe('Find Other Printings modal', () => {
 
   test('the current list is pinned to the top of the results', async ({ page }) => {
     // Opened from the collection, whose lists load after the deck: it still leads.
-    await gotoList(page, '#/collection/print-binder')
+    // Waits on the collection's own title: the deck the beforeEach opened already
+    // satisfies the default `.card-item` wait, and a card modal opened on it
+    // would be the deck's.
+    await gotoList(page, '#/collection/print-binder', '.page-title:text-is("Print Binder")')
     await openFromCardModal(page)
 
     const names = page.locator('.find-printings-group .find-printings-group-name')

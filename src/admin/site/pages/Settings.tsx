@@ -124,6 +124,11 @@ export function Settings(): JSX.Element {
   const handleSave = async () => {
     const saved = config()
     if (!saved) return
+    // The draft this save was started from: only that one is replaced by the
+    // canonical spelling once it lands. Text typed while the PUT was in flight
+    // is newer than the save, so it stays in the field. Compared by value: text
+    // edited and then restored to the same string snaps to canonical as usual.
+    const draftAtSave = categoriesDraft()
     // `run` clears its own loading flag before the post-save pushes below
     // finish, so this flag is what keeps the Save button disabled until the
     // status re-read lands — a second click mid-flip would interleave two
@@ -154,8 +159,9 @@ export function Settings(): JSX.Element {
         // the module signal once per page mount, so without this push an
         // already-open editor keeps offering the stale suggestions.
         setDefaultCategories(saved.defaultCategories)
-        // The field re-renders from the saved, canonical config.
-        setCategoriesDraft(null)
+        // The field re-renders from the saved, canonical config — unless it was
+        // edited while the save was in flight.
+        if (categoriesDraft() === draftAtSave) setCategoriesDraft(null)
         // Same reasoning for the interface language: the admin resolves it once at
         // boot, so a saved change has to be pushed for the running app to adopt it
         // (it is the weakest tier, so an explicit choice still wins).

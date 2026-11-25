@@ -140,7 +140,8 @@ async function gotoFinishCondition(page: Page, cardName: string): Promise<void> 
 async function gridColumns(page: Page): Promise<number> {
   return page.evaluate(() => {
     const grid = document.querySelector('.printing-select-grid')
-    if (!grid) return 1
+    // Absent means the caller measured too early; 1 would read as a layout bug.
+    if (!grid) throw new Error('printing grid not mounted')
     return getComputedStyle(grid)
       .gridTemplateColumns.split(' ')
       .filter((t) => t !== '').length
@@ -288,6 +289,10 @@ test.describe('Admin Editor — keyboard navigation', () => {
     const highlighted = page.locator(
       '.printing-select-card--highlighted, .printing-no-printing--highlighted',
     )
+    // The heading appears before the printings load: measure the columns only
+    // once every tile ("No specific printing" plus each printing) is laid out,
+    // or the grid is still absent or a single tile wide.
+    await expect(tiles).toHaveCount(BOLT_PRINTINGS.length + 1)
     const columns = await gridColumns(page)
     expect(columns).toBeGreaterThan(1)
 

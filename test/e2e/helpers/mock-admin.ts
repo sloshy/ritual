@@ -671,22 +671,30 @@ export const ARCHIDEKT_SESSION_EXPIRED: ArchidektLoginStatus = {
   loginRequired: true,
 }
 
-export const MOCK_SYNC_DECKS: SyncableDeck[] = [
-  {
-    slug: 'winota-stax',
-    name: 'Winota Stax',
-    sourceId: '111',
-    sourceUrl: 'https://archidekt.com/decks/111',
-    lastSynced: new Date(Date.now() - 3 * 3600_000).toISOString(),
-  },
-  {
-    slug: 'oops-all-soldiers',
-    name: 'Oops All Soldiers',
-    sourceId: '222',
-    sourceUrl: 'https://archidekt.com/decks/222',
-    lastSynced: null,
-  },
-]
+/**
+ * The linked decks the Sync Decks page lists: Winota Stax synced three hours
+ * ago, Oops All Soldiers never. Built per call, so "three hours ago" is
+ * measured from when a test installs the mock, not from when this module
+ * loaded — a long single-worker run otherwise reads "3 hours, 1 minute ago".
+ */
+export function mockSyncDecks(): SyncableDeck[] {
+  return [
+    {
+      slug: 'winota-stax',
+      name: 'Winota Stax',
+      sourceId: '111',
+      sourceUrl: 'https://archidekt.com/decks/111',
+      lastSynced: new Date(Date.now() - 3 * 3600_000).toISOString(),
+    },
+    {
+      slug: 'oops-all-soldiers',
+      name: 'Oops All Soldiers',
+      sourceId: '222',
+      sourceUrl: 'https://archidekt.com/decks/222',
+      lastSynced: null,
+    },
+  ]
+}
 
 /** Handles on the deck-sync mocks, for asserting and reshaping mid-test. */
 export type DeckSyncMocks = {
@@ -712,7 +720,7 @@ export type DeckSyncMocks = {
 export async function mockDeckSyncApi(
   page: Page,
   archidekt: ArchidektLoginStatus = ARCHIDEKT_LOGGED_IN,
-  decks: SyncableDeck[] = MOCK_SYNC_DECKS,
+  decks: SyncableDeck[] = mockSyncDecks(),
 ): Promise<DeckSyncMocks> {
   let currentDecks = decks
   let currentArchidekt = archidekt

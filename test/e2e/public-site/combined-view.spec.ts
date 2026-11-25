@@ -21,6 +21,9 @@ async function gotoCombined(page: Page, query = 'lists=deck:cv-deck,collection:c
   await page.evaluate((q) => {
     window.location.hash = `#/combined?${q}`
   }, query)
+  // The deck page the beforeEach opened already has `.card-item`s, so wait for
+  // the combined view's own title first: otherwise the wait passes on the deck.
+  await expect(page.locator('.page-title')).toHaveText('Combined List', { timeout: 15_000 })
   await page.waitForSelector('.card-item', { timeout: 15_000 })
 }
 test.describe('Combined list view', () => {
@@ -155,9 +158,6 @@ test.describe('Combined list view', () => {
     // renders only while open, so the second assertion seeing chips at all is
     // itself the proof that nothing was torn down and rebuilt.
     await gotoCombined(page, 'lists=deck:cv-deck')
-    // The deck page left behind by `beforeEach` renders the same two chips, so
-    // pin the combined view itself before reading them.
-    await expect(page.locator('.page-title')).toHaveText('Combined List')
     const panel = await openFilterMenu(page)
     const labelChips = panel.getByRole('group', { name: 'Label filter' }).getByRole('button')
     await expect(labelChips).toHaveText(['Proxy', 'Unlabeled'])

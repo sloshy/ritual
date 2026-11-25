@@ -8,7 +8,12 @@ import { MOBILE_LAYOUT_QUERY } from '../../../src/ui/useMediaQuery'
  * components, so these helpers work on both.
  */
 
-/** Navigate to a list page and wait for it to render (default: a card tile). */
+/**
+ * Navigate to a list page and wait for it to render (default: a card tile).
+ * When another list is already open, pass a `waitFor` only the target matches:
+ * the navigation is a hash change in the same document, so the old list's
+ * cards satisfy the default at once.
+ */
 export async function gotoList(page: Page, hash: string, waitFor = '.card-item'): Promise<void> {
   await page.goto(hash)
   await page.waitForSelector(waitFor, { timeout: 15_000 })
