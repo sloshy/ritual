@@ -9,9 +9,6 @@ export default defineConfig({
   site: SITE,
   // The Changelog page renders the repository's CHANGELOG.md, one level up.
   vite: { server: { fs: { allow: ['..'] } } },
-  // Starlight 0.43 follows this setting (it used to force 'where'); keeping
-  // 'where' keeps the components' scoped styles at zero specificity.
-  scopedStyleStrategy: 'where',
   integrations: [
     starlight({
       title: 'Ritual',
