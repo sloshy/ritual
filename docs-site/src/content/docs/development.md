@@ -121,6 +121,8 @@ Run the integration tests, which build the binary and drive it, the servers, and
 bun run test:it
 ```
 
+Like the unit tests, they run with `--parallel`: each test works in its own temporary workspace.
+
 ### Playwright Tests
 
 The browser tests build the public site from a synthetic workspace, start it and the admin site, and drive both in Chromium. Install the browser once, then run them:

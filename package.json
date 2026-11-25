@@ -26,7 +26,7 @@
     "precommit": "bun run scripts/precommit.ts",
     "verify": "bun run scripts/precommit.ts --full",
     "test": "bun run scripts/precommit.ts --test",
-    "test:it": "RITUAL_BUNDLED_LOCALES=en-XA bun run build && bun check --no-script && RITUAL_IT_PREBUILT=1 bun test test/integration",
+    "test:it": "RITUAL_BUNDLED_LOCALES=en-XA bun run build && bun check --no-script && RITUAL_IT_PREBUILT=1 bun test test/integration --parallel",
     "test:e2e": "RITUAL_BUNDLED_LOCALES=en bun run build:assets && bunx playwright test",
     "prepare": "husky"
   },

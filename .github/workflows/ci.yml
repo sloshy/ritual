@@ -62,8 +62,8 @@ jobs:
   e2e:
     name: Playwright
     runs-on: ubuntu-latest
-    # playwright.config.ts runs one worker under CI.
-    timeout-minutes: 45
+    # playwright.config.ts runs four workers under CI, one per vCPU.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2

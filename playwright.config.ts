@@ -41,7 +41,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // CI runners have 4 vCPUs. The suite is fully parallel: every spec mocks its
+  // own routes, and the two shared servers take concurrent requests.
+  workers: process.env.CI ? 4 : undefined,
   reporter: 'html',
   timeout: 30_000,
   use: {
