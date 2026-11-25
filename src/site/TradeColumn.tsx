@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { createMemo, createSignal, For, Show } from 'solid-js'
+import { createMemo, createSignal, For, onCleanup, Show } from 'solid-js'
 import { useT } from '../ui/i18n'
 import type { MessageKey } from '../i18n/messages/en'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -93,7 +93,9 @@ const MODE_COPY: Record<TradeColumnMode, TradeColumnModeCopy> = {
   },
 }
 
-// Defer the suggest-hide past the click handler so onMouseDown on a suggestion can fire first.
+// How long a blur waits before closing the suggestions. A suggestion row selects on
+// mousedown with preventDefault, so it never blurs the input; the delay only spares
+// a quick refocus (a dialog the selection opened, then closed) a closing flicker.
 const SUGGEST_HIDE_DELAY_MS = 150
 
 export interface TradeColumnProps {
@@ -123,6 +125,15 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
   const t = useT()
   const [showSuggest, setShowSuggest] = createSignal(false)
   let inputRef: HTMLInputElement | undefined
+  // The blur hide is deferred (see SUGGEST_HIDE_DELAY_MS). Focus that comes back
+  // before it fires cancels it: a stale hide would otherwise close the list just
+  // reopened for the next query.
+  let pendingHide: ReturnType<typeof setTimeout> | undefined
+  const cancelPendingHide = (): void => {
+    clearTimeout(pendingHide)
+    pendingHide = undefined
+  }
+  onCleanup(cancelPendingHide)
 
   const sortedCards = createMemo(() => sortTradeCards(props.cards, props.sort))
   const totalPrice = createMemo(() => props.cards.reduce((s, c) => s + (c.price ?? 0) * c.qty, 0))
@@ -247,9 +258,16 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
             onInput={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => {
-              if (props.searchQuery.length >= 2) setShowSuggest(true)
+              cancelPendingHide()
+              setShowSuggest(props.searchQuery.length >= 2)
             }}
-            onBlur={() => setTimeout(() => setShowSuggest(false), SUGGEST_HIDE_DELAY_MS)}
+            onBlur={() => {
+              cancelPendingHide()
+              pendingHide = setTimeout(() => {
+                pendingHide = undefined
+                setShowSuggest(false)
+              }, SUGGEST_HIDE_DELAY_MS)
+            }}
             autocomplete="off"
           />
           <Show when={props.autocompleteLoading}>

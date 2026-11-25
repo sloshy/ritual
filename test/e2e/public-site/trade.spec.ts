@@ -87,6 +87,29 @@ test.describe('Trade Page', () => {
     )
   })
 
+  test('left column: a blur closes the suggestions unless focus comes straight back', async ({
+    page,
+  }) => {
+    await page.clock.install()
+    await page.goto('#/trade')
+    const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
+    const suggest = page.locator('.trade-col[data-side="left"] .search-suggest')
+
+    await leftSearch.fill('Lightning')
+    await expect(suggest).toBeVisible()
+    // Back in the box (and typing) before the deferred hide fires: it is
+    // cancelled, so running the clock past it leaves the list open.
+    await leftSearch.blur()
+    await leftSearch.fill('Lightning B')
+    await page.clock.runFor(200)
+    await expect(suggest).toBeVisible()
+
+    // Left alone, the same blur does close it.
+    await leftSearch.blur()
+    await page.clock.runFor(200)
+    await expect(suggest).toBeHidden()
+  })
+
   test('left column: an accent-free query finds and adds the accented card', async ({ page }) => {
     await page.goto('#/trade')
 
