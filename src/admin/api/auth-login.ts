@@ -121,7 +121,7 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
     // Wrong codes from every address draw on one budget: once it is spent, no
     // code is checked until its window passes, and this attempt is not
     // charged to the address.
-    if (!reserveTotpCheck(globalTotpBudget, config.admin)) {
+    if (!reserveTotpCheck(globalTotpBudget)) {
       release()
       return rateLimitedResponse(totpBudgetRetrySeconds(globalTotpBudget))
     }
@@ -130,7 +130,7 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
       await auditFailedAttempt(attempt, AUDIT_REASONS.invalidTotp, config.admin)
       return totpRefusal(apiMessage('admin.api.login.totpInvalid'), 401)
     }
-    returnTotpCheck(globalTotpBudget, config.admin)
+    returnTotpCheck(globalTotpBudget)
   }
 
   // Auth succeeded

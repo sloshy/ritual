@@ -36,16 +36,10 @@ export type LoginOrigin = {
  */
 export type CredentialFailure = 'password' | 'totp' | 'totpPaused'
 
-/** The global budget of wrong authenticator codes a check draws on, and the settings it follows. */
-export type TotpBudget = {
-  limiter: RateLimiter
-  settings: LoginLimitSettings
-}
-
 /** Check a consent form's credentials, drawing on `budget` for the authenticator code. */
 export type CredentialCheck = (
   credentials: ConsentCredentials,
-  budget: TotpBudget,
+  budget: RateLimiter,
 ) => Promise<CredentialFailure | undefined>
 
 /** What the consent sign-in counts and queues on: the server's own limiter and gate. */
@@ -104,9 +98,9 @@ export const checkAdminCredentials: CredentialCheck = async (credentials, budget
   const secret = await getTotpSecret()
   const code = credentials.totpCode
   if (secret === null || !/^\d{6}$/.test(code)) return 'totp'
-  if (!reserveTotpCheck(budget.limiter, budget.settings)) return 'totpPaused'
+  if (!reserveTotpCheck(budget)) return 'totpPaused'
   if (!(await verifyTotp(secret, code))) return 'totp'
-  returnTotpCheck(budget.limiter, budget.settings)
+  returnTotpCheck(budget)
   return undefined
 }
 
@@ -142,8 +136,7 @@ export async function verifyConsentLogin(
   if (!reserveAttempt(guards.limiter, key, settings)) return { ok: false, error: 'rateLimited' }
   const check = guards.check ?? checkAdminCredentials
   // `hasRoom` was checked synchronously just before, so the gate admits this.
-  const budget: TotpBudget = { limiter: guards.totpBudget, settings }
-  const gated = await guards.gate.run(key, () => check(credentials, budget))
+  const gated = await guards.gate.run(key, () => check(credentials, guards.totpBudget))
   if (!gated.ok) return { ok: false, error: 'busy' }
   const failed = gated.value
   if (failed === 'totpPaused') {

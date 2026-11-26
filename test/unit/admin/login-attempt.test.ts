@@ -49,18 +49,18 @@ describe('login-attempt bookkeeping', () => {
     expect(limiter.getFailureCount('key')).toBe(0)
   })
 
-  test('with rate limiting off, the TOTP budget always admits and counts nothing', () => {
+  test('the TOTP budget counts each check and gives back only a returned one', () => {
     const budget = new RateLimiter()
-    const off = { ...SETTINGS, rateLimitEnabled: false }
-    for (let i = 0; i < 50; i++) expect(reserveTotpCheck(budget, off)).toBe(true)
-    returnTotpCheck(budget, off)
-    expect(budget.getFailureCount(TOTP_BUDGET_KEY)).toBe(0)
+    expect(reserveTotpCheck(budget)).toBe(true)
+    expect(reserveTotpCheck(budget)).toBe(true)
+    returnTotpCheck(budget)
+    expect(budget.getFailureCount(TOTP_BUDGET_KEY)).toBe(1)
   })
 
   test('the TOTP budget never asks for Retry-After: 0, even once its lock has lapsed', () => {
     let now = 0
     const budget = new RateLimiter(() => now)
-    while (reserveTotpCheck(budget, SETTINGS)) now += 1
+    while (reserveTotpCheck(budget)) now += 1
     expect(totpBudgetRetrySeconds(budget)).toBeGreaterThan(1)
     now += 24 * 60 * 60_000
     expect(totpBudgetRetrySeconds(budget)).toBe(1)

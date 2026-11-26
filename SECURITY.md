@@ -123,7 +123,8 @@ consent page) and `POST /oauth/token`.
   process; past that no code is checked until the window passes (`429` with
   `Retry-After` for a right password; a wrong password is answered as before). A code is
   accepted in three 30-second steps, so that is about 960 guesses a day at odds of 3 in a
-  million each: roughly 0.3% a day. Missing and malformed codes are not counted.
+  million each: roughly 0.3% a day. Missing and malformed codes are not counted. The budget
+  stays on when `admin.rateLimitEnabled` is off: it does not depend on client addresses.
 - **Behind a tunnel, `admin.trustProxy` is required.** A loopback bind with a
   non-loopback public URL refuses to start without it (exit `2`): otherwise every request
   would come from loopback, every limit would be one shared bucket that any stranger could

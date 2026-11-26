@@ -133,11 +133,16 @@ describe('verifyConsentLogin — the global budget of wrong authenticator codes'
   afterEach(async () => ws.dispose())
 
   /** A sign-in from `clientIp`, by default with the right password. */
-  function signIn(clientIp: string, totpCode: string, password: string = ADMIN_PASSWORD) {
+  function signIn(
+    clientIp: string,
+    totpCode: string,
+    password: string = ADMIN_PASSWORD,
+    settings: LoginLimitSettings = NO_DELAY,
+  ) {
     return verifyConsentLogin(
       { username: ADMIN_USERNAME, password, totpCode },
       { clientIp, userAgent: 'test' },
-      NO_DELAY,
+      settings,
       guards,
     )
   }
@@ -166,6 +171,21 @@ describe('verifyConsentLogin — the global budget of wrong authenticator codes'
     expect(await signIn('192.0.2.2', '000000', 'wrong password')).toEqual({
       ok: false,
       error: 'invalidCredentials',
+    })
+  })
+
+  test('it stays on with rate limiting off: one address spends it and is then refused', async () => {
+    const off: LoginLimitSettings = { ...NO_DELAY, rateLimitEnabled: false }
+    for (let i = 0; i < MAX_TOTP_FAILURES_PER_WINDOW; i++) {
+      expect(await signIn('192.0.2.1', '000000', ADMIN_PASSWORD, off)).toEqual({
+        ok: false,
+        error: 'invalidCredentials',
+      })
+    }
+    expect(await signIn('192.0.2.1', await generateTotp(SECRET), ADMIN_PASSWORD, off)).toEqual({
+      ok: false,
+      error: 'rateLimited',
+      retryAfterSeconds: TOTP_BUDGET_WINDOW_MINUTES * 60,
     })
   })
 

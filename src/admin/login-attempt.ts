@@ -98,11 +98,12 @@ export const globalTotpBudget = new RateLimiter()
  * Take one authenticator-code check from `budget`, before the code is
  * checked: `false` while the budget is spent. Counted at once as a wrong code
  * (synchronously, like {@link reserveAttempt}, so parallel checks see each
- * other); a right code gives it back with {@link returnTotpCheck}. With rate
- * limiting off it always admits and counts nothing.
+ * other); a right code gives it back with {@link returnTotpCheck}. It does not
+ * follow `admin.rateLimitEnabled`: that setting exists for proxies that make
+ * every client one address, and this budget counts no addresses. It is what
+ * keeps a known password from being enough.
  */
-export function reserveTotpCheck(budget: RateLimiter, settings: LoginLimitSettings): boolean {
-  if (!settings.rateLimitEnabled) return true
+export function reserveTotpCheck(budget: RateLimiter): boolean {
   if (budget.isLocked(TOTP_BUDGET_KEY)) return false
   budget.recordFailure(TOTP_BUDGET_KEY, MAX_TOTP_FAILURES_PER_WINDOW, TOTP_BUDGET_WINDOW_MINUTES)
   return true
@@ -113,8 +114,8 @@ export function reserveTotpCheck(budget: RateLimiter, settings: LoginLimitSettin
  * Only that one: a success does not forgive the wrong codes before it, which
  * may have been someone else's.
  */
-export function returnTotpCheck(budget: RateLimiter, settings: LoginLimitSettings): void {
-  if (settings.rateLimitEnabled) budget.release(TOTP_BUDGET_KEY)
+export function returnTotpCheck(budget: RateLimiter): void {
+  budget.release(TOTP_BUDGET_KEY)
 }
 
 /**
