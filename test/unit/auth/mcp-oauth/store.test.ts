@@ -205,7 +205,11 @@ describe('OAuthStore', () => {
   test('once the file exists, no update leaves a moment without it, nor a stray file', async () => {
     const store = await open()
     await store.update(NOW, addClient('c0'))
-    const inoBefore = (await fs.stat(oauthStatePath())).ino
+    // Renamed over, never written in place: the temp file exists beside the
+    // target, so each write must land on a different inode than the one before
+    // it. (Across several writes a file system may hand a freed number back.)
+    let ino = (await fs.stat(oauthStatePath())).ino
+    let writtenInPlace = 0
     const report = await pollWhile(oauthStatePath(), async () => {
       for (let i = 1; i <= 100; i++) {
         await store.update(NOW, (draft) => {
@@ -213,16 +217,18 @@ describe('OAuthStore', () => {
             { clientId: `c${i}`, redirectUris: ['https://a.example/cb'], createdAt: NOW },
           ]
         })
+        const next = (await fs.stat(oauthStatePath())).ino
+        if (next === ino) writtenInPlace += 1
+        ino = next
       }
     })
+    expect(writtenInPlace).toBe(0)
     expect(report.polls).toBeGreaterThan(0)
     expect(report.misses).toBe(0)
     expect(store.state.clients.map((c) => c.clientId)).toEqual(['c100'])
     expect(await strayFiles()).toEqual([])
     const after = await fs.stat(oauthStatePath())
     expect(after.mode & 0o777).toBe(0o600)
-    // Renamed over, never written in place.
-    expect(after.ino).not.toBe(inoBefore)
   })
 
   test('a file rewritten by another process between the check and the write is merged, not overwritten', async () => {
