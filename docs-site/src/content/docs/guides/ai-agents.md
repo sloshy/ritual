@@ -107,6 +107,8 @@ ritual mcp --transport http --oauth --public-url https://mcp.example.com --base-
 
 In Claude, add a custom connector (in its settings, under connectors; menu names may differ) with the URL `https://mcp.example.com/mcp` and no client ID or secret. Claude registers itself, then opens Ritual's sign-in page: sign in with the admin account and choose **Allow**. The feature is beta; see [OAuth sign-in](/commands/mcp/#oauth-sign-in-beta) for the endpoints, token lifetimes and limits. To make every client sign in again, change the admin password (or turn TOTP on or off): that takes effect at once, even on a running server. To also forget every registered client, stop the server and delete `.logins/mcp-oauth.json`. A token set alongside keeps working for Claude Code and scripts, and `ritual admin --mcp --mcp-oauth` does the same inside the web admin.
 
+To keep the server and the tunnel running as services, with a checklist before you go public, see [Host Ritual Yourself](/hosting/).
+
 ### What the Tools Do
 
 Every tool that addresses a list takes a `listType` (`deck`, `collection` or `wanted`) and a `slug` (the file name without `.md`). The tools fall into three groups:

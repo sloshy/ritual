@@ -78,6 +78,8 @@ ritual mcp --transport http --public-url https://mcp.example.com --token "$MCP_T
 
 [`ritual admin --mcp`](/commands/admin/#embedded-mcp-server) takes the same value as `--mcp-public-url`.
 
+For running the endpoint as a long-lived service behind a tunnel, with a checklist and worked examples, see [Host Ritual Yourself](/hosting/).
+
 #### OAuth sign-in (beta)
 
 :::caution[Beta]

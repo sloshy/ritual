@@ -207,7 +207,7 @@ export default defineConfig({
             },
           ],
         },
-        { label: 'Hosting', items: ['docker'] },
+        { label: 'Hosting', items: ['hosting', 'docker'] },
         {
           label: 'Reference',
           items: [{ autogenerate: { directory: 'reference' } }, 'attribution'],

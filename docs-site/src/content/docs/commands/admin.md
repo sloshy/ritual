@@ -215,7 +215,7 @@ Auto-commit covers the admin web UI and the [MCP server](/commands/mcp/) only. C
 
 ### Network options
 
-`admin.trustProxy` makes the server take the client address from the last `X-Forwarded-For` entry, the one a reverse proxy appends, instead of the connection's own address, and the address the browser used from the last `X-Forwarded-Host` entry for the [cross-site check](#cross-site-requests). It governs the [MCP OAuth](/commands/mcp/#sign-in-protection) consent page's and registration's per-address limits too. Turn it on only behind a proxy you control. `admin.secureCookies` marks the session cookie `Secure`, so browsers send it over HTTPS only.
+`admin.trustProxy` makes the server take the client address from the last `X-Forwarded-For` entry, the one a reverse proxy appends, instead of the connection's own address, and the address the browser used from the last `X-Forwarded-Host` entry for the [cross-site check](#cross-site-requests). It governs the [MCP OAuth](/commands/mcp/#sign-in-protection) consent page's and registration's per-address limits too. Turn it on only behind a proxy you control. `admin.secureCookies` marks the session cookie `Secure`, so browsers send it over HTTPS only. Before you make the admin reachable from other machines, see [Host Ritual Yourself](/hosting/) for how far to expose it.
 
 ### Failed Login Delay
 

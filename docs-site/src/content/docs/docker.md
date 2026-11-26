@@ -3,7 +3,7 @@ title: 'Docker'
 description: Run Ritual in a container, for a cache server or a hosted public site.
 ---
 
-Ritual is published as a Docker image. It is most useful for self-hosting the [cache server](/commands/cache/#server) or the [public site with a live backend](/public-site/hosted/), but any command works. The image's entry point is `ritual`, so whatever you put after the image name is the command.
+Ritual is published as a Docker image. It is most useful for self-hosting the [cache server](/commands/cache/#server) or the [public site with a live backend](/public-site/hosted/), but any command works. The image's entry point is `ritual`, so whatever you put after the image name is the command. For which servers are safe to expose and how far, see [Host Ritual Yourself](/hosting/).
 
 ## Quick Start
 
