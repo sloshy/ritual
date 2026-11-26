@@ -27,6 +27,8 @@ export const AUDIT_REASONS = {
   passwordResetViaCli: 'Admin password reset via CLI',
   // i18n-exempt: a persisted audit-log identifier — `.logins/admin-audit.log` stores these bytes
   totpDisabledViaCli: 'TOTP disabled via CLI',
+  // i18n-exempt: a persisted audit-log identifier — `.logins/admin-audit.log` stores these bytes
+  oauthAuthorized: 'MCP client authorized via OAuth',
 } as const
 
 /** One reason identifier Ritual writes. */
@@ -40,6 +42,7 @@ const AUDIT_REASON_KEYS: Record<AuditReason, ParameterlessKey> = {
   [AUDIT_REASONS.accountCreatedViaCli]: 'admin.auditLog.reason.accountCreatedViaCli',
   [AUDIT_REASONS.passwordResetViaCli]: 'admin.auditLog.reason.passwordResetViaCli',
   [AUDIT_REASONS.totpDisabledViaCli]: 'admin.auditLog.reason.totpDisabledViaCli',
+  [AUDIT_REASONS.oauthAuthorized]: 'admin.auditLog.reason.oauthAuthorized',
 }
 
 /** Whether a stored reason is one this version knows how to display. */

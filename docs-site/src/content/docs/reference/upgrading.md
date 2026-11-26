@@ -14,7 +14,7 @@ Ritual follows [semantic versioning](https://semver.org/). A version such as `1.
 - **Patch and minor releases** (`1.2.3` → `1.2.4`, `1.2.x` → `1.3.0`) fix bugs and add features. They never break a command, a flag or option, an exit code, the keys of `--output json` or `ndjson`, an [MCP tool](/commands/mcp/) or its schema, an [admin API](/admin/api/) route, an [export](/commands/export/) column or a theme variable, so your scripts and integrations keep working.
 - **Major releases** (`1.x` → `2.0.0`) may break those. Ritual makes such changes when a cleaner design calls for one, and the [changelog](/reference/changelog/) lists each one as breaking and says what to change, such as a renamed flag in a script.
 
-Features labelled **experimental** (the [cache feed](/commands/cache/#feed-host)) or **beta** ([`serve --api`](/public-site/hosted/) and [sell mode](/public-site/sell/)) are outside this promise and may change in a minor release.
+Features labelled **experimental** (the [cache feed](/commands/cache/#feed-host)) or **beta** ([`serve --api`](/public-site/hosted/), [sell mode](/public-site/sell/) and [MCP OAuth sign-in](/commands/mcp/#oauth-sign-in-beta)) are outside this promise and may change in a minor release.
 
 **Your data always carries forward.** Your decks, collections, wanted lists, their change histories and your `ritual.config.json` carry forward from one version to the next, major releases included. When a release changes how one of those files is written, it brings a [migration](#migrations) that updates your files for you.
 

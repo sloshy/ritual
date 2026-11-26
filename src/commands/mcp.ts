@@ -1,7 +1,8 @@
 import { Command, Option } from 'commander'
 import { unauthenticatedExposure, type UnauthenticatedExposure } from '../mcp/host'
 import { parseMcpPublicUrl, type McpPublicUrl } from '../mcp/public-url'
-import { runHttpServer, runStdioServer } from '../mcp/run'
+import { prepareMcpOAuth } from '../mcp/oauth/setup'
+import { runHttpServer, runStdioServer, type McpHttpAuth } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
 import { t } from '../i18n/t'
 import { addSellModeOption, applySellModeOverride, parsedFlag, parsePort } from '../cli/options'
@@ -21,6 +22,12 @@ type McpCommandOptions = {
    * endpoint as exposed, so it needs a token like a non-loopback host.
    */
   publicUrl?: McpPublicUrl
+  /**
+   * Mount the embedded OAuth 2.1 authorization server (beta) and accept its
+   * access tokens on `/mcp`. Needs `publicUrl` and an admin account; the
+   * static token becomes optional.
+   */
+  oauth?: boolean
   allowUnauthenticated?: boolean
   /**
    * Answer the sell/buylist tools for this run whatever `site.sellMode` says
@@ -39,6 +46,7 @@ const HTTP_ONLY_OPTIONS: readonly HttpOnlyOption[] = [
   { name: 'host', flag: FLAG.host },
   { name: 'token', flag: FLAG.token },
   { name: 'publicUrl', flag: FLAG.publicUrl },
+  { name: 'oauth', flag: FLAG.oauth },
   { name: 'allowUnauthenticated', flag: FLAG.allowUnauthenticated },
 ]
 
@@ -63,6 +71,7 @@ function exposureRefusal(exposure: UnauthenticatedExposure): string {
       return t('cli.mcp.refusingUnauthenticatedPublicUrl', {
         url: exposure.exposedAt,
         publicUrlFlag: FLAG.publicUrl,
+        oauthFlag: FLAG.oauth,
         ...remedy,
       })
     default:
@@ -84,9 +93,10 @@ export function registerMcpCommand(program: Command): void {
     .option('--token <secret>', t('help.mcp.token', { envVar: ENV_VAR.mcpToken }))
     .option(
       '--public-url <url>',
-      t('help.mcp.publicUrl', { example: EXAMPLE.mcpPublicUrl }),
+      t('help.mcp.publicUrl', { example: EXAMPLE.mcpPublicUrl, oauthFlag: FLAG.oauth }),
       parsedFlag(parseMcpPublicUrl),
     )
+    .option('--oauth', t('help.mcp.oauth', { publicUrlFlag: FLAG.publicUrl }))
     .option(
       '--allow-unauthenticated',
       t('help.mcp.allowUnauthenticated', { publicUrlFlag: FLAG.publicUrl }),
@@ -99,7 +109,21 @@ export function registerMcpCommand(program: Command): void {
 
       if (options.transport === 'http') {
         const token = resolveMcpToken(options.token)
-        if (!token) {
+        let auth: McpHttpAuth = token ? { kind: 'bearer', token } : { kind: 'none' }
+        if (options.oauth) {
+          const prepared = await prepareMcpOAuth(
+            { publicUrl: options.publicUrl, host: options.host, token },
+            { oauthFlag: FLAG.oauth, publicUrlFlag: FLAG.publicUrl },
+          )
+          if (!prepared.ok) {
+            console.error(prepared.message)
+            process.exitCode = prepared.exitCode
+            return
+          }
+          // OAuth is authentication, so a tokenless OAuth endpoint is not an
+          // unauthenticated one: the exposure refusal below does not apply.
+          auth = prepared.auth
+        } else if (!token) {
           const exposure = unauthenticatedExposure(options.host, options.publicUrl)
           if (exposure !== undefined) {
             if (!options.allowUnauthenticated) {
@@ -120,7 +144,7 @@ export function registerMcpCommand(program: Command): void {
         const server = await runHttpServer({
           port: options.port,
           host: options.host,
-          auth: token ? { kind: 'bearer', token } : { kind: 'none' },
+          auth,
           publicUrl: options.publicUrl,
         })
         // The listener holds the process open; without this the HTTP leg had

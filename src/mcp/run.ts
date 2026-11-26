@@ -15,12 +15,16 @@ import {
   type RitualWireErrorCode,
 } from './error-codes'
 import { isLoopbackHost } from './host'
-import type { McpPublicUrl } from './public-url'
+import { MCP_PATH, publicMcpUrl, type McpPublicUrl } from './public-url'
+import type { OAuthAuthorizationServer, OAuthServerSeams } from './oauth/authorization-server'
+import { isBrowserOAuthPath, isOAuthPath } from './oauth/metadata'
+import { createOAuthRouter, type OAuthRouter } from './oauth/router'
+import type { OAuthStore } from '../auth/mcp-oauth/store'
 import { buildMcpServer } from './server'
 import { verifyTaskSupport } from './tasks/probe'
 import { sharedTaskRuntime } from './tasks/runtime'
 import { divertConsoleLogToStderr } from '../util/stdout-guard'
-import { secretsEqual } from '../util/secret-compare'
+import { bearerMatches, type McpAuthenticator } from './bearer'
 import { MAX_UPLOAD_BODY_SIZE } from '../admin/validation'
 import { startServerOrThrow } from '../util/start-server'
 import { apiMessage, type ApiMessageParams } from '../api/result'
@@ -63,8 +67,22 @@ export async function runStdioServer(): Promise<void> {
  * - `none`: no auth (intended for a localhost-only bind).
  * - `bearer`: requires `Authorization: Bearer <token>`. Used by both the standalone
  *   `ritual mcp --transport http` and the embedded `ritual admin --mcp` endpoints.
+ * - `oauth`: the embedded OAuth 2.1 authorization server (beta) is mounted on
+ *   the same listener, and `/mcp` accepts its access tokens — plus the static
+ *   `token`, when one is given. Needs {@link HttpServerOptions.publicUrl}.
  */
-export type McpHttpAuth = { kind: 'none' } | { kind: 'bearer'; token: string }
+export type McpHttpAuth = { kind: 'none' } | { kind: 'bearer'; token: string } | McpOAuthHttpAuth
+
+/**
+ * The `oauth` strategy: the opened state, an optional static token, and the
+ * authorization server's test seams ({@link OAuthServerSeams}: its clock,
+ * random source, fingerprint reader, TOTP budget and consent-page caps).
+ */
+export type McpOAuthHttpAuth = OAuthServerSeams & {
+  kind: 'oauth'
+  store: OAuthStore
+  token?: string
+}
 
 export interface HttpServerOptions {
   port: number
@@ -88,6 +106,8 @@ export interface HttpServerOptions {
 export type McpHttpServer = {
   readonly server: Bun.Server<undefined>
   readonly port: number
+  /** The embedded authorization server, under the `oauth` strategy (revocation goes through it). */
+  readonly oauth?: OAuthAuthorizationServer
   stop(closeActiveConnections?: boolean): Promise<void>
   [Symbol.asyncDispose](): Promise<void>
 }
@@ -132,9 +152,6 @@ export type RpcErrorBody = {
  */
 export const MAX_MCP_REQUEST_BODY_SIZE = 2 * MAX_UPLOAD_BODY_SIZE + 64 * 1024
 
-/** The single path the MCP Streamable HTTP endpoint is served from. */
-const MCP_PATH = '/mcp'
-
 /**
  * A pre-transport rejection: English `message` whatever the server's UI
  * language — an MCP client, not the operator, reads it — with its key beside it
@@ -153,14 +170,29 @@ function rpcErrorResponse<K extends MessageKey>(
   return Response.json(body, { status })
 }
 
-/** Authorize a request against the configured strategy. */
-function isAuthorized(request: Request, auth: McpHttpAuth): boolean {
+/** The `401` every unauthenticated `/mcp` request gets, with the OAuth challenge when there is one. */
+function unauthorizedResponse(challenge?: string): Response {
+  const response = rpcErrorResponse(401, UNAUTHORIZED_ERROR_CODE, 'admin.api.server.unauthorized')
+  if (challenge !== undefined) response.headers.set('WWW-Authenticate', challenge)
+  return response
+}
+
+/** The authenticator of the static strategies: a bearer token, or none at all. */
+function staticAuthenticator(auth: Exclude<McpHttpAuth, McpOAuthHttpAuth>): McpAuthenticator {
   switch (auth.kind) {
     case 'bearer':
-      return secretsEqual(request.headers.get('authorization') ?? '', `Bearer ${auth.token}`)
+      return (request) =>
+        Promise.resolve({ ok: bearerMatches(request.headers.get('authorization'), auth.token) })
     case 'none':
-      return true
+      return () => Promise.resolve({ ok: true })
+    default:
+      return auth satisfies never
   }
+}
+
+/** The answer to a request whose URL (in practice its `Host` header) does not parse. */
+function malformedRequestResponse(): Response {
+  return rpcErrorResponse(400, ProtocolErrorCode.InvalidRequest, 'cli.mcp.malformedRequest')
 }
 
 /**
@@ -183,6 +215,23 @@ function isAuthorized(request: Request, auth: McpHttpAuth): boolean {
  */
 export async function runHttpServer(options: HttpServerOptions): Promise<McpHttpServer> {
   const { port, host, auth, publicUrl } = options
+
+  let oauth: OAuthRouter | undefined
+  let authenticate: McpAuthenticator
+  if (auth.kind === 'oauth') {
+    // The commands check this before calling; a caller that did not is a bug.
+    if (publicUrl === undefined) throw new TypeError(t('cli.mcp.oauth.publicUrlMissing'))
+    const { kind: _kind, token, ...serverOptions } = auth
+    oauth = createOAuthRouter({
+      ...serverOptions,
+      publicUrl,
+      ...(token === undefined ? {} : { staticToken: token }),
+    })
+    authenticate = oauth.authenticate
+    await oauth.server.start()
+  } else {
+    authenticate = staticAuthenticator(auth)
+  }
 
   // Before anything is served, so no client sees the Tasks extension
   // advertised by a server that would not honour it.
@@ -215,27 +264,45 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
         port,
         hostname: host,
         maxRequestBodySize: MAX_MCP_REQUEST_BODY_SIZE,
-        fetch: async (request) => {
-          const url = new URL(request.url)
-          if (url.pathname !== MCP_PATH) {
+        fetch: async (request, bunServer) => {
+          let pathname: string
+          try {
+            pathname = new URL(request.url).pathname
+          } catch {
+            return malformedRequestResponse()
+          }
+          const oauthPath = oauth !== undefined && isOAuthPath(pathname) ? pathname : undefined
+          if (pathname !== MCP_PATH && oauthPath === undefined) {
             return rpcErrorResponse(404, NOT_FOUND_ERROR_CODE, 'cli.mcp.endpointNotFound', {
               path: MCP_PATH,
             })
           }
           // DNS-rebinding protection (Host + Origin, per the SDK's own mounting
           // guidance) applies to loopback binds only; a deliberately exposed host
-          // is reached by its own name and guarded by the bearer token.
+          // is reached by its own name and guarded by the bearer token. The
+          // OAuth routes sit behind the Host check too. The Origin check
+          // covers `/mcp` and the consent page only: the metadata,
+          // registration and token endpoints are called server to server or
+          // by browser-based clients on other origins, and use no cookies.
           if (loopbackOnly) {
+            const checkOrigin = oauthPath === undefined || isBrowserOAuthPath(oauthPath)
             const rejection =
               hostHeaderValidationResponse(request, allowedHosts) ??
-              originValidationResponse(request, allowedOrigins)
+              (checkOrigin ? originValidationResponse(request, allowedOrigins) : undefined)
             if (rejection) return rejection
           }
-          if (!isAuthorized(request, auth)) {
-            return rpcErrorResponse(401, UNAUTHORIZED_ERROR_CODE, 'admin.api.server.unauthorized')
+          if (oauth !== undefined && oauthPath !== undefined) {
+            return oauth.handle(request, oauthPath, bunServer)
           }
+          const authentication = await authenticate(request)
+          if (!authentication.ok) return unauthorizedResponse(authentication.challenge)
           try {
-            return await handler.fetch(request)
+            return await handler.fetch(
+              request,
+              authentication.authInfo === undefined
+                ? undefined
+                : { authInfo: authentication.authInfo },
+            )
           } catch (error) {
             console.error(t('cli.mcp.httpRequestFailed'), error)
             return rpcErrorResponse(
@@ -272,7 +339,16 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
   const boundPort = server.port ?? port
   console.error(t('cli.mcp.httpListening', { url: `http://${host}:${boundPort}${MCP_PATH}` }))
   if (publicUrl !== undefined) {
-    console.error(t('cli.mcp.httpPublicEndpoint', { url: `${publicUrl.origin}${MCP_PATH}` }))
+    console.error(t('cli.mcp.httpPublicEndpoint', { url: publicMcpUrl(publicUrl) }))
   }
-  return { server, port: boundPort, stop, [Symbol.asyncDispose]: () => stop(true) }
+  if (oauth !== undefined) {
+    console.error(t('cli.mcp.oauth.enabled', { url: oauth.server.endpoints.authorizationEndpoint }))
+  }
+  return {
+    server,
+    port: boundPort,
+    ...(oauth === undefined ? {} : { oauth: oauth.server }),
+    stop,
+    [Symbol.asyncDispose]: () => stop(true),
+  }
 }

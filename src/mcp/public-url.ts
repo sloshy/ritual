@@ -20,6 +20,23 @@ export type McpPublicUrl = {
   hostname: string
 }
 
+/** The single path the MCP Streamable HTTP endpoint is served from. */
+export const MCP_PATH = '/mcp'
+
+/**
+ * The MCP endpoint a remote client is told to connect to: the public origin
+ * plus {@link MCP_PATH}. Under OAuth it is also the protected resource's
+ * identifier, which a client compares with the URL it was given exactly.
+ */
+export function publicMcpUrl(publicUrl: McpPublicUrl): string {
+  return `${publicUrl.origin}${MCP_PATH}`
+}
+
+/** Whether the public URL is served over TLS. */
+export function isHttpsOrigin(publicUrl: McpPublicUrl): boolean {
+  return publicUrl.origin.startsWith('https://')
+}
+
 /**
  * The authority-ish prefix of a raw value: whatever follows an optional
  * `scheme:` and any slashes or backslashes, up to the first `/`, `\`, `?` or

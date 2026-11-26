@@ -469,6 +469,10 @@ export const adminMeta = {
     description:
       'Audit Log "Reason" cell: two-factor authentication (TOTP) was turned off with the `ritual admin` command.',
   },
+  'admin.auditLog.reason.oauthAuthorized': {
+    description:
+      'Audit Log "Reason" cell: the admin signed in on the MCP OAuth consent page and allowed an AI app (an MCP client such as Claude) to connect. OAuth is a protocol name.',
+  },
   'admin.auditLog.failed': { description: 'Badge on a sign-in that was refused.' },
 
   // ── Build Site ────────────────────────────────────────────────────────

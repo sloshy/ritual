@@ -107,6 +107,14 @@ describe('skill catalog invariants', () => {
     ['ritual-collections', '`ownedCopies`'],
     ['ritual', '**do not parse them**'],
     ['ritual-wanted', 'Wanted entries carry no labels, but they do carry **tags**'],
+    // MCP OAuth (beta): the flag pair, and the two prerequisites an agent would
+    // otherwise discover only as a refusal.
+    ['ritual-site', 'ritual mcp --transport http --oauth --public-url'],
+    ['ritual-site', '`--mcp-oauth` (beta)'],
+    ['ritual-site', 'an admin account (exit 3'],
+    ['ritual-site', 'every grant is tied to the credentials it was approved with'],
+    ['ritual-site', 'also requires `admin.trustProxy`'],
+    ['ritual-site', '.logins/mcp-oauth.json'],
   ])('the %s skill documents %p', (skillName, phrase) => {
     const skill = SKILLS.find((s) => s.name === skillName)
     expect(skill).toBeDefined()

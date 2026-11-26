@@ -505,7 +505,7 @@ export const cliInfraMessages = {
 
   // ── admin ─────────────────────────────────────────────────────────────
   'cli.admin.mcpTokenRequired':
-    '{mcpFlag} requires a bearer token: pass {mcpTokenFlag} or set {envVar}.',
+    '{mcpFlag} requires authentication: pass {mcpTokenFlag} or set {envVar}, or pass {oauthFlag}.',
   'cli.admin.mcpPortConflict': '{mcpPortFlag} must differ from the admin {portFlag}.',
   'cli.admin.preparing': 'Preparing admin interface...',
   'cli.admin.ready': 'Admin interface ready.',
@@ -877,7 +877,7 @@ export const cliInfraMessages = {
   'cli.mcp.refusingUnauthenticated':
     "Refusing to serve MCP without authentication on non-loopback host '{host}'. Pass {tokenFlag} (or set {envVar}), or pass {allowUnauthenticatedFlag} to override.",
   'cli.mcp.refusingUnauthenticatedPublicUrl':
-    "Refusing to serve MCP without authentication at public URL '{url}' ({publicUrlFlag}). Pass {tokenFlag} (or set {envVar}), or pass {allowUnauthenticatedFlag} to override.",
+    "Refusing to serve MCP without authentication at public URL '{url}' ({publicUrlFlag}). Pass {tokenFlag} (or set {envVar}) or {oauthFlag}, or pass {allowUnauthenticatedFlag} to override.",
   'cli.mcp.unauthenticatedWarning':
     "Warning: serving MCP without authentication on '{host}' ({flag}).",
   'cli.mcp.unauthenticatedLoopback':
@@ -892,6 +892,111 @@ export const cliInfraMessages = {
   'cli.mcp.stdioTeardownFailed': 'MCP stdio teardown failed:',
   'cli.mcp.listChangedFailed': 'Failed to send resources/list_changed:',
   'cli.mcp.endpointNotFound': 'Not found. Use the {path} endpoint.',
+  // ── mcp oauth (beta) ───────────────────────────────────────────────────
+  //
+  // The embedded authorization server: the operator's console lines, the
+  // login + consent page (server UI locale), and the `error_description` of
+  // its OAuth replies, which a client reads and so go out in English.
+  'cli.mcp.oauth.publicUrlRequired':
+    '{oauthFlag} needs the public URL clients reach the endpoint at: pass {publicUrlFlag}.',
+  'cli.mcp.oauth.httpsRequired':
+    "{oauthFlag} needs an https:// public URL; '{url}' is only allowed for a loopback address. Pass an https:// {publicUrlFlag}.",
+  'cli.mcp.oauth.adminUserRequired':
+    "{oauthFlag} signs clients in with the Ritual admin account, and there is none yet. Create it with '{command}', then start again.",
+  'cli.mcp.oauth.state.invalid':
+    'Cannot read the MCP OAuth state file {file}: {reason}. Fix it, or stop the server and delete it to disconnect every OAuth client.',
+  'cli.mcp.oauth.state.notJson': 'it is not valid JSON',
+  'cli.mcp.oauth.state.version': 'it has version {version}, which this Ritual does not read',
+  'cli.mcp.oauth.state.shape': 'the value at {path} is missing or malformed',
+  'cli.mcp.oauth.publicUrlMissing': 'The OAuth MCP endpoint was started without a public URL.',
+  'cli.mcp.oauth.enabled': 'OAuth sign-in (beta): {url}',
+  'cli.mcp.oauth.refreshReplayed':
+    "An already-used refresh token was presented for client '{client}'; its grant has been revoked, and the client must sign in again.",
+  'cli.mcp.oauth.requestFailed': 'MCP OAuth request failed:',
+  'cli.mcp.malformedRequest': "The request's URL or Host header is malformed.",
+  'cli.mcp.oauth.state.io': 'it could not be read ({code})',
+  'cli.mcp.oauth.httpNeedsLoopbackBind':
+    "{oauthFlag}: the http:// public URL '{url}' is only allowed for testing on a loopback bind, not on host '{host}'. Pass an https:// {publicUrlFlag}.",
+  'cli.mcp.oauth.page.failed.tooManyAttempts':
+    'Too many failed sign-ins on this page. Start connecting again from your app.',
+  'cli.mcp.oauth.page.failed.tooManyPages':
+    'Too many sign-in pages were opened from your address. Try again later.',
+  'cli.mcp.oauth.trustProxyRequired':
+    "{oauthFlag}: '{url}' is reached through a tunnel or proxy in front of this loopback server, but {configKey} is off, so every client would share one sign-in rate limit and anyone could lock you out. Trust the proxy's forwarded address with '{command}', then start again.",
+  'cli.mcp.oauth.page.error.busy':
+    'Too many sign-ins are waiting right now. Try again in a few seconds.',
+  'cli.mcp.oauth.page.failed.unavailable':
+    "Ritual cannot take this sign-in right now. Try again in a minute, or check the server's console.",
+  'cli.mcp.oauth.error.unavailable':
+    'The authorization server cannot answer right now; its state is unavailable. Try again later.',
+  'cli.mcp.oauth.page.title': 'Connect an app to Ritual',
+  'cli.mcp.oauth.page.heading': 'Allow {client} to use Ritual?',
+  'cli.mcp.oauth.page.intro':
+    '{client} is asking to read and change the decks, collections and wanted lists in this Ritual workspace.',
+  'cli.mcp.oauth.page.returnsTo': 'After you answer, your browser returns to:',
+  'cli.mcp.oauth.page.signIn': 'Sign in with your Ritual admin account to allow it.',
+  'cli.mcp.oauth.page.username': 'Username',
+  'cli.mcp.oauth.page.password': 'Password',
+  'cli.mcp.oauth.page.totp': 'Authenticator code',
+  'cli.mcp.oauth.page.approve': 'Allow',
+  'cli.mcp.oauth.page.deny': 'Deny',
+  'cli.mcp.oauth.page.unnamedClient': 'An unnamed app',
+  'cli.mcp.oauth.page.error.invalidCredentials': 'Those sign-in details are not correct.',
+  'cli.mcp.oauth.page.error.rateLimited': 'Too many failed attempts. Try again later.',
+  'cli.mcp.oauth.page.failed.title': 'This sign-in cannot continue',
+  'cli.mcp.oauth.page.failed.invalidRequest':
+    'The sign-in link is not valid for this Ritual server. Start connecting again from your app.',
+  'cli.mcp.oauth.page.failed.expired':
+    'This sign-in page has expired. Start connecting again from your app.',
+  'cli.mcp.oauth.page.failed.forbidden':
+    'This form could not be verified. Start connecting again from your app, in the same browser.',
+  'cli.mcp.oauth.page.failed.serverError':
+    "Something went wrong on the Ritual server. Try again, or check the server's console.",
+  'cli.mcp.oauth.error.invalidToken': 'The access token is invalid, revoked or expired.',
+  'cli.mcp.oauth.error.methodNotAllowed': 'This OAuth endpoint does not accept that HTTP method.',
+  'cli.mcp.oauth.error.bodyTooLarge': 'The request body is too large.',
+  'cli.mcp.oauth.error.formRequired': 'The request body must be application/x-www-form-urlencoded.',
+  'cli.mcp.oauth.error.repeatedParameter': 'The parameter {name} was given more than once.',
+  'cli.mcp.oauth.error.missingParameter': 'The required parameter {name} is missing.',
+  'cli.mcp.oauth.error.clientAuthUnsupported':
+    'Only public clients are supported: send no client secret or Authorization header.',
+  'cli.mcp.oauth.error.invalidTarget':
+    'The only resource this server issues tokens for is {resource}.',
+  'cli.mcp.oauth.error.invalidGrant':
+    'The authorization code or refresh token is invalid, expired, revoked, or was issued to another client or redirect URI.',
+  'cli.mcp.oauth.error.unsupportedGrantType':
+    'Only the authorization_code and refresh_token grants are supported.',
+  'cli.mcp.oauth.error.serverError': 'Internal server error.',
+  'cli.mcp.oauth.error.registration.notJson':
+    'The registration body must be a JSON object sent as application/json.',
+  'cli.mcp.oauth.error.registration.notObject': 'The registration body must be a JSON object.',
+  'cli.mcp.oauth.error.registration.redirectUrisMissing':
+    'redirect_uris must list at least one redirect URI.',
+  'cli.mcp.oauth.error.registration.redirectUrisTooMany':
+    'At most {max} redirect URIs may be registered.',
+  'cli.mcp.oauth.error.registration.redirectUriInvalid':
+    'Each redirect URI must be an https:// URL, or an http:// URL on a loopback address, with no fragment or user name.',
+  'cli.mcp.oauth.error.registration.authMethod':
+    'Only public clients can register: token_endpoint_auth_method must be none.',
+  'cli.mcp.oauth.error.registration.grantTypes':
+    'grant_types may contain only authorization_code and refresh_token.',
+  'cli.mcp.oauth.error.registration.responseTypes': 'response_types may contain only code.',
+  'cli.mcp.oauth.error.registration.clientName':
+    'client_name must be a string of at most {max} characters.',
+  'cli.mcp.oauth.error.registration.rateLimited':
+    'Too many client registrations from this address. Try again later.',
+  'cli.mcp.oauth.error.registration.full':
+    'No more clients can be registered on this server right now.',
+  'cli.mcp.oauth.error.authorize.duplicate': 'An authorization parameter was given more than once.',
+  'cli.mcp.oauth.error.authorize.responseType': 'response_type must be code.',
+  'cli.mcp.oauth.error.authorize.pkceMissing': 'PKCE is required: send code_challenge.',
+  'cli.mcp.oauth.error.authorize.pkceMethod': 'code_challenge_method must be S256.',
+  'cli.mcp.oauth.error.authorize.pkceMalformed':
+    'code_challenge must be a base64url SHA-256 digest.',
+  'cli.mcp.oauth.error.authorize.resource':
+    'The resource parameter does not name this MCP endpoint.',
+  'cli.mcp.oauth.error.authorize.stateTooLong': 'The state parameter is too long.',
+  'cli.mcp.oauth.error.authorize.accessDenied': 'The Ritual owner denied the request.',
   'cli.mcp.removal.prompt':
     '{quantity} × {card} left the Archidekt collection, but the local copies live in {lists}. How many copies should each list give up? The counts must add up to {quantity}.',
   'cli.mcp.removal.field': 'Copies to take from "{list}", which holds {copies}.',

@@ -27,8 +27,36 @@ release changes a file format or a generated file, it ships the change as a
   forwards a public hostname to a loopback bind. The URL's host passes the loopback `Host`/`Origin`
   checks that used to answer every forwarded request with `403`, and the public endpoint is
   printed at startup. The value must be a bare `http://` or `https://` origin. Because a public
-  URL exposes the endpoint, `ritual mcp` refuses it without a token unless you pass
+  URL exposes the endpoint, `ritual mcp` refuses it without a token or `--oauth` unless you pass
   `--allow-unauthenticated`.
+- **Beta:** [OAuth sign-in for the MCP endpoint](https://ritual.rpeters.dev/commands/mcp/#oauth-sign-in-beta).
+  `ritual mcp --transport http --oauth --public-url <url>` and
+  `ritual admin --mcp --mcp-oauth --mcp-public-url <url>` serve a small, single-user OAuth 2.1
+  authorization server beside `/mcp`, so hosted clients such as Claude's custom connectors can
+  connect (Claude's custom connectors on the web are the target; the desktop and mobile apps, and
+  voice mode, are not yet verified): enter `<url>/mcp` as the connector URL, and approve it by
+  signing in with the Ritual admin account (and TOTP code, when enabled) on Ritual's consent page.
+  Clients register themselves (dynamic client registration), PKCE S256 is required, access tokens
+  last an hour and refresh tokens 90 days with rotation. A static token given alongside keeps
+  working. OAuth needs an `https://` public URL and an existing admin account
+  (`ritual admin setup`); behind a tunnel it also needs `admin.trustProxy` (the command
+  refuses to start without it and says how to set it). Changing the admin password, or turning
+  TOTP on or off, revokes every OAuth grant at once, even on a running server; deleting
+  `.logins/mcp-oauth.json` with the server stopped also forgets every registered client.
+
+### Fixed
+
+- **Security:** the admin login (`POST /api/login`) now counts each attempt before checking its
+  password, so a burst of parallel wrong passwords gets no more checks than the rate limit allows;
+  the extra requests get the usual "too many failed attempts" answer. Before, every request in a
+  burst was checked.
+- **Security:** wrong two-factor (TOTP) codes at the admin login are now also limited across all
+  addresses: after 10 wrong codes in 15 minutes, each following a right password, no code is
+  checked until the window passes, and the login answers with the usual "too many failed
+  attempts" (`429`). Before, the per-address limit alone let someone who had the password try
+  codes from many addresses at once. A wrong password is answered as before. The budget is shared
+  with the new MCP OAuth consent page. The trade-off: someone who already has the password can
+  keep code logins refused for as long as they keep guessing; changing the password stops them.
 
 ## [1.0.0] - 2026-11-25
 

@@ -118,7 +118,7 @@ Mount these directories to keep your data and work with the files Ritual uses:
 | `./wanted`      | `/app/wanted`       | Your wanted-list files.                                                                     |
 | `./art`         | `/app/art`          | [Custom card art](/custom-art/) (optional).                                                 |
 | `./cache`       | `/app/cache`        | Cached card data and images from Scryfall (the image sets `RITUAL_CACHE_DIR=/app/cache`).   |
-| `./.logins`     | `/app/.logins`      | Authentication tokens for sites like Archidekt.                                             |
+| `./.logins`     | `/app/.logins`      | Sign-ins: the admin account, Archidekt tokens, MCP OAuth clients and the audit log.         |
 | `./.trash`      | `/app/.trash`       | Lists you [delete](/commands/delete/#restoring-a-deleted-list), kept for restoring.         |
 | `./.backups`    | `/app/.backups`     | Copies [`ritual migrate`](/commands/migrate/#numbered-migrations) takes before a migration. |
 

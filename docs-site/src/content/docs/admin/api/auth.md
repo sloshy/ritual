@@ -124,6 +124,8 @@ The response includes a `Set-Cookie` header with the session token.
 }
 ```
 
+The same answer comes when the address is locked out, or when a TOTP code is sent with the right password while the global budget of wrong codes is spent (10 wrong codes within 15 minutes across all addresses, each after a right password; see [Rate Limiting](/commands/admin/#rate-limiting)). `retryAfterSeconds` and the `Retry-After` header give the time left either way.
+
 ## Log Out
 
 ```
@@ -174,7 +176,7 @@ Returns recent login attempts, most recent first.
 }
 ```
 
-Every login attempt, successful or failed, is written to `.logins/admin-audit.log` with timestamp, IP address, username, result, reason, and user agent. The admin UI shows the same log under "Audit Log".
+Every login attempt, successful or failed, is written to `.logins/admin-audit.log` with timestamp, IP address, username, result, reason, and user agent. So is every sign-in on the [MCP OAuth](/commands/mcp/#oauth-sign-in-beta) consent page (an approval is recorded as `MCP client authorized via OAuth`). The admin UI shows the same log under "Audit Log".
 
 ## TOTP Setup
 

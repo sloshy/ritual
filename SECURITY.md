@@ -20,16 +20,16 @@ properties to know before you expose any of it to a network. The
 
 ### Servers and where they listen
 
-| Command                    | Default bind            | Authentication                                                                                                               |
-| -------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `serve`                    | `0.0.0.0:3000`          | None. Serves the built site's static files only.                                                                             |
-| `serve --api`              | `0.0.0.0:3000`          | None. Read-only API with CORS `*`; see below.                                                                                |
-| `admin`                    | `0.0.0.0:8080`          | Account login with a session cookie; see below.                                                                              |
-| `admin --mcp`              | admin's host, port 8765 | Bearer token, required.                                                                                                      |
-| `mcp --transport http`     | `127.0.0.1:8765`        | Bearer token. Without one, a non-loopback `--host` or a `--public-url` is refused unless you pass `--allow-unauthenticated`. |
-| `mcp` (stdio, the default) | no socket               | Whoever launches the process.                                                                                                |
-| `cache server`             | `127.0.0.1:4000`        | **None, including its write routes.** Trusted networks only.                                                                 |
-| `cache feed host`          | `127.0.0.1:4010`        | None. Read-only (GET/HEAD); seeding opens a BitTorrent listener.                                                             |
+| Command                    | Default bind            | Authentication                                                                                                                                                 |
+| -------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `serve`                    | `0.0.0.0:3000`          | None. Serves the built site's static files only.                                                                                                               |
+| `serve --api`              | `0.0.0.0:3000`          | None. Read-only API with CORS `*`; see below.                                                                                                                  |
+| `admin`                    | `0.0.0.0:8080`          | Account login with a session cookie; see below.                                                                                                                |
+| `admin --mcp`              | admin's host, port 8765 | Bearer token, or OAuth with `--mcp-oauth` (beta), or both; one of them is required.                                                                            |
+| `mcp --transport http`     | `127.0.0.1:8765`        | Bearer token and/or OAuth (`--oauth`, beta). Without either, a non-loopback `--host` or a `--public-url` is refused unless you pass `--allow-unauthenticated`. |
+| `mcp` (stdio, the default) | no socket               | Whoever launches the process.                                                                                                                                  |
+| `cache server`             | `127.0.0.1:4000`        | **None, including its write routes.** Trusted networks only.                                                                                                   |
+| `cache feed host`          | `127.0.0.1:4010`        | None. Read-only (GET/HEAD); seeding opens a BitTorrent listener.                                                                                               |
 
 - **`serve --api` has no write routes and no authentication.** It answers list data,
   card search, prices and buylist quotes to anyone who can reach it. Some routes read
@@ -72,7 +72,11 @@ properties to know before you expose any of it to a network. The
   separate CSRF token. Responses carry a `default-src 'self'` Content Security Policy and
   `X-Frame-Options: DENY`.
 - **Failed logins** are delayed, rate-limited per IP (5 failures within 5 minutes locks
-  the address for 5 minutes by default), and recorded in `.logins/admin-audit.log`.
+  the address for 5 minutes by default), and recorded in `.logins/admin-audit.log`. Each
+  attempt is counted before its password is checked, so a burst of parallel guesses gets
+  no more checks than the limit. Wrong TOTP codes are also limited across all addresses:
+  past 10 in 15 minutes, no code is checked for anyone until the window passes (shared
+  with the MCP OAuth consent page).
   Behind a reverse proxy, set `admin.trustProxy` so the limit applies to the client
   rather than the proxy, and only then.
 - **IP and User-Agent allow and deny lists** (`admin.ipAllowList` and the like) apply
@@ -84,14 +88,92 @@ properties to know before you expose any of it to a network. The
 
 ### The MCP server
 
-- The token comes from `--token` / `--mcp-token` or `RITUAL_MCP_TOKEN` (the environment
-  variable keeps it out of the process list), and is compared in constant time.
+- The static token comes from `--token` / `--mcp-token` or `RITUAL_MCP_TOKEN` (the
+  environment variable keeps it out of the process list), and is compared in constant
+  time. With OAuth on (below), access tokens Ritual issued are accepted as well.
 - On a loopback bind, the HTTP transport also checks the `Host` and `Origin` headers
   against DNS rebinding: only local names and the host name of `--public-url` /
-  `--mcp-public-url` pass. On any other bind, the token is the only check.
+  `--mcp-public-url` pass (the OAuth metadata, registration and token endpoints check
+  `Host` only). On any other bind, the token or OAuth is the only check.
 - **A connected client can do anything the admin site can,** including deleting lists,
   rewriting history and changing `ritual.config.json` (the admin's allow lists among
-  it). Treat the token like the admin password.
+  it). Treat the token, and an OAuth approval, like the admin password.
+
+### The MCP OAuth server (beta)
+
+`ritual mcp --oauth` and `ritual admin --mcp --mcp-oauth` mount a single-user OAuth 2.1
+authorization server on the MCP listener, so hosted clients (Claude's custom connectors)
+can sign in. It adds unauthenticated, internet-facing routes: `/.well-known/*` metadata,
+`POST /oauth/register` (dynamic client registration), `/oauth/authorize` (a login and
+consent page) and `POST /oauth/token`.
+
+- **The resource owner is the admin account.** Approving a client means signing in on the
+  consent page with the admin username and password (and TOTP when enabled). Failed
+  attempts are delayed, audited and rate-limited per address under the same `admin.*`
+  settings as the admin login, but per address on a limiter of their own, so wrong passwords from the internet cannot
+  lock the owner's address out of the local admin (only the global TOTP budget below is shared). Each attempt is counted before the password is
+  checked and checks run one at a time per address and four at a time overall, so
+  parallel guesses gain nothing; the failed-attempt delay is waited out outside that
+  queue, and past 16 waiting sign-ins a new one is refused at once (`429`), so a flood of
+  failures cannot starve the owner's sign-in. A wrong code reads exactly like a wrong
+  password; a sign-in page is spent after three failures. IPv6 addresses are limited per /64. The admin IP and User-Agent allow and deny
+  lists apply to the consent page.
+- **Wrong TOTP codes are limited globally.** At most 10 wrong codes after a right password
+  are checked per 15 minutes across all addresses, shared with the admin login in the same
+  process; past that no code is checked until the window passes (`429` with
+  `Retry-After` for a right password; a wrong password is answered as before). A code is
+  accepted in three 30-second steps, so that is about 960 guesses a day at odds of 3 in a
+  million each: roughly 0.3% a day. Missing and malformed codes are not counted.
+- **Behind a tunnel, `admin.trustProxy` is required.** A loopback bind with a
+  non-loopback public URL refuses to start without it (exit `2`): otherwise every request
+  would come from loopback, every limit would be one shared bucket that any stranger could
+  use to lock the owner out, and the audit log would record the proxy's address.
+- **Only public clients with PKCE S256** are accepted; `plain` and a missing challenge are
+  refused. Redirect URIs must be `https:` or loopback `http:`, and are matched exactly
+  (a loopback URI may differ in its port only). A request naming an unknown client or an
+  unregistered redirect URI gets an error page and is never redirected.
+- **Tokens are opaque 256-bit random values; only their SHA-256 digests are stored**, in
+  `.logins/mcp-oauth.json`. Access tokens live one hour and are bound to the public `/mcp`
+  URL. Refresh tokens live 90 days and are rotated on every use; presenting an
+  already-rotated one revokes the whole grant, except the one just rotated, presented
+  again within 60 seconds by the same client (a retry), which gets the same answer again
+  from memory (never from disk; after a restart it is refused without revoking).
+  Authorization codes are single-use, live 60 seconds and are held in memory only; a
+  replayed code revokes what it issued, even when the replay races the first exchange.
+- **The consent page** sends no script, `Content-Security-Policy: default-src 'none'` with
+  `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Cache-Control: no-store` and
+  `Referrer-Policy: same-origin` (the redirect back to the client is `no-referrer`). Its
+  form is protected by a per-page token plus a `SameSite=Lax` cookie (`__Host-` prefixed
+  over https), and must come from the public origin. Every value a client supplied is
+  HTML-escaped; control and bidirectional-override characters are stripped from client
+  names.
+- **Registration and sign-in pages are bounded**: 16 KiB bodies, 20 registrations per
+  address per hour, at most 100 clients (clients that never obtained a grant are forgotten
+  after a day; only a client holding an unexchanged authorization code is protected from
+  eviction, never one with a mere sign-in page open), 30 valid sign-in pages per address
+  per 10 minutes (invalid requests cost nothing), 10 open per address, and 2000 open in all,
+  past which a new page pushes out the oldest page of the address holding the most (so a
+  new page is never refused, and an address with fewer pages never loses one to it).
+- **Revoking.** Every grant and authorization code carries a fingerprint (SHA-256) of the
+  admin password hash and active TOTP secret it was approved under, compared with
+  `.logins/admin-auth.json` on every token check, refresh and code exchange. So changing
+  the admin password, or turning TOTP on or off, revokes every grant and outstanding code
+  at once, from any process; the OAuth server never writes the credentials file and the
+  credential writers never touch the OAuth state. Without a readable admin account, no
+  OAuth token is accepted. The state file is replaced atomically (a temporary file renamed
+  over it), so it is never missing while the server runs, and a change another process
+  made since the server read it is re-read and kept rather than overwritten. Delete
+  `.logins/mcp-oauth.json` only with the server stopped, to also forget the registered
+  clients; a credential change is the way to revoke everything on a running server. A
+  damaged state file is never reset: the server refuses to start, or, while running,
+  accepts no OAuth token until it is fixed.
+- **Limitation: a known password can block OAuth sign-in.** Because the TOTP budget is
+  global, someone who already has the admin password can keep new OAuth approvals (and
+  admin logins needing a code) refused for as long as they keep guessing codes. Existing
+  connections keep working; changing the admin password stops the guessing, and sign-in
+  works again once the current 15-minute window passes.
+- OAuth needs an `https:` public URL (`http:` only on a loopback host served from a
+  loopback bind, for testing).
 
 ### Credentials on disk
 
@@ -99,7 +181,9 @@ properties to know before you expose any of it to a network. The
 a directory created `0700`:
 
 - `admin-auth.json`: the admin username, bcrypt password hash, and TOTP secret.
-- `admin-audit.log`: login attempts with IP and User-Agent.
+- `admin-audit.log`: login attempts with IP and User-Agent (OAuth consent sign-ins too).
+- `mcp-oauth.json`: the MCP OAuth server's registered clients and grants, with SHA-256
+  digests of its access and refresh tokens (never the tokens themselves).
 - `archidekt.json`: your Archidekt access and refresh tokens. Your Archidekt password is
   sent to Archidekt to log in and never stored.
 - `collection-sync.json`: the last collection sync's time and Archidekt user.

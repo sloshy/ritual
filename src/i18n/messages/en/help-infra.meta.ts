@@ -231,7 +231,7 @@ export const helpInfraMeta = {
   },
   'help.admin.mcp': {
     description:
-      '`admin --mcp`. {flag} is the `--mcp-token` flag. It is typed or matched exactly by the user, so never translate it.',
+      '`admin --mcp`. {tokenFlag} is the `--mcp-token` flag; {oauthFlag} is the `--mcp-oauth` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'help.admin.mcpPort': {
     description:
@@ -244,6 +244,10 @@ export const helpInfraMeta = {
   'help.admin.mcpToken': {
     description:
       '`admin --mcp-token`. RITUAL_MCP_TOKEN is an environment variable name. {flag} is the `--mcp` flag; {envVar} is the `RITUAL_MCP_TOKEN` environment variable. Each is typed or matched exactly by the user, so never translate them.',
+  },
+  'help.admin.mcpOauth': {
+    description:
+      '"(Beta)" marks the feature as one that may still change between releases. `admin --mcp-oauth`. OAuth is a protocol name; Claude is a product name. {flag} is the `--mcp` flag; {publicUrlFlag} is the `--mcp-public-url` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'help.admin.sellMode': {
     description:
@@ -268,7 +272,11 @@ export const helpInfraMeta = {
   },
   'help.mcp.publicUrl': {
     description:
-      '`mcp --public-url`. Host/Origin are HTTP header names. {example} is an example address (`https://mcp.example.com`) and is never translated.',
+      '`mcp --public-url`. Host/Origin are HTTP header names. {example} is an example address (`https://mcp.example.com`) and is never translated; {oauthFlag} is the `--oauth` flag, typed exactly, so never translate it.',
+  },
+  'help.mcp.oauth': {
+    description:
+      '"(Beta)" marks the feature as one that may still change between releases. `mcp --oauth`. OAuth 2.1 is a protocol name; Claude is a product name. {publicUrlFlag} is the `--public-url` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'help.mcp.allowUnauthenticated': {
     description:

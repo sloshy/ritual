@@ -91,9 +91,21 @@ claude mcp add --transport http ritual http://127.0.0.1:8765/mcp \
 
 Your shell expands the token before Claude Code sees it, so the token is written in plain text into Claude Code's config (`~/.claude.json`).
 
-Keep the default `127.0.0.1` bind unless you need to reach it from another machine. Without a token, Ritual refuses to bind any other host unless you pass `--allow-unauthenticated`, because anyone who can reach the port could then edit your lists. The bearer token is the only authentication. To reach a loopback-bound server through a tunnel or reverse proxy (such as a Cloudflare Tunnel), pass its public address with `--public-url`, which also requires a token. See [Behind a reverse proxy or tunnel](/commands/mcp/#behind-a-reverse-proxy-or-tunnel).
+Keep the default `127.0.0.1` bind unless you need to reach it from another machine. Without a token (or OAuth), Ritual refuses to bind any other host unless you pass `--allow-unauthenticated`, because anyone who can reach the port could then edit your lists. The bearer token is the only authentication unless you turn on [OAuth sign-in](#connect-claude-over-the-internet-beta). To reach a loopback-bound server through a tunnel or reverse proxy (such as a Cloudflare Tunnel), pass its public address with `--public-url`, which also requires a token or OAuth. See [Behind a reverse proxy or tunnel](/commands/mcp/#behind-a-reverse-proxy-or-tunnel).
 
-If you already run the web admin, `ritual admin --mcp` serves the same endpoint inside it (on `--mcp-port`, default `8765`) and requires a token. See [Embedding in a running admin server](/commands/mcp/#embedding-in-a-running-admin-server).
+If you already run the web admin, `ritual admin --mcp` serves the same endpoint inside it (on `--mcp-port`, default `8765`) and requires a token (or OAuth, below). See [Embedding in a running admin server](/commands/mcp/#embedding-in-a-running-admin-server).
+
+### Connect Claude Over the Internet (Beta)
+
+Claude's custom connectors reach your server from the internet and sign in with OAuth rather than a pasted token. Claude's custom connectors on the web are the target; the desktop and mobile apps (and voice mode) are not yet verified. Put the server behind a public HTTPS address, for example a Cloudflare Tunnel forwarding `https://mcp.example.com` to `http://127.0.0.1:8765`, and turn on Ritual's built-in sign-in:
+
+```bash
+ritual admin setup --username me      # once: Claude signs in as this account
+ritual config set admin.trustProxy true   # required behind a tunnel: it forwards each client's address
+ritual mcp --transport http --oauth --public-url https://mcp.example.com --base-dir /path/to/my-cards
+```
+
+In Claude, add a custom connector (in its settings, under connectors; menu names may differ) with the URL `https://mcp.example.com/mcp` and no client ID or secret. Claude registers itself, then opens Ritual's sign-in page: sign in with the admin account and choose **Allow**. The feature is beta; see [OAuth sign-in](/commands/mcp/#oauth-sign-in-beta) for the endpoints, token lifetimes and limits. To make every client sign in again, change the admin password (or turn TOTP on or off): that takes effect at once, even on a running server. To also forget every registered client, stop the server and delete `.logins/mcp-oauth.json`. A token set alongside keeps working for Claude Code and scripts, and `ritual admin --mcp --mcp-oauth` does the same inside the web admin.
 
 ### What the Tools Do
 

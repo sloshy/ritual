@@ -179,12 +179,14 @@ export const helpInfraMessages = {
   'help.admin.theme':
     'Initial theme baked into the served HTML, such as {example} or {invertedExample}. An unknown name lists every theme',
   'help.admin.mcp':
-    'Also serve an MCP (Model Context Protocol) endpoint in this process (requires {flag})',
+    'Also serve an MCP (Model Context Protocol) endpoint in this process (requires {tokenFlag} or {oauthFlag})',
   'help.admin.mcpPort': 'Port for the embedded MCP server (with {flag})',
   'help.admin.mcpPublicUrl':
     'External origin a tunnel or reverse proxy forwards to the embedded MCP endpoint, such as {example} (with {flag})',
   'help.admin.mcpToken':
     'Bearer token required on the embedded MCP endpoint (with {flag}; or set {envVar})',
+  'help.admin.mcpOauth':
+    '(Beta) Let MCP clients such as Claude sign in with OAuth as the admin user on the embedded MCP endpoint (with {flag}; requires {publicUrlFlag} and an admin account)',
   'help.admin.sellMode':
     '(Beta) Offer sell mode for this run even when the {configKey} config is off: update the Card Kingdom buylist (~70 MB) and serve its buy prices',
   'help.admin.setup': 'Create the admin account without starting the server',
@@ -207,7 +209,9 @@ export const helpInfraMessages = {
   'help.mcp.host': 'Host to bind for the HTTP transport',
   'help.mcp.token': 'Require this bearer token on the HTTP transport (or set {envVar})',
   'help.mcp.publicUrl':
-    'External origin a tunnel or reverse proxy forwards to this endpoint, such as {example}: its host passes the loopback Host/Origin check (requires a token)',
+    'External origin a tunnel or reverse proxy forwards to this endpoint, such as {example}: its host passes the loopback Host/Origin check (requires a token or {oauthFlag})',
+  'help.mcp.oauth':
+    '(Beta) Serve an OAuth 2.1 authorization server so MCP clients such as Claude can sign in as the admin user (requires {publicUrlFlag} and an admin account; the token becomes optional)',
   'help.mcp.allowUnauthenticated':
     'Serve the HTTP transport without a bearer token on a non-loopback host or with {publicUrlFlag}',
   'help.mcp.sellMode':

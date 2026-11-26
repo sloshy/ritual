@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { getLoginsDir, writePrivateJson } from '../auth/logins-dir'
+import { adminAuthPath, writePrivateJson } from '../auth/logins-dir'
 import { secretsEqual } from '../util/secret-compare'
 import { MIN_PASSWORD_LENGTH } from './validation'
 import { ExitCode, localizedCommandError } from '../util/errors'
@@ -11,18 +10,14 @@ interface AdminCredentials {
   totpSecret?: string
 }
 
-function getAuthFilePath(): string {
-  return path.join(getLoginsDir(), 'admin-auth.json')
-}
-
 async function readCredentials(): Promise<AdminCredentials> {
-  const content = await fs.readFile(getAuthFilePath(), 'utf-8')
+  const content = await fs.readFile(adminAuthPath(), 'utf-8')
   return JSON.parse(content) as AdminCredentials
 }
 
 export async function adminUserExists(): Promise<boolean> {
   try {
-    await fs.access(getAuthFilePath())
+    await fs.access(adminAuthPath())
     return true
   } catch {
     return false
@@ -48,7 +43,7 @@ export async function createAdminUser(username: string, password: string): Promi
   const passwordHash = await Bun.password.hash(password, { algorithm: 'bcrypt', cost: 10 })
 
   const credentials: AdminCredentials = { username, passwordHash }
-  await writePrivateJson(getAuthFilePath(), credentials)
+  await writePrivateJson(adminAuthPath(), credentials)
 }
 
 /**
@@ -75,7 +70,7 @@ export async function resetAdminPassword(password: string, username?: string): P
     credentials.username = username
   }
 
-  await writePrivateJson(getAuthFilePath(), credentials)
+  await writePrivateJson(adminAuthPath(), credentials)
   return credentials.username
 }
 
@@ -133,5 +128,5 @@ export async function setTotpSecret(secret: string | null): Promise<void> {
     credentials.totpSecret = secret
   }
 
-  await writePrivateJson(getAuthFilePath(), credentials)
+  await writePrivateJson(adminAuthPath(), credentials)
 }

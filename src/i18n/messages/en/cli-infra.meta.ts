@@ -901,7 +901,7 @@ export const cliInfraMeta = {
   // ── admin ─────────────────────────────────────────────────────────────
   'cli.admin.mcpTokenRequired': {
     description:
-      '`admin --mcp` was given without a bearer token. {mcpFlag} is the `--mcp` flag; {mcpTokenFlag} is `--mcp-token <secret>`, a flag and its value; {envVar} is the `RITUAL_MCP_TOKEN` environment variable. Each is typed or matched exactly by the user, so never translate them.',
+      '`admin --mcp` was given neither a bearer token nor OAuth. {mcpFlag} is the `--mcp` flag; {mcpTokenFlag} is `--mcp-token <secret>`, a flag and its value; {envVar} is the `RITUAL_MCP_TOKEN` environment variable; {oauthFlag} is the `--mcp-oauth` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.admin.mcpPortConflict': {
     description:
@@ -1717,7 +1717,7 @@ export const cliInfraMeta = {
   },
   'cli.mcp.refusingUnauthenticatedPublicUrl': {
     description:
-      'The HTTP transport was given a public URL (a tunnel or reverse proxy forwards that address to the loopback bind, so the endpoint is reachable from outside) but no bearer token. {url} is that public address; {publicUrlFlag} is the `--public-url` flag; {tokenFlag} is `--token <secret>`, a flag and its value; {envVar} is the `RITUAL_MCP_TOKEN` environment variable; {allowUnauthenticatedFlag} is the `--allow-unauthenticated` flag. Each is typed or matched exactly by the user, so never translate them.',
+      'The HTTP transport was given a public URL (a tunnel or reverse proxy forwards that address to the loopback bind, so the endpoint is reachable from outside) but no bearer token. {url} is that public address; {publicUrlFlag} is the `--public-url` flag; {tokenFlag} is `--token <secret>`, a flag and its value; {envVar} is the `RITUAL_MCP_TOKEN` environment variable; {oauthFlag} is the `--oauth` flag; {allowUnauthenticatedFlag} is the `--allow-unauthenticated` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
   'cli.mcp.unauthenticatedWarning': {
     description:
@@ -1760,6 +1760,269 @@ export const cliInfraMeta = {
   'cli.mcp.endpointNotFound': {
     description:
       'Error message (HTTP 404) the MCP HTTP server answers a request to any path but its one endpoint. {path} is that endpoint’s path (e.g. "/mcp"), literal.',
+  },
+  'cli.mcp.oauth.publicUrlRequired': {
+    description:
+      'Refusal at startup: OAuth was asked for (`mcp --oauth` / `admin --mcp-oauth`) without a public URL. {oauthFlag} is that flag; {publicUrlFlag} is `--public-url` / `--mcp-public-url`. Both are typed exactly by the user, so never translate them.',
+  },
+  'cli.mcp.oauth.httpsRequired': {
+    description:
+      'Refusal at startup: OAuth was asked for with a plain-http public URL on a non-loopback host (OAuth requires TLS). {oauthFlag} is `--oauth` / `--mcp-oauth`; {publicUrlFlag} is `--public-url` / `--mcp-public-url`; {url} is the URL given. https:// and http:// are URL schemes; never translate any of them.',
+  },
+  'cli.mcp.oauth.adminUserRequired': {
+    description:
+      'Refusal at startup: OAuth was asked for but no admin account exists to approve sign-ins. {oauthFlag} is `--oauth` / `--mcp-oauth`; {command} is the `ritual admin setup` command line. Both are typed exactly by the user, so never translate them.',
+  },
+  'cli.mcp.oauth.state.invalid': {
+    description:
+      "Startup error: the embedded OAuth server's state file is damaged. {file} is its path; {reason} is one of the `cli.mcp.oauth.state.*` explanations. Deleting the file revokes all connected clients, which is the documented remedy.",
+  },
+  'cli.mcp.oauth.state.notJson': {
+    description:
+      'Reason fragment inside cli.mcp.oauth.state.invalid: the file does not parse as JSON. Lowercase, no final period: it is inserted mid-sentence.',
+  },
+  'cli.mcp.oauth.state.version': {
+    description:
+      "Reason fragment inside cli.mcp.oauth.state.invalid: the file's version field is unknown. {version} is the value found. Lowercase, no final period: it is inserted mid-sentence.",
+  },
+  'cli.mcp.oauth.state.shape': {
+    description:
+      'Reason fragment inside cli.mcp.oauth.state.invalid: a field has the wrong type or is missing. {path} is a JSON field path such as `grants[0].refreshTokenHash`, never translated. Lowercase, no final period: it is inserted mid-sentence.',
+  },
+  'cli.mcp.oauth.publicUrlMissing': {
+    description:
+      'Internal error thrown if code starts the OAuth endpoint without its public URL; the commands refuse first, so a user should never see it.',
+  },
+  'cli.mcp.oauth.enabled': {
+    description:
+      'Printed to the operator’s console at startup when the embedded OAuth authorization server is on. {url} is its authorization endpoint (the login + consent page clients send the user to). "beta" marks the feature as outside the stability promise.',
+  },
+  'cli.mcp.oauth.refreshReplayed': {
+    description:
+      "Operator console warning: a rotated (old) OAuth refresh token was used again, a sign it was copied, so Ritual revoked that connection. {client} is the client's registered name, or its id when it gave none.",
+  },
+  'cli.mcp.oauth.requestFailed': {
+    description:
+      'Printed to the operator’s console when an OAuth endpoint fails unexpectedly; the error itself follows on the same line.',
+  },
+  'cli.mcp.malformedRequest': {
+    description:
+      'Error message (HTTP 400) the MCP HTTP server answers a request whose URL cannot be parsed, in practice a malformed Host header. Sent in English to the client.',
+  },
+  'cli.mcp.oauth.state.io': {
+    description:
+      "Reason fragment inside cli.mcp.oauth.state.invalid: the file exists but reading it failed. {code} is the operating system's error code such as EACCES or EISDIR, never translated. Lowercase, no final period: it is inserted mid-sentence.",
+  },
+  'cli.mcp.oauth.httpNeedsLoopbackBind': {
+    description:
+      'Refusal at startup: OAuth was asked for with a plain-http loopback public URL while the server binds a non-loopback host, which would put an unencrypted sign-in on the network. {oauthFlag} is `--oauth` / `--mcp-oauth`; {url} is the public URL; {host} is the bind host; {publicUrlFlag} is `--public-url` / `--mcp-public-url`. Never translate the flags, http:// or https://.',
+  },
+  'cli.mcp.oauth.page.failed.tooManyAttempts': {
+    description:
+      'OAuth error page: the consent page took its limit of failed sign-ins and is spent; the user must restart the connection in the app.',
+  },
+  'cli.mcp.oauth.page.failed.tooManyPages': {
+    description:
+      'OAuth error page (HTTP 429): the address opened too many consent pages in a short time.',
+  },
+  'cli.mcp.oauth.trustProxyRequired': {
+    description:
+      'Refusal at startup: OAuth on a loopback bind with a non-loopback public URL (so a tunnel or proxy is in front) while the admin.trustProxy config key is off. {oauthFlag} is `--oauth` / `--mcp-oauth`; {url} is the public URL; {configKey} is `admin.trustProxy`; {command} is the `ritual config set admin.trustProxy true` command line. Never translate the flag, key or command.',
+  },
+  'cli.mcp.oauth.page.error.busy': {
+    description:
+      'Error shown on the OAuth consent page (HTTP 429) when the queue of sign-ins waiting to be checked is full.',
+  },
+  'cli.mcp.oauth.page.failed.unavailable': {
+    description:
+      "OAuth error page (HTTP 503): the sign-in cannot be handled at the moment, e.g. the server's OAuth state file is damaged, or the admin account cannot be read.",
+  },
+  'cli.mcp.oauth.error.unavailable': {
+    description:
+      "OAuth `temporarily_unavailable` description (HTTP 503) sent in English to an MCP client while the server's OAuth state file is unusable.",
+  },
+  'cli.mcp.oauth.page.title': {
+    description:
+      'Browser tab title of the OAuth login + consent page an MCP client (e.g. Claude) sends the Ritual owner to.',
+  },
+  'cli.mcp.oauth.page.heading': {
+    description:
+      "Heading of the OAuth consent page. {client} is the app's self-declared name (or cli.mcp.oauth.page.unnamedClient).",
+  },
+  'cli.mcp.oauth.page.intro': {
+    description:
+      "Explains on the OAuth consent page what approving grants. {client} is the app's self-declared name (or cli.mcp.oauth.page.unnamedClient).",
+  },
+  'cli.mcp.oauth.page.returnsTo': {
+    description:
+      'Label on the OAuth consent page; the host name the browser is sent back to follows it.',
+  },
+  'cli.mcp.oauth.page.signIn': {
+    description: 'Instruction above the username/password fields of the OAuth consent page.',
+  },
+  'cli.mcp.oauth.page.username': {
+    description: 'Field label on the OAuth consent page: the Ritual admin username.',
+  },
+  'cli.mcp.oauth.page.password': {
+    description: 'Field label on the OAuth consent page: the Ritual admin password.',
+  },
+  'cli.mcp.oauth.page.totp': {
+    description:
+      'Field label on the OAuth consent page: the six-digit TOTP code, shown when two-factor sign-in is on.',
+  },
+  'cli.mcp.oauth.page.approve': {
+    description: 'Button on the OAuth consent page that signs in and grants the app access.',
+  },
+  'cli.mcp.oauth.page.deny': {
+    description: 'Button on the OAuth consent page that refuses the app access.',
+  },
+  'cli.mcp.oauth.page.unnamedClient': {
+    description:
+      "Stands in for the app's name on the OAuth consent page when the app registered without one; it is inserted as {client} in other page strings.",
+  },
+  'cli.mcp.oauth.page.error.invalidCredentials': {
+    description:
+      'Error shown on the OAuth consent page after a failed sign-in: a wrong username or password, or a missing or wrong authenticator code. One wording for all of them on purpose, so the page never confirms that a password alone was right.',
+  },
+  'cli.mcp.oauth.page.error.rateLimited': {
+    description:
+      'Error shown on the OAuth consent page while sign-in is locked after repeated failures.',
+  },
+  'cli.mcp.oauth.page.failed.title': {
+    description:
+      'Title and heading of the OAuth error page, shown instead of the consent page when the request cannot be completed or sent back to the app.',
+  },
+  'cli.mcp.oauth.page.failed.invalidRequest': {
+    description:
+      'OAuth error page: the request named an unknown app or a return address the app did not register, or was malformed.',
+  },
+  'cli.mcp.oauth.page.failed.expired': {
+    description:
+      'OAuth error page: the consent form was submitted after it expired, or was already answered.',
+  },
+  'cli.mcp.oauth.page.failed.forbidden': {
+    description:
+      'OAuth error page: the consent form failed its anti-forgery (CSRF) check, e.g. it was submitted from another site or another browser.',
+  },
+  'cli.mcp.oauth.page.failed.serverError': {
+    description: 'OAuth error page after an unexpected server failure.',
+  },
+  'cli.mcp.oauth.error.invalidToken': {
+    description:
+      'OAuth `invalid_token` description for an access token the MCP endpoint does not accept. Sent to MCP clients in English.',
+  },
+  'cli.mcp.oauth.error.methodNotAllowed': {
+    description:
+      'OAuth error description (HTTP 405) sent in English to an MCP client that used the wrong method.',
+  },
+  'cli.mcp.oauth.error.bodyTooLarge': {
+    description: 'OAuth error description (HTTP 413) sent in English to an MCP client.',
+  },
+  'cli.mcp.oauth.error.formRequired': {
+    description:
+      'OAuth token-endpoint error description sent in English. application/x-www-form-urlencoded is a media type, never translated.',
+  },
+  'cli.mcp.oauth.error.repeatedParameter': {
+    description:
+      'OAuth `invalid_request` description sent in English. {name} is the OAuth parameter name, literal.',
+  },
+  'cli.mcp.oauth.error.missingParameter': {
+    description:
+      'OAuth `invalid_request` description sent in English. {name} is the OAuth parameter name, literal.',
+  },
+  'cli.mcp.oauth.error.clientAuthUnsupported': {
+    description:
+      'OAuth `invalid_client` description sent in English. Authorization is an HTTP header name, never translated.',
+  },
+  'cli.mcp.oauth.error.invalidTarget': {
+    description:
+      'OAuth `invalid_target` (RFC 8707) description sent in English. {resource} is the MCP endpoint URL, literal.',
+  },
+  'cli.mcp.oauth.error.invalidGrant': {
+    description:
+      'OAuth `invalid_grant` description sent in English; one wording for every cause, on purpose.',
+  },
+  'cli.mcp.oauth.error.unsupportedGrantType': {
+    description:
+      'OAuth `unsupported_grant_type` description sent in English. authorization_code and refresh_token are protocol identifiers, never translated.',
+  },
+  'cli.mcp.oauth.error.serverError': {
+    description:
+      "OAuth `server_error` description sent in English after an unexpected failure; details go to the operator's console only.",
+  },
+  'cli.mcp.oauth.error.registration.notJson': {
+    description:
+      'Dynamic client registration error description sent in English. JSON and application/json are not translated.',
+  },
+  'cli.mcp.oauth.error.registration.notObject': {
+    description: 'Dynamic client registration error description sent in English.',
+  },
+  'cli.mcp.oauth.error.registration.redirectUrisMissing': {
+    description:
+      'Dynamic client registration error description sent in English. redirect_uris is a protocol field name, never translated.',
+  },
+  'cli.mcp.oauth.error.registration.redirectUrisTooMany': {
+    description:
+      'Dynamic client registration error description sent in English. {max} is a number.',
+  },
+  'cli.mcp.oauth.error.registration.redirectUriInvalid': {
+    description:
+      'Dynamic client registration error description sent in English. https:// and http:// are URL schemes, never translated.',
+  },
+  'cli.mcp.oauth.error.registration.authMethod': {
+    description:
+      'Dynamic client registration error description sent in English. token_endpoint_auth_method and none are protocol values, never translated.',
+  },
+  'cli.mcp.oauth.error.registration.grantTypes': {
+    description:
+      'Dynamic client registration error description sent in English; the identifiers are protocol values, never translated.',
+  },
+  'cli.mcp.oauth.error.registration.responseTypes': {
+    description:
+      'Dynamic client registration error description sent in English; response_types and code are protocol values, never translated.',
+  },
+  'cli.mcp.oauth.error.registration.clientName': {
+    description:
+      'Dynamic client registration error description sent in English. client_name is a protocol field name; {max} is a number.',
+  },
+  'cli.mcp.oauth.error.registration.rateLimited': {
+    description: 'Dynamic client registration error description (HTTP 429) sent in English.',
+  },
+  'cli.mcp.oauth.error.registration.full': {
+    description:
+      'Dynamic client registration error description (HTTP 503) sent in English, when the registry is full of clients that hold grants.',
+  },
+  'cli.mcp.oauth.error.authorize.duplicate': {
+    description:
+      "OAuth authorization error description sent in English to the client's redirect URI.",
+  },
+  'cli.mcp.oauth.error.authorize.responseType': {
+    description:
+      'OAuth authorization error description sent in English; response_type and code are protocol values.',
+  },
+  'cli.mcp.oauth.error.authorize.pkceMissing': {
+    description:
+      'OAuth authorization error description sent in English; PKCE and code_challenge are protocol terms.',
+  },
+  'cli.mcp.oauth.error.authorize.pkceMethod': {
+    description:
+      'OAuth authorization error description sent in English; the identifiers are protocol values.',
+  },
+  'cli.mcp.oauth.error.authorize.pkceMalformed': {
+    description:
+      'OAuth authorization error description sent in English; code_challenge, base64url and SHA-256 are technical terms.',
+  },
+  'cli.mcp.oauth.error.authorize.resource': {
+    description:
+      "OAuth `invalid_target` (RFC 8707) description sent in English to the client's redirect URI.",
+  },
+  'cli.mcp.oauth.error.authorize.stateTooLong': {
+    description:
+      'OAuth authorization error description sent in English; state is a protocol parameter name.',
+  },
+  'cli.mcp.oauth.error.authorize.accessDenied': {
+    description:
+      'OAuth `access_denied` description sent in English when the owner pressed Deny on the consent page.',
   },
   'cli.mcp.removal.prompt': {
     description:

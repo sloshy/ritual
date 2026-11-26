@@ -75,7 +75,8 @@ import { t } from '../i18n/t'
 import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
 import { startServerOrThrow } from '../util/start-server'
 import { isCrossSiteRequest } from './same-origin'
-import { lastForwarded } from './forwarded'
+import { getClientIp, type RequestIPServer } from './forwarded'
+import { isRefusedByAccessLists } from './access-lists'
 
 const COLLECTION_CFG: ListLifecycleConfig = {
   kind: 'collection',
@@ -131,9 +132,6 @@ export interface RequestContext {
    */
   buildClaim?: BuildClaim
 }
-
-type SocketAddress = { address: string }
-type RequestIPServer = { requestIP?: (req: Request) => SocketAddress | null }
 
 export interface Route {
   method: HttpMethod
@@ -410,34 +408,6 @@ export const routes: Route[] = [
   },
 ]
 
-export function getClientIp(req: Request, server: RequestIPServer, trustProxy: boolean): string {
-  const forwarded = trustProxy ? lastForwarded(req.headers.get('X-Forwarded-For')) : null
-  if (forwarded !== null) return forwarded
-  if (server.requestIP) {
-    const ip = server.requestIP(req)
-    if (ip) return ip.address
-  }
-  return 'unknown'
-}
-
-export function matchesPattern(value: string, pattern: string): boolean {
-  if (pattern === '*') return true
-  if (pattern.startsWith('*') && pattern.endsWith('*')) {
-    return value.toLowerCase().includes(pattern.slice(1, -1).toLowerCase())
-  }
-  if (pattern.startsWith('*')) {
-    return value.toLowerCase().endsWith(pattern.slice(1).toLowerCase())
-  }
-  if (pattern.endsWith('*')) {
-    return value.toLowerCase().startsWith(pattern.slice(0, -1).toLowerCase())
-  }
-  return value.toLowerCase() === pattern.toLowerCase()
-}
-
-export function matchesList(value: string, patterns: string[]): boolean {
-  return patterns.some((p) => matchesPattern(value, p))
-}
-
 /** Outcome of dispatching a request against the in-process route table. */
 export type DispatchResult = { matched: true; response: Response } | { matched: false }
 
@@ -573,14 +543,7 @@ async function handleRequest(
   const userAgent = req.headers.get('User-Agent') ?? ''
 
   // IP and User-Agent filtering
-  if (
-    (config.admin.ipDenyList.length > 0 && matchesList(clientIp, config.admin.ipDenyList)) ||
-    (config.admin.ipAllowList.length > 0 && !matchesList(clientIp, config.admin.ipAllowList)) ||
-    (config.admin.userAgentDenyList.length > 0 &&
-      matchesList(userAgent, config.admin.userAgentDenyList)) ||
-    (config.admin.userAgentAllowList.length > 0 &&
-      !matchesList(userAgent, config.admin.userAgentAllowList))
-  ) {
+  if (isRefusedByAccessLists(config.admin, clientIp, userAgent)) {
     return apiError(apiMessage('admin.api.server.forbidden'), 403)
   }
 

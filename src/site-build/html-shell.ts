@@ -15,6 +15,7 @@
  * plain string.
  */
 
+import { escapeHtml } from '../util/html-escape'
 import { themeBootstrapScript } from '../theme/themes'
 import type { LocaleTag } from '../i18n/types'
 import { localeDirection, RTL_LANGUAGES } from '../i18n/direction'
@@ -98,11 +99,6 @@ export const appBootScript = `${themeBootstrapScript}
  */
 const SAFE_THEME = /^[a-z0-9][a-z0-9-]*$/
 
-/** Escape the only characters that can break out of an element's text content. */
-function escapeText(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
 /** Render the shared `index.html` shell. */
 export function renderAppShell(options: AppShellOptions): string {
   const lang = SAFE_LANG.test(options.lang) ? options.lang : 'en'
@@ -116,7 +112,7 @@ export function renderAppShell(options: AppShellOptions): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="${viewport}">
-  <title>${escapeText(options.title)}</title>
+  <title>${escapeHtml(options.title)}</title>
   <link rel="icon" type="image/svg+xml" href="app.svg">
   <script src="${BOOT_SCRIPT_FILE}"></script>
   <link rel="stylesheet" href="styles.css">${extraHead}

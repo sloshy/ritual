@@ -23,6 +23,7 @@ import { captureConsole } from '../helpers/capture'
 type ListsResult = { lists: { slug: string }[] }
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from '../helpers/workspace'
 import { runCli, withTempDir } from './helpers/cli'
+import { postToolsList, withBusyPort } from './helpers/mcp-http'
 
 const TOKEN = 'integration-secret'
 
@@ -69,15 +70,10 @@ function listToolsVia(
   options: ListToolsOptions = {},
 ): Promise<Response> {
   const token = options.token === undefined ? TOKEN : options.token
-  return fetch(endpoint(server), {
-    method: 'POST',
-    headers: {
-      'Content-Type': options.contentType ?? 'application/json',
-      Accept: 'application/json, text/event-stream',
-      ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
-      ...headers,
-    },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+  return postToolsList(endpoint(server), {
+    ...(options.contentType === undefined ? {} : { 'Content-Type': options.contentType }),
+    ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
+    ...headers,
   })
 }
 
@@ -463,24 +459,6 @@ describe('ritual mcp HTTP — in-call progress notifications', () => {
     )
   })
 })
-
-/**
- * Run `body` with a port already taken on `hostname`. A gate test passes it as
- * `-p`, so if the gate ever stops refusing, the server fails to bind and the
- * run exits 1 at once instead of serving on the default port until the test
- * times out.
- */
-async function withBusyPort(
-  hostname: string,
-  body: (port: string) => Promise<void>,
-): Promise<void> {
-  const busy = Bun.serve({ port: 0, hostname, fetch: () => new Response('busy') })
-  try {
-    await body(String(busy.port))
-  } finally {
-    await busy.stop(true)
-  }
-}
 
 describe('ritual mcp CLI flag gate', () => {
   test('refuses tokenless HTTP on a non-loopback host with exit code 2', async () => {

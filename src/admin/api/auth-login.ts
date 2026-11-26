@@ -6,7 +6,16 @@ import {
   destroySession,
   buildExpiredSessionCookie,
 } from '../session'
-import { appendAuditLog, createAuditEntry } from '../audit-log'
+import {
+  auditFailedAttempt,
+  globalTotpBudget,
+  recordSuccessfulLogin,
+  reserveAttempt,
+  reserveTotpCheck,
+  returnTotpCheck,
+  totpBudgetRetrySeconds,
+  type LoginAttempt,
+} from '../login-attempt'
 import { AUDIT_REASONS } from '../audit-reasons'
 import { loadRitualConfig } from '../../config/ritual-config'
 import { globalRateLimiter } from '../rate-limit'
@@ -39,19 +48,23 @@ function totpRefusal(message: ApiMessage, status: number): Response {
   return Response.json(resp, { status, headers: { 'X-TOTP-Required': 'true' } })
 }
 
+/** The 429 while sign-in is locked for `remaining` more seconds. */
+function rateLimitedResponse(remaining: number): Response {
+  const resp: RateLimitResponse = {
+    success: false,
+    ...apiMessage('admin.api.login.rateLimited'),
+    retryAfterSeconds: remaining,
+  }
+  return Response.json(resp, { status: 429, headers: { 'Retry-After': String(remaining) } })
+}
+
 export async function handleLogin(req: Request, clientIp: string): Promise<Response> {
   const config = await loadRitualConfig()
   const userAgent = req.headers.get('User-Agent') ?? ''
 
   // Rate limit check
   if (config.admin.rateLimitEnabled && globalRateLimiter.isLocked(clientIp)) {
-    const remaining = globalRateLimiter.getRemainingLockSeconds(clientIp)
-    const resp: RateLimitResponse = {
-      success: false,
-      ...apiMessage('admin.api.login.rateLimited'),
-      retryAfterSeconds: remaining,
-    }
-    return Response.json(resp, { status: 429, headers: { 'Retry-After': String(remaining) } })
+    return rateLimitedResponse(globalRateLimiter.getRemainingLockSeconds(clientIp))
   }
 
   const parsed = await readJsonObjectBody(req)
@@ -73,53 +86,56 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
     return apiError(apiMessage('admin.api.login.inputTooLong'), 400)
   }
 
+  // Counted before the password is checked, so a burst of parallel guesses
+  // gets no more checks than the limit: the ones past it are answered as
+  // locked. The body was read since the check above, so it is made again here.
+  if (!reserveAttempt(globalRateLimiter, clientIp, config.admin)) {
+    return rateLimitedResponse(globalRateLimiter.getRemainingLockSeconds(clientIp))
+  }
+  // An answer that is no failure gives the reserved attempt back.
+  const release = (): void => {
+    if (config.admin.rateLimitEnabled) globalRateLimiter.release(clientIp)
+  }
+
+  const attempt: LoginAttempt = { clientIp, username, userAgent }
   const valid = await verifyAdminUser(username, password)
   if (!valid) {
-    if (config.admin.rateLimitEnabled) {
-      globalRateLimiter.recordFailure(
-        clientIp,
-        config.admin.rateLimitMaxAttempts,
-        config.admin.rateLimitWindowMinutes,
-      )
-    }
-    await appendAuditLog(
-      createAuditEntry(clientIp, username, false, AUDIT_REASONS.invalidCredentials, userAgent),
-    )
-    await Bun.sleep(config.admin.failedAuthDelayMs)
+    await auditFailedAttempt(attempt, AUDIT_REASONS.invalidCredentials, config.admin)
     return apiError(apiMessage('admin.api.login.invalidCredentials'), 401)
   }
 
   // TOTP verification
   const totpEnabled = await isTotpEnabled()
   if (totpEnabled) {
-    if (!totpCode) return totpRefusal(apiMessage('admin.api.login.totpRequired'), 401)
+    if (!totpCode) {
+      release()
+      return totpRefusal(apiMessage('admin.api.login.totpRequired'), 401)
+    }
 
     const secret = await getTotpSecret()
-    if (!secret) return apiError(apiMessage('admin.api.login.totpMisconfigured'), 500)
+    if (!secret) {
+      release()
+      return apiError(apiMessage('admin.api.login.totpMisconfigured'), 500)
+    }
 
+    // Wrong codes from every address draw on one budget: once it is spent, no
+    // code is checked until its window passes, and this attempt is not
+    // charged to the address.
+    if (!reserveTotpCheck(globalTotpBudget, config.admin)) {
+      release()
+      return rateLimitedResponse(totpBudgetRetrySeconds(globalTotpBudget))
+    }
     const totpValid = await verifyTotp(secret, totpCode)
     if (!totpValid) {
-      if (config.admin.rateLimitEnabled) {
-        globalRateLimiter.recordFailure(
-          clientIp,
-          config.admin.rateLimitMaxAttempts,
-          config.admin.rateLimitWindowMinutes,
-        )
-      }
-      await appendAuditLog(
-        createAuditEntry(clientIp, username, false, AUDIT_REASONS.invalidTotp, userAgent),
-      )
-      await Bun.sleep(config.admin.failedAuthDelayMs)
+      await auditFailedAttempt(attempt, AUDIT_REASONS.invalidTotp, config.admin)
       return totpRefusal(apiMessage('admin.api.login.totpInvalid'), 401)
     }
+    returnTotpCheck(globalTotpBudget, config.admin)
   }
 
   // Auth succeeded
-  globalRateLimiter.recordSuccess(clientIp)
+  await recordSuccessfulLogin(globalRateLimiter, clientIp, attempt, AUDIT_REASONS.loginSucceeded)
   const session = createSession(username, clientIp)
-  await appendAuditLog(
-    createAuditEntry(clientIp, username, true, AUDIT_REASONS.loginSucceeded, userAgent),
-  )
 
   const resp: LoginSuccessResponse = { success: true }
   return Response.json(resp, {

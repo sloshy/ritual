@@ -21,6 +21,13 @@ import { createSession, getSessionCookieName } from '../../src/admin/session'
 import { bindWorkspace, writeConfig, type BoundWorkspace } from '../helpers/workspace'
 import { keyedRefusal } from '../helpers/api-message'
 import { globalRateLimiter } from '../../src/admin/rate-limit'
+import {
+  MAX_TOTP_FAILURES_PER_WINDOW,
+  TOTP_BUDGET_KEY,
+  TOTP_BUDGET_WINDOW_MINUTES,
+  globalTotpBudget,
+} from '../../src/admin/login-attempt'
+import { generateTotp, resetTotpReplayState } from '../../src/admin/totp'
 
 /**
  * The auth helpers write a real credentials file, so they belong here rather
@@ -424,6 +431,114 @@ describe('admin server refusals (Integration)', () => {
       expect(body.messageKey).toBe('admin.api.login.rateLimited')
       expect(body.retryAfterSeconds).toBeGreaterThan(0)
       expect(resp.headers.get('Retry-After')).toBe(String(body.retryAfterSeconds))
+    } finally {
+      globalRateLimiter.recordSuccess(ip)
+    }
+  })
+})
+
+describe('admin login under a burst (Integration)', () => {
+  beforeEach(async () => {
+    ws = await bindWorkspace({ dirs: [], config: { admin: { failedAuthDelayMs: 0 } } })
+    await createAdminUser('admin', 'test1234')
+  })
+
+  afterEach(async () => {
+    await ws.dispose()
+  })
+
+  function login(ip: string, password: string, totpCode?: string): Promise<Response> {
+    return handleLogin(
+      new Request('http://localhost/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password, ...(totpCode ? { totpCode } : {}) }),
+      }),
+      ip,
+    )
+  }
+
+  async function failedAuditEntries(): Promise<number> {
+    const text = await fs.readFile(path.join(ws.dir, '.logins', 'admin-audit.log'), 'utf-8')
+    return text
+      .trim()
+      .split('\n')
+      .filter((line) => line.includes('"success":false')).length
+  }
+
+  test('parallel wrong passwords get no more checks than the limit; the rest are locked out', async () => {
+    // An address no other suite uses: the login rate limiter is process-wide.
+    const ip = '10.99.0.4'
+    try {
+      const answers = await Promise.all(
+        Array.from({ length: 20 }, (_, i) => login(ip, `wrong-${i}`)),
+      )
+      const statuses = answers.map((answer) => answer.status)
+      expect(statuses.filter((status) => status === 401)).toHaveLength(5)
+      expect(statuses.filter((status) => status === 429)).toHaveLength(15)
+      expect(await failedAuditEntries()).toBe(5)
+    } finally {
+      globalRateLimiter.recordSuccess(ip)
+    }
+  })
+
+  test('wrong codes from many addresses spend the global code budget; then even the right code is rate limited', async () => {
+    const secret = 'JBSWY3DPEHPK3PXP'
+    await setTotpSecret(secret)
+    resetTotpReplayState()
+    // The budget is process-wide: start from, and leave, an unspent one.
+    globalTotpBudget.recordSuccess(TOTP_BUDGET_KEY)
+    const ips = Array.from(
+      { length: MAX_TOTP_FAILURES_PER_WINDOW + 5 },
+      (_, i) => `10.98.0.${i + 1}`,
+    )
+    const [rightCodeIp, wrongPasswordIp, missingCodeIp, ...rest] = ips
+    const spent = (): number => globalTotpBudget.getFailureCount(TOTP_BUDGET_KEY)
+    try {
+      // A right code gives its slot back; a wrong password or a missing code
+      // never takes one.
+      expect((await login(rightCodeIp!, 'test1234', await generateTotp(secret))).status).toBe(200)
+      expect(spent()).toBe(0)
+      expect((await login(wrongPasswordIp!, 'wrong', '000000')).status).toBe(401)
+      expect(spent()).toBe(0)
+      expect((await login(missingCodeIp!, 'test1234')).status).toBe(401)
+      expect(spent()).toBe(0)
+      resetTotpReplayState()
+      for (const ip of rest.slice(0, MAX_TOTP_FAILURES_PER_WINDOW)) {
+        const wrongCode = await login(ip, 'test1234', '000000')
+        expect(wrongCode.status).toBe(401)
+        expect(((await wrongCode.json()) as ApiErrorResponse).messageKey).toBe(
+          'admin.api.login.totpInvalid',
+        )
+      }
+      expect(spent()).toBe(MAX_TOTP_FAILURES_PER_WINDOW)
+      const refused = await login(ips.at(-2)!, 'test1234', await generateTotp(secret))
+      expect(refused.status).toBe(429)
+      const body = (await refused.json()) as ApiErrorResponse & { retryAfterSeconds: number }
+      expect(body.messageKey).toBe('admin.api.login.rateLimited')
+      expect(body.retryAfterSeconds).toBeGreaterThan(0)
+      expect(body.retryAfterSeconds).toBeLessThanOrEqual(TOTP_BUDGET_WINDOW_MINUTES * 60)
+      expect(refused.headers.get('Retry-After')).toBe(String(body.retryAfterSeconds))
+      // Not charged to that address; and a wrong password reads as it always did.
+      expect(globalRateLimiter.getFailureCount(ips.at(-2)!)).toBe(0)
+      const wrongPassword = await login(ips.at(-1)!, 'wrong', '000000')
+      expect(wrongPassword.status).toBe(401)
+      expect(((await wrongPassword.json()) as ApiErrorResponse).messageKey).toBe(
+        'admin.api.login.invalidCredentials',
+      )
+    } finally {
+      globalTotpBudget.recordSuccess(TOTP_BUDGET_KEY)
+      for (const ip of ips) globalRateLimiter.recordSuccess(ip)
+    }
+  })
+
+  test('the password-right, code-needed answer does not use up an attempt', async () => {
+    const ip = '10.99.0.5'
+    await setTotpSecret('JBSWY3DPEHPK3PXP')
+    try {
+      for (let i = 0; i < 8; i++) expect((await login(ip, 'test1234')).status).toBe(401)
+      expect(globalRateLimiter.getFailureCount(ip)).toBe(0)
+      expect(globalRateLimiter.isLocked(ip)).toBe(false)
     } finally {
       globalRateLimiter.recordSuccess(ip)
     }

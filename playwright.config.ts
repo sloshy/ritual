@@ -89,6 +89,12 @@ export default defineConfig({
         storageState: ADMIN_STORAGE_STATE,
       },
     },
+    {
+      // Starts its own `ritual mcp --oauth` per run; needs neither shared server.
+      name: 'mcp-oauth',
+      testDir: './test/e2e/mcp-oauth',
+      use: { browserName: 'chromium' },
+    },
   ],
   globalSetup: './test/e2e/helpers/global-setup.ts',
   globalTeardown: './test/e2e/helpers/global-teardown.ts',

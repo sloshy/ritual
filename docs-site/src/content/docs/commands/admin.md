@@ -28,10 +28,11 @@ ritual admin disable-totp
 | `--host <address>`       | Host address to bind to                                                                                                                                                                                                                             | `0.0.0.0` |
 | `--theme <name>`         | Initial theme. Append `-inverted` (e.g. `boros-inverted`) for the inverted variant. See [`build-site` themes](/commands/build-site/#themes) for the palettes; `--help` shows two examples, and an unknown name lists every theme.                   | `default` |
 | `--refresh <mode>`       | Card cache **and buylist** refresh policy on startup: `ask` (prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`. Site builds the server runs (Build Site, MCP `build_site`) use the same mode, with `ask` answered as `auto` | `ask`     |
-| `--mcp`                  | Also serve an [MCP](/commands/mcp/) endpoint in this process (requires `--mcp-token`)                                                                                                                                                               |           |
+| `--mcp`                  | Also serve an [MCP](/commands/mcp/) endpoint in this process (requires `--mcp-token` or `--mcp-oauth`)                                                                                                                                              |           |
 | `--mcp-port <number>`    | Port for the embedded MCP server (only with `--mcp`)                                                                                                                                                                                                | `8765`    |
-| `--mcp-token <secret>`   | Bearer token required on the embedded MCP endpoint (with `--mcp`)                                                                                                                                                                                   |           |
+| `--mcp-token <secret>`   | Bearer token for the embedded MCP endpoint (with `--mcp`); required unless `--mcp-oauth` is given                                                                                                                                                   |           |
 | `--mcp-public-url <url>` | External origin a tunnel or reverse proxy forwards to the embedded MCP endpoint (only with `--mcp`). See [Embedded MCP Server](#embedded-mcp-server)                                                                                                |           |
+| `--mcp-oauth`            | (Beta) Let MCP clients such as Claude sign in with OAuth as the admin user on the embedded endpoint (with `--mcp`; requires `--mcp-public-url` and an admin account). See [Embedded MCP Server](#embedded-mcp-server)                               |           |
 | `--sell-mode`            | (Beta) Offer [sell mode](/public-site/sell/) for this run even when `site.sellMode` is off (enable-only). See [Sell mode](#sell-mode).                                                                                                              |           |
 
 On startup, `admin`:
@@ -81,15 +82,22 @@ ritual admin --mcp --mcp-token "$MCP_TOKEN"
 #   http://<host>:8765/mcp     MCP (Streamable HTTP)
 ```
 
-This is one process, not a second `ritual mcp` instance, so it shares the same config, card cache, and data directory. Authentication uses the **same bearer-token model as the standalone server**. A token is **required** because the admin binds `0.0.0.0` by default: pass `--mcp-token <secret>` or set `RITUAL_MCP_TOKEN`. Every MCP request must send `Authorization: Bearer <token>`; requests without it get `401`. The token is independent of the browser admin login.
+This is one process, not a second `ritual mcp` instance, so it shares the same config, card cache, and data directory. Authentication uses the **same model as the standalone server**: a bearer token, OAuth, or both. One of them is **required** because the admin binds `0.0.0.0` by default; with neither, the command exits with code 2 before starting:
 
-To serve the endpoint behind a tunnel or reverse proxy that forwards a public hostname to a loopback bind (`--host 127.0.0.1`), pass `--mcp-public-url <url>`, an origin such as `https://mcp.example.com`. Its host is then accepted by the loopback `Host`/`Origin` checks, and the public endpoint (`https://mcp.example.com/mcp`) is printed at startup. It takes the same values as [`ritual mcp --public-url`](/commands/mcp/#behind-a-reverse-proxy-or-tunnel). An invalid value exits with code 2 even without `--mcp`; a valid one, like `--mcp-port`, does nothing without `--mcp`. On a non-loopback `--host` (including the default `0.0.0.0`) there is no `Host`/`Origin` check to widen, so the flag only prints the public endpoint.
+- **Bearer token:** pass `--mcp-token <secret>` or set `RITUAL_MCP_TOKEN`. Every MCP request must then send `Authorization: Bearer <token>`; requests without it get `401`. The token is independent of the browser admin login.
+- **OAuth (beta):** pass `--mcp-oauth` with `--mcp-public-url`, so hosted clients such as Claude's custom connectors can sign in as the admin user. It is the [`ritual mcp --oauth`](/commands/mcp/#oauth-sign-in-beta) authorization server, mounted on the MCP port, with the same endpoints, lifetimes, limits and `.logins/mcp-oauth.json` state. It needs the admin account to exist (exit `3` otherwise; create it with `ritual admin setup`), and behind a tunnel (a loopback `--host` with a non-loopback `--mcp-public-url`) it needs `admin.trustProxy` on (exit `2` otherwise). Its consent sign-ins follow the same `admin.*` delay, rate-limit, `trustProxy` and allow/deny settings as the admin login and write to the same audit log, but count per address on a limiter of their own, so wrong passwords from the internet cannot lock your address out of the admin. Only the global budget for wrong two-factor codes is shared (see [Rate Limiting](#rate-limiting)). Changing the admin password or turning TOTP on or off revokes every OAuth grant. Given a token as well, the endpoint accepts both.
+
+```bash
+ritual admin --host 127.0.0.1 --mcp --mcp-oauth --mcp-public-url https://mcp.example.com
+```
+
+To serve the endpoint behind a tunnel or reverse proxy that forwards a public hostname to a loopback bind (`--host 127.0.0.1`), pass `--mcp-public-url <url>`, an origin such as `https://mcp.example.com`. Its host is then accepted by the loopback `Host`/`Origin` checks, and the public endpoint (`https://mcp.example.com/mcp`) is printed at startup. It takes the same values as [`ritual mcp --public-url`](/commands/mcp/#behind-a-reverse-proxy-or-tunnel). An invalid value exits with code 2 even without `--mcp`; a valid one, like `--mcp-port`, does nothing without `--mcp`. On a non-loopback `--host` (including the default `0.0.0.0`) there is no `Host`/`Origin` check to widen, so the flag only prints the public endpoint (and, with `--mcp-oauth`, names the OAuth addresses).
 
 The endpoint is stateless and serves both the 2026-07-28 and the 2025-era protocol. See [`ritual mcp` → HTTP](/commands/mcp/#http-streamable-http) for what that means for sessions, `GET`/`DELETE`, and error responses.
 
 Both listeners stop together on `Ctrl-C` (`SIGINT`) or `SIGTERM`, so neither port is left bound.
 
-The standalone [`ritual mcp`](/commands/mcp/) command is still the way to run MCP without the web admin (over stdio, or HTTP with a bearer token).
+The standalone [`ritual mcp`](/commands/mcp/) command is still the way to run MCP without the web admin (over stdio, or HTTP with a bearer token or OAuth).
 
 ## First-Time Setup
 
@@ -152,7 +160,7 @@ printf '%s\n' "$NEW_PASSWORD" | ritual admin reset-password --username root --pa
 | `--username <username>` | Also replace the admin username (optional) |
 | `--password-stdin`      | Read the new password from stdin           |
 
-Everything else in the credentials file is kept, including a TOTP secret and any pending TOTP enrollment. Exit code `3` when no admin user exists yet (run `ritual admin setup` instead).
+Everything else in the credentials file is kept, including a TOTP secret and any pending TOTP enrollment. Exit code `3` when no admin user exists yet (run `ritual admin setup` instead). A reset also revokes every [MCP OAuth](/commands/mcp/#oauth-sign-in-beta) grant (the registered clients stay), including on a server already running.
 
 ### `ritual admin disable-totp`
 
@@ -163,7 +171,7 @@ ritual admin disable-totp --output json
 # → { "totpDisabled": true }
 ```
 
-This clears **both** an active TOTP secret and a stuck `pending:` enrollment, such as one you started in the browser but never verified. Exit code `1` when no TOTP secret is stored, and `3` when no admin user exists.
+This clears **both** an active TOTP secret and a stuck `pending:` enrollment, such as one you started in the browser but never verified. Exit code `1` when no TOTP secret is stored, and `3` when no admin user exists. Clearing an active secret also revokes every [MCP OAuth](/commands/mcp/#oauth-sign-in-beta) grant.
 
 ### Recovery runbook
 
@@ -207,15 +215,15 @@ Auto-commit covers the admin web UI and the [MCP server](/commands/mcp/) only. C
 
 ### Network options
 
-`admin.trustProxy` makes the server take the client address from the last `X-Forwarded-For` entry, the one a reverse proxy appends, instead of the connection's own address, and the address the browser used from the last `X-Forwarded-Host` entry for the [cross-site check](#cross-site-requests). Turn it on only behind a proxy you control. `admin.secureCookies` marks the session cookie `Secure`, so browsers send it over HTTPS only.
+`admin.trustProxy` makes the server take the client address from the last `X-Forwarded-For` entry, the one a reverse proxy appends, instead of the connection's own address, and the address the browser used from the last `X-Forwarded-Host` entry for the [cross-site check](#cross-site-requests). It governs the [MCP OAuth](/commands/mcp/#sign-in-protection) consent page's and registration's per-address limits too. Turn it on only behind a proxy you control. `admin.secureCookies` marks the session cookie `Secure`, so browsers send it over HTTPS only.
 
 ### Failed Login Delay
 
-Every failed authentication attempt is delayed (default: 3 seconds) before the server responds. The delay does not slow other requests.
+Every failed authentication attempt is delayed (default: 3 seconds) before the server responds. The delay does not slow other requests. It applies to the [MCP OAuth consent page](/commands/mcp/#sign-in-protection) too.
 
 ### Rate Limiting
 
-After a number of failed login attempts (default: 5) from one IP address within the rate-limit window (default: 5 minutes), that IP is locked out for the same duration. Rate limiting can be disabled in settings.
+After a number of failed login attempts (default: 5) from one IP address within the rate-limit window (default: 5 minutes), that IP is locked out for the same duration. Each attempt is counted before its password is checked, so a burst of parallel guesses gets no more checks than the limit: the rest are answered as locked out. ("Password right, now enter your code" is not counted.) Wrong two-factor codes are also limited across every address: after 10 wrong codes in 15 minutes (each following a right password), no code is checked for anyone until the window passes, and the login answers as locked out, so the six-digit codes cannot be worked through from many addresses. The [MCP OAuth consent page](/commands/mcp/#sign-in-protection) draws on the same budget in the same process. The trade-off: someone who already has the password can keep code sign-ins refused for as long as they keep guessing; changing the password stops them, and sign-in works again once the current 15-minute window passes. Rate limiting can be disabled in settings.
 
 | Config Field                   | Default | Description                                      |
 | ------------------------------ | ------- | ------------------------------------------------ |
@@ -224,7 +232,7 @@ After a number of failed login attempts (default: 5) from one IP address within 
 | `admin.rateLimitWindowMinutes` | `5`     | Counting window and lockout duration, in minutes |
 | `admin.failedAuthDelayMs`      | `3000`  | Delay (ms) on failed auth                        |
 
-Rate limit state is kept in memory and resets when the server restarts.
+Rate limit state is kept in memory and resets when the server restarts. The [MCP OAuth consent page](/commands/mcp/#sign-in-protection) follows these settings with a counter of its own, so failures there do not lock the admin login, and the other way round.
 
 ### Two-Factor Authentication (TOTP)
 
@@ -240,7 +248,7 @@ TOTP (Time-based One-Time Password) adds a second factor. When enabled, login re
 **Login with TOTP:**
 The login form shows an additional code field. For API access, include the `totpCode` field in the `POST /api/login` request body.
 
-The TOTP secret is stored in `.logins/admin-auth.json` alongside the password hash.
+The TOTP secret is stored in `.logins/admin-auth.json` alongside the password hash. Turning TOTP on or off, like resetting the password, revokes every [MCP OAuth](/commands/mcp/#oauth-sign-in-beta) grant, since those were approved with the old credentials.
 
 ### Cross-site requests
 
@@ -248,7 +256,7 @@ A page on another website cannot make your browser act on the admin. Any API req
 
 ### IP Allow/Deny Lists
 
-Control which IP addresses can access the admin interface:
+Control which IP addresses can access the admin interface (and the [MCP OAuth consent page](/commands/mcp/#sign-in-protection)):
 
 - **Allow list**: if non-empty, only IPs matching a pattern can connect. All others get `403 Forbidden`, answered in the API's shared [error envelope](/admin/api/#error-responses) (`messageKey: admin.api.server.forbidden`).
 - **Deny list**: IPs matching any pattern are blocked. Deny is checked before allow.
@@ -257,7 +265,7 @@ Patterns support simple wildcards: `192.168.1.*`, `10.0.*`, `*` (match all).
 
 ### User-Agent Allow/Deny Lists
 
-Control which browsers and clients can access the admin interface:
+Control which browsers and clients can access the admin interface (and the MCP OAuth consent page):
 
 - **Allow list**: if non-empty, only matching User-Agent strings can connect.
 - **Deny list**: matching User-Agent strings are blocked.

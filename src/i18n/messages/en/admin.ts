@@ -151,6 +151,7 @@ export const adminMessages = {
   'admin.auditLog.reason.accountCreatedViaCli': 'Admin account created via CLI',
   'admin.auditLog.reason.passwordResetViaCli': 'Admin password reset via CLI',
   'admin.auditLog.reason.totpDisabledViaCli': 'TOTP disabled via CLI',
+  'admin.auditLog.reason.oauthAuthorized': 'MCP client authorized via OAuth',
 
   // ── Build Site ────────────────────────────────────────────────────────
   'admin.buildSite.desc':

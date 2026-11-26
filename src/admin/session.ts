@@ -1,3 +1,4 @@
+import { readCookie } from '../util/cookie'
 import { randomBytes } from 'node:crypto'
 
 interface Session {
@@ -60,16 +61,7 @@ export function getSessionCookieName(): string {
 }
 
 export function parseSessionCookie(cookieHeader: string | null): string | null {
-  if (!cookieHeader) return null
-  const prefix = `${COOKIE_NAME}=`
-  const parts = cookieHeader.split(';')
-  for (const part of parts) {
-    const trimmed = part.trim()
-    if (trimmed.startsWith(prefix)) {
-      return trimmed.slice(prefix.length)
-    }
-  }
-  return null
+  return readCookie(cookieHeader, COOKIE_NAME)
 }
 
 export function buildSessionCookie(token: string, secure: boolean = false): string {

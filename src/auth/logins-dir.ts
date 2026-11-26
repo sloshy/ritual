@@ -25,6 +25,14 @@ export function getLoginsDir(): string {
   return path.join(getBaseDir(), LOGINS_DIR)
 }
 
+/** The admin account's credentials file inside {@link LOGINS_DIR}. */
+export const ADMIN_AUTH_FILE = 'admin-auth.json'
+
+/** Where the bound workspace's admin credentials live. */
+export function adminAuthPath(): string {
+  return path.join(getLoginsDir(), ADMIN_AUTH_FILE)
+}
+
 /**
  * Create the private `.logins/` folder (`0700`) if needed, and the `.gitignore`
  * inside it if that is missing. Every write into the folder goes through here,

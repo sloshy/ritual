@@ -42,7 +42,8 @@ A site built with [`ritual build-site`](/commands/build-site/) is static files. 
 - **A small state file** (`state.json`) that remembers when Ritual last checked for updates, and which workspaces (by folder path) it offered to migrate in the last day. See [When Ritual offers to migrate](/commands/migrate/#when-ritual-offers-to-migrate) for where it lives.
 - **Sign-ins**, in the workspace's `.logins/` folder:
   - `admin-auth.json`: the [admin site](/commands/admin/) account. The password is stored only as a bcrypt hash; the file also holds the TOTP secret if you turned TOTP on.
-  - `admin-audit.log`: admin sign-in attempts, with the address and browser they came from.
+  - `admin-audit.log`: admin sign-in attempts, including sign-ins on the [MCP OAuth](/commands/mcp/#oauth-sign-in-beta) consent page, with the address and browser they came from.
+  - `mcp-oauth.json`: the MCP OAuth server's registered clients and grants, with only SHA-256 digests of its tokens. To disconnect every OAuth client, change the admin password (or turn TOTP on or off): that works at once, even on a running server. Delete the file, with the server stopped, only to also forget the registered clients. One limit to know: someone who already has the admin password can keep the OAuth sign-in from accepting any TOTP code for as long as they keep guessing codes; existing connections keep working; changing the password stops them, and sign-in works again once the current 15-minute window passes.
   - `archidekt.json`: your Archidekt sign-in tokens. Your Archidekt password is sent to Archidekt to log in and never stored.
   - `collection-sync.json`: when you last synced your collection, and with which Archidekt user.
 

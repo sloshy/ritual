@@ -15,7 +15,8 @@ import {
 import { appendAuditLog, createAuditEntry } from '../admin/audit-log'
 import { AUDIT_REASONS, type AuditReason } from '../admin/audit-reasons'
 import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH } from '../admin/validation'
-import { runHttpServer } from '../mcp/run'
+import { runHttpServer, type McpHttpAuth } from '../mcp/run'
+import { prepareMcpOAuth } from '../mcp/oauth/setup'
 import { parseMcpPublicUrl, type McpPublicUrl } from '../mcp/public-url'
 import { resolveMcpToken } from '../mcp/token'
 import { getBaseDir } from '../config/base-dir'
@@ -76,6 +77,8 @@ type AdminCommandOptions = {
   mcpToken?: string
   /** The external origin a tunnel or reverse proxy forwards to the embedded MCP endpoint. */
   mcpPublicUrl?: McpPublicUrl
+  /** Mount the embedded OAuth authorization server (beta) on the embedded MCP endpoint. */
+  mcpOauth?: boolean
   /**
    * Offer sell mode for this run whatever `site.sellMode` says (enable-only;
    * absent follows the config). The admin used to force sell mode on
@@ -88,7 +91,7 @@ type AdminCommandOptions = {
 /** Validated settings for the embedded MCP endpoint (`--mcp`). */
 type EmbeddedMcpConfig = {
   port: number
-  token: string
+  auth: McpHttpAuth
   publicUrl?: McpPublicUrl
 }
 
@@ -161,7 +164,7 @@ export function registerAdminCommand(program: Command): void {
     .option('-p, --port <number>', t('help.admin.port'), parsePort, 8080)
     .option('--host <address>', t('help.admin.host'), '0.0.0.0')
     .option('--theme <name>', t('help.admin.theme', THEME_HELP_EXAMPLES), 'default')
-    .option('--mcp', t('help.admin.mcp', { flag: FLAG.mcpToken }))
+    .option('--mcp', t('help.admin.mcp', { tokenFlag: FLAG.mcpToken, oauthFlag: FLAG.mcpOauth }))
     .option('--mcp-port <number>', t('help.admin.mcpPort', { flag: FLAG.mcp }), parsePort, 8765)
     .option(
       '--mcp-token <secret>',
@@ -171,6 +174,10 @@ export function registerAdminCommand(program: Command): void {
       '--mcp-public-url <url>',
       t('help.admin.mcpPublicUrl', { example: EXAMPLE.mcpPublicUrl, flag: FLAG.mcp }),
       parsedFlag(parseMcpPublicUrl),
+    )
+    .option(
+      '--mcp-oauth',
+      t('help.admin.mcpOauth', { flag: FLAG.mcp, publicUrlFlag: FLAG.mcpPublicUrl }),
     )
     .action(async (options: AdminCommandOptions) => {
       // Set before the buylist warm and before the server starts answering
@@ -192,18 +199,6 @@ export function registerAdminCommand(program: Command): void {
       // a bad combination never leaves a half-started admin server behind.
       let embeddedMcp: EmbeddedMcpConfig | undefined
       if (options.mcp) {
-        const mcpToken = resolveMcpToken(options.mcpToken)
-        if (!mcpToken) {
-          console.error(
-            t('cli.admin.mcpTokenRequired', {
-              mcpFlag: FLAG.mcp,
-              mcpTokenFlag: flagValue(FLAG.mcpToken, '<secret>'),
-              envVar: ENV_VAR.mcpToken,
-            }),
-          )
-          process.exitCode = ExitCode.UsageError
-          return
-        }
         if (options.mcpPort === port) {
           console.error(
             t('cli.admin.mcpPortConflict', { mcpPortFlag: FLAG.mcpPort, portFlag: FLAG.port }),
@@ -211,7 +206,35 @@ export function registerAdminCommand(program: Command): void {
           process.exitCode = ExitCode.UsageError
           return
         }
-        embeddedMcp = { port: options.mcpPort, token: mcpToken, publicUrl: options.mcpPublicUrl }
+        // A token, OAuth, or both: OAuth makes the token optional, never the reverse.
+        const mcpToken = resolveMcpToken(options.mcpToken)
+        let auth: McpHttpAuth
+        if (options.mcpOauth) {
+          const prepared = await prepareMcpOAuth(
+            { publicUrl: options.mcpPublicUrl, host, token: mcpToken },
+            { oauthFlag: FLAG.mcpOauth, publicUrlFlag: FLAG.mcpPublicUrl },
+          )
+          if (!prepared.ok) {
+            console.error(prepared.message)
+            process.exitCode = prepared.exitCode
+            return
+          }
+          auth = prepared.auth
+        } else if (mcpToken) {
+          auth = { kind: 'bearer', token: mcpToken }
+        } else {
+          console.error(
+            t('cli.admin.mcpTokenRequired', {
+              mcpFlag: FLAG.mcp,
+              mcpTokenFlag: flagValue(FLAG.mcpToken, '<secret>'),
+              envVar: ENV_VAR.mcpToken,
+              oauthFlag: FLAG.mcpOauth,
+            }),
+          )
+          process.exitCode = ExitCode.UsageError
+          return
+        }
+        embeddedMcp = { port: options.mcpPort, auth, publicUrl: options.mcpPublicUrl }
       }
 
       console.log(t('cli.admin.preparing'))
@@ -263,7 +286,7 @@ export function registerAdminCommand(program: Command): void {
 
       const adminServer = await startAdminServer({ port, host, distDir: adminDistDir })
 
-      // Same process, separate port; bearer-token auth like standalone `ritual mcp`.
+      // Same process, separate port; bearer-token and/or OAuth auth like standalone `ritual mcp`.
       // A failed MCP bind must not leave the admin listener holding the process,
       // and the bind error is what the user needs to see, so a failed stop is
       // not allowed to replace it.
@@ -271,7 +294,7 @@ export function registerAdminCommand(program: Command): void {
         ? await runHttpServer({
             port: embeddedMcp.port,
             host,
-            auth: { kind: 'bearer', token: embeddedMcp.token },
+            auth: embeddedMcp.auth,
             publicUrl: embeddedMcp.publicUrl,
           }).catch(async (error: unknown) => {
             await adminServer.stop(true).catch(() => undefined)

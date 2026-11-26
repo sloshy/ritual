@@ -652,6 +652,12 @@ bind, pass \`--mcp-public-url <url>\` (an origin such as
 \`https://mcp.example.com\`) so the embedded endpoint accepts that hostname; see
 \`--public-url\` below.
 
+\`--mcp-oauth\` (beta) replaces or joins the token: it serves the same OAuth
+sign-in as \`ritual mcp --oauth\` (below) on the embedded endpoint, and needs
+\`--mcp-public-url\` and an existing admin account. \`--mcp\` with neither a
+token nor \`--mcp-oauth\` exits 2. \`ritual admin reset-password\` and
+\`ritual admin disable-totp\` revoke every OAuth grant.
+
 **First run:** while no account exists, \`ritual admin\` prints a setup link
 carrying a one-time token; the browser setup form refuses to create the account
 without it (\`RITUAL_ADMIN_SETUP_TOKEN\` pins the token for scripted setup).
@@ -717,7 +723,7 @@ the sync tools' per-item \`reasonParams\`, and in their run-level
 tool *error* carries only \`{error, code, message}\`. Branch on \`code\`.
 
 The HTTP transport binds \`--host\` (default \`127.0.0.1\`). Without a token
-(\`--token\` or \`RITUAL_MCP_TOKEN\`) it serves unauthenticated on loopback only.
+(\`--token\` or \`RITUAL_MCP_TOKEN\`) or \`--oauth\` it serves unauthenticated on loopback only.
 On a non-loopback host it refuses to start unless \`--allow-unauthenticated\` is
 passed explicitly.
 
@@ -727,11 +733,46 @@ proxy (e.g. \`cloudflared\`) forwards a public hostname to the loopback bind,
 pass \`--public-url <url>\`: an origin only (\`http:\`/\`https:\`, no path,
 query, fragment or credentials), whose hostname is then accepted too, and whose
 \`<url>/mcp\` endpoint is printed at startup. A public URL means the endpoint is
-exposed, so it needs a token exactly like a non-loopback host:
+exposed, so it needs a token (or \`--oauth\`, below) exactly like a non-loopback host:
 
 \`\`\`bash
 ritual mcp --transport http --public-url https://mcp.example.com --token "$RITUAL_MCP_TOKEN"
 \`\`\`
+
+**OAuth sign-in (beta).** Hosted clients such as Claude's custom connectors sign
+in with OAuth instead of a token (Claude's custom connectors on the web are the
+target; the desktop and mobile apps, and voice mode, are not yet verified).
+\`--oauth\` mounts a single-user OAuth 2.1 authorization server beside \`/mcp\`;
+the resource owner is the Ritual admin account, which approves each client on a
+consent page with its username, password and TOTP code (when enabled):
+
+\`\`\`bash
+ritual admin setup --username me --password-stdin < password.txt   # once
+ritual config set admin.trustProxy true    # required behind a tunnel
+ritual mcp --transport http --oauth --public-url https://mcp.example.com
+\`\`\`
+
+- Requires \`--public-url\` (exit 2 without it; it must be \`https://\`, or
+  \`http://\` on a loopback host with a loopback bind) and an admin account (exit 3
+  without one). A loopback bind with a non-loopback public URL (a tunnel in front)
+  also requires \`admin.trustProxy\` (exit 2 without it, naming
+  \`ritual config set admin.trustProxy true\`).
+- The token becomes optional; given one as well, \`/mcp\` accepts both the static
+  token and OAuth access tokens.
+- The connector URL to enter in Claude is \`<public-url>/mcp\`, with no client ID
+  or secret: Claude registers itself (dynamic client registration).
+- Access tokens last 1 hour, refresh tokens 90 days (rotated on every refresh;
+  reusing an old one revokes the grant, except a retry of the latest within 60 s,
+  which gets the same answer again). State is \`.logins/mcp-oauth.json\`. To revoke
+  every grant at once, even on a running server, change the admin password (or turn
+  TOTP on or off): every grant is tied to the credentials it was approved with. To
+  also forget every client, stop the server, then delete the file.
+- Consent sign-ins are rate-limited per client address under the \`admin.*\`
+  settings (on their own counter, not the admin login's). Wrong TOTP codes are also
+  limited globally (10 per 15 minutes, shared with the admin login): past that a right
+  password gets \`429\` until the window passes.
+- Unauthenticated \`/mcp\` requests get \`401\` with a \`WWW-Authenticate\`
+  header pointing at \`<public-url>/.well-known/oauth-protected-resource\`.
 
 Register it with Claude Code:
 

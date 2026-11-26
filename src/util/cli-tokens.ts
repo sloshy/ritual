@@ -19,6 +19,7 @@
  */
 
 import type {
+  AdminConfig,
   CollectionSyncConfig,
   ManagedConfig,
   RitualConfig,
@@ -92,6 +93,7 @@ export const FLAG = {
   localeFile: '--locale-file',
   locales: '--locales',
   mcp: '--mcp',
+  mcpOauth: '--mcp-oauth',
   mcpPort: '--mcp-port',
   mcpPublicUrl: '--mcp-public-url',
   mcpToken: '--mcp-token',
@@ -111,6 +113,7 @@ export const FLAG = {
   noSkills: '--no-skills',
   noSyncPrintings: '--no-sync-printings',
   note: '--note',
+  oauth: '--oauth',
   only: '--only',
   outDir: '--out-dir',
   output: '--output',
@@ -253,9 +256,11 @@ export type ConfigKeyToken =
   | `site.${keyof SiteConfig & string}`
   | `managed.${keyof ManagedConfig & string}`
   | `collectionSync.${keyof CollectionSyncConfig & string}`
+  | `admin.${keyof AdminConfig & string}`
 
 /** Config keys the messages name, by camelCase name. */
 export const CONFIG_KEY = {
+  adminTrustProxy: 'admin.trustProxy',
   artDir: 'artDir',
   cacheDir: 'cacheDir',
   cacheFeedUrl: 'cacheFeedUrl',

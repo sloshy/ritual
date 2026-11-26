@@ -47,7 +47,18 @@ function killPort(port: number): void {
   }
 }
 
+/**
+ * Set to run only specs that start their own servers (the `mcp-oauth`
+ * project), without building the site or starting the shared ones:
+ * `RITUAL_E2E_SKIP_SHARED_SERVERS=1 bunx playwright test --project mcp-oauth`.
+ */
+const SKIP_SHARED_SERVERS_ENV = 'RITUAL_E2E_SKIP_SHARED_SERVERS'
+
 async function globalSetup(): Promise<void> {
+  if (process.env[SKIP_SHARED_SERVERS_ENV] === '1') {
+    console.log(`[global-setup] ${SKIP_SHARED_SERVERS_ENV}=1: no shared servers started.`)
+    return
+  }
   // From test/e2e/helpers/ → repo root is three levels up. Only the ritual
   // sources are run from here — all data the servers touch lives in a
   // synthetic temp workspace so specs never see (or mutate) real lists and

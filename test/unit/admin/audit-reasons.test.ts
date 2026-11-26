@@ -18,6 +18,7 @@ describe('AUDIT_REASONS', () => {
       accountCreatedViaCli: 'Admin account created via CLI',
       passwordResetViaCli: 'Admin password reset via CLI',
       totpDisabledViaCli: 'TOTP disabled via CLI',
+      oauthAuthorized: 'MCP client authorized via OAuth',
     })
   })
 })
