@@ -67,18 +67,32 @@ properties to know before you expose any of it to a network. The
   streams that sync, refresh or build. The check reads the browser's
   `Sec-Fetch-Site` header (only `same-origin` passes, or `none` for a request the user made
   directly), or, from a browser that does not send it, requires the `Origin` host to match
-  the `Host` header (`X-Forwarded-Host` under `admin.trustProxy`). A request with neither
+  the `Host` header (`X-Forwarded-Host` under `admin.trustProxy`, from a trusted proxy;
+  see below). A request with neither
   header is not from a browser and is let through to the usual session check. There is no
   separate CSRF token. Responses carry a `default-src 'self'` Content Security Policy and
   `X-Frame-Options: DENY`.
 - **Failed logins** are delayed, rate-limited per IP (5 failures within 5 minutes locks
-  the address for 5 minutes by default), and recorded in `.logins/admin-audit.log`. Each
+  the address for 5 minutes by default; an IPv6 address is counted by its /64), and recorded in `.logins/admin-audit.log`. Each
   attempt is counted before its password is checked, so a burst of parallel guesses gets
   no more checks than the limit. Wrong TOTP codes are also limited across all addresses:
   past 10 in 15 minutes, no code is checked for anyone until the window passes (shared
   with the MCP OAuth consent page).
   Behind a reverse proxy, set `admin.trustProxy` so the limit applies to the client
-  rather than the proxy, and only then.
+  rather than the proxy.
+- **Forwarded headers are believed only from a trusted proxy.** Under `admin.trustProxy`,
+  `X-Forwarded-For` and `X-Forwarded-Host` are read only when the connection itself comes from loopback (`127.0.0.0/8`,
+  `::1`, IPv4-mapped `::ffff:127.x.x.x`) or from an address in `admin.trustedProxies`
+  (IPv4 and IPv6 addresses and CIDR ranges, for a proxy on another host or container).
+  Any other connection is taken at its own address and `Host`, so a client that reaches
+  the server directly cannot dodge the login lockout or put a false address in the audit
+  log. The same rule applies to the MCP OAuth routes. `X-Forwarded-For` is walked from
+  the right, skipping entries that are trusted proxies themselves; the first other entry
+  is the client, and nothing to its left is read. `X-Forwarded-Host` is its rightmost
+  entry. The proxy must append to or overwrite both headers (stock nginx passes a
+  client's own through), and a loopback forwarder that does not rewrite HTTP headers
+  (`ssh -L`, socat) must not be used with `admin.trustProxy`. An entry that would trust
+  every client (`/0`, or an IPv6 range holding `::ffff:0:0/96`) is refused.
 - **IP and User-Agent allow and deny lists** (`admin.ipAllowList` and the like) apply
   before any route.
 - **Bind the admin to loopback** (`--host 127.0.0.1`) unless you need it on the network,
@@ -128,7 +142,8 @@ consent page) and `POST /oauth/token`.
 - **Behind a tunnel, `admin.trustProxy` is required.** A loopback bind with a
   non-loopback public URL refuses to start without it (exit `2`): otherwise every request
   would come from loopback, every limit would be one shared bucket that any stranger could
-  use to lock the owner out, and the audit log would record the proxy's address.
+  use to lock the owner out, and the audit log would record the proxy's address. The
+  forwarded address is believed only from a trusted proxy (above).
 - **Only public clients with PKCE S256** are accepted; `plain` and a missing challenge are
   refused. Redirect URIs must be `https:` or loopback `http:`, and are matched exactly
   (a loopback URI may differ in its port only). A request naming an unknown client or an

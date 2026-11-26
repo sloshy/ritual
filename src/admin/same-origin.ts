@@ -24,7 +24,8 @@
  * - Otherwise `Origin`, which a browser sends on every cross-origin request and
  *   on every `POST`: its host must be the one the request was addressed to —
  *   the `Host` header, or the proxy's `X-Forwarded-Host` when
- *   `admin.trustProxy` is on. Only the host is compared, not the scheme,
+ *   `admin.trustProxy` is on and the request came through a trusted proxy
+ *   (see `./forwarded.ts`). Only the host is compared, not the scheme,
  *   because a proxy that terminates HTTPS forwards plain HTTP, and a default
  *   port (`:80`, `:443`) counts as no port. Behind a proxy that rewrites `Host`
  *   without `trustProxy`, an older browser's writes are refused here.
@@ -34,8 +35,6 @@
  * still needs the session cookie for any route that requires one. The MCP
  * server never comes this way: it calls the route handlers in-process.
  */
-
-import { lastForwarded } from './forwarded'
 
 /** The `Sec-Fetch-Site` values a request is accepted from. */
 const ALLOWED_FETCH_SITES: ReadonlySet<string> = new Set(['same-origin', 'none'])
@@ -50,9 +49,8 @@ function normalizedHost(host: string): string | null {
 }
 
 /** The host the request was addressed to, or null when it names none. */
-function requestHost(req: Request, trustProxy: boolean): string | null {
-  const forwarded = trustProxy ? lastForwarded(req.headers.get('X-Forwarded-Host')) : null
-  return normalizedHost(forwarded ?? req.headers.get('Host') ?? new URL(req.url).host)
+function requestHost(req: Request, forwardedHost: string | null): string | null {
+  return normalizedHost(forwardedHost ?? req.headers.get('Host') ?? new URL(req.url).host)
 }
 
 /** The host of an `Origin` header value, or null for `null` or a malformed value. */
@@ -66,13 +64,14 @@ function originHost(origin: string): string | null {
 
 /**
  * Whether `req` is a request a browser sent from another site (see the module
- * comment for the rule). `trustProxy` is `admin.trustProxy`.
+ * comment for the rule). `forwardedHost` is the believed `X-Forwarded-Host`
+ * entry from `readRequestSource` (`./forwarded.ts`), null when there is none.
  */
-export function isCrossSiteRequest(req: Request, trustProxy: boolean): boolean {
+export function isCrossSiteRequest(req: Request, forwardedHost: string | null): boolean {
   const fetchSite = req.headers.get('Sec-Fetch-Site')
   if (fetchSite !== null) return !ALLOWED_FETCH_SITES.has(fetchSite.trim().toLowerCase())
   const origin = req.headers.get('Origin')
   if (origin === null) return false
   const from = originHost(origin)
-  return from === null || from !== requestHost(req, trustProxy)
+  return from === null || from !== requestHost(req, forwardedHost)
 }

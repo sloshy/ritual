@@ -5,7 +5,7 @@ import type { ParameterlessKey } from '../../i18n/t'
 import { readCookie } from '../../util/cookie'
 import { secretsEqual } from '../../util/secret-compare'
 import { isHttpsOrigin } from '../public-url'
-import { addressKey } from './address-key'
+import { addressKey } from '../../util/address-key'
 import {
   clientRedirectUrl,
   isAuthorizationRefusal,

@@ -106,6 +106,44 @@ An empty `dist/` mount is fine: `--api` builds the site on startup when there is
 
 `--refresh never` also skips the startup [buylist](/commands/sell/) refresh, which runs only when [sell mode](/public-site/sell/) is enabled. A long-lived container then quotes the feed it started with until you refresh it from the admin site or a CLI run.
 
+### Behind a reverse proxy container
+
+When the admin site or the [MCP endpoint](/commands/mcp/#oauth-sign-in-beta) runs in a container behind a proxy, turn on `admin.trustProxy` so rate limits and the audit log see each client's address. Ritual believes the proxy's `X-Forwarded-For` and `X-Forwarded-Host` only from a trusted proxy, and inside a container a proxy is never loopback: a proxy container connects from its Compose network address, and a proxy on the host reaching a published port connects from the network's gateway address. So list that network in `admin.trustedProxies`. Give the network a fixed subnet so the entry stays right. If a proxy on the host reaches the container through a published port, publish that port on `127.0.0.1` only (`'127.0.0.1:8765:8765'`): on Docker Desktop and some Linux setups, every client of a published port arrives from the gateway address too, and would then be trusted. The proxy must also append to or overwrite `X-Forwarded-For` and overwrite `X-Forwarded-Host` (Caddy does; nginx needs `proxy_set_header`, see [A reverse proxy](/hosting/#a-reverse-proxy)).
+
+The example below runs the proxy as a container on the same network:
+
+```yaml
+services:
+  ritual:
+    image: ghcr.io/sloshy/ritual
+    volumes:
+      - .:/app
+    command: mcp --transport http --host 0.0.0.0 --port 8765 --public-url https://mcp.example.com --oauth
+    networks: [proxied]
+  caddy:
+    image: caddy:2
+    ports:
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    networks: [proxied]
+
+networks:
+  proxied:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+```
+
+Here the `Caddyfile` is `mcp.example.com { reverse_proxy ritual:8765 }`, and the workspace needs the admin account (`ritual admin setup`) as on any [OAuth](/commands/mcp/#oauth-sign-in-beta) host. Turn the proxy settings on in that workspace:
+
+```sh
+docker run --rm -v "$PWD:/app" ghcr.io/sloshy/ritual config set admin.trustProxy true
+docker run --rm -v "$PWD:/app" ghcr.io/sloshy/ritual config set --add admin.trustedProxies 172.30.0.0/24
+```
+
+Without the entry, Ritual ignores the proxy's headers and takes every client to be the proxy: one shared login lockout and the proxy's address in the audit log. List only the network the proxy is on. Anything else that can connect from a listed address can claim any client address. See [Network options](/commands/admin/#network-options).
+
 ## Directory Mounts
 
 Mount these directories to keep your data and work with the files Ritual uses:

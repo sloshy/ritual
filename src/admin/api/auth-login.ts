@@ -19,6 +19,7 @@ import {
 import { AUDIT_REASONS } from '../audit-reasons'
 import { loadRitualConfig } from '../../config/ritual-config'
 import { globalRateLimiter } from '../rate-limit'
+import { addressKey } from '../../util/address-key'
 import { apiError, readJsonObjectBody, type ApiErrorResponse } from '../../api/http'
 import { apiMessage, type ApiMessage } from '../../api/result'
 import { MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH } from '../validation'
@@ -61,10 +62,14 @@ function rateLimitedResponse(remaining: number): Response {
 export async function handleLogin(req: Request, clientIp: string): Promise<Response> {
   const config = await loadRitualConfig()
   const userAgent = req.headers.get('User-Agent') ?? ''
+  // The limiter keys an IPv6 client by its /64, as the MCP OAuth sign-in does,
+  // so stepping through the addresses of one prefix buys no fresh attempts.
+  // The audit log and the session keep the full address.
+  const limitKey = addressKey(clientIp)
 
   // Rate limit check
-  if (config.admin.rateLimitEnabled && globalRateLimiter.isLocked(clientIp)) {
-    return rateLimitedResponse(globalRateLimiter.getRemainingLockSeconds(clientIp))
+  if (config.admin.rateLimitEnabled && globalRateLimiter.isLocked(limitKey)) {
+    return rateLimitedResponse(globalRateLimiter.getRemainingLockSeconds(limitKey))
   }
 
   const parsed = await readJsonObjectBody(req)
@@ -89,12 +94,12 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
   // Counted before the password is checked, so a burst of parallel guesses
   // gets no more checks than the limit: the ones past it are answered as
   // locked. The body was read since the check above, so it is made again here.
-  if (!reserveAttempt(globalRateLimiter, clientIp, config.admin)) {
-    return rateLimitedResponse(globalRateLimiter.getRemainingLockSeconds(clientIp))
+  if (!reserveAttempt(globalRateLimiter, limitKey, config.admin)) {
+    return rateLimitedResponse(globalRateLimiter.getRemainingLockSeconds(limitKey))
   }
   // An answer that is no failure gives the reserved attempt back.
   const release = (): void => {
-    if (config.admin.rateLimitEnabled) globalRateLimiter.release(clientIp)
+    if (config.admin.rateLimitEnabled) globalRateLimiter.release(limitKey)
   }
 
   const attempt: LoginAttempt = { clientIp, username, userAgent }
@@ -134,7 +139,7 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
   }
 
   // Auth succeeded
-  await recordSuccessfulLogin(globalRateLimiter, clientIp, attempt, AUDIT_REASONS.loginSucceeded)
+  await recordSuccessfulLogin(globalRateLimiter, limitKey, attempt, AUDIT_REASONS.loginSucceeded)
   const session = createSession(username, clientIp)
 
   const resp: LoginSuccessResponse = { success: true }

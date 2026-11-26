@@ -15,6 +15,7 @@ import {
   parseCollectionSyncPullTarget,
   parseSiteApiBaseUrl,
   parseSiteConfig,
+  parseTrustedProxies,
   parseUiLocale,
   type AdminConfig,
   type CollectionSyncConfig,
@@ -154,6 +155,7 @@ const ARRAY_VALUE_PARSERS: Record<
 > = {
   priceSources: parsePriceSources,
   defaultCategories: parseDefaultCategories,
+  [CONFIG_KEY.adminTrustedProxies]: parseTrustedProxies,
 }
 
 export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
@@ -182,6 +184,7 @@ export const SETTABLE_ADMIN_FIELDS: Record<string, ConfigFieldType> = {
   'admin.gitAutoCommit': 'boolean',
   'admin.gitAutoPush': 'boolean',
   'admin.trustProxy': 'boolean',
+  'admin.trustedProxies': 'string[]',
   'admin.secureCookies': 'boolean',
   'admin.ipAllowList': 'string[]',
   'admin.ipDenyList': 'string[]',

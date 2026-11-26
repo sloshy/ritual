@@ -567,6 +567,19 @@ export function Settings(): JSX.Element {
             {t('admin.settings.trustProxy')}
           </label>
           <p class="form-hint">{t('admin.settings.trustProxyHint')}</p>
+          <div>
+            <label class="form-label">{t('admin.settings.trustedProxies')}</label>
+            <textarea
+              name="trustedProxies"
+              class="form-input form-input-monospace"
+              value={listToString(config()!.admin.trustedProxies)}
+              onInput={(e) => updateAdminListField('trustedProxies', e.currentTarget.value)}
+              placeholder={t('admin.settings.trustedProxiesPlaceholder', {
+                example: EXAMPLE.trustedProxy,
+              })}
+            />
+            <p class="form-hint form-hint-top">{t('admin.settings.trustedProxiesHint')}</p>
+          </div>
           <label class="checkbox-label">
             <input
               type="checkbox"

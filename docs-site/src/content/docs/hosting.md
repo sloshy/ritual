@@ -65,7 +65,7 @@ Here a tunnel or reverse proxy gives the server a public `https://` address whil
 - **Bind to loopback** (`--host 127.0.0.1`) and let the tunnel or proxy be the only way in. Check your router does not forward the port as well.
 - **Use HTTPS at the tunnel or proxy.** OAuth refuses a plain `http://` public URL except for local testing.
 - **Tell Ritual its public address.** On a loopback bind the MCP endpoint refuses requests for any other host name (`403`) unless you pass [`--public-url`](/commands/mcp/#behind-a-reverse-proxy-or-tunnel) (`--mcp-public-url` for `ritual admin --mcp`). The value is an origin only, such as `https://mcp.example.com`.
-- **Turn on `admin.trustProxy` behind a proxy, and only then.** With it on, Ritual takes each client's address from the proxy's `X-Forwarded-For` entry, so rate limits and the audit log apply per client instead of to the proxy. `--oauth` (or `--mcp-oauth`) on a loopback bind with a non-loopback public URL refuses to start without it (exit `2`). Never turn it on when clients can also reach Ritual directly: they could then claim any address. See [Network options](/commands/admin/#network-options).
+- **Turn on `admin.trustProxy` behind a proxy.** With it on, Ritual takes each client's address from the proxy's `X-Forwarded-For` entry, so rate limits and the audit log apply per client instead of to the proxy. `--oauth` (or `--mcp-oauth`) on a loopback bind with a non-loopback public URL refuses to start without it (exit `2`). The header is believed only from the proxy: a connection from loopback (a tunnel client or proxy on the same machine), or from an address in `admin.trustedProxies`. A client that reaches Ritual directly is taken at its own address, whatever it writes into the header. If the proxy runs on another machine or in a container, add its address or range to `admin.trustedProxies`. The proxy must append to or overwrite `X-Forwarded-For` (see below); behind a loopback forwarder that does not rewrite HTTP headers (`ssh -L`, socat, a TCP-mode tunnel), leave `admin.trustProxy` off. See [Network options](/commands/admin/#network-options).
 - **Set `admin.secureCookies`** when the admin site is served over HTTPS, so its session cookie is never sent over plain HTTP.
 - **Use a strong, unique admin password, and turn on two-factor sign-in.** OAuth signs in with the admin account, so the password guards the MCP endpoint too. TOTP is turned on from the admin site's **Settings → Two-Factor Authentication** (run `ritual admin --host 127.0.0.1` once to do it). See [Two-Factor Authentication](/commands/admin/#two-factor-authentication-totp).
 - **Keep tokens out of sight.** Give the MCP token through the `RITUAL_MCP_TOKEN` environment variable, read from a file only you can read (`chmod 600`). Do not pass `--token` on a long-running command line, where other users of the machine can see it with `ps`. Generate one with `openssl rand -hex 32`.
@@ -244,7 +244,7 @@ Two things to know:
 - **One subdomain level.** Cloudflare's free certificate covers your domain and its first-level subdomains, so `mcp.example.com` works and `mcp.mtg.example.com` does not get HTTPS.
 - **`cert.pem` is not needed to run the tunnel.** `cloudflared tunnel login` saves `~/.cloudflared/cert.pem`, a credential for your whole Cloudflare account. The running tunnel needs only its own credentials file. Once the tunnel and its host names are set up, you can delete `cert.pem`, and run `cloudflared tunnel login` again when you next need to change them.
 
-Cloudflare adds each visitor's address to `X-Forwarded-For`, which is what `admin.trustProxy` reads.
+Cloudflare adds each visitor's address to `X-Forwarded-For`, which is what `admin.trustProxy` reads. `cloudflared` connects from loopback, so it is trusted without an `admin.trustedProxies` entry.
 
 ### A reverse proxy
 
@@ -256,7 +256,13 @@ mcp.example.com {
 }
 ```
 
-The one requirement that matters for Ritual: **the proxy must put the real client address last in `X-Forwarded-For`**. With `admin.trustProxy` on, Ritual reads only the rightmost entry, the one your proxy adds, and ignores whatever a client wrote before it. Caddy does this by default; in nginx, `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` appends it. Keep the original `Host` header too, since that is the host name `--public-url` matches: Caddy keeps it by default, and in nginx add `proxy_set_header Host $host;`.
+The one requirement that matters for Ritual: **the proxy must append the client's address to `X-Forwarded-For`, or overwrite the header with it**. With `admin.trustProxy` on, Ritual reads the header from the right, skips the entries that are trusted proxies themselves, and takes the first one that is not; whatever a client wrote to the left of that is ignored. Caddy does this by default. Stock nginx does not: it neither sets nor appends the header and passes on the one a client sent, which a client can then fill with any address. Add `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`. A loopback forwarder that does not rewrite HTTP headers at all (`ssh -L`, socat, a TCP-mode tunnel) passes forged headers straight through; with one of those, leave `admin.trustProxy` off. Keep the original `Host` header too, since that is the host name `--public-url` matches: Caddy keeps it by default, and in nginx add `proxy_set_header Host $host;`. For the admin site, also make the proxy set `X-Forwarded-Host` itself rather than pass on one a client sent: Caddy does, and in nginx add `proxy_set_header X-Forwarded-Host $host;`.
+
+Ritual believes that entry only when the connection comes from the proxy: a proxy on the same machine, connecting over loopback, needs nothing more. A proxy on another machine, or in another container (on a Docker network it connects from that network's address, not loopback), must be listed by its address or range, or Ritual ignores its headers and sees every client as the proxy:
+
+```bash
+ritual config set --add admin.trustedProxies 192.0.2.10
+```
 
 Other tunnels, such as Tailscale Funnel and ngrok, work on the same principle: a public HTTPS address forwarded to the loopback port.
 

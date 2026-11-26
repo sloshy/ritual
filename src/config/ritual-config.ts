@@ -53,6 +53,7 @@ import {
   type SyncMessageParamsFor,
 } from '../sync/message'
 import { CONFIG_KEY, EXAMPLE, FILE } from '../util/cli-tokens'
+import { formatIpRange, isIpRangeProblem, parseIpRange } from '../util/ip-range'
 import {
   CUSTOM_THEME_NAME_PATTERN,
   isThemeName,
@@ -159,6 +160,13 @@ export interface AdminConfig {
   gitAutoCommit: boolean
   gitAutoPush: boolean
   trustProxy: boolean
+  /**
+   * Proxies on another host or container whose forwarding headers
+   * `trustProxy` believes, beside the always-trusted loopback: IP addresses
+   * and CIDR ranges, each in its canonical spelling and without duplicates
+   * (see {@link parseTrustedProxies}).
+   */
+  trustedProxies: string[]
   secureCookies: boolean
   ipAllowList: string[]
   ipDenyList: string[]
@@ -308,6 +316,7 @@ export const DEFAULT_ADMIN_CONFIG = {
   gitAutoCommit: false,
   gitAutoPush: false,
   trustProxy: false,
+  trustedProxies: [] as string[],
   secureCookies: false,
   ipAllowList: [] as string[],
   ipDenyList: [] as string[],
@@ -797,6 +806,39 @@ function parseAdminStringList(
 }
 
 /**
+ * Validate `admin.trustedProxies` entries: each must be an IP address or a CIDR
+ * range (IPv4 or IPv6) that does not match every address of a family (no `/0`,
+ * no IPv6 range holding the IPv4-mapped block; see `parseIpRange`). Returns them in their canonical spelling (IPv6 in its
+ * RFC 5952 form, an IPv4-mapped range as its IPv4 range, a full-width `/32` or
+ * `/128` dropped) without duplicates, or the refusal of the first entry that
+ * is not one. Shared by the loader, `config set` and `PUT /api/config`.
+ */
+export function parseTrustedProxies(values: readonly string[]): string[] | ConfigParseError {
+  const canonical: string[] = []
+  for (const value of values) {
+    const range = parseIpRange(value)
+    if (range === 'too-wide') {
+      return sectionError(
+        'admin',
+        syncRef('domain.config.trustedProxyTooWide', { field: 'trustedProxies', value }),
+      )
+    }
+    if (isIpRangeProblem(range)) {
+      return sectionError(
+        'admin',
+        syncRef('domain.config.trustedProxy', {
+          field: 'trustedProxies',
+          value,
+          example: EXAMPLE.trustedProxy,
+        }),
+      )
+    }
+    canonical.push(formatIpRange(range))
+  }
+  return [...new Set(canonical)]
+}
+
+/**
  * Parse the `admin` sub-object of a ritual.config.json. Returns the parsed admin
  * config — each absent field defaulted from {@link DEFAULT_ADMIN_CONFIG} — or a
  * parse error describing the first malformed field. Mirrors {@link parseSiteConfig}:
@@ -819,6 +861,14 @@ export function parseAdminConfig(value: unknown): AdminConfig | ConfigParseError
   if (isConfigParseError(gitAutoPush)) return gitAutoPush
   const trustProxy = parseAdminBoolean(obj.trustProxy, 'trustProxy', d.trustProxy)
   if (isConfigParseError(trustProxy)) return trustProxy
+  const trustedProxyList = parseAdminStringList(
+    obj.trustedProxies,
+    'trustedProxies',
+    d.trustedProxies,
+  )
+  if (isConfigParseError(trustedProxyList)) return trustedProxyList
+  const trustedProxies = parseTrustedProxies(trustedProxyList)
+  if (isConfigParseError(trustedProxies)) return trustedProxies
   const secureCookies = parseAdminBoolean(obj.secureCookies, 'secureCookies', d.secureCookies)
   if (isConfigParseError(secureCookies)) return secureCookies
   const ipAllowList = parseAdminStringList(obj.ipAllowList, 'ipAllowList', d.ipAllowList)
@@ -867,6 +917,7 @@ export function parseAdminConfig(value: unknown): AdminConfig | ConfigParseError
     gitAutoCommit,
     gitAutoPush,
     trustProxy,
+    trustedProxies,
     secureCookies,
     ipAllowList,
     ipDenyList,
@@ -1242,6 +1293,21 @@ const warnAndDefault: FieldPolicy = (parsed, key, fallback) => {
   return parsed
 }
 
+/**
+ * The raw `admin` object with a malformed `trustedProxies` replaced by an empty
+ * list, through `field` (the load path warns, naming the entry). Any other bad
+ * admin field still refuses the whole block; this one alone is narrowed, so a
+ * hand-edited proxy entry cannot switch off the IP and User-Agent lists or
+ * `secureCookies` with it. An empty list fails closed: it trusts fewer peers.
+ * `config set` and `PUT /api/config` refuse such an entry outright instead.
+ */
+function withLoadableTrustedProxies(admin: unknown, field: FieldPolicy): unknown {
+  if (!isRecord(admin) || admin.trustedProxies === undefined) return admin
+  const list = parseAdminStringList(admin.trustedProxies, 'trustedProxies', [])
+  const proxies = isConfigParseError(list) ? list : parseTrustedProxies(list)
+  return { ...admin, trustedProxies: field(proxies, CONFIG_KEY.adminTrustedProxies, []) }
+}
+
 function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
   // Absence means "no feed URL", so cacheFeedUrl only parses when
   // present; a malformed value falls back to absent.
@@ -1289,7 +1355,9 @@ function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
       'updateCheck',
       DEFAULT_CONFIG.updateCheck,
     ),
-    admin: field(parseAdminConfig(parsed.admin), 'admin', { ...DEFAULT_ADMIN_CONFIG }),
+    admin: field(parseAdminConfig(withLoadableTrustedProxies(parsed.admin, field)), 'admin', {
+      ...DEFAULT_ADMIN_CONFIG,
+    }),
     // Defaulted unconditionally rather than only when the key is present, so a
     // config file written before this section existed still yields the default.
     collectionSync: field(parseCollectionSyncConfig(parsed.collectionSync), 'collectionSync', {

@@ -171,6 +171,7 @@ describe('ritual config', () => {
         gitAutoCommit: true,
         gitAutoPush: false,
         trustProxy: false,
+        trustedProxies: [],
         secureCookies: false,
         ipAllowList: ['192.168.1.*'],
         ipDenyList: [],
@@ -400,6 +401,31 @@ describe('ritual config', () => {
     expect(config.exportPresets).toBeUndefined()
   })
 
+  // Every other bad admin field still resets the whole block; this one must
+  // not take the IP and User-Agent lists or secureCookies down with it.
+  test('a malformed trustedProxies entry empties only that list, with a warning naming it', async () => {
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({
+        admin: {
+          trustProxy: true,
+          trustedProxies: ['10.0.0.2', 'caddy'],
+          ipAllowList: ['192.168.1.*'],
+          secureCookies: true,
+        },
+      }),
+    )
+    const { result: config, all } = await captureConsole(['warn'], () => refreshRitualConfig())
+    expect(config.admin).toEqual({
+      ...getDefaultRitualConfig().admin,
+      trustProxy: true,
+      trustedProxies: [],
+      ipAllowList: ['192.168.1.*'],
+      secureCookies: true,
+    })
+    expect(all.join('\n')).toContain('"trustedProxies" entry "caddy"')
+  })
+
   test('refreshRitualConfig caches defaults without creating the file when missing', async () => {
     const config = await refreshRitualConfig()
     expect(config).toEqual(getDefaultRitualConfig())
@@ -508,6 +534,24 @@ describe('parseAdminConfig', () => {
   test('returns error when a list field is not an array of strings', () => {
     expect(isConfigParseError(parseAdminConfig({ ipAllowList: '10.0.0.1' }))).toBeTrue()
     expect(isConfigParseError(parseAdminConfig({ userAgentDenyList: [1, 2] }))).toBeTrue()
+  })
+
+  test('reads trustedProxies in their canonical spelling', () => {
+    const result = parseAdminConfig({
+      trustedProxies: [' 172.18.0.0/16', '10.0.0.2/32', 'FD00:1::/32', '::1', '10.0.0.2'],
+    })
+    expect(result).toEqual({
+      ...defaults,
+      trustedProxies: ['172.18.0.0/16', '10.0.0.2', 'fd00:1::/32', '::1'],
+    })
+  })
+
+  // The entry grammar itself is pinned in ip-range.test.ts; this pins that every
+  // entry is checked and how the refusal reads.
+  test('refuses a trustedProxies entry that is not an IP address or CIDR range', () => {
+    const result = parseAdminConfig({ trustedProxies: ['10.0.0.1', 'proxy.internal'] })
+    expectParseError(result, 'admin config')
+    expectParseError(result, '"trustedProxies" entry "proxy.internal"')
   })
 
   test('ignores unknown extra fields', () => {

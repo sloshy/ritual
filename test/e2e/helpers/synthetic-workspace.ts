@@ -470,6 +470,7 @@ const RITUAL_CONFIG = {
     gitAutoCommit: false,
     gitAutoPush: false,
     trustProxy: false,
+    trustedProxies: [],
     secureCookies: false,
     ipAllowList: [],
     ipDenyList: [],

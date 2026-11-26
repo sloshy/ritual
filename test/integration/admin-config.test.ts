@@ -27,7 +27,12 @@ type ConfigView = {
   searchDebounceMs?: number
   updateCheck?: boolean
   exportPresets?: Record<string, { format?: string }>
-  admin?: { gitEnabled?: boolean; rateLimitEnabled?: boolean; rateLimitMaxAttempts?: number }
+  admin?: {
+    gitEnabled?: boolean
+    rateLimitEnabled?: boolean
+    rateLimitMaxAttempts?: number
+    trustedProxies?: string[]
+  }
   collectionSync?: { pullTarget?: string }
   managed?: { migration?: number; output?: string }
 }
@@ -168,6 +173,18 @@ describe('PUT /api/config', () => {
     expect((await readConfig()).defaultCategories).toEqual(['Ramp', 'Board Wipes'])
   })
 
+  test('admin.trustedProxies is validated and canonicalized like config set', async () => {
+    const response = await putConfig({
+      admin: { trustedProxies: [' FD00:0::/8', '10.0.0.2/32', '10.0.0.2'] },
+    })
+    expect(response.ok).toBe(true)
+    // The file itself, not a read through the loader, which would canonicalize anyway.
+    const stored = JSON.parse(
+      await fs.readFile(path.join(workspace.dir, 'ritual.config.json'), 'utf-8'),
+    ) as ConfigView
+    expect(stored.admin?.trustedProxies).toEqual(['fd00::/8', '10.0.0.2'])
+  })
+
   test('rejects invalid values with a 400 and persists none of them', async () => {
     const cases: RejectedConfigUpdate[] = [
       { label: 'negative searchDebounceMs', update: { searchDebounceMs: -1 } },
@@ -202,6 +219,7 @@ describe('PUT /api/config', () => {
       // the persisted config (parseAdminConfig silently ignores them).
       { label: 'unknown nested admin key', update: { admin: { gitEnabled: true, bogusKey: 1 } } },
       { label: 'wrong-typed admin field', update: { admin: { gitEnabled: 'yes' } } },
+      { label: 'malformed trustedProxies entry', update: { admin: { trustedProxies: ['caddy'] } } },
       { label: 'wrong-typed directory key', update: { decksDir: 42 } },
     ]
 

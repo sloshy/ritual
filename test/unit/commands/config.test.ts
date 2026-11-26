@@ -149,6 +149,50 @@ describe('applyConfigSet — site.bannedPrintings', () => {
   })
 })
 
+describe('applyConfigSet — admin.trustedProxies', () => {
+  test('stores entries in the spelling the loader reads back', () => {
+    const result = applyConfigSet(
+      base,
+      'admin.trustedProxies',
+      ['172.18.0.0/16', 'FD00::/8', '10.0.0.2/32'],
+      'replace',
+    )
+    if ('error' in result) throw new Error(result.error.message)
+    expect(result.updatedConfig.admin.trustedProxies).toEqual([
+      '172.18.0.0/16',
+      'fd00::/8',
+      '10.0.0.2',
+    ])
+  })
+
+  test('refuses an entry that is not an IP address or CIDR range', () => {
+    const result = applyConfigSet(base, 'admin.trustedProxies', ['caddy'], 'add')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) expect(result.error.message).toContain('"trustedProxies" entry "caddy"')
+  })
+
+  test('--add and --remove match a stored entry whatever spelling they are given', () => {
+    const seeded = applyConfigSet(base, 'admin.trustedProxies', ['fd00::/8', '10.0.0.2'], 'replace')
+    if ('error' in seeded) throw new Error(seeded.error.message)
+    const added = applyConfigSet(
+      seeded.updatedConfig,
+      'admin.trustedProxies',
+      ['FD00:0::/8'],
+      'add',
+    )
+    if ('error' in added) throw new Error(added.error.message)
+    expect(added.updatedConfig.admin.trustedProxies).toEqual(['fd00::/8', '10.0.0.2'])
+    const removed = applyConfigSet(
+      added.updatedConfig,
+      'admin.trustedProxies',
+      ['10.0.0.2/32'],
+      'remove',
+    )
+    if ('error' in removed) throw new Error(removed.error.message)
+    expect(removed.updatedConfig.admin.trustedProxies).toEqual(['fd00::/8'])
+  })
+})
+
 describe('applyConfigSet — site.apiBaseUrl', () => {
   test('stores a normalized URL (trailing slash stripped)', () => {
     const result = applyConfigSet(base, 'site.apiBaseUrl', ['https://api.example.com/'], 'replace')

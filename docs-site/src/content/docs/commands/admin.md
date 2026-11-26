@@ -215,7 +215,26 @@ Auto-commit covers the admin web UI and the [MCP server](/commands/mcp/) only. C
 
 ### Network options
 
-`admin.trustProxy` makes the server take the client address from the last `X-Forwarded-For` entry, the one a reverse proxy appends, instead of the connection's own address, and the address the browser used from the last `X-Forwarded-Host` entry for the [cross-site check](#cross-site-requests). It governs the [MCP OAuth](/commands/mcp/#sign-in-protection) consent page's and registration's per-address limits too. Turn it on only behind a proxy you control. `admin.secureCookies` marks the session cookie `Secure`, so browsers send it over HTTPS only. Before you make the admin reachable from other machines, see [Host Ritual Yourself](/hosting/) for how far to expose it.
+`admin.trustProxy` makes the server take the client address from `X-Forwarded-For` instead of the connection's own address, and the address the browser used from the last `X-Forwarded-Host` entry for the [cross-site check](#cross-site-requests). It governs the [MCP OAuth](/commands/mcp/#sign-in-protection) consent page's and registration's per-address limits too. Turn it on only behind a proxy you control.
+
+The headers are believed only from a trusted proxy: a connection from this machine's loopback address (`127.0.0.0/8`, `::1`, or `::ffff:127.x.x.x`), or from an address in `admin.trustedProxies`. Any other connection, such as a LAN or VPN device that reaches the admin directly, is taken at its own address and its own `Host` header, whatever forwarding headers it sends, so it cannot dodge the login lockout or write a false address into the audit log. When the proxy runs on another machine or in another container (a Docker network, for example), list its address or range in `admin.trustedProxies`:
+
+```bash
+ritual config set admin.trustProxy true
+ritual config set --add admin.trustedProxies 172.18.0.0/16
+```
+
+Each entry is an IPv4 or IPv6 address or CIDR range (`192.0.2.10`, `10.0.0.0/8`, `fd00::/8`). An entry that would trust every client is refused: a `/0` (`0.0.0.0/0`, `::/0`), or an IPv6 range that holds the whole IPv4-mapped block `::ffff:0:0/96` (such as `::/8` or `::ffff:0:0/96`), through which a dual-stack server sees every IPv4 client. An IPv4-mapped range narrower than that (`::ffff:10.0.0.0/104`) is stored as the IPv4 range it means (`10.0.0.0/8`). `ritual config set` and the admin Settings page refuse a malformed entry; one hand-edited into `ritual.config.json` is reported when the config loads and empties the list (trusting only loopback) without touching any other admin setting. Without `admin.trustProxy`, `admin.trustedProxies` has no effect.
+
+**Which entry is the client.** Each proxy appends the address it was reached from to `X-Forwarded-For`. Ritual reads the header from the right and skips every entry that is itself a trusted proxy (loopback or `admin.trustedProxies`), so a chain such as a CDN in front of a local proxy resolves to the real client once the CDN's ranges are listed; the first entry outside the trusted set is the client, and entries to its left, which that client wrote, are never read. When every entry is a trusted proxy, the leftmost is taken. An entry that is not a plain IP address (`unknown`, `host:port`) stops the walk at the last trusted hop.
+
+**What the proxy must do.** The proxy must append to, or overwrite, `X-Forwarded-For` and should overwrite `X-Forwarded-Host`, or a client can write them for it:
+
+- cloudflared, Tailscale Serve and Caddy do this by default.
+- nginx does not: by default it passes the client's own header through. Add `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` and `proxy_set_header X-Forwarded-Host $host;`.
+- A loopback forwarder that does not rewrite HTTP headers (`ssh -L`, socat, a TCP-mode tunnel) passes a client's forged headers straight through and looks like loopback. Behind one of those, leave `admin.trustProxy` off.
+
+`admin.secureCookies` marks the session cookie `Secure`, so browsers send it over HTTPS only. Before you make the admin reachable from other machines, see [Host Ritual Yourself](/hosting/) for how far to expose it.
 
 ### Failed Login Delay
 
@@ -223,7 +242,7 @@ Every failed authentication attempt is delayed (default: 3 seconds) before the s
 
 ### Rate Limiting
 
-After a number of failed login attempts (default: 5) from one IP address within the rate-limit window (default: 5 minutes), that IP is locked out for the same duration. Each attempt is counted before its password is checked, so a burst of parallel guesses gets no more checks than the limit: the rest are answered as locked out. ("Password right, now enter your code" is not counted.) Wrong two-factor codes are also limited across every address: after 10 wrong codes in 15 minutes (each following a right password), no code is checked for anyone until the window passes, and the login answers as locked out, so the six-digit codes cannot be worked through from many addresses. The [MCP OAuth consent page](/commands/mcp/#sign-in-protection) draws on the same budget in the same process. The trade-off: someone who already has the password can keep code sign-ins refused for as long as they keep guessing; changing the password stops them, and sign-in works again once the current 15-minute window passes. Rate limiting can be disabled in settings; the budget for wrong two-factor codes stays on regardless, because it does not depend on client addresses.
+After a number of failed login attempts (default: 5) from one IP address within the rate-limit window (default: 5 minutes), that IP is locked out for the same duration. Each attempt is counted before its password is checked, so a burst of parallel guesses gets no more checks than the limit: the rest are answered as locked out. ("Password right, now enter your code" is not counted.) Wrong two-factor codes are also limited across every address: after 10 wrong codes in 15 minutes (each following a right password), no code is checked for anyone until the window passes, and the login answers as locked out, so the six-digit codes cannot be worked through from many addresses. The [MCP OAuth consent page](/commands/mcp/#sign-in-protection) draws on the same budget in the same process. The trade-off: someone who already has the password can keep code sign-ins refused for as long as they keep guessing; changing the password stops them, and sign-in works again once the current 15-minute window passes. Rate limiting can be disabled in settings; the budget for wrong two-factor codes stays on regardless, because it does not depend on client addresses. An IPv6 client is counted by its /64, the block one subscriber is normally given, so moving to another address inside it gets no fresh attempts; the audit log still records the full address.
 
 | Config Field                   | Default | Description                                      |
 | ------------------------------ | ------- | ------------------------------------------------ |
@@ -252,7 +271,7 @@ The TOTP secret is stored in `.logins/admin-auth.json` alongside the password ha
 
 ### Cross-site requests
 
-A page on another website cannot make your browser act on the admin. Any API request a browser sends from another site, including a sibling site on another port or subdomain of the same host, is refused with `403 Forbidden` before any route runs, answered in the API's shared [error envelope](/admin/api/#error-responses) (`messageKey: admin.api.server.crossSite`). That covers creating the first account and signing in, which need no session, and the streams that sync or rebuild. The admin site's own requests always pass, and so do scripts that send no `Origin` or `Sec-Fetch-Site` header. Behind a reverse proxy that rewrites the `Host` header, turn on `admin.trustProxy` so older browsers that send only `Origin` are judged against the address they used. See [Authentication](/admin/api/#authentication) for the exact rule.
+A page on another website cannot make your browser act on the admin. Any API request a browser sends from another site, including a sibling site on another port or subdomain of the same host, is refused with `403 Forbidden` before any route runs, answered in the API's shared [error envelope](/admin/api/#error-responses) (`messageKey: admin.api.server.crossSite`). That covers creating the first account and signing in, which need no session, and the streams that sync or rebuild. The admin site's own requests always pass, and so do scripts that send no `Origin` or `Sec-Fetch-Site` header. Behind a reverse proxy that rewrites the `Host` header, turn on `admin.trustProxy` (and, for a proxy on another machine or in a container, list it in `admin.trustedProxies`) so older browsers that send only `Origin` are judged against the address they used. See [Authentication](/admin/api/#authentication) for the exact rule.
 
 ### IP Allow/Deny Lists
 
@@ -261,7 +280,7 @@ Control which IP addresses can access the admin interface (and the [MCP OAuth co
 - **Allow list**: if non-empty, only IPs matching a pattern can connect. All others get `403 Forbidden`, answered in the API's shared [error envelope](/admin/api/#error-responses) (`messageKey: admin.api.server.forbidden`).
 - **Deny list**: IPs matching any pattern are blocked. Deny is checked before allow.
 
-Patterns support simple wildcards: `192.168.1.*`, `10.0.*`, `*` (match all).
+Patterns support simple wildcards: `192.168.1.*`, `10.0.*`, `*` (match all). Behind a proxy, the lists see the forwarded client address only when the proxy is trusted (see [Network options](#network-options)); otherwise they see the proxy's address.
 
 ### User-Agent Allow/Deny Lists
 

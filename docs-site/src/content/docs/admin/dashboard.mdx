@@ -79,7 +79,8 @@ The headed groups below them:
 
 **Network Security**
 
-- **Trust reverse proxy headers**: parse `X-Forwarded-For` (the client address) and `X-Forwarded-Host` (for the [cross-site check](/commands/admin/#cross-site-requests)) when running behind a reverse proxy (nginx, Caddy, etc.). Leave off for direct connections
+- **Trust reverse proxy headers**: parse `X-Forwarded-For` (the client address) and `X-Forwarded-Host` (for the [cross-site check](/commands/admin/#cross-site-requests)) when running behind a reverse proxy (nginx, Caddy, etc.). They are believed only from a proxy on this machine or one listed under **Trusted proxies**; any other connection is taken at its own address. Leave off for direct connections
+- **Trusted proxies**: IP addresses and CIDR ranges, one per line, of proxies on another machine or in another container whose forwarded headers are believed while **Trust reverse proxy headers** is on (`admin.trustedProxies`). A proxy on this machine needs no entry. See [Network options](/commands/admin/#network-options)
 - **Secure cookies (HTTPS only)**: set the `Secure` flag on session cookies. Enable when using TLS or a TLS-terminating reverse proxy
 
 **Two-Factor Authentication (TOTP)**

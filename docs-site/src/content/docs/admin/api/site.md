@@ -259,6 +259,7 @@ Returns the current application configuration.
       "gitAutoCommit": false,
       "gitAutoPush": false,
       "trustProxy": false,
+      "trustedProxies": [],
       "secureCookies": false,
       "ipAllowList": [],
       "ipDenyList": [],
@@ -326,6 +327,8 @@ A rejected value answers in the shared [error envelope](/admin/api/#error-respon
 
 A `priceSources` or `defaultPriceSource` refusal is keyed `domain.config.mustBeOneOf`, `domain.config.mustBeStringArray`, or `domain.config.unknownStore` (`{ field, value, values }`, with the accepted stores a `{ list, join }`). An `exportPresets` refusal is keyed `domain.export.problem.*` (a preset's column list's own refusal nested as `reason` inside `domain.export.problem.presetColumnsInvalid`). A `defaultCategories` refusal is keyed: `domain.config.defaultCategoriesNotArray` / `domain.config.defaultCategoriesNotText`, or the category rule's own `domain.card.category.invalid`, whose `rule` nests `domain.card.category.shapeRule`.
 
+An `admin.trustedProxies` entry that is not an IP address or CIDR range is refused under `domain.config.inSection` (`section: "admin"`), its `reason` keyed `domain.config.trustedProxy` (`{ field, value, example }`). Accepted entries are stored in their canonical spelling, as `ritual config set` stores them (IPv6 lowercased and compressed, an IPv4-mapped range as its IPv4 range, a full-width `/32` or `/128` dropped, duplicates removed).
+
 A `uiLocale` refusal is keyed `domain.config.uiLocaleMalformed` for a value that is not a language tag at all, whose `reason` nests the tag parser's own refusal (`errors.i18n.localeTag.invalid` (`{ value }`, the value as given), `errors.i18n.localeTag.empty` or `errors.i18n.localeTag.notAString`), or `domain.config.uiLocaleUnknown` (`{ tag }`) for a well-formed tag naming no language the server knows.
 
 **Request body:**
@@ -360,6 +363,7 @@ A `uiLocale` refusal is keyed `domain.config.uiLocaleMalformed` for a value that
       "gitAutoCommit": true,
       "gitAutoPush": false,
       "trustProxy": false,
+      "trustedProxies": [],
       "secureCookies": false,
       "ipAllowList": [],
       "ipDenyList": [],

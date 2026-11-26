@@ -130,6 +130,7 @@ export const MOCK_CONFIG = {
     gitAutoCommit: false,
     gitAutoPush: false,
     trustProxy: false,
+    trustedProxies: [],
     secureCookies: false,
     rateLimitEnabled: true,
     rateLimitMaxAttempts: 5,

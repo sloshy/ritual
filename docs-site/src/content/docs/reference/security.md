@@ -57,6 +57,7 @@ A few protections apply whatever you expose:
 
 - **Every server caps the size of a request.** An oversized one is refused before it can fill the server's memory.
 - **The admin site refuses requests sent from other websites.** A page on another site, even another port of the same computer, cannot make your browser save, delete, sync, sign in or create the admin account, even while you are signed in: the admin refuses any API request a browser sends from another site, on top of its `SameSite` sign-in cookie.
+- **Forwarded client addresses are believed only from your proxy.** With [`admin.trustProxy`](/commands/admin/#network-options) on, the admin site and the MCP sign-in page read a client's address from `X-Forwarded-For` only when the connection comes from this machine (loopback) or from an address in `admin.trustedProxies`. A device that connects directly is recorded and rate-limited by its own address, whatever header it sends.
 - **The cache server and the cache feed host do not reveal their errors.** When something goes wrong, the reply says only that it did; the details go to the server's own console.
 - **`serve --api` has no sign-in and no write routes**, so there is nothing for another site to forge. Its `POST` routes only look up prices and buylist quotes.
 

@@ -75,7 +75,7 @@ import { t } from '../i18n/t'
 import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
 import { startServerOrThrow } from '../util/start-server'
 import { isCrossSiteRequest } from './same-origin'
-import { getClientIp, type RequestIPServer } from './forwarded'
+import { readRequestSource, type RequestIPServer } from './forwarded'
 import { isRefusedByAccessLists } from './access-lists'
 
 const COLLECTION_CFG: ListLifecycleConfig = {
@@ -100,6 +100,12 @@ interface AdminServerOptions {
   port: number
   host: string
   distDir: string
+  /**
+   * What reports each request's peer address. The Bun listener itself when
+   * absent; a test passes a stand-in to look like a peer that is not loopback,
+   * which a test client on this machine cannot otherwise be.
+   */
+  peer?: RequestIPServer
 }
 
 export type RouteHandler = (req: Request, context: RequestContext) => Promise<Response>
@@ -524,7 +530,7 @@ async function handleRequest(
     return handleDevReload(url.pathname)
   }
 
-  // Load config first — needed for trustProxy and filtering. The re-read means
+  // Load config first — needed for the proxy settings and filtering. The re-read means
   // a config hand-edited into invalid JSON while the server runs fails every
   // request; answer with the actionable parse message rather than letting the
   // throw reach Bun's error hook as a contentless 500.
@@ -539,7 +545,7 @@ async function handleRequest(
     }
     throw error
   }
-  const clientIp = getClientIp(req, server, config.admin.trustProxy)
+  const { clientIp, forwardedHost } = readRequestSource(req, server, config.admin)
   const userAgent = req.headers.get('User-Agent') ?? ''
 
   // IP and User-Agent filtering
@@ -550,7 +556,7 @@ async function handleRequest(
   // A browser's API request from another site, refused before any route — the
   // session-free ones (setup, login) and the acting streams included. See
   // `./same-origin.ts`.
-  if (url.pathname.startsWith('/api/') && isCrossSiteRequest(req, config.admin.trustProxy)) {
+  if (url.pathname.startsWith('/api/') && isCrossSiteRequest(req, forwardedHost)) {
     return apiError(apiMessage('admin.api.server.crossSite'), 403)
   }
 
@@ -619,7 +625,7 @@ export interface AdminServer {
 }
 
 export async function startAdminServer(options: AdminServerOptions): Promise<AdminServer> {
-  const { port, host, distDir } = options
+  const { port, host, distDir, peer } = options
 
   await Promise.all(
     ['decks', 'collections', 'wanted'].map((dir) =>
@@ -633,7 +639,7 @@ export async function startAdminServer(options: AdminServerOptions): Promise<Adm
       hostname: host,
       maxRequestBodySize: MAX_ADMIN_REQUEST_BODY_SIZE,
       async fetch(req) {
-        const response = await handleRequest(req, server, distDir)
+        const response = await handleRequest(req, peer ?? server, distDir)
         return withSecurityHeaders(response)
       },
       error(error) {

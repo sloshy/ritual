@@ -1,6 +1,6 @@
 import { OAuthError, oauthMetadataResponse, verifyBearerToken } from '@modelcontextprotocol/server'
 import { isRefusedByAccessLists } from '../../admin/access-lists'
-import { getClientIp, type RequestIPServer } from '../../admin/forwarded'
+import { readRequestSource, type RequestIPServer } from '../../admin/forwarded'
 import { OAuthStateUnavailableError } from '../../auth/mcp-oauth/store'
 import { loadRitualConfig } from '../../config/ritual-config'
 import { t } from '../../i18n/t'
@@ -76,8 +76,8 @@ export function createOAuthRouter(options: OAuthRouterOptions): OAuthRouter {
       case OAUTH_PATHS.authorizationServer:
         return metadataResponse(request, path, metadata)
       case OAUTH_PATHS.register: {
-        const { trustProxy } = (await loadRitualConfig()).admin
-        return handleRegister(server, request, getClientIp(request, peer, trustProxy))
+        const { admin } = await loadRitualConfig()
+        return handleRegister(server, request, readRequestSource(request, peer, admin).clientIp)
       }
       case OAUTH_PATHS.token:
         return handleToken(server, request)
@@ -87,7 +87,7 @@ export function createOAuthRouter(options: OAuthRouterOptions): OAuthRouter {
         }
         const { admin } = await loadRitualConfig()
         const context: AuthorizeContext = {
-          clientIp: getClientIp(request, peer, admin.trustProxy),
+          clientIp: readRequestSource(request, peer, admin).clientIp,
           userAgent: request.headers.get('User-Agent') ?? '',
           settings: admin,
         }

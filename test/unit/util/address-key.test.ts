@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { addressKey } from '../../../../src/mcp/oauth/address-key'
+import { addressKey } from '../../../src/util/address-key'
 
 describe('addressKey', () => {
   test.each([

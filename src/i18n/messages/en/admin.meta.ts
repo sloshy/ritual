@@ -1549,7 +1549,20 @@ export const adminMeta = {
   },
   'admin.settings.trustProxy': { description: 'Tick box trusting forwarded-address headers.' },
   'admin.settings.trustProxyHint': {
-    description: 'Explains when to trust proxy headers. nginx and Caddy are product names.',
+    description:
+      'Explains when to trust proxy headers and that they are believed only from a trusted proxy. nginx and Caddy are product names; X-Forwarded-For and X-Forwarded-Host are HTTP header names, never translated.',
+  },
+  'admin.settings.trustedProxies': {
+    description:
+      'Field label: the network addresses of reverse proxies on other machines whose forwarded headers are believed.',
+  },
+  'admin.settings.trustedProxiesPlaceholder': {
+    description:
+      'Placeholder showing an example entry. {example} is a CIDR range (an address, a slash and a prefix length), shown as is.',
+  },
+  'admin.settings.trustedProxiesHint': {
+    description:
+      'Explains the syntax of the trusted-proxies list and that a proxy on the same machine needs no entry. CIDR is a networking term; keep it.',
   },
   'admin.settings.secureCookies': { description: 'Tick box restricting session cookies to HTTPS.' },
   'admin.settings.secureCookiesHint': {

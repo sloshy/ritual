@@ -1,5 +1,5 @@
 import type { ParameterlessKey } from '../../i18n/t'
-import { addressKey } from './address-key'
+import { addressKey } from '../../util/address-key'
 import type { OAuthAuthorizationServer } from './authorization-server'
 import {
   MAX_CLIENT_NAME_LENGTH,

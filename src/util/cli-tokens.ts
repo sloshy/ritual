@@ -261,6 +261,7 @@ export type ConfigKeyToken =
 /** Config keys the messages name, by camelCase name. */
 export const CONFIG_KEY = {
   adminTrustProxy: 'admin.trustProxy',
+  adminTrustedProxies: 'admin.trustedProxies',
   artDir: 'artDir',
   cacheDir: 'cacheDir',
   cacheFeedUrl: 'cacheFeedUrl',
@@ -311,6 +312,7 @@ export const EXAMPLE = {
   feedPublicUrl: 'http://<host>:<port>',
   feedUrl: 'https://feed.example.com/feed.json',
   mcpPublicUrl: 'https://mcp.example.com',
+  trustedProxy: '172.18.0.0/16',
   /** CSV-import spellings and the tokens the importer writes for them. */
   // i18n-exempt: importer input spellings and the card-line tokens they become, matched verbatim
   importNormalization: '“Near Mint” → NM, “F” → foil, “side” → Sideboard',

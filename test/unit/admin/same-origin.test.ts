@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { isCrossSiteRequest } from '../../../src/admin/same-origin'
-import { lastForwarded } from '../../../src/admin/forwarded'
 
 /** A request to the admin at `http://admin.test:8080`, as a browser or script would send it. */
 function request(method: string, headers: Record<string, string>, url?: string): Request {
@@ -18,14 +17,14 @@ describe('isCrossSiteRequest', () => {
     ['cross-site', true],
   ] as const)('Sec-Fetch-Site: %s refused → %p', (site, refused) => {
     const req = request('POST', { 'Sec-Fetch-Site': site, Origin: 'https://elsewhere.example' })
-    expect(isCrossSiteRequest(req, false)).toBe(refused)
+    expect(isCrossSiteRequest(req, null)).toBe(refused)
   })
 
   // A few GET routes act (the sync, cache-refresh and build streams), so a
   // read is judged by the same rule as a write.
   test('a GET from another site is refused too', () => {
-    expect(isCrossSiteRequest(request('GET', { 'Sec-Fetch-Site': 'same-site' }), false)).toBe(true)
-    expect(isCrossSiteRequest(request('GET', { 'Sec-Fetch-Site': 'same-origin' }), false)).toBe(
+    expect(isCrossSiteRequest(request('GET', { 'Sec-Fetch-Site': 'same-site' }), null)).toBe(true)
+    expect(isCrossSiteRequest(request('GET', { 'Sec-Fetch-Site': 'same-origin' }), null)).toBe(
       false,
     )
   })
@@ -38,11 +37,11 @@ describe('isCrossSiteRequest', () => {
     ['an opaque origin', 'null', true],
     ['a malformed value', 'not a url', true],
   ] as const)('without Sec-Fetch-Site, an Origin of %s refused → %p', (_name, origin, refused) => {
-    expect(isCrossSiteRequest(request('DELETE', { Origin: origin }), false)).toBe(refused)
+    expect(isCrossSiteRequest(request('DELETE', { Origin: origin }), null)).toBe(refused)
   })
 
   test('a request with neither header (a script, not a browser) passes', () => {
-    expect(isCrossSiteRequest(request('PUT', {}), false)).toBe(false)
+    expect(isCrossSiteRequest(request('PUT', {}), null)).toBe(false)
   })
 
   // The `Host` header names what the browser addressed, not the URL the
@@ -53,7 +52,7 @@ describe('isCrossSiteRequest', () => {
       { Host: 'admin.test:8080', Origin: 'http://admin.test:8080' },
       'http://internal:1/api/logout',
     )
-    expect(isCrossSiteRequest(req, false)).toBe(false)
+    expect(isCrossSiteRequest(req, null)).toBe(false)
   })
 
   // An `Origin` never spells a default port; a `Host` header may.
@@ -62,32 +61,18 @@ describe('isCrossSiteRequest', () => {
       Host: 'admin.example.com:443',
       Origin: 'https://admin.example.com',
     })
-    expect(isCrossSiteRequest(req, false)).toBe(false)
+    expect(isCrossSiteRequest(req, null)).toBe(false)
   })
 
   // Behind a proxy that forwards to the admin's own address, the host the
-  // browser addressed is the proxy's `X-Forwarded-Host` — trusted only when
-  // `admin.trustProxy` says a proxy is there.
-  test('reads the forwarded host only under trustProxy', () => {
-    const proxied = () =>
-      request('PATCH', {
-        Host: '127.0.0.1:8080',
-        'X-Forwarded-Host': 'spoofed.example, admin.example.com',
-        Origin: 'https://admin.example.com',
-      })
-    expect(isCrossSiteRequest(proxied(), true)).toBe(false)
-    expect(isCrossSiteRequest(proxied(), false)).toBe(true)
-  })
-})
-
-describe('lastForwarded', () => {
-  test.each([
-    [null, null],
-    ['', null],
-    ['10.0.0.1', '10.0.0.1'],
-    ['1.1.1.1, 10.0.0.1', '10.0.0.1'],
-    ['1.1.1.1, ', null],
-  ] as const)('%p → %p', (header, expected) => {
-    expect(lastForwarded(header)).toBe(expected)
+  // browser addressed is the proxy's `X-Forwarded-Host` — passed in only when
+  // `readRequestSource` believed it (see forwarded.test.ts).
+  test('compares against a believed forwarded host instead of Host', () => {
+    const proxied = request('PATCH', {
+      Host: '127.0.0.1:8080',
+      Origin: 'https://admin.example.com',
+    })
+    expect(isCrossSiteRequest(proxied, 'admin.example.com')).toBe(false)
+    expect(isCrossSiteRequest(proxied, null)).toBe(true)
   })
 })

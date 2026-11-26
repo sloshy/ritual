@@ -17,6 +17,8 @@ type ConfigPutBody = {
   admin?: {
     gitEnabled?: boolean
     gitAutoCommit?: boolean
+    trustProxy?: boolean
+    trustedProxies?: string[]
   }
   site?: {
     includeDecks?: string[]
@@ -225,6 +227,26 @@ test.describe('Settings Page', () => {
     const request = await requestPromise
     const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
     expect(body.admin?.gitEnabled).toBe(true)
+  })
+
+  test('turning trustProxy on with a trusted proxies list persists both, one entry per line', async ({
+    page,
+  }) => {
+    const main = page.locator('main')
+    const proxies = main.locator('textarea[name="trustedProxies"]')
+    await main
+      .locator('label:has-text("Trust reverse proxy headers") input[type="checkbox"]')
+      .check()
+    await proxies.fill('172.30.0.0/24\nfd00::/8')
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    expect(body.admin?.trustProxy).toBe(true)
+    expect(body.admin?.trustedProxies).toEqual(['172.30.0.0/24', 'fd00::/8'])
   })
 
   test('toggling the Price Stores checkboxes persists priceSources in canonical order', async ({

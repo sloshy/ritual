@@ -57,6 +57,29 @@ release changes a file format or a generated file, it ships the change as a
   codes from many addresses at once. A wrong password is answered as before. The budget is shared
   with the new MCP OAuth consent page. The trade-off: someone who already has the password can
   keep code logins refused for as long as they keep guessing; changing the password stops them.
+- **Security:** with [`admin.trustProxy`](https://ritual.rpeters.dev/commands/admin/#network-options)
+  on, the admin site and the MCP OAuth sign-in now believe `X-Forwarded-For` and
+  `X-Forwarded-Host` only from a trusted proxy: a connection from loopback (`127.0.0.0/8`, `::1`,
+  `::ffff:127.x.x.x`), or from an address in the new `admin.trustedProxies` setting (IPv4 and IPv6
+  addresses and CIDR ranges). Before, every connection's headers were believed, so a client that
+  reached a server bound to a network address directly could write any address into the header,
+  dodge the per-address login lockout and put a false address in the audit log. Any other
+  connection is now taken at its own address and `Host`. `X-Forwarded-For` is read from the right,
+  skipping entries that are trusted proxies themselves, so a chain (a CDN in front of your proxy)
+  resolves to the real client once the CDN is listed. An entry that would trust every client (a
+  `/0`, or an IPv6 range holding the IPv4-mapped block) is refused. A tunnel client or proxy on the
+  same machine (cloudflared, Tailscale Serve, Caddy) needs nothing; nginx must be set to append the
+  header (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`), and a forwarder that
+  does not rewrite HTTP headers (`ssh -L`, socat) must not be used with `admin.trustProxy`. **Action needed if your
+  proxy is on another machine or in another container**, including any Docker or Docker Compose
+  setup, where the proxy connects from a network address rather than loopback: add it with
+  `ritual config set --add admin.trustedProxies <address-or-range>`, or on the admin Settings page under **Trusted proxies** (see
+  [Docker](https://ritual.rpeters.dev/docker/#behind-a-reverse-proxy-container)). Until you do,
+  Ritual sees every client as the proxy: one shared login lockout, and the proxy's address in the
+  audit log and the IP allow and deny lists.
+- **Security:** the admin login's per-address lockout now counts an IPv6 client by its /64, as the
+  MCP OAuth sign-in already did, so moving to another address inside one prefix no longer gets a
+  fresh set of attempts. The audit log still records each full address.
 
 ## [1.0.0] - 2026-11-25
 

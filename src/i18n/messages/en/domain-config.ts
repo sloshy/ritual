@@ -50,6 +50,10 @@ export const domainConfigMessages = {
     '"{field}" names no theme ("{value}"): use a built-in theme ({values}), or list custom theme files in "{filesField}" to use one of their names',
   'domain.config.bannedPrinting':
     'banned printing "{value}" must be in "{format}" form (e.g. "{example}")',
+  'domain.config.trustedProxy':
+    '"{field}" entry "{value}" must be an IP address or a CIDR range (e.g. "{example}")',
+  'domain.config.trustedProxyTooWide':
+    '"{field}" entry "{value}" would trust every client: list only the address or network your proxy connects from',
   'domain.config.uiLocaleMalformed': 'invalid UI locale: {reason}',
   'domain.config.uiLocaleUnknown':
     'invalid UI locale "{tag}": no such language is known (expected a BCP-47 tag such as "en" or "de-AT")',

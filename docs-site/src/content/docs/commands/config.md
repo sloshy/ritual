@@ -63,6 +63,7 @@ The nested `admin` keys, settings for the [admin server](/commands/admin/), use 
 | `admin.gitAutoCommit`          | `boolean`  | `false` |
 | `admin.gitAutoPush`            | `boolean`  | `false` |
 | `admin.trustProxy`             | `boolean`  | `false` |
+| `admin.trustedProxies`         | `string[]` | `[]`    |
 | `admin.secureCookies`          | `boolean`  | `false` |
 | `admin.ipAllowList`            | `string[]` | `[]`    |
 | `admin.ipDenyList`             | `string[]` | `[]`    |
@@ -72,6 +73,9 @@ The nested `admin` keys, settings for the [admin server](/commands/admin/), use 
 | `admin.rateLimitMaxAttempts`   | `number`   | `5`     |
 | `admin.rateLimitWindowMinutes` | `number`   | `5`     |
 | `admin.failedAuthDelayMs`      | `number`   | `3000`  |
+
+- `admin.trustedProxies`: each entry must be an IPv4 or IPv6 address or CIDR range (`192.0.2.10`, `10.0.0.0/8`, `fd00::/8`); anything else is refused (exit `2`). Entries are stored in one spelling (IPv6 lowercased and compressed, an IPv4-mapped `::ffff:` range as its IPv4 range, a full-width `/32` or `/128` dropped, duplicates removed), so `--remove 192.0.2.10/32` removes a stored `192.0.2.10`. They take effect only with `admin.trustProxy` on. See [Network options](/commands/admin/#network-options).
+- `admin.ipAllowList` and `admin.ipDenyList` are wildcard patterns (`192.168.1.*`), not CIDR ranges. See [IP Allow/Deny Lists](/commands/admin/#ip-allowdeny-lists).
 
 The nested `collectionSync` key, for [`collection-sync`](/commands/collection-sync/):
 
@@ -138,7 +142,7 @@ ritual config set admin.gitEnabled true
 ritual config set decksDir ./my-decks
 ritual config set defaultLanguage ja        # aliases work too: jp, Japanese
 ritual config set uiLocale de-AT            # the interface language, not the card language
-ritual config set admin.ipAllowList "192.168.1.0/24" "10.0.0.1"   # replaces the whole list
+ritual config set admin.ipAllowList "192.168.1.*" "10.0.0.1"      # replaces the whole list
 ritual config set --add admin.ipAllowList "10.0.0.2"
 ritual config set --remove admin.ipAllowList "10.0.0.1"
 ritual config set site.includeDecks "Izzet Storm" "Atraxa Superfriends"
@@ -159,7 +163,7 @@ Prints the effective value of one property: what Ritual uses, whether from the f
 $ ritual config get decksDir
 ./decks
 $ ritual config get admin.ipAllowList --output json
-["192.168.1.0/24"]
+["192.168.1.*"]
 ```
 
 Optional keys that have never been set exit with `not_found` (code `3`): `cacheFeedUrl`, `cacheDir`, `defaultPriceSource` (its effective value, the first `priceSources` entry, is applied when prices are read, not reported by `get`), `exportPresets`, `site.bannedPrintings`, `site.apiBaseUrl`, `site.sellMode`, `site.theme`, `site.themeFiles`, and the `site.*` selection lists before a `site` object exists. An unknown property is a usage error (code `2`) that lists the available keys.

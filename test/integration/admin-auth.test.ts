@@ -437,6 +437,59 @@ describe('admin server refusals (Integration)', () => {
   })
 })
 
+describe('forwarded client addresses (Integration)', () => {
+  // A test client on this machine always connects from loopback, which is a
+  // trusted proxy; the server's `peer` stand-in makes the connection look like
+  // it came from a LAN address instead.
+  const DIRECT_PEER = '192.0.2.50'
+  const FORGED = '203.0.113.77'
+
+  beforeEach(async () => {
+    ws = await bindWorkspace({
+      dirs: [],
+      config: { admin: { trustProxy: true, failedAuthDelayMs: 0 } },
+    })
+    await createAdminUser('admin', 'test1234')
+  })
+
+  afterEach(async () => {
+    // The login rate limiter is process-wide: leave no failures behind.
+    globalRateLimiter.recordSuccess(DIRECT_PEER)
+    globalRateLimiter.recordSuccess(FORGED)
+    await ws.dispose()
+  })
+
+  /** Send one wrong-password sign-in with a forged `X-Forwarded-For`; the audited address. */
+  async function auditedAddressOfForgedLogin(): Promise<string> {
+    await using server = await startAdminServer({
+      port: 0,
+      host: '127.0.0.1',
+      distDir: ws.dir,
+      peer: { requestIP: () => ({ address: DIRECT_PEER }) },
+    })
+    const resp = await fetch(`http://127.0.0.1:${server.port}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': FORGED },
+      body: JSON.stringify({ username: 'admin', password: 'wrong-password' }),
+    })
+    expect(resp.status).toBe(401)
+    const log = await fs.readFile(path.join(ws.dir, '.logins', 'admin-audit.log'), 'utf-8')
+    const last = JSON.parse(log.trim().split('\n').at(-1)!) as { ip: string }
+    return last.ip
+  }
+
+  test('a direct client that is not a trusted proxy cannot change its audited address', async () => {
+    expect(await auditedAddressOfForgedLogin()).toBe(DIRECT_PEER)
+  })
+
+  test('the same header from a peer listed in admin.trustedProxies is believed', async () => {
+    await writeConfig(ws.dir, {
+      admin: { trustProxy: true, failedAuthDelayMs: 0, trustedProxies: ['192.0.2.0/24'] },
+    })
+    expect(await auditedAddressOfForgedLogin()).toBe(FORGED)
+  })
+})
+
 describe('admin login under a burst (Integration)', () => {
   beforeEach(async () => {
     ws = await bindWorkspace({ dirs: [], config: { admin: { failedAuthDelayMs: 0 } } })
@@ -479,6 +532,27 @@ describe('admin login under a burst (Integration)', () => {
       expect(await failedAuditEntries()).toBe(5)
     } finally {
       globalRateLimiter.recordSuccess(ip)
+    }
+  })
+
+  test('an IPv6 client stepping through its /64 shares one lockout', async () => {
+    // Addresses no other suite uses: the login rate limiter is process-wide.
+    const first = '2001:db8:99:4::1'
+    const sibling = '2001:db8:99:4:ffff::2'
+    const otherPrefix = '2001:db8:99:5::1'
+    try {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        expect((await login(first, 'wrong')).status).toBe(401)
+      }
+      expect((await login(sibling, 'test1234')).status).toBe(429)
+      expect((await login(otherPrefix, 'test1234')).status).toBe(200)
+      // The audit log keeps each full address, not the /64 key.
+      const log = await fs.readFile(path.join(ws.dir, '.logins', 'admin-audit.log'), 'utf-8')
+      expect(log).toContain(`"ip":"${first}"`)
+      expect(log).not.toContain('::/64')
+    } finally {
+      globalRateLimiter.recordSuccess('2001:db8:99:4::/64')
+      globalRateLimiter.recordSuccess('2001:db8:99:5::/64')
     }
   })
 

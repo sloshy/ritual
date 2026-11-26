@@ -81,6 +81,12 @@ export const domainConfigMeta = {
   'domain.config.bannedPrinting': {
     description: `${REFUSAL} One entry of the banned-printings setting is not a printing. {value} is the entry as the user wrote it. {format} is the shape a printing takes, \`SET:COLLECTOR\` (a set code, a colon, a collector number), and {example} an example entry, \`sld:123\`. Each is typed or matched exactly by the user, so never translate them.`,
   },
+  'domain.config.trustedProxy': {
+    description: `${REFUSAL} ${FIELD} The setting lists the reverse proxies (by network address) whose forwarded client addresses Ritual believes, and one entry is not an address. {value} is the entry as the user wrote it. {example} is an example entry, a CIDR range such as \`172.18.0.0/16\` (an address, a slash and a prefix length). "IP address" and "CIDR range" are networking terms; keep CIDR as it is. Never translate {value} or {example}.`,
+  },
+  'domain.config.trustedProxyTooWide': {
+    description: `${REFUSAL} ${FIELD} The setting lists the reverse proxies (by network address) whose forwarded client addresses Ritual believes. This entry is a network range so wide (for example 0.0.0.0/0, or an IPv6 range that holds every IPv4 address) that it would believe any client's claimed address. {value} is the entry as the user wrote it; never translate it.`,
+  },
   'domain.config.uiLocaleMalformed': {
     description: `${REFUSAL} The interface-language setting (a language tag such as "de-AT") is not a valid tag at all. {reason} is the tag parser’s explanation, already translated (e.g. “invalid locale tag: de_DE”).`,
   },

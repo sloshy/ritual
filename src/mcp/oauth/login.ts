@@ -13,7 +13,7 @@ import {
 import type { RateLimiter } from '../../admin/rate-limit'
 import { verifyTotp } from '../../admin/totp'
 import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH } from '../../admin/validation'
-import { addressKey } from './address-key'
+import { addressKey } from '../../util/address-key'
 import type { SignInGate } from './sign-in-gate'
 
 /** The sign-in fields of a consent form, as submitted. */

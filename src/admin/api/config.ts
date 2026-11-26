@@ -264,6 +264,11 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
             return badRequest(apiMessage('admin.api.config.unknownAdminKey', { key }))
           }
         }
+        // The one admin list the loader rewrites into a canonical spelling is
+        // stored that way, as `config set` stores it, so the file and this
+        // answer agree with the next read. (`updates` aliases the raw body.)
+        const adminBody = raw.admin as Record<string, unknown>
+        if ('trustedProxies' in adminBody) adminBody.trustedProxies = parsed.trustedProxies
       }
     }
 

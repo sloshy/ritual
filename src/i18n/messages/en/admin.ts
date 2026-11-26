@@ -893,7 +893,11 @@ export const adminMessages = {
   'admin.settings.networkHeading': 'Network Security',
   'admin.settings.trustProxy': 'Trust reverse proxy headers',
   'admin.settings.trustProxyHint':
-    'Enable if running behind a reverse proxy (nginx, Caddy, etc.). Only parses X-Forwarded-For when enabled. Leave off for direct connections.',
+    'Enable if running behind a reverse proxy (nginx, Caddy, etc.). The X-Forwarded-For and X-Forwarded-Host headers are then believed only from a proxy on this machine or one listed below; any other connection is taken at its own address. Leave off for direct connections.',
+  'admin.settings.trustedProxies': 'Trusted proxies',
+  'admin.settings.trustedProxiesPlaceholder': 'e.g. {example}',
+  'admin.settings.trustedProxiesHint':
+    'One IP address or CIDR range per line, used only while reverse proxy headers are trusted. Only needed when the proxy runs on another machine or in another container; a proxy on this machine is always trusted.',
   'admin.settings.secureCookies': 'Secure cookies (HTTPS only)',
   'admin.settings.secureCookiesHint':
     'Set the Secure flag on session cookies so they are only sent over HTTPS. Enable when using TLS or a TLS-terminating reverse proxy.',

@@ -43,6 +43,7 @@ Ritual uses these values when there is no config file. A first write puts them o
     "gitAutoCommit": false,
     "gitAutoPush": false,
     "trustProxy": false,
+    "trustedProxies": [],
     "secureCookies": false,
     "ipAllowList": [],
     "ipDenyList": [],
@@ -304,7 +305,7 @@ These keys apply to the admin web UI and the [MCP server](/commands/mcp/). CLI c
 
 The remaining `admin` keys secure the server. The [`config` property table](/commands/config/#properties) lists their types and defaults, and the [admin command's Security section](/commands/admin/#security) explains each one:
 
-- Network options (`admin.trustProxy`, `admin.secureCookies`)
+- Network options (`admin.trustProxy`, `admin.trustedProxies`, `admin.secureCookies`)
 - IP and User-Agent allow/deny lists (`admin.ipAllowList`, `admin.ipDenyList`, `admin.userAgentAllowList`, `admin.userAgentDenyList`)
 - Rate limiting (`admin.rateLimitEnabled`, `admin.rateLimitMaxAttempts`, `admin.rateLimitWindowMinutes`, `admin.failedAuthDelayMs`)
 

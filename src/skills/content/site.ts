@@ -756,7 +756,17 @@ ritual mcp --transport http --oauth --public-url https://mcp.example.com
   \`http://\` on a loopback host with a loopback bind) and an admin account (exit 3
   without one). A loopback bind with a non-loopback public URL (a tunnel in front)
   also requires \`admin.trustProxy\` (exit 2 without it, naming
-  \`ritual config set admin.trustProxy true\`).
+  \`ritual config set admin.trustProxy true\`). Forwarded headers are believed
+  only from loopback (a tunnel client or proxy on the same machine) or an address
+  in \`admin.trustedProxies\` (IPs and CIDR ranges, for a proxy on another host or
+  in a container: \`ritual config set --add admin.trustedProxies 172.30.0.0/24\`);
+  any other client is taken at its own address. \`X-Forwarded-For\` is read from
+  the right, skipping trusted-proxy hops; the first other entry is the client. The
+  proxy must append to or overwrite it (stock nginx passes the client's own header
+  through until told to append; see the hosting docs); behind a
+  forwarder that does not rewrite HTTP headers (\`ssh -L\`, socat), leave
+  \`admin.trustProxy\` off. A \`/0\` entry, or an IPv6 range holding
+  \`::ffff:0:0/96\`, is refused as trusting everyone.
 - The token becomes optional; given one as well, \`/mcp\` accepts both the static
   token and OAuth access tokens.
 - The connector URL to enter in Claude is \`<public-url>/mcp\`, with no client ID
