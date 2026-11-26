@@ -19,8 +19,19 @@ release changes a file format or a generated file, it ships the change as a
 
 ## [Unreleased]
 
+### Breaking
+
+- Price reports now name each list by its display title (the list's `# Title`), not its file
+  name: `lists[].name` and `cards[].listName` in `ritual price --output json` (and `ndjson`), in
+  the admin `/api/price/*` routes and in the MCP `get_price_report` tool. To find a list, use the
+  new `slug` / `listSlug` fields (with the list type) instead of the name; a script that matched
+  rows by file name must switch to `slug`.
+
 ### Added
 
+- Price reports carry each list's slug: `lists[].slug` and `cards[].listSlug` in
+  `ritual price --output json`, the admin `/api/price/*` routes and the MCP `get_price_report`
+  tool. With the list type it identifies the list, even when two lists share a title.
 - [`ritual mcp --transport http --public-url <url>`](https://ritual.rpeters.dev/commands/mcp/#behind-a-reverse-proxy-or-tunnel)
   and [`ritual admin --mcp --mcp-public-url <url>`](https://ritual.rpeters.dev/commands/admin/#embedded-mcp-server)
   serve the MCP endpoint behind a tunnel or reverse proxy (such as a Cloudflare Tunnel) that

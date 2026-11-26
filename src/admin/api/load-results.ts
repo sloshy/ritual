@@ -9,7 +9,8 @@ import type { ListImageRef } from '../../list/list-image'
 import type { CardLanguage } from '../../card/card-language'
 import type { ParsedWantedEntry } from '../../list/wanted-entries'
 import type { DeckCardLoadResult, EntryCardLoadResult } from './card-data-loader'
-import type { ListCounts, ListLoadView, ListSectionCount } from './list-load-params'
+import type { ListLoadView } from './list-load-params'
+import type { ListCounts, ListSectionCount } from '../../list/list-counts'
 import type { SyncMessage } from '../../sync/message'
 
 export type { ListCounts, ListLoadView, ListSectionCount }

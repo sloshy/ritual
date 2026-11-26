@@ -24,6 +24,8 @@ import { frontMatterBodyStart } from './markdown-fence'
 import { readFrontMatterMapping } from './front-matter-write'
 import { listDefaultLabels, readListDefaultLabelsValue, type CardLabel } from '../card/card-labels'
 import type { ListType } from './list-type'
+import { readListDescription } from './list-description'
+import { readListImage, type ListImageRef } from './list-image'
 import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
 
 /** A flat list's front-matter block, as parsed from the top of the file. */
@@ -123,4 +125,46 @@ export function listDefaultLabelsInLines(
     type,
     parseFlatListFrontMatter(lines, { validateLabels: false }).frontMatter?.data,
   )
+}
+
+/** Which front-matter key an ignored value was under. */
+export type FlatListMetadataField = 'description' | 'image'
+
+/** A present front-matter value that was ignored, and why. */
+export type FlatListMetadataAdvisory = {
+  field: FlatListMetadataField
+  message: SyncMessage
+}
+
+/** What a list's front matter says about its prose blurb and cover. */
+export type FlatListMetadata = {
+  /** The description; absent when the key is missing, blank, or unusable. */
+  description?: string
+  /** The cover override; absent when the key is missing or unusable. */
+  image?: ListImageRef
+  /**
+   * The values that were present but ignored, in key order. Non-fatal by
+   * construction: the block round-trips verbatim, so a reader that does not
+   * report them (a load body, whose `warnings` mean "lines a save would eat")
+   * loses nothing.
+   */
+  advisories: FlatListMetadataAdvisory[]
+}
+
+/**
+ * Read a list's `description` and `image` out of its already-parsed
+ * front-matter mapping — the one pairing of {@link readListDescription} and
+ * {@link readListImage} the list loads, the summary and the site build share.
+ */
+export function readFlatListMetadata(data: Record<string, unknown>): FlatListMetadata {
+  const description = readListDescription(data)
+  const image = readListImage(data)
+  const metadata: FlatListMetadata = { advisories: [] }
+  if (description.description !== undefined) metadata.description = description.description
+  if (image.image !== undefined) metadata.image = image.image
+  if (description.advisory) {
+    metadata.advisories.push({ field: 'description', message: description.advisory })
+  }
+  if (image.advisory) metadata.advisories.push({ field: 'image', message: image.advisory })
+  return metadata
 }

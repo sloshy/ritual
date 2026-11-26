@@ -87,8 +87,12 @@ export type SellListEntry = Omit<PriceListEntry, 'cardId'> & {
   cardIds: number[]
 }
 
-/** One list's entries, ready for matching. */
-export type SellListInput = Omit<PriceListInput, 'entries'> & { entries: SellListEntry[] }
+/**
+ * One list's entries, ready for matching. A sell report names (and groups) its
+ * lists by slug — the identifier the card tools resolve — never by a display
+ * title two lists may share, so the input carries no display name at all.
+ */
+export type SellListInput = Omit<PriceListInput, 'entries' | 'name'> & { entries: SellListEntry[] }
 
 /**
  * Which lines a sell report reads: every list of `type` (or exactly
@@ -352,7 +356,7 @@ export async function loadSellListInputs(scope: SellInputScope): Promise<LoadedS
   const { type, locations, tags } = scope
   const { inputs, warnings } = await loadPriceListInputs(type, locations)
   return {
-    inputs: inputs.map((input): SellListInput => ({
+    inputs: inputs.map(({ name: _name, ...input }): SellListInput => ({
       ...input,
       entries: aggregateSellEntries(
         input.entries.filter(
@@ -561,7 +565,8 @@ function matchEntry(
 
   const base: SellEntryBase = {
     listType: input.type,
-    listName: input.name,
+    // The sell payload names a list by its slug (see `SellListInput`).
+    listName: input.slug,
     section: entry.section,
     name: entry.name,
     quantity: entry.quantity,

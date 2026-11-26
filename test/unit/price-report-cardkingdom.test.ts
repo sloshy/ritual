@@ -29,7 +29,7 @@ const bolt = makeScryfallCard({
 })
 
 function collectionInput(entries: PriceListInput['entries']): PriceListInput {
-  return { type: 'collection', name: 'Binder', entries }
+  return { type: 'collection', name: 'Binder', slug: 'binder', entries }
 }
 
 describe('buildPriceReport with Card Kingdom pricing', () => {
@@ -156,6 +156,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         {
           type: 'deck',
           name: 'Deck',
+          slug: 'deck',
           entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
         },
       ],
@@ -194,6 +195,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         {
           type: 'deck',
           name: 'Deck',
+          slug: 'deck',
           entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
         },
       ],
@@ -232,6 +234,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         {
           type: 'deck',
           name: 'Deck',
+          slug: 'deck',
           entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
         },
       ],
@@ -254,6 +257,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         {
           type: 'wanted',
           name: 'Wants',
+          slug: 'wants',
           entries: [
             { name: 'Test Card', quantity: 1, set: 'aaa', collectorNumber: '1', section: 'Main' },
           ],

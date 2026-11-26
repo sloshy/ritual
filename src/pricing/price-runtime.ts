@@ -4,6 +4,8 @@ import {
   buildPriceReport,
   loadPriceListInputs,
   type BuiltPriceReport,
+  type NamePricingMemo,
+  type PriceListInput,
   type ReportPricing,
 } from './price-report'
 import type { ListLocation } from '../list/resolve-list'
@@ -26,6 +28,11 @@ export type PriceReportOptions = {
    * request timeout per name and still writes the cache).
    */
   refresh?: RefreshMode
+  /**
+   * Per-name pricing work shared with other builds at the same pricing (see
+   * `NamePricingMemo`). Absent means a fresh memo per build.
+   */
+  memo?: NamePricingMemo
 }
 
 /**
@@ -52,10 +59,25 @@ export async function loadAndBuildPriceReport(
   options?: PriceReportOptions,
 ): Promise<LoadedPriceReport> {
   const loaded = await loadPriceListInputs(type, locations)
-  const built = await buildPriceReport(loaded.inputs, {
+  const built = await buildPriceReportFromInputs(loaded.inputs, pricing, options)
+  return { built, warnings: loaded.warnings }
+}
+
+/**
+ * Build a price report over inputs already in hand, with the production
+ * bindings {@link loadAndBuildPriceReport} uses — for a caller that read and
+ * parsed the lists itself (the cross-list summary), so it prices exactly what
+ * it counted.
+ */
+export function buildPriceReportFromInputs(
+  inputs: PriceListInput[],
+  pricing: ReportPricing,
+  options?: PriceReportOptions,
+): Promise<BuiltPriceReport> {
+  return buildPriceReport(inputs, {
     pricing,
     lookup: priceLookupFor(options?.refresh),
     bannedPrintings: getBannedPrintings(),
+    memo: options?.memo,
   })
-  return { built, warnings: loaded.warnings }
 }

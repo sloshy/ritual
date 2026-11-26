@@ -25,13 +25,8 @@ import {
 } from '../list/card-categories-sidecar'
 import { loadDefaultCategories } from '../config/ritual-config'
 import type { CardCategoriesOverlay } from '../card/card-categories'
-import {
-  isListImageCardRef,
-  isListImageUrlRef,
-  readListImage,
-  type ListImageRef,
-} from '../list/list-image'
-import { readListDescription } from '../list/list-description'
+import { isListImageCardRef, isListImageUrlRef, type ListImageRef } from '../list/list-image'
+import { readFlatListMetadata } from '../list/flat-list-front-matter'
 import { foldedCardNameSet } from '../list/card-names'
 import { readFrontMatterMapping } from '../list/front-matter-write'
 import { printingFinishPairs } from '../card/card-printing'
@@ -46,7 +41,8 @@ import type { BakedBuylist } from '../list/site-data'
 import type { ListType } from '../list/list-type'
 import type { CardLabel } from '../card/card-labels'
 import type { FlatListEntry, ParsedFlatListFile } from '../list/flat-list-read'
-import { parseTitleFromContent } from '../list/section-format'
+import { listDisplayNameFromContent } from '../list/list-display-name'
+import { hasErrorCode } from '../util/errno'
 import type { CardKingdomCardData, SiteDetailContext } from './types'
 
 /**
@@ -57,7 +53,7 @@ import type { CardKingdomCardData, SiteDetailContext } from './types'
  * them looking for the wrong problem.
  */
 export function listReadErrorMessage(error: unknown, filePath: string): string {
-  if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') {
+  if (hasErrorCode(error, 'ENOENT')) {
     return t('site.detail.fileNotFound', { path: filePath })
   }
   return getErrorMessage(error)
@@ -88,23 +84,16 @@ export type ListFrontMatterRead = {
  * a loader ever sees it (see {@link readDroppedFrontMatterAdvisories}).
  */
 export function readListFrontMatter(data: Record<string, unknown>): ListFrontMatterRead {
-  const description = readListDescription(data)
-  const image = readListImage(data)
+  const { description, image, advisories } = readFlatListMetadata(data)
   return {
-    ...(description.description ? { description: description.description } : {}),
-    ...(image.image ? { image: image.image } : {}),
-    warnings: [
-      ...(description.advisory
-        ? [
-            t('site.detail.listDescriptionInvalid', {
-              reason: renderSyncMessage(description.advisory),
-            }),
-          ]
-        : []),
-      ...(image.advisory
-        ? [t('site.detail.listImageInvalid', { reason: renderSyncMessage(image.advisory) })]
-        : []),
-    ],
+    ...(description ? { description } : {}),
+    ...(image ? { image } : {}),
+    warnings: advisories.map(({ field, message }) => {
+      const reason = renderSyncMessage(message)
+      return field === 'description'
+        ? t('site.detail.listDescriptionInvalid', { reason })
+        : t('site.detail.listImageInvalid', { reason })
+    }),
   }
 }
 
@@ -337,7 +326,7 @@ export async function loadFlatListSource<Entry extends NamedFlatListEntry>(
         : {}),
     })
   return {
-    displayName: parseTitleFromContent(content) ?? name,
+    displayName: listDisplayNameFromContent(content, filePath),
     entries,
     sectionOrder,
     labels,

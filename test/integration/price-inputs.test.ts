@@ -56,14 +56,24 @@ afterEach(async () => {
   await ws.dispose()
 })
 
+/** A list's entries, found by slug. */
 function entriesOf<I extends PriceListInput | SellListInput>(
   inputs: I[],
-  name: string,
+  slug: string,
 ): I['entries'] {
-  return inputs.find((input) => input.name === name)!.entries
+  return inputs.find((input) => input.slug === slug)!.entries
 }
 
 describe('loadPriceListInputs label resolution', () => {
+  test('each input is named by its title and identified by its slug', async () => {
+    const { inputs } = await loadPriceListInputs(undefined, locations)
+    expect(inputs.map((input) => [input.type, input.name, input.slug])).toEqual([
+      ['deck', 'Burn', 'burn'],
+      // The collection fixture's title defaults to its file name.
+      ['collection', 'binder', 'binder'],
+    ])
+  })
+
   test('deck lines inherit the deck’s front-matter default labels', async () => {
     const { inputs } = await loadPriceListInputs(undefined, locations)
     expect(entriesOf(inputs, 'burn').map((entry) => entry.labels)).toEqual([['proxy'], ['proxy']])

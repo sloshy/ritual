@@ -16,10 +16,18 @@ export type ListEntry = {
  * by every surface that enumerates lists — the `lists` CLI command, the admin
  * API, and the admin site.
  */
-export type ListInfo = {
+export type ListInfo = ListSlugRef & {
+  name: string
+}
+
+/**
+ * A list's identity: its type and slug (the file basename). Two lists of
+ * different types may share a slug, and two lists may share a display name,
+ * so this pair — never a name — is what finds a list.
+ */
+export type ListSlugRef = {
   type: ListType
   slug: string
-  name: string
 }
 
 /**

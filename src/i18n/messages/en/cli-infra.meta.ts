@@ -2187,6 +2187,10 @@ export const cliInfraMeta = {
     description: 'One per-type totals row. {icon} is an emoji; {title} is a plural list-type name.',
   },
   'cli.price.headerGrandTotals': { description: 'The across-all-types totals row.' },
+  'cli.price.listNameWithSlug': {
+    description:
+      'A list’s name in the price browser when another list of the same type has the same name: {name} is the list’s title, {slug} its file name, which tells the two apart. Only the order and the brackets are yours to change.',
+  },
   'cli.price.listRow': {
     description:
       'One list’s row in the browser’s main menu. {icon} is an emoji, {name} the list name, {totals} the already-formatted price totals, {count} how many cards the list holds.',

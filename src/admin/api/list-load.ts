@@ -3,8 +3,8 @@ import { collectExistingIds } from '../../card/card-id'
 import { apiHandler } from '../utils'
 import { addChangelogCardNames, fetchSymbolMap, loadEntryCardData } from './card-data-loader'
 import { resolveFlatListFile, resolveListFileOrRefuse, type ResolveListFile } from './list-file'
+import { countEntries } from '../../list/list-counts'
 import {
-  countEntries,
   filterEntries,
   isNarrowedLoad,
   parseListLoadParams,
@@ -15,6 +15,7 @@ import type { CardLabel } from '../../card/card-labels'
 import type { ListType } from '../../list/list-type'
 import type { FlatListType } from '../../list/flat-list-metadata'
 import { isApiMessage } from '../../api/result'
+import { readFlatListMetadata } from '../../list/flat-list-front-matter'
 import type { ListImageRef } from '../../list/list-image'
 import type {
   FlatCardsLoadResult,
@@ -121,6 +122,22 @@ export interface FlatListParseResult<T> {
    * body, so a list holding an unreadable line no longer loads as merely shorter.
    */
   warnings: SyncMessage[]
+}
+
+/** The description and cover a flat list's load body carries. */
+export type FlatListLoadMetadata = Pick<FlatListParseResult<FlatLoadEntry>, 'description' | 'image'>
+
+/**
+ * A flat list's description and cover, read from its front-matter mapping.
+ * Advisories are deliberately dropped: an unusable value reads as no blurb /
+ * no override, and the site build is where the user hears about it (a load
+ * body's `warnings` means "lines a save would eat", which this is not).
+ */
+export function flatListLoadMetadata(
+  data: Record<string, unknown> | undefined,
+): FlatListLoadMetadata {
+  const { description, image } = readFlatListMetadata(data ?? {})
+  return { description, image }
 }
 
 /**

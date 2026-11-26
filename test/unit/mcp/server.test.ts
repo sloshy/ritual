@@ -1290,7 +1290,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const detail = toolData<{
       mode: string
       currency: string
-      list?: { name: string; total: number }
+      list?: { name: string; slug: string; total: number }
       cards: unknown[]
     }>(
       await callTool(client, 'get_price_report', {
@@ -1301,7 +1301,8 @@ describe('Ritual MCP server (in-memory transport)', () => {
     )
     expect(detail.mode).toBe('list')
     expect(detail.currency).toBe('eur')
-    expect(detail.list?.name).toBe('test-deck')
+    expect(detail.list?.slug).toBe('test-deck')
+    expect(detail.list?.name).toBe('Test Deck')
     expect(typeof detail.list?.total).toBe('number')
     expect(detail.cards.length).toBeGreaterThan(0)
   })

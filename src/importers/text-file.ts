@@ -579,8 +579,19 @@ export async function loadDeckFile(
     throw new SyncMessageError(syncMessage('domain.import.fileNotFound', { path: filePath }))
   }
 
-  const rawText = await file.text()
+  return parseDeckFileContent(filePath, await file.text(), options)
+}
 
+/**
+ * {@link loadDeckFile} over the deck's content already in hand: only the
+ * `.primer.md` sidecar is read, so a caller that also hashes or reads the
+ * front matter of `rawText` describes one reading of the file.
+ */
+export async function parseDeckFileContent(
+  filePath: string,
+  rawText: string,
+  options?: ParseDeckTextOptions,
+): Promise<DeckParseResult> {
   const primerPath = filePath.replace(/\.[^.]+$/, '.primer.md')
   const primerFile = Bun.file(primerPath)
   const primer = (await primerFile.exists())

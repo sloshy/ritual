@@ -234,8 +234,19 @@ export function validateDeckFrontMatter(raw: Record<string, unknown>): DeckFront
  * types. Unknown and user-authored keys round-trip untouched.
  */
 export async function parseDeckFrontMatter(filePath: string): Promise<DeckFrontMatter> {
-  const content = await fs.readFile(filePath, 'utf-8')
-  return validateDeckFrontMatter(matter(content).data)
+  return deckFrontMatterFromText(await fs.readFile(filePath, 'utf-8'))
+}
+
+/**
+ * {@link parseDeckFrontMatter} over content already in hand. Parsed with
+ * explicit options on purpose: `gray-matter` caches by content and keeps a
+ * *partial* entry even for input it threw on, but consults that cache only
+ * when no options are passed — so with them, unreadable front matter throws
+ * every time instead of reading as empty on a repeat parse (the rule
+ * `parseDeckText` follows too).
+ */
+export function deckFrontMatterFromText(content: string): DeckFrontMatter {
+  return validateDeckFrontMatter(matter(content, { language: 'yaml' }).data)
 }
 
 /** What a front-matter write produced: the new content hash and the files it touched. */

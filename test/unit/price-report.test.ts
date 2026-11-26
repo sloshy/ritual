@@ -3,6 +3,7 @@ import {
   BY_RULE_UNPRICED_REASONS,
   buildPriceReport,
   comparePricedEntries,
+  createNamePricingMemo,
   deckPriceEntries,
   filterPricedEntries,
   hasActiveFilters,
@@ -42,7 +43,7 @@ function lookupFor(printings: Record<string, ScryfallCard[]>): CardPrintingsLook
 }
 
 function input(overrides: Partial<PriceListInput> = {}): PriceListInput {
-  return { type: 'deck', name: 'My Deck', entries: [], ...overrides }
+  return { type: 'deck', name: 'My Deck', slug: 'my-deck', entries: [], ...overrides }
 }
 
 async function priceSingle(
@@ -486,6 +487,84 @@ describe('buildPriceReport aggregation', () => {
   })
 })
 
+describe('buildPriceReport list identity', () => {
+  test('rows and entries carry each list slug beside its display name', async () => {
+    const line = { name: 'Test Card', quantity: 1, section: 'Main' }
+    // Same display name, different slugs and types: only the slug tells them apart.
+    const { report } = await buildPriceReport(
+      [
+        input({ type: 'deck', name: 'Shared Name', slug: 'deck-one', entries: [line] }),
+        input({ type: 'collection', name: 'Shared Name', slug: 'binder-two', entries: [line] }),
+      ],
+      { pricing: { source: 'tcgplayer' }, lookup: lookupFor({ 'Test Card': [makeCard()] }) },
+    )
+    expect(report.lists.map((list) => [list.type, list.name, list.slug])).toEqual([
+      ['deck', 'Shared Name', 'deck-one'],
+      ['collection', 'Shared Name', 'binder-two'],
+    ])
+    expect(report.entries.map((entry) => [entry.listType, entry.listName, entry.listSlug])).toEqual(
+      [
+        ['deck', 'Shared Name', 'deck-one'],
+        ['collection', 'Shared Name', 'binder-two'],
+      ],
+    )
+  })
+})
+
+describe('buildPriceReport name-pricing memo', () => {
+  /** A lookup that counts its calls per name. */
+  function countingLookup(printings: Record<string, ScryfallCard[]>): {
+    lookup: CardPrintingsLookup
+    calls: Map<string, number>
+  } {
+    const calls = new Map<string, number>()
+    const lookup: CardPrintingsLookup = async (name) => {
+      calls.set(name, (calls.get(name) ?? 0) + 1)
+      return printings[name] ?? []
+    }
+    return { lookup, calls }
+  }
+
+  const line = (name: string): PriceListInput['entries'][number] => ({
+    name,
+    quantity: 1,
+    section: 'Main',
+  })
+
+  test('builds sharing a memo look a shared name up once', async () => {
+    const { lookup, calls } = countingLookup({ 'Test Card': [makeCard()], Other: [makeCard()] })
+    const pricing = { source: 'tcgplayer' } as const
+    const memo = createNamePricingMemo(pricing)
+    const first = await buildPriceReport([input({ slug: 'a', entries: [line('Test Card')] })], {
+      pricing,
+      lookup,
+      memo,
+    })
+    const second = await buildPriceReport(
+      [input({ slug: 'b', entries: [line('Test Card'), line('Other')] })],
+      { pricing, lookup, memo },
+    )
+    expect(Object.fromEntries(calls)).toEqual({ 'Test Card': 1, Other: 1 })
+    // Each build reports the printings of its own names only.
+    expect([...first.printingsByName.keys()]).toEqual(['Test Card'])
+    expect([...second.printingsByName.keys()]).toEqual(['Test Card', 'Other'])
+  })
+
+  test('a memo made for another pricing is ignored', async () => {
+    const { lookup, calls } = countingLookup({ 'Test Card': [makeCard()] })
+    const memo = createNamePricingMemo({ source: 'cardmarket' })
+    const pricing = { source: 'tcgplayer' } as const
+    for (const slug of ['a', 'b']) {
+      await buildPriceReport([input({ slug, entries: [line('Test Card')] })], {
+        pricing,
+        lookup,
+        memo,
+      })
+    }
+    expect(calls.get('Test Card')).toBe(2)
+  })
+})
+
 describe('deckPriceEntries', () => {
   test('excludes maybeboard and token sections but keeps the sideboard', () => {
     const entries = deckPriceEntries({
@@ -595,6 +674,7 @@ function entry(overrides: Partial<PricedEntry>): PricedEntry {
   return {
     listType: 'deck',
     listName: 'My Deck',
+    listSlug: 'my-deck',
     section: 'Main',
     name: 'Test Card',
     quantity: 1,

@@ -212,6 +212,9 @@ export default [
                 // `ritual doctor`'s facts and verdicts; the migration check is
                 // handed in from the entry layer (`setMigrationProbe`).
                 'src/doctor',
+                // The cross-list summary: counts lists (core) and prices them
+                // with the single-list price engine (providers).
+                'src/summary',
               ],
             },
             { name: 'ui', dirs: ['src/ui'] },

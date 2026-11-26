@@ -78,7 +78,7 @@ describe('GET /api/price/summary — ?source=', () => {
     expect(body.currency).toBe('usd')
     expect(body.source).toBe('cardkingdom')
     // Binder: 1 copy at CK retail; the deck's unpinned copies quote CK too.
-    const binder = body.lists.find((l) => l.name === 'binder')
+    const binder = body.lists.find((l) => l.slug === 'binder')
     expect(binder?.total).toBeCloseTo(6.25)
   })
 
@@ -164,11 +164,12 @@ describe('GET /api/price/summary', () => {
     expect(typeof body.lastRefreshedAt).toBe('number')
     expect(body.warnings).toEqual([])
 
-    expect(body.lists.map((l) => `${l.type}:${l.name}`).sort()).toEqual([
-      'collection:binder',
-      'deck:burn',
+    // Keyed by slug; `name` is the display title (`# Binder`, `# Burn`).
+    expect(body.lists.map((l) => `${l.type}:${l.slug}:${l.name}`).sort()).toEqual([
+      'collection:binder:Binder',
+      'deck:burn:burn',
     ])
-    const binder = body.lists.find((l) => l.name === 'binder')!
+    const binder = body.lists.find((l) => l.slug === 'binder')!
     expect(binder.cardCount).toBe(1)
     expect(binder.total).toBeCloseTo(2.5)
 
@@ -232,7 +233,8 @@ describe('GET /api/price/:type/:slug', () => {
     expect(typeof body.lastRefreshedAt).toBe('number')
     expect(body.warnings).toEqual([])
 
-    expect(body.list?.name).toBe('binder')
+    expect(body.list?.slug).toBe('binder')
+    expect(body.list?.name).toBe('Binder')
     expect(body.list?.cardCount).toBe(1)
     expect(body.list?.total).toBeCloseTo(4.0)
 

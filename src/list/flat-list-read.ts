@@ -1,7 +1,6 @@
 import * as fs from 'node:fs/promises'
-import path from 'node:path'
 import type { CollectionCardEntry, WantedListCardEntry } from './site-data'
-import { parseTitleFromContent } from './section-format'
+import { listDisplayNameFromContent } from './list-display-name'
 import { advisoryMessages, unreadableMessages } from './unreadable-content'
 import type { SyncMessage } from '../sync/message'
 import type { ParseNotice } from './line-diagnostics'
@@ -127,7 +126,7 @@ async function readFlatListFile<Raw, E extends FlatListEntry>(
   const entries = entriesFromParse(parsed.entries)
   return {
     content,
-    title: parseTitleFromContent(content) ?? path.basename(filePath, '.md'),
+    title: listDisplayNameFromContent(content, filePath),
     entries,
     sectionOrder: parsed.sectionOrder,
     frontMatter: parsed.frontMatter,

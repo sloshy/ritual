@@ -43,8 +43,8 @@ import {
   type PriceTotals,
   type UnpricedReason,
 } from '../pricing/price-report'
-import type { ListLocation } from '../list/resolve-list'
 import { comparePrintings } from '../scryfall'
+import type { ListSlugRef } from '../list/list-info'
 import { formatDuration } from '../util/duration'
 import type { ScryfallCard } from '../scryfall/types'
 import { ask, promptTextFilter, suggestByTitleTerms } from '../cli/prompts'
@@ -120,7 +120,7 @@ function formatEntryPrice(entry: PricedEntry, amount: number, currency: PriceCur
 
 /** What the user picked on the main screen. */
 export type PriceMainSelection =
-  | { kind: 'open'; type: ListType; name: string }
+  | { kind: 'open'; list: ListSlugRef }
   | { kind: 'search' }
   | { kind: 'refresh' }
   | { kind: 'store' }
@@ -242,13 +242,31 @@ export function formatReportHeaderLines(
 }
 
 /** One list's menu row: icon, name, totals, unpriced badge, card count. */
-export function formatListChoiceTitle(summary: ListPriceSummary, currency: PriceCurrency): string {
+export function formatListChoiceTitle(
+  summary: ListPriceSummary,
+  currency: PriceCurrency,
+  name: string = summary.name,
+): string {
   return t('cli.price.listRow', {
     icon: LIST_TYPE_DISPLAY[summary.type].icon,
-    name: summary.name,
+    name,
     totals: formatTotalsSegment(summary, currency),
     count: summary.cardCount,
   })
+}
+
+/**
+ * A list's name as a menu row shows it: its title, with its slug added when
+ * another list of the same type shares that title — two rows that read the
+ * same would otherwise be told apart only by their position.
+ */
+export function listRowName(summary: ListPriceSummary, lists: readonly ListPriceSummary[]): string {
+  const shared = lists.some(
+    (other) => other !== summary && other.type === summary.type && other.name === summary.name,
+  )
+  return shared
+    ? t('cli.price.listNameWithSlug', { name: summary.name, slug: summary.slug })
+    : summary.name
 }
 
 /** The main screen menu: every list (grouped by type), then the global actions. */
@@ -257,11 +275,10 @@ export function buildMainMenuChoices(report: PriceReport): Choice[] {
     report.lists
       .filter((summary) => summary.type === type)
       .map((summary): Choice => ({
-        title: formatListChoiceTitle(summary, report.currency),
+        title: formatListChoiceTitle(summary, report.currency, listRowName(summary, report.lists)),
         value: {
           kind: 'open',
-          type: summary.type,
-          name: summary.name,
+          list: { type: summary.type, slug: summary.slug },
         } satisfies PriceMainSelection,
       })),
   )
@@ -448,9 +465,6 @@ export function formatPrintingPriceLines(
 
 // ── Interactive loops ───────────────────────────────────────────────
 
-/** A list identified by type and display name (a ListLocation minus its file path). */
-export type PriceListRef = Omit<ListLocation, 'filePath'>
-
 /** Everything the browser needs from the command that launches it. */
 export type PriceBrowserDeps = {
   built: BuiltPriceReport
@@ -464,7 +478,7 @@ export type PriceBrowserDeps = {
   refreshPrices: () => Promise<void>
   getLastRefreshedAt: () => Promise<number | null>
   /** Open directly into this list before showing the main screen. */
-  openList?: PriceListRef
+  openList?: ListSlugRef
 }
 
 async function promptMainSelection(report: PriceReport): Promise<PriceMainSelection | undefined> {
@@ -639,13 +653,14 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
   let built = deps.built
   let lastRefreshedAt = deps.lastRefreshedAt
 
-  const openList = async (type: ListType, name: string): Promise<void> => {
+  const openList = async ({ type, slug }: ListSlugRef): Promise<void> => {
     const listEntries = built.report.entries.filter(
-      (entry) => entry.listType === type && entry.listName === name,
+      (entry) => entry.listType === type && entry.listSlug === slug,
     )
+    const summary = built.report.lists.find((list) => list.type === type && list.slug === slug)
     const icon = LIST_TYPE_DISPLAY[type].icon
     await runCardBrowser(
-      `${icon} ${name}`,
+      `${icon} ${summary ? listRowName(summary, built.report.lists) : slug}`,
       listEntries,
       built.report.currency,
       built.printingsByName,
@@ -657,7 +672,7 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
   }
 
   if (deps.openList) {
-    await openList(deps.openList.type, deps.openList.name)
+    await openList(deps.openList)
   }
 
   while (true) {
@@ -672,7 +687,7 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
 
     switch (selection.kind) {
       case 'open':
-        await openList(selection.type, selection.name)
+        await openList(selection.list)
         break
       case 'search':
         await runCardBrowser(

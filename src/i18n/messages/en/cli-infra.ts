@@ -1061,6 +1061,7 @@ export const cliInfraMessages = {
   'cli.price.updatedAt': '{timestamp} ({age} ago)',
   'cli.price.headerTypeTotals': '{icon} {title} ({count}) — {totals}',
   'cli.price.headerGrandTotals': '💵 All lists ({count}) — {totals}',
+  'cli.price.listNameWithSlug': '{name} ({slug})',
   'cli.price.listRow': {
     $plural: 'count',
     one: '{icon} {name} — {totals} · {count} card',

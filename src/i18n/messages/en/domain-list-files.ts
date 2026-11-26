@@ -146,4 +146,28 @@ export const domainListFilesMessages = {
   'domain.list.guard.moveEvents':
     'applyChangesToCollectionFile does not handle move events; use the move engine.',
   'domain.list.guard.commitTwice': 'PreparedMoves.commit() is single-use',
+
+  // ── The cross-list summary ────────────────────────────────────────────
+  'domain.list.summary.inList': '{list}: {warning}',
+  'domain.list.summary.unreadable':
+    '{list} could not be read, so it is left out of the summary: {error}',
+  'domain.list.summary.notFound': {
+    $select: 'listType',
+    deck: "No deck '{slug}' exists, so it is left out of the summary.",
+    collection: "No collection '{slug}' exists, so it is left out of the summary.",
+    wanted: "No wanted list '{slug}' exists, so it is left out of the summary.",
+  },
+  'domain.list.summary.cacheEmpty':
+    'The card cache is empty, so the lists were counted but not priced. Refresh the cache to see their value.',
+  'domain.list.summary.sortNeedsPricing':
+    'Sorting lists by value needs a price store to price them at.',
+  'domain.list.summary.artUnreadable':
+    '{list}: its custom art could not be read, so cards with custom art are priced like any other: {error}',
+  'domain.list.summary.priceFailed':
+    '{list} could not be priced, so it is counted but left out of the value totals: {error}',
+  'domain.list.summary.limitInvalid': 'The limit must be a whole number above zero (got {limit}).',
+  'domain.list.summary.sectionsEmpty':
+    'Name at least one deck section to count, or leave the sections out to count them all.',
+  'domain.list.summary.listsEmpty':
+    'Name at least one list, or leave the lists out to summarize them all.',
 } as const satisfies MessageCatalogShape

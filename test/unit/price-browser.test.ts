@@ -7,6 +7,7 @@ import {
   formatEntryChoiceTitle,
   formatEntryDetailLines,
   formatListChoiceTitle,
+  listRowName,
   formatPriceLegend,
   formatPrintingPriceLines,
   formatReportHeaderLines,
@@ -34,6 +35,7 @@ function entry(overrides: Partial<PricedEntry> = {}): PricedEntry {
   return {
     listType: 'deck',
     listName: 'My Deck',
+    listSlug: 'my-deck',
     section: 'Main',
     name: 'Sol Ring',
     quantity: 1,
@@ -54,6 +56,7 @@ function summary(overrides: Partial<ListPriceSummary> = {}): ListPriceSummary {
   return {
     type: 'deck',
     name: 'My Deck',
+    slug: 'my-deck',
     cardCount: 100,
     total: 250,
     lowestTotal: 200,
@@ -241,7 +244,7 @@ describe('buildMainMenuChoices', () => {
   test('choice values identify the list to open', () => {
     const choices = buildMainMenuChoices(report())
     const first = choices[0]!.value as PriceMainSelection
-    expect(first).toEqual({ kind: 'open', type: 'deck', name: 'My Deck' })
+    expect(first).toEqual({ kind: 'open', list: { type: 'deck', slug: 'my-deck' } })
   })
 })
 
@@ -255,6 +258,18 @@ describe('formatListChoiceTitle', () => {
 
   test('counts a one-card list in the singular', () => {
     expect(formatListChoiceTitle(summary({ cardCount: 1 }), 'usd')).toEndWith(' · 1 card')
+  })
+})
+
+describe('listRowName', () => {
+  test('a title shared within a type gains its slug; across types it does not', () => {
+    const one = summary({ name: 'Burn', slug: 'burn' })
+    const two = summary({ name: 'Burn', slug: 'burn-2' })
+    const binder = summary({ type: 'collection', name: 'Burn', slug: 'burn' })
+    const lists = [one, two, binder]
+    expect(listRowName(one, lists)).toBe('Burn (burn)')
+    expect(listRowName(two, lists)).toBe('Burn (burn-2)')
+    expect(listRowName(binder, lists)).toBe('Burn')
   })
 })
 

@@ -1,7 +1,6 @@
 import { unreadableMessages } from '../../list/unreadable-content'
 import { parseWantedListFile } from '../../list/wanted-file'
-import { readListDescription } from '../../list/list-description'
-import { readListImage } from '../../list/list-image'
+import { flatListLoadMetadata } from './list-load'
 import type { ParsedWantedEntry } from '../../list/wanted-entries'
 import { getWantedDir } from '../../config/ritual-config'
 import { handleFlatListLoad, type FlatListLoadConfig, type FlatListParseResult } from './list-load'
@@ -17,11 +16,8 @@ const WANTED_LOAD_CFG: FlatListLoadConfig<ParsedWantedEntry> = {
     return {
       entries: parsed.entries,
       sectionOrder: parsed.sectionOrder,
-      // A wanted list's two front-matter keys — see `collection-load.ts` for why
-      // they are read here rather than in the parser, and why an unusable value
-      // is dropped without an advisory.
-      description: readListDescription(parsed.frontMatter?.data ?? {}).description,
-      image: readListImage(parsed.frontMatter?.data ?? {}).image,
+      // A wanted list's two front-matter keys — see `collection-load.ts`.
+      ...flatListLoadMetadata(parsed.frontMatter?.data),
       // Fenced code blocks join the parse warnings — see `deck-load.ts`.
       warnings: unreadableMessages(parsed),
     }

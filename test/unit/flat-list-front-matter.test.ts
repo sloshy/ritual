@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { parseFlatListFrontMatter } from '../../src/list/flat-list-front-matter'
+import {
+  parseFlatListFrontMatter,
+  readFlatListMetadata,
+} from '../../src/list/flat-list-front-matter'
 import { collectionToMarkdown, wantedToMarkdown, withFrontMatter } from '../../src/list/list-export'
 import { parseCollectionFile } from '../../src/list/collection-file'
 import { parseWantedListFile } from '../../src/list/wanted-file'
@@ -106,5 +109,29 @@ describe('front-matter round trips through the whole-file serializers', () => {
 
   test('withFrontMatter is a no-op without a block', () => {
     expect(withFrontMatter(undefined, '# Binder\n')).toBe('# Binder\n')
+  })
+})
+
+describe('readFlatListMetadata', () => {
+  test('reads a usable description and cover, with no advisories', () => {
+    expect(readFlatListMetadata({ description: 'My trades', image: { card: 3 } })).toEqual({
+      description: 'My trades',
+      image: { card: 3 },
+      advisories: [],
+    })
+  })
+
+  test('an unusable value is dropped and reported under its field, in key order', () => {
+    const metadata = readFlatListMetadata({ description: { nested: true }, image: 'cover.png' })
+    expect(metadata.description).toBeUndefined()
+    expect(metadata.image).toBeUndefined()
+    expect(metadata.advisories.map(({ field, message }) => [field, message.messageKey])).toEqual([
+      ['description', 'domain.list.description.notText'],
+      ['image', 'domain.list.image.shape'],
+    ])
+  })
+
+  test('no keys: nothing read, nothing reported', () => {
+    expect(readFlatListMetadata({})).toEqual({ advisories: [] })
   })
 })

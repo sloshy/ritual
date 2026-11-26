@@ -14,6 +14,7 @@ import { VALID_PRICE_SOURCES, type PriceSource } from '../../pricing/price-sourc
 import { loadAndBuildPriceReport } from '../../pricing/price-runtime'
 import { getDefaultPriceSource } from '../../config/ritual-config'
 import { listLocationForSlug } from './list-info'
+import { listSlug } from '../../list/list-file-name'
 import { parseListTarget } from './target'
 import { apiError, badRequest, errorResponse, nestedRefusal } from '../../api/http'
 import { apiMessage, isApiMessage, parseEnumParam } from '../../api/result'
@@ -142,7 +143,10 @@ export async function handlePriceList(req: Request): Promise<Response> {
       source: built.report.source,
       currency: built.report.currency,
       lastRefreshedAt,
-      list: built.report.lists[0],
+      // By type + slug, the list's identity — never by position or display name.
+      list: built.report.lists.find(
+        (list) => list.type === target.type && list.slug === listSlug(location.filePath),
+      ),
       cards: built.report.entries,
       warnings,
     }

@@ -1,7 +1,6 @@
 import { unreadableMessages } from '../../list/unreadable-content'
 import { parseCollectionFile } from '../../list/collection-file'
-import { readListDescription } from '../../list/list-description'
-import { readListImage } from '../../list/list-image'
+import { flatListLoadMetadata } from './list-load'
 import { getCollectionsDir } from '../../config/ritual-config'
 import { handleFlatListLoad, type FlatListLoadConfig, type FlatListParseResult } from './list-load'
 import type { CollectionEntry } from './load-results'
@@ -26,12 +25,8 @@ const COLLECTION_LOAD_CFG: FlatListLoadConfig<CollectionEntry> = {
       labels,
       // The block round-trips verbatim, so its blurb and cover are read out of
       // the parsed mapping here rather than being interpreted by the parser
-      // itself. Both readers' advisories are deliberately dropped: an unusable
-      // value reads as no blurb / no override, and the site build is where the
-      // user hears about it (a load body's `warnings` means "lines a save would
-      // eat", which this is not).
-      description: readListDescription(frontMatter?.data ?? {}).description,
-      image: readListImage(frontMatter?.data ?? {}).image,
+      // itself (see `flatListLoadMetadata` for why their advisories are dropped).
+      ...flatListLoadMetadata(frontMatter?.data),
       // Fenced code blocks join the parse warnings — see `deck-load.ts`.
       warnings: unreadableMessages(parsed),
     }

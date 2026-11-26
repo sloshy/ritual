@@ -155,7 +155,7 @@ function input(entries: Partial<SellListEntry>[]): SellListInput[] {
   return [
     {
       type: 'collection',
-      name: 'Binder',
+      slug: 'Binder',
       entries: entries.map((entry): SellListEntry => ({
         name: 'Arahbo',
         quantity: 1,
@@ -215,7 +215,7 @@ describe('buildSellReport matching', () => {
     const inputs: SellListInput[] = [
       {
         type: 'collection',
-        name: 'Binder',
+        slug: 'Binder',
         entries: [
           {
             name: 'Arahbo',
@@ -238,7 +238,7 @@ describe('buildSellReport matching', () => {
       },
       {
         type: 'collection',
-        name: 'Shoebox',
+        slug: 'Shoebox',
         entries: [
           {
             name: 'Arahbo',
@@ -336,7 +336,7 @@ describe('buildSellReport matching', () => {
       [
         {
           type: 'wanted',
-          name: 'Wish',
+          slug: 'Wish',
           entries: [{ name: 'Paused', quantity: 1, section: 'Main', cardIds: [] }],
         },
       ],
@@ -527,7 +527,7 @@ describe('entry enrichment', () => {
         ...input([{ set: 'fdn', collectorNumber: '2' }]),
         {
           type: 'wanted',
-          name: 'Wish',
+          slug: 'Wish',
           entries: [{ name: 'Paused', quantity: 1, section: 'Main', cardIds: [] }],
         },
       ],
@@ -585,14 +585,15 @@ describe('owned copies', () => {
       {
         type: 'collection',
         name: 'Binder',
+        slug: 'binder',
         entries: [
           line('Arahbo', 1, { set: 'fdn', collectorNumber: '294' }),
           line('arahbo', 1, { set: 'fdn', collectorNumber: '2' }),
           line('Arahbo', 1, { labels: ['proxy'] }),
         ],
       },
-      { type: 'deck', name: 'Cats', entries: [line('Arahbo', 2)] },
-      { type: 'wanted', name: 'Wish', entries: [line('Arahbo', 4)] },
+      { type: 'deck', name: 'Cats', slug: 'cats', entries: [line('Arahbo', 2)] },
+      { type: 'wanted', name: 'Wish', slug: 'wish', entries: [line('Arahbo', 4)] },
     ])
     // The proxy and the wanted copies are not owned; case does not split names.
     expect(owned.get('arahbo')).toEqual({ collection: 2, deck: 2 })

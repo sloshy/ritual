@@ -43,22 +43,6 @@ export interface ListLoadParams {
   offset: number
 }
 
-/** Per-section tallies in a summary view. */
-export interface ListSectionCount {
-  name: string
-  /** Lines in the section. */
-  entryCount: number
-  /** Copies in the section (summed quantity). */
-  cardCount: number
-}
-
-/** A summary view's counts: lines, copies, and the per-section breakdown. */
-export interface ListCounts {
-  entryCount: number
-  cardCount: number
-  sections: ListSectionCount[]
-}
-
 /** A filtered deck plus the number of lines that matched before `offset`/`limit`. */
 export interface FilteredDeck {
   deck: DeckData
@@ -195,43 +179,4 @@ export function filterEntries<T>(
   )
   const end = params.limit === undefined ? matched.length : params.offset + params.limit
   return { entries: matched.slice(params.offset, end), totalCount: matched.length }
-}
-
-/**
- * Count a deck: `entryCount` is lines, `cardCount` is copies (summed quantity),
- * and every section present is reported even when it holds a single line.
- */
-export function countDeck(deck: DeckData): ListCounts {
-  const sections: ListSectionCount[] = deck.sections.map((section) => ({
-    name: section.name,
-    entryCount: section.cards.length,
-    cardCount: section.cards.reduce((total, card) => total + card.quantity, 0),
-  }))
-  return {
-    entryCount: sections.reduce((total, section) => total + section.entryCount, 0),
-    cardCount: sections.reduce((total, section) => total + section.cardCount, 0),
-    sections,
-  }
-}
-
-/**
- * Count flat entries. Collections and wanted lists hold one card per line, so
- * `cardCount` equals `entryCount` — reported anyway so a client reads the same
- * two fields whatever the list type. Section order follows first appearance.
- */
-export function countEntries<T>(
-  entries: readonly T[],
-  sectionOf: (entry: T) => string | undefined,
-): ListCounts {
-  const bySection = new Map<string, number>()
-  for (const entry of entries) {
-    const name = sectionOf(entry) ?? DEFAULT_SECTION
-    bySection.set(name, (bySection.get(name) ?? 0) + 1)
-  }
-  const sections: ListSectionCount[] = [...bySection].map(([name, count]) => ({
-    name,
-    entryCount: count,
-    cardCount: count,
-  }))
-  return { entryCount: entries.length, cardCount: entries.length, sections }
 }

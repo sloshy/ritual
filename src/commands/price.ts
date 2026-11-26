@@ -23,6 +23,9 @@ import {
 } from '../pricing/price-report'
 import { loadAndBuildPriceReport, type LoadedPriceReport } from '../pricing/price-runtime'
 import { isResolveListError, resolveList, type ListLocation } from '../list/resolve-list'
+import { listSlug } from '../list/list-file-name'
+import type { ListSlugRef } from '../list/list-info'
+import { listDisplayName } from '../list/list-lifecycle'
 import { getDefaultPriceSource } from '../config/ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
 import {
@@ -40,10 +43,10 @@ import {
   formatEntryChoiceTitle,
   formatPriceLegend,
   formatListChoiceTitle,
+  listRowName,
   formatReportHeaderLines,
   formatTotalsSegment,
   runPriceBrowser,
-  type PriceListRef,
 } from './price-browser'
 import {
   emitError,
@@ -143,23 +146,31 @@ function emitSummary(
   }
   emitOutput('', scriptingOptions)
   for (const summary of report.lists) {
-    emitOutput(formatListChoiceTitle(summary, report.currency), scriptingOptions)
+    emitOutput(
+      formatListChoiceTitle(summary, report.currency, listRowName(summary, report.lists)),
+      scriptingOptions,
+    )
   }
   emitLegendAndDisclaimer(formatPriceLegend([], report.totals), scriptingOptions)
 }
 
 function emitListDetail(
   built: BuiltPriceReport,
-  listName: string,
+  list: ListSlugRef,
   currency: PriceCurrency,
   sort: PriceSortField,
   descending: boolean,
   warnings: string[],
   scriptingOptions: ScriptingOptions,
 ): void {
-  const summary = built.report.lists.find((list) => list.name === listName)
+  // Keyed by type + slug, never by name: a deck and a collection may share a
+  // name, and the slug is what identifies the file.
+  const { slug } = list
+  const summary = built.report.lists.find(
+    (candidate) => candidate.type === list.type && candidate.slug === slug,
+  )
   const entries = sortedEntries(
-    built.report.entries.filter((entry) => entry.listName === listName),
+    built.report.entries.filter((entry) => entry.listType === list.type && entry.listSlug === slug),
     sort,
     descending,
   )
@@ -180,7 +191,7 @@ function emitListDetail(
     return
   }
 
-  emitOutput(`[${listName}]`, scriptingOptions)
+  emitOutput(`[${summary?.name ?? slug}]`, scriptingOptions)
   for (const entry of entries) {
     emitOutput(`  ${formatEntryChoiceTitle(entry, currency, false)}`, scriptingOptions)
   }
@@ -313,14 +324,14 @@ export function registerPriceCommand(program: Command): void {
       })
 
       let scope: ListLocation[] | undefined
-      let openList: PriceListRef | undefined
+      let openList: ListSlugRef | undefined
       if (listName) {
         const resolved = await resolveList(listName, type)
         if (isResolveListError(resolved)) {
           emitResolveListError(resolved, scriptingOptions, 'type-flags')
           return
         }
-        openList = { type: resolved.type, name: resolved.name }
+        openList = { type: resolved.type, slug: listSlug(resolved.filePath) }
         // The browser needs every list for its main screen; a non-interactive
         // run only needs the one being printed.
         scope = interactive ? undefined : [resolved]
@@ -328,7 +339,8 @@ export function registerPriceCommand(program: Command): void {
           emitOutput(
             t('cli.price.pricingList', {
               type: resolved.type,
-              name: resolved.name,
+              // The display name, as the list heading below prints it.
+              name: await listDisplayName(resolved.type, resolved.filePath),
               suffix: interactive ? '' : '...',
             }),
             scriptingOptions,
@@ -414,7 +426,7 @@ export function registerPriceCommand(program: Command): void {
         return
       }
       if (openList) {
-        emitListDetail(built, openList.name, currency, sort, descending, warnings, scriptingOptions)
+        emitListDetail(built, openList, currency, sort, descending, warnings, scriptingOptions)
         return
       }
       emitSummary(built, freshness.lastRefreshedAt, warnings, scriptingOptions)

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { validateDeckFrontMatter } from '../../src/list/deck-file'
+import { deckFrontMatterFromText, validateDeckFrontMatter } from '../../src/list/deck-file'
 import { parseDeckText } from '../../src/importers/text-file'
 
 /**
@@ -104,5 +104,24 @@ describe('validateDeckFrontMatter and the image key', () => {
       '\n',
     )
     expect(parseDeckText(deck, 'Burn').warnings).toEqual([])
+  })
+})
+
+describe('deckFrontMatterFromText', () => {
+  test('validates the block of content in hand, as parseDeckFrontMatter does a file', () => {
+    const content = ['---', 'format: modern', 'labels: [proxy]', '---', '# Burn', ''].join('\n')
+    const parsed = deckFrontMatterFromText(content)
+    expect(parsed.format).toBe('modern')
+    expect(parsed.labels).toEqual(['proxy'])
+    // A deck takes `proxy` alone, so a default naming another label is dropped whole.
+    expect(deckFrontMatterFromText(content.replace('[proxy]', '[proxy, sale]')).labels).toBe(
+      undefined,
+    )
+  })
+
+  test('unreadable YAML throws on every parse, never reading as empty from a cache', () => {
+    const content = ['---', 'format: [unclosed', '---', '# Burn', ''].join('\n')
+    expect(() => deckFrontMatterFromText(content)).toThrow()
+    expect(() => deckFrontMatterFromText(content)).toThrow()
   })
 })

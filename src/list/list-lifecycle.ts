@@ -26,7 +26,7 @@ import type { ListType } from './list-type'
 import { isPathWithinDir } from '../util/path-validation'
 import { dirForType, listLocations, normalizeListName } from './resolve-list'
 import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-file'
-import { parseTitleFromContent } from './section-format'
+import { listDisplayNameFromContent } from './list-display-name'
 import { frontMatterBodyStart, markFencedLines } from './markdown-fence'
 import { titleHeading } from './heading'
 import { singleLineText } from '../util/single-line'
@@ -157,8 +157,7 @@ function notFoundError(type: ListType, filePath: string): ListLifecycleError {
  * slug. The same read for all three list types.
  */
 export async function listDisplayName(_type: ListType, filePath: string): Promise<string> {
-  const content = await fs.readFile(filePath, 'utf-8')
-  return parseTitleFromContent(content) ?? listSlug(filePath)
+  return listDisplayNameFromContent(await fs.readFile(filePath, 'utf-8'), filePath)
 }
 
 /**
@@ -338,7 +337,7 @@ export async function renameList(
   }
 
   const existingContent = await fs.readFile(filePath, 'utf-8')
-  const oldName = parseTitleFromContent(existingContent) ?? listSlug(filePath)
+  const oldName = listDisplayNameFromContent(existingContent, filePath)
   const updatedContent = replaceFirstH1(existingContent, trimmedName)
 
   // A rename rewrites the display name only; card lines pass through untouched.
@@ -430,7 +429,7 @@ export async function deleteList(type: ListType, filePath: string): Promise<Dele
  * Replace the first H1 line in content with `# <newTitle>`. If no H1 exists,
  * insert one at the top of the body — after any YAML front matter, so a deck's
  * metadata block stays first. A `# ...` line inside a fenced code block is prose
- * and is left alone, matching {@link parseTitleFromContent}. Scanning line by
+ * and is left alone, matching `parseTitleFromContent`. Scanning line by
  * line also avoids a regex replacement string treating `$&`/`$$` in the new
  * name as a substitution pattern.
  */

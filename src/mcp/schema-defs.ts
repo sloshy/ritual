@@ -11,7 +11,13 @@ import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { CARD_LABELS, SIGNED_CARD_LABELS } from '../card/card-labels'
 import { CARD_CATEGORY_SHAPE_RULE } from './shape-rules'
 import { CARD_LANGUAGES } from '../card/card-language'
-import { UNPRICED_REASONS, type PriceTotals } from '../pricing/price-report'
+import {
+  UNPRICED_REASONS,
+  type ListPriceSummary,
+  type PricedEntry,
+  type PriceTotals,
+} from '../pricing/price-report'
+import type { ListCounts, ListSectionCount } from '../list/list-counts'
 import type { ListImportResult } from '../admin/api/import-changes'
 import type { CsvRowFailure as CsvRowFailureType } from '../importers/csv'
 
@@ -258,6 +264,18 @@ export const CARD_SUMMARY_PROPS = {
   colorIdentity: arr(str()),
 } as const satisfies Properties
 
+const LIST_SECTION_COUNT_PROPS = {
+  name: str(),
+  entryCount: int('Lines in the section.'),
+  cardCount: int('Copies in the section (summed quantity).'),
+} as const satisfies Properties & Record<keyof ListSectionCount, unknown>
+
+const LIST_COUNTS_PROPS = {
+  entryCount: int(),
+  cardCount: int(),
+  sections: arr(ref('ListSectionCount')),
+} as const satisfies Properties & Record<keyof ListCounts, unknown>
+
 const PRICE_TOTALS_PROPS = {
   cardCount: int('Sum of quantities.'),
   total: num('Sum of unit price × quantity.'),
@@ -269,6 +287,39 @@ const PRICE_TOTALS_PROPS = {
     'Quantity-weighted count of deck and wanted entries whose price is an estimate: the line pins no printing (priced at a representative one) or its printing has no price. Any at all makes `total` an estimate.',
   ),
 } as const satisfies Properties & Record<keyof PriceTotals, unknown>
+const PRICED_ENTRY_PROPS = {
+  listType: LIST_TYPE,
+  listName: str('The list’s display name.'),
+  listSlug: str('The list’s slug; with listType, the key that identifies the list.'),
+  section: str(),
+  name: str(),
+  quantity: int(),
+  set: str('Lowercase set code of the printing priced.'),
+  collectorNumber: str(),
+  finish: FINISH,
+  pinned: bool('Whether set/collectorNumber came from the list entry itself.'),
+  price: num('Unit price in the report currency; 0 when unpriced.'),
+  lowest: num('Cheapest acceptable unit price; 0 when unavailable.'),
+  lowestSet: str('Lowercase set code of the printing behind `lowest`.'),
+  lowestCollectorNumber: str('Collector number of the printing behind `lowest`.'),
+  lowestFinish: enumOf(VALID_FINISHES, 'Finish of the printing behind `lowest`.'),
+  unpricedReason: enumOf(
+    UNPRICED_REASONS,
+    'Why the entry has no price. "proxy" and "custom-art" state the card is priceless by rule rather than for want of data, and are the two that do not count as unpriced.',
+  ),
+  cmc: num(),
+  edhrecRank: int(),
+  typeLine: str(),
+  fileOrder: int('Position of the entry in its list file.'),
+} as const satisfies Properties & Record<keyof PricedEntry, unknown>
+
+const LIST_PRICE_SUMMARY_PROPS = {
+  ...PRICE_TOTALS_PROPS,
+  type: LIST_TYPE,
+  name: str('The list’s display name.'),
+  slug: str('The list’s slug; with type, the key that identifies the list.'),
+} as const satisfies Properties & Record<keyof ListPriceSummary, unknown>
+
 const PRICE_TOTALS_REQUIRED = [
   'cardCount',
   'total',
@@ -410,19 +461,8 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
     'name',
   ]),
 
-  ListSectionCount: obj(
-    {
-      name: str(),
-      entryCount: int('Lines in the section.'),
-      cardCount: int('Copies in the section (summed quantity).'),
-    },
-    ['name', 'entryCount', 'cardCount'],
-  ),
-  ListCounts: obj({ entryCount: int(), cardCount: int(), sections: arr(ref('ListSectionCount')) }, [
-    'entryCount',
-    'cardCount',
-    'sections',
-  ]),
+  ListSectionCount: obj(LIST_SECTION_COUNT_PROPS, ['name', 'entryCount', 'cardCount']),
+  ListCounts: obj(LIST_COUNTS_PROPS, ['entryCount', 'cardCount', 'sections']),
 
   SaveEffectPrinting: obj(ENTRY_PRINTING_PROPS),
   SaveEffect: obj(
@@ -548,50 +588,26 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
     'printings',
   ]),
 
-  PricedEntry: obj(
-    {
-      listType: LIST_TYPE,
-      listName: str(),
-      section: str(),
-      name: str(),
-      quantity: int(),
-      set: str('Lowercase set code of the printing priced.'),
-      collectorNumber: str(),
-      finish: FINISH,
-      pinned: bool('Whether set/collectorNumber came from the list entry itself.'),
-      price: num('Unit price in the report currency; 0 when unpriced.'),
-      lowest: num('Cheapest acceptable unit price; 0 when unavailable.'),
-      lowestSet: str('Lowercase set code of the printing behind `lowest`.'),
-      lowestCollectorNumber: str('Collector number of the printing behind `lowest`.'),
-      lowestFinish: enumOf(VALID_FINISHES, 'Finish of the printing behind `lowest`.'),
-      unpricedReason: enumOf(
-        UNPRICED_REASONS,
-        'Why the entry has no price. "proxy" and "custom-art" state the card is priceless by rule rather than for want of data, and are the two that do not count as unpriced.',
-      ),
-      cmc: num(),
-      edhrecRank: int(),
-      typeLine: str(),
-      fileOrder: int('Position of the entry in its list file.'),
-    },
-    [
-      'listType',
-      'listName',
-      'section',
-      'name',
-      'quantity',
-      'pinned',
-      'price',
-      'lowest',
-      'cmc',
-      'edhrecRank',
-      'typeLine',
-      'fileOrder',
-    ],
-  ),
-  ListPriceSummary: obj({ ...PRICE_TOTALS_PROPS, type: LIST_TYPE, name: str() }, [
+  PricedEntry: obj(PRICED_ENTRY_PROPS, [
+    'listType',
+    'listName',
+    'listSlug',
+    'section',
+    'name',
+    'quantity',
+    'pinned',
+    'price',
+    'lowest',
+    'cmc',
+    'edhrecRank',
+    'typeLine',
+    'fileOrder',
+  ]),
+  ListPriceSummary: obj(LIST_PRICE_SUMMARY_PROPS, [
     ...PRICE_TOTALS_REQUIRED,
     'type',
     'name',
+    'slug',
   ]),
   ListTypeTotals: obj({ ...PRICE_TOTALS_PROPS, type: LIST_TYPE, listCount: int() }, [
     ...PRICE_TOTALS_REQUIRED,

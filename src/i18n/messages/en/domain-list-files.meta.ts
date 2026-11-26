@@ -16,6 +16,8 @@ const LIFECYCLE = `Refusal when creating, renaming or deleting a list. One branc
 
 const GUARD = `An internal error: a part of Ritual called a list-file engine the wrong way. Users should never see it except in a bug report, so a plain, literal translation is fine. The function and event names are code and never translated.`
 
+const SUMMARY = `Shown with a summary of several lists at once — how many cards each list holds and, when asked, what it is worth.`
+
 export const domainListFilesMeta = {
   'domain.list.sidecar.problem': {
     description:
@@ -162,5 +164,36 @@ export const domainListFilesMeta = {
   },
   'domain.list.guard.commitTwice': {
     description: `${GUARD} A prepared cross-list move was written a second time.`,
+  },
+
+  'domain.list.summary.inList': {
+    description: `${SUMMARY} A warning about one of the summarized lists. {list} is the list's name; {warning} is a full sentence about it (usually a line its reader could not understand, so the totals leave that line out). Only the order and the separator are yours to change.`,
+  },
+  'domain.list.summary.unreadable': {
+    description: `${SUMMARY} A list file could not be read at all (for example its settings block at the top is broken), so it is not in the summary or its totals. {list} is the list's file name; {error} is a sentence saying what went wrong.`,
+  },
+  'domain.list.summary.notFound': {
+    description: `${SUMMARY} The user asked for a specific list that does not exist. One branch per list type (a deck, a collection, or a wanted list — a list of cards the user is looking for). {slug} is the list's file name as the user gave it.`,
+  },
+  'domain.list.summary.cacheEmpty': {
+    description: `${SUMMARY} The user asked for the lists' prices, but the local card database ("card cache"), where prices come from, has not been downloaded yet. The card counts are still shown; the prices are not.`,
+  },
+  'domain.list.summary.artUnreadable': {
+    description: `${SUMMARY} A list's custom-art file (which gives some cards a picture of the user's own) could not be read. Cards with custom art are normally worth nothing in the price totals, so without the file they are priced as ordinary cards. {list} is the list's name; {error} is a sentence saying what was wrong with the file.`,
+  },
+  'domain.list.summary.priceFailed': {
+    description: `${SUMMARY} Working out one list's price failed. Its card counts are still shown, but its price is missing from the totals. {list} is the list's name; {error} is a sentence saying what went wrong.`,
+  },
+  'domain.list.summary.limitInvalid': {
+    description: `${SUMMARY} Refusal: the user asked for at most {limit} lists, and {limit} is not a whole number above zero. {limit} is the number as given.`,
+  },
+  'domain.list.summary.sectionsEmpty': {
+    description: `${SUMMARY} Refusal: the user asked to count only some deck sections (such as Main or Sideboard) but named none.`,
+  },
+  'domain.list.summary.listsEmpty': {
+    description: `${SUMMARY} Refusal: the user asked to summarize specific lists but named none.`,
+  },
+  'domain.list.summary.sortNeedsPricing': {
+    description: `${SUMMARY} Refusal: the user asked to order the lists by their price value without choosing a store (such as TCGplayer or Card Kingdom) to price them at.`,
   },
 } as const satisfies MetaFor<typeof domainListFilesMessages>

@@ -42,11 +42,8 @@ import {
   UNRANKED_EDHREC,
   type CardPrintingsLookup,
 } from '../card/card-printing'
-import { parseCollectionFile } from '../list/collection-file'
-import { parseDeckFrontMatter } from '../list/deck-file'
 import { displayFinish, type Condition, type Finish } from '../card/finish-condition'
 import { isExtraSection } from '../list/deck-format'
-import { loadDeckFile } from '../importers/text-file'
 import { LIST_TYPES, type ListType } from '../list/list-type'
 import {
   findCheapestPrinting,
@@ -66,7 +63,7 @@ import {
 import { sourceCurrency, type PriceSource } from './price-source'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import { comparePrintings, computeRepresentativePrints, getCardGames } from '../scryfall'
-import { parseWantedListFile } from '../list/wanted-file'
+import { parseListContent, type ParsedListContent } from '../list/list-content'
 import { matchesAllTerms } from '../card/term-match'
 import type { DeckData } from '../list/deck'
 import type { ScryfallCard } from '../scryfall/types'
@@ -147,7 +144,10 @@ export function isPricelessEntry(entry: PricelessEntryFields): boolean {
 /** One list's entries, ready for pricing. */
 export type PriceListInput = {
   type: ListType
+  /** The list's display name: its `# Title`, else its slug. */
   name: string
+  /** The list's slug (file basename), carried onto its summary row and entries. */
+  slug: string
   entries: PriceListEntry[]
 }
 
@@ -198,7 +198,10 @@ export function isByRuleUnpricedReason(
 /** A single priced card line in the report. */
 export type PricedEntry = {
   listType: ListType
+  /** The list's display name. */
   listName: string
+  /** The list's slug (file basename), which with `listType` identifies the list. */
+  listSlug: string
   section: string
   name: string
   quantity: number
@@ -243,7 +246,10 @@ export type PriceTotals = {
 
 export type ListPriceSummary = PriceTotals & {
   type: ListType
+  /** The list's display name — for showing, never for finding the row (see `slug`). */
   name: string
+  /** The list's slug (file basename): with `type`, the key a caller finds its row by. */
+  slug: string
 }
 
 export type ListTypeTotals = PriceTotals & {
@@ -290,6 +296,31 @@ export type BuildPriceReportOptions = {
   lookup: CardPrintingsLookup
   /** `set:collectorNumber` keys excluded from representative-printing selection. */
   bannedPrintings?: ReadonlySet<string>
+  /**
+   * Per-card-name pricing work to share across several builds — the lookup,
+   * the printing sort, the representative and cheapest picks, the Card Kingdom
+   * quotes. Absent means a fresh memo for this build. See {@link NamePricingMemo}.
+   */
+  memo?: NamePricingMemo
+}
+
+/**
+ * Per-card-name pricing work, kept so several builds price a shared card name
+ * once (the cross-list summary prices one list per build). What a name prices
+ * at depends on the store, the lookup and the banned printings, so a memo is
+ * bound to the {@link ReportPricing} it was created for and is only reused by
+ * builds priced with that same object; a build with any other pricing ignores
+ * it. Share one only across builds with the same lookup and banned printings.
+ */
+export type NamePricingMemo = {
+  readonly pricing: ReportPricing
+  /** @internal Opaque to callers: the per-name results. */
+  readonly byName: Map<string, NamePricing>
+}
+
+/** A fresh memo for builds priced with `pricing` (see {@link NamePricingMemo}). */
+export function createNamePricingMemo(pricing: ReportPricing): NamePricingMemo {
+  return { pricing, byName: new Map() }
 }
 
 /**
@@ -356,11 +387,6 @@ export type PriceCardSearchPayload = {
 }
 
 /**
- * Load every list of the given type (or all types) into pricing inputs. Deck
- * sections classified as extras (maybeboard/token) are excluded, matching the
- * public site's deck totals; sideboards are included.
- */
-/**
  * Flatten a deck's sections into pricing entries, excluding extras
  * (maybeboard/token sections) to match the public site's deck totals;
  * sideboards are included. `listLabels` is the deck's front-matter default,
@@ -418,6 +444,73 @@ function labelsOrUndefined(
   return labels.length > 0 ? labels : undefined
 }
 
+/**
+ * One list's pricing input from its parsed content ({@link parseListContent})
+ * and its custom-art sidecar — the one rule for turning a list into priced
+ * entries, shared by every loader. A card the sidecar gives custom art prices
+ * at 0, so `art` is part of the value: pass an empty map only when the list
+ * truly has none.
+ */
+export function priceListInput(parsed: ParsedListContent, art: CardArtMap): PriceListInput {
+  const { name, slug } = parsed
+  switch (parsed.type) {
+    case 'deck':
+      return {
+        type: 'deck',
+        name,
+        slug,
+        entries: deckPriceEntries(parsed.parse.deck, parsed.frontMatter.labels, art),
+      }
+    case 'collection': {
+      const { entries, labels } = parsed.parse
+      return {
+        type: 'collection',
+        name,
+        slug,
+        entries: entries.map((entry): PriceListEntry => ({
+          name: entry.name,
+          quantity: entry.quantity,
+          set: entry.set.toLowerCase(),
+          collectorNumber: entry.collectorNumber,
+          finish: entry.finish,
+          condition: entry.condition,
+          language: entry.language,
+          labels: labelsOrUndefined(entry.labels, labels),
+          hasCustomArt: customArtFlag(art, entry.cardId),
+          cardId: entry.cardId,
+          tags: normalizedTags(entry.tags),
+          section: entry.section,
+        })),
+      }
+    }
+    case 'wanted':
+      return {
+        type: 'wanted',
+        name,
+        slug,
+        entries: parsed.parse.entries.map((entry): PriceListEntry => ({
+          name: entry.name,
+          quantity: entry.quantity,
+          set: entry.set?.toLowerCase(),
+          collectorNumber: entry.collectorNumber,
+          finish: entry.finish,
+          language: entry.language,
+          hasCustomArt: customArtFlag(art, entry.cardId),
+          cardId: entry.cardId,
+          tags: normalizedTags(entry.tags),
+          section: entry.section,
+        })),
+      }
+  }
+}
+
+/**
+ * Load every list of the given type (or all types), or exactly `locations`,
+ * into pricing inputs: each file read once, named by its display name (its
+ * `# Title`, else its slug). Deck sections classified as extras
+ * (maybeboard/token) are excluded, matching the public site's deck totals;
+ * sideboards are included.
+ */
 export async function loadPriceListInputs(
   type?: ListType,
   locations?: ListLocation[],
@@ -435,62 +528,10 @@ export async function loadPriceListInputs(
     if (!loadedArt.ok) warnings.push(`${location.name}: ${loadedArt.message.message}`)
     const art: CardArtMap = loadedArt.ok ? loadedArt.art : new Map()
 
-    if (location.type === 'deck') {
-      const { deck, warnings: deckWarnings } = await loadDeckFile(location.filePath)
-      warnings.push(...deckWarnings.map((w) => `${location.name}: ${w}`))
-      // The deck body carries no front matter, so the list's default labels are
-      // read separately — the same second parse the deck load route does.
-      const frontMatter = await parseDeckFrontMatter(location.filePath)
-      inputs.push({
-        type: 'deck',
-        name: location.name,
-        entries: deckPriceEntries(deck, frontMatter.labels, art),
-      })
-      continue
-    }
-
     const content = await fs.readFile(location.filePath, 'utf-8')
-    if (location.type === 'collection') {
-      const parsed = parseCollectionFile(content)
-      warnings.push(...parsed.warnings.map((w) => `${location.name}: ${w}`))
-      inputs.push({
-        type: location.type,
-        name: location.name,
-        entries: parsed.entries.map((entry): PriceListEntry => ({
-          name: entry.name,
-          quantity: entry.quantity,
-          set: entry.set.toLowerCase(),
-          collectorNumber: entry.collectorNumber,
-          finish: entry.finish,
-          condition: entry.condition,
-          language: entry.language,
-          labels: labelsOrUndefined(entry.labels, parsed.labels),
-          hasCustomArt: customArtFlag(art, entry.cardId),
-          cardId: entry.cardId,
-          tags: normalizedTags(entry.tags),
-          section: entry.section,
-        })),
-      })
-      continue
-    }
-    const parsed = parseWantedListFile(content)
-    warnings.push(...parsed.warnings.map((w) => `${location.name}: ${w}`))
-    inputs.push({
-      type: location.type,
-      name: location.name,
-      entries: parsed.entries.map((entry): PriceListEntry => ({
-        name: entry.name,
-        quantity: entry.quantity,
-        set: entry.set?.toLowerCase(),
-        collectorNumber: entry.collectorNumber,
-        finish: entry.finish,
-        language: entry.language,
-        hasCustomArt: customArtFlag(art, entry.cardId),
-        cardId: entry.cardId,
-        tags: normalizedTags(entry.tags),
-        section: entry.section,
-      })),
-    })
+    const parsed = parseListContent(location.type, content, location.filePath)
+    warnings.push(...parsed.parse.warnings.map((w) => `${location.name}: ${w}`))
+    inputs.push(priceListInput(parsed, art))
   }
 
   return { inputs, warnings }
@@ -570,6 +611,7 @@ function priceEntry(
   const base: PricedEntry = {
     listType: input.type,
     listName: input.name,
+    listSlug: input.slug,
     section: entry.section,
     name: entry.name,
     quantity: entry.quantity,
@@ -714,7 +756,10 @@ export async function buildPriceReport(
 ): Promise<BuiltPriceReport> {
   const currency = sourceCurrency(options.pricing.source)
   const cardKingdom = reportCardKingdom(options.pricing)
-  const pricingByName = new Map<string, NamePricing>()
+  const pricingByName =
+    options.memo?.pricing === options.pricing ? options.memo.byName : new Map<string, NamePricing>()
+  /** The names this build priced: a shared memo also holds other builds' names. */
+  const pricedNames = new Set<string>()
   const entries: PricedEntry[] = []
   const lists: ListPriceSummary[] = []
 
@@ -722,10 +767,16 @@ export async function buildPriceReport(
     const listEntries: PricedEntry[] = []
     for (const [fileOrder, entry] of input.entries.entries()) {
       const pricing = await resolveNamePricing(entry.name, options, pricingByName)
+      pricedNames.add(entry.name)
       listEntries.push(priceEntry(input, entry, fileOrder, pricing, currency, cardKingdom))
     }
     entries.push(...listEntries)
-    lists.push({ type: input.type, name: input.name, ...sumPricedEntries(listEntries) })
+    lists.push({
+      type: input.type,
+      name: input.name,
+      slug: input.slug,
+      ...sumPricedEntries(listEntries),
+    })
   }
 
   const typeTotals: ListTypeTotals[] = []
@@ -750,7 +801,7 @@ export async function buildPriceReport(
   return {
     report,
     printingsByName: new Map(
-      [...pricingByName].map(([name, pricing]) => [name, pricing.printings]),
+      [...pricedNames].map((name) => [name, pricingByName.get(name)?.printings ?? []]),
     ),
   }
 }

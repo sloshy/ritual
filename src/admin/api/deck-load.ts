@@ -1,8 +1,8 @@
 import { unreadableMessages } from '../../list/unreadable-content'
 import { computeHash } from '../../changes/content-hash'
 import { collectDeckCardIds } from '../../card/card-id'
-import { loadDeckFile } from '../../importers/text-file'
-import { parseDeckFrontMatter } from '../../list/deck-file'
+import { parseDeckFileContent } from '../../importers/text-file'
+import { deckFrontMatterFromText } from '../../list/deck-file'
 import { apiHandler } from '../utils'
 import { getDecksDir } from '../../config/ritual-config'
 import { addChangelogCardNames, fetchSymbolMap, loadDeckCardData } from './card-data-loader'
@@ -15,7 +15,8 @@ import type { CardCategoriesRecord } from '../../list/card-categories-sidecar'
 import type { DeckData } from '../../list/deck'
 import { effectiveLabels, type CardLabel } from '../../card/card-labels'
 import { readListLoadRequest, stampLoadBody } from './list-load'
-import { countDeck, filterDeck, isNarrowedLoad, toCountParams } from './list-load-params'
+import { filterDeck, isNarrowedLoad, toCountParams } from './list-load-params'
+import { countDeck } from '../../list/list-counts'
 import type {
   DeckCardsLoadResult,
   DeckFullLoadResult,
@@ -76,13 +77,16 @@ export function handleDeckLoad(req: Request): Promise<Response> {
     if (!prologue.ok) return prologue.response
     const { slug, filePath, params } = prologue.value
 
+    // Read once: the hash, the deck and its front matter all describe this one
+    // reading of the file, so a concurrent write cannot pair one version's hash
+    // with another's lines.
     const rawContent = await Bun.file(filePath).text()
-    const parsed = await loadDeckFile(filePath)
+    const parsed = await parseDeckFileContent(filePath, rawContent)
     const loaded = parsed.deck
     // Fenced code blocks join the parse warnings: the save routes refuse a
     // baseline carrying either, so a load must report both.
     const warnings = unreadableMessages(parsed)
-    const frontMatter = await parseDeckFrontMatter(filePath)
+    const frontMatter = deckFrontMatterFromText(rawContent)
     // Hashed from the content itself, never read from (or persisted to) the
     // .sha256 sidecar: a load must not stamp a hand-edited file Ritual-clean,
     // and a stale sidecar must not hand the client a hash the save-side

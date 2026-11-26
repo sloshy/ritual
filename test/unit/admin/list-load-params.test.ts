@@ -1,7 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  countDeck,
-  countEntries,
   filterDeck,
   filterEntries,
   isNarrowedLoad,
@@ -233,30 +231,5 @@ describe('toCountParams', () => {
     expect(
       filterDeck(DECK, toCountParams(paged)).deck.sections.flatMap((s) => s.cards),
     ).toHaveLength(2)
-  })
-})
-
-describe('countDeck / countEntries', () => {
-  test('countDeck reports lines, copies, and the per-section breakdown', () => {
-    expect(countDeck(DECK)).toEqual({
-      entryCount: 5,
-      cardCount: 14,
-      sections: [
-        { name: 'Main', entryCount: 3, cardCount: 11 },
-        { name: 'Sideboard', entryCount: 2, cardCount: 3 },
-      ],
-    })
-  })
-
-  test('countEntries treats one line as one card, in first-appearance order', () => {
-    expect(countEntries(ENTRIES, (entry) => entry.section)).toEqual({
-      entryCount: 4,
-      cardCount: 4,
-      sections: [
-        { name: 'Zany Artifacts', entryCount: 2, cardCount: 2 },
-        { name: 'Burn', entryCount: 1, cardCount: 1 },
-        { name: 'Main', entryCount: 1, cardCount: 1 },
-      ],
-    })
   })
 })
