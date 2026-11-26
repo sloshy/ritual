@@ -16,6 +16,7 @@ import { appendAuditLog, createAuditEntry } from '../admin/audit-log'
 import { AUDIT_REASONS, type AuditReason } from '../admin/audit-reasons'
 import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH } from '../admin/validation'
 import { runHttpServer } from '../mcp/run'
+import { parseMcpPublicUrl, type McpPublicUrl } from '../mcp/public-url'
 import { resolveMcpToken } from '../mcp/token'
 import { getBaseDir } from '../config/base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
@@ -25,6 +26,7 @@ import {
   addSellModeOption,
   applySellModeOverride,
   addScriptingOptions,
+  parsedFlag,
   parsePort,
 } from '../cli/options'
 import type { RefreshMode } from '../cache/refresh'
@@ -54,7 +56,15 @@ import { setServerRefreshMode } from '../admin/api/build-site'
 import { requireFlag } from '../util/no-input'
 import { readPasswordFromStdin } from '../cli/prompts'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
-import { COMMAND, CONFIG_KEY, ENV_VAR, FLAG, commandLine, flagValue } from '../util/cli-tokens'
+import {
+  COMMAND,
+  CONFIG_KEY,
+  ENV_VAR,
+  EXAMPLE,
+  FLAG,
+  commandLine,
+  flagValue,
+} from '../util/cli-tokens'
 
 type AdminCommandOptions = {
   port: number
@@ -64,6 +74,8 @@ type AdminCommandOptions = {
   mcp?: boolean
   mcpPort: number
   mcpToken?: string
+  /** The external origin a tunnel or reverse proxy forwards to the embedded MCP endpoint. */
+  mcpPublicUrl?: McpPublicUrl
   /**
    * Offer sell mode for this run whatever `site.sellMode` says (enable-only;
    * absent follows the config). The admin used to force sell mode on
@@ -77,6 +89,7 @@ type AdminCommandOptions = {
 type EmbeddedMcpConfig = {
   port: number
   token: string
+  publicUrl?: McpPublicUrl
 }
 
 function buildIndexHtml(initialTheme: ThemeName, locale: LocaleTag): string {
@@ -154,6 +167,11 @@ export function registerAdminCommand(program: Command): void {
       '--mcp-token <secret>',
       t('help.admin.mcpToken', { flag: FLAG.mcp, envVar: ENV_VAR.mcpToken }),
     )
+    .option(
+      '--mcp-public-url <url>',
+      t('help.admin.mcpPublicUrl', { example: EXAMPLE.mcpPublicUrl, flag: FLAG.mcp }),
+      parsedFlag(parseMcpPublicUrl),
+    )
     .action(async (options: AdminCommandOptions) => {
       // Set before the buylist warm and before the server starts answering
       // requests, so the startup refresh and the sell/buylist routes agree.
@@ -193,7 +211,7 @@ export function registerAdminCommand(program: Command): void {
           process.exitCode = ExitCode.UsageError
           return
         }
-        embeddedMcp = { port: options.mcpPort, token: mcpToken }
+        embeddedMcp = { port: options.mcpPort, token: mcpToken, publicUrl: options.mcpPublicUrl }
       }
 
       console.log(t('cli.admin.preparing'))
@@ -254,6 +272,7 @@ export function registerAdminCommand(program: Command): void {
             port: embeddedMcp.port,
             host,
             auth: { kind: 'bearer', token: embeddedMcp.token },
+            publicUrl: embeddedMcp.publicUrl,
           }).catch(async (error: unknown) => {
             await adminServer.stop(true).catch(() => undefined)
             throw error

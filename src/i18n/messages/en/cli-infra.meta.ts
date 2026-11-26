@@ -1715,9 +1715,13 @@ export const cliInfraMeta = {
     description:
       'The HTTP transport was pointed at a public interface with no bearer token. {tokenFlag} is `--token <secret>`, a flag and its value; {envVar} is the `RITUAL_MCP_TOKEN` environment variable; {allowUnauthenticatedFlag} is the `--allow-unauthenticated` flag. Each is typed or matched exactly by the user, so never translate them.',
   },
+  'cli.mcp.refusingUnauthenticatedPublicUrl': {
+    description:
+      'The HTTP transport was given a public URL (a tunnel or reverse proxy forwards that address to the loopback bind, so the endpoint is reachable from outside) but no bearer token. {url} is that public address; {publicUrlFlag} is the `--public-url` flag; {tokenFlag} is `--token <secret>`, a flag and its value; {envVar} is the `RITUAL_MCP_TOKEN` environment variable; {allowUnauthenticatedFlag} is the `--allow-unauthenticated` flag. Each is typed or matched exactly by the user, so never translate them.',
+  },
   'cli.mcp.unauthenticatedWarning': {
     description:
-      'The above refusal was overridden with --allow-unauthenticated. {flag} is the `--allow-unauthenticated` flag. It is typed or matched exactly by the user, so never translate it.',
+      'The above refusal was overridden with --allow-unauthenticated. {host} is where the endpoint is exposed: the bind host, or the public URL given with --public-url. {flag} is the `--allow-unauthenticated` flag. It is typed or matched exactly by the user, so never translate it.',
   },
   'cli.mcp.unauthenticatedLoopback': {
     description: 'Serving without a token, which is tolerable because the host is loopback-only.',
@@ -1728,6 +1732,10 @@ export const cliInfraMeta = {
   'cli.mcp.httpListening': {
     description:
       'Printed to the operator’s console once `ritual mcp --transport http` is accepting connections. {url} is the endpoint address an MCP client connects to.',
+  },
+  'cli.mcp.httpPublicEndpoint': {
+    description:
+      'Printed to the operator’s console right after the listening line when a public URL was given (`mcp --public-url`, `admin --mcp-public-url`). {url} is the external address MCP clients connect to through the tunnel or reverse proxy.',
   },
   'cli.mcp.httpError': {
     description:

@@ -39,6 +39,13 @@ export const errorMessages = {
   'errors.scripting.fieldsEmpty': 'Expected at least one field for {flag}.',
   'errors.scripting.portRange': 'Port must be an integer between 1 and 65535.',
 
+  // ── MCP public URL ────────────────────────────────────────────────────
+  'errors.mcp.publicUrl.invalid': "'{value}' is not an absolute URL, such as {example}.",
+  'errors.mcp.publicUrl.scheme': "'{value}' must be an http:// or https:// URL.",
+  'errors.mcp.publicUrl.credentials': 'The public URL must not contain a user name or password.',
+  'errors.mcp.publicUrl.notOrigin':
+    "'{value}' must be an origin only (scheme, host and optional port), with no path, query or fragment.",
+
   // ── List type arguments ───────────────────────────────────────────────
   'errors.listType.invalid':
     "Invalid list type '{value}'. Use 'deck', 'collection', or 'wanted' (plurals such as 'decks' work too).",

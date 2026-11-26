@@ -237,6 +237,10 @@ export const helpInfraMeta = {
     description:
       '`admin --mcp-port`. {flag} is the `--mcp` flag. It is typed or matched exactly by the user, so never translate it.',
   },
+  'help.admin.mcpPublicUrl': {
+    description:
+      '`admin --mcp-public-url`. {example} is an example address (`https://mcp.example.com`); {flag} is the `--mcp` flag. Neither is translated.',
+  },
   'help.admin.mcpToken': {
     description:
       '`admin --mcp-token`. RITUAL_MCP_TOKEN is an environment variable name. {flag} is the `--mcp` flag; {envVar} is the `RITUAL_MCP_TOKEN` environment variable. Each is typed or matched exactly by the user, so never translate them.',
@@ -262,7 +266,14 @@ export const helpInfraMeta = {
     description:
       '`mcp --token`. RITUAL_MCP_TOKEN is an environment variable name. {envVar} is the `RITUAL_MCP_TOKEN` environment variable. It is typed or matched exactly by the user, so never translate it.',
   },
-  'help.mcp.allowUnauthenticated': { description: '`mcp --allow-unauthenticated`.' },
+  'help.mcp.publicUrl': {
+    description:
+      '`mcp --public-url`. Host/Origin are HTTP header names. {example} is an example address (`https://mcp.example.com`) and is never translated.',
+  },
+  'help.mcp.allowUnauthenticated': {
+    description:
+      '`mcp --allow-unauthenticated`. {publicUrlFlag} is the `--public-url` flag. It is typed or matched exactly by the user, so never translate it.',
+  },
   'help.mcp.sellMode': {
     description:
       '`mcp --sell-mode`. site.sellMode is a config key name; Card Kingdom is a company name. "sell and buylist tools" refers to the get_sell_report, get_sell_cart, get_buylist_quotes and refresh_buylist MCP tools. {configKey} is the `site.sellMode` config key. It is typed or matched exactly by the user, so never translate it.',

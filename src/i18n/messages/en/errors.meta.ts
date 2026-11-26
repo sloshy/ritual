@@ -78,6 +78,22 @@ export const errorsMeta = {
   'errors.scripting.portRange': {
     description: 'Rejection of a --port value that is not an integer in the TCP port range.',
   },
+  'errors.mcp.publicUrl.invalid': {
+    description:
+      'Rejection of a `mcp --public-url` / `admin --mcp-public-url` value that is not an absolute URL. {value} is what the user typed; {example} is an example address (`https://mcp.example.com`). Neither is translated.',
+  },
+  'errors.mcp.publicUrl.scheme': {
+    description:
+      'Rejection of a `mcp --public-url` / `admin --mcp-public-url` value whose scheme is not http or https. {value} is what the user typed. http:// and https:// are URL schemes and are never translated.',
+  },
+  'errors.mcp.publicUrl.credentials': {
+    description:
+      'Rejection of a `mcp --public-url` / `admin --mcp-public-url` value that embeds a user name or password (`https://user:pass@host`). The value itself is not echoed, so the secret is not printed.',
+  },
+  'errors.mcp.publicUrl.notOrigin': {
+    description:
+      'Rejection of a `mcp --public-url` / `admin --mcp-public-url` value that carries a path, query string or fragment: the flag takes the bare external address the endpoint is reached at, and Ritual appends `/mcp` itself. {value} is what the user typed.',
+  },
   'errors.listType.invalid': {
     description:
       "A typed list type (`ritual new <type>`, `import --type`) was not one of the accepted spellings. {value} is what the user typed. The quoted 'deck', 'collection', 'wanted' and 'decks' are the tokens the user types, so never translate them.",

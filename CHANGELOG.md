@@ -19,6 +19,17 @@ release changes a file format or a generated file, it ships the change as a
 
 ## [Unreleased]
 
+### Added
+
+- [`ritual mcp --transport http --public-url <url>`](https://ritual.rpeters.dev/commands/mcp/#behind-a-reverse-proxy-or-tunnel)
+  and [`ritual admin --mcp --mcp-public-url <url>`](https://ritual.rpeters.dev/commands/admin/#embedded-mcp-server)
+  serve the MCP endpoint behind a tunnel or reverse proxy (such as a Cloudflare Tunnel) that
+  forwards a public hostname to a loopback bind. The URL's host passes the loopback `Host`/`Origin`
+  checks that used to answer every forwarded request with `403`, and the public endpoint is
+  printed at startup. The value must be a bare `http://` or `https://` origin. Because a public
+  URL exposes the endpoint, `ritual mcp` refuses it without a token unless you pass
+  `--allow-unauthenticated`.
+
 ## [1.0.0] - 2026-11-25
 
 The first release of Ritual. Ritual is a command-line program that keeps your Magic: The

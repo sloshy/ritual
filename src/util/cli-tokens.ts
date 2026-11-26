@@ -93,6 +93,7 @@ export const FLAG = {
   locales: '--locales',
   mcp: '--mcp',
   mcpPort: '--mcp-port',
+  mcpPublicUrl: '--mcp-public-url',
   mcpToken: '--mcp-token',
   min: '--min',
   minOwned: '--min-owned',
@@ -121,6 +122,7 @@ export const FLAG = {
   prerelease: '--prerelease',
   priceSource: '--price-source',
   priceSources: '--price-sources',
+  publicUrl: '--public-url',
   quantity: '--quantity',
   quoteAll: '--quote-all',
   random: '--random',
@@ -303,6 +305,7 @@ export const EXAMPLE = {
   cacheServerUrl: 'http://localhost:4000',
   feedPublicUrl: 'http://<host>:<port>',
   feedUrl: 'https://feed.example.com/feed.json',
+  mcpPublicUrl: 'https://mcp.example.com',
   /** CSV-import spellings and the tokens the importer writes for them. */
   // i18n-exempt: importer input spellings and the card-line tokens they become, matched verbatim
   importNormalization: '“Near Mint” → NM, “F” → foil, “side” → Sideboard',

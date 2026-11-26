@@ -876,6 +876,8 @@ export const cliInfraMessages = {
   // contract and is not in the catalog.
   'cli.mcp.refusingUnauthenticated':
     "Refusing to serve MCP without authentication on non-loopback host '{host}'. Pass {tokenFlag} (or set {envVar}), or pass {allowUnauthenticatedFlag} to override.",
+  'cli.mcp.refusingUnauthenticatedPublicUrl':
+    "Refusing to serve MCP without authentication at public URL '{url}' ({publicUrlFlag}). Pass {tokenFlag} (or set {envVar}), or pass {allowUnauthenticatedFlag} to override.",
   'cli.mcp.unauthenticatedWarning':
     "Warning: serving MCP without authentication on '{host}' ({flag}).",
   'cli.mcp.unauthenticatedLoopback':
@@ -883,6 +885,7 @@ export const cliInfraMessages = {
   'cli.mcp.httpTeardownFailed': 'MCP HTTP teardown failed:',
   'cli.mcp.stdioIgnoredFlags': 'Warning: {flags} only apply to {flag} and are ignored under stdio.',
   'cli.mcp.httpListening': 'Ritual MCP server (HTTP) listening at {url}',
+  'cli.mcp.httpPublicEndpoint': 'Public endpoint: {url}',
   'cli.mcp.httpError': 'MCP HTTP error:',
   'cli.mcp.httpRequestFailed': 'MCP HTTP request failed:',
   'cli.mcp.stdioError': 'MCP stdio error:',

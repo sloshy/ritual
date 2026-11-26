@@ -19,14 +19,15 @@ ritual mcp [options]
 
 ## Options
 
-| Option                    | Description                                                                                   | Default     |
-| ------------------------- | --------------------------------------------------------------------------------------------- | ----------- |
-| `--transport <type>`      | Transport to use: `stdio` or `http`                                                           | `stdio`     |
-| `-p, --port <number>`     | Port for the HTTP transport                                                                   | `8765`      |
-| `--host <address>`        | Host to bind for the HTTP transport                                                           | `127.0.0.1` |
-| `--token <secret>`        | Require this bearer token on the HTTP transport                                               |             |
-| `--allow-unauthenticated` | Serve the HTTP transport without a bearer token on a non-loopback host                        |             |
-| `--sell-mode`             | Answer the sell/buylist tools for this run even when `site.sellMode` is off (both transports) |             |
+| Option                    | Description                                                                                                                                    | Default     |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `--transport <type>`      | Transport to use: `stdio` or `http`                                                                                                            | `stdio`     |
+| `-p, --port <number>`     | Port for the HTTP transport                                                                                                                    | `8765`      |
+| `--host <address>`        | Host to bind for the HTTP transport                                                                                                            | `127.0.0.1` |
+| `--token <secret>`        | Require this bearer token on the HTTP transport                                                                                                |             |
+| `--public-url <url>`      | External origin a tunnel or reverse proxy forwards to this endpoint; see [Behind a reverse proxy or tunnel](#behind-a-reverse-proxy-or-tunnel) |             |
+| `--allow-unauthenticated` | Serve the HTTP transport without a bearer token on a non-loopback host or with `--public-url`                                                  |             |
+| `--sell-mode`             | Answer the sell/buylist tools for this run even when `site.sellMode` is off (both transports)                                                  |             |
 
 Notes:
 
@@ -57,29 +58,44 @@ Serves the MCP [Streamable HTTP](https://modelcontextprotocol.io) transport at `
 
 Ritual implements MCP revision **2026-07-28**, whose Streamable HTTP transport is **stateless**: no `initialize` handshake and no `Mcp-Session-Id` header. Every POST to `/mcp` is served on its own, carrying the protocol version and client capabilities in the request. Clients speaking the older 2025-era protocol (including current Claude Desktop / Claude Code releases) are still served: Ritual answers their `initialize` handshake on a compatibility path. On that path the standalone `GET /mcp` SSE stream and `DELETE /mcp` session teardown answer `405`. Ritual uses neither feature.
 
-Without a token, the command **refuses to bind a non-loopback `--host`** (exit code `2`) unless you pass `--allow-unauthenticated`. An unauthenticated endpoint exposed beyond the local machine lets anyone on the network edit your lists. Tokenless binds to a loopback host (`127.0.0.1`, `localhost`, `::1`) are allowed and print a one-line notice on stderr.
+Without a token, the command **refuses to bind a non-loopback `--host`**, or to serve with a [`--public-url`](#behind-a-reverse-proxy-or-tunnel) (exit code `2`), unless you pass `--allow-unauthenticated`, which then prints a warning on stderr. An unauthenticated endpoint exposed beyond the local machine lets anyone on the network edit your lists. Tokenless binds to a loopback host (`127.0.0.1`, `localhost`, `::1`) with no public URL are allowed and print a one-line notice on stderr.
 
-The HTTP-only flags (`--port`, `--host`, `--token`, `--allow-unauthenticated`) do nothing under stdio. Passing them there prints a warning on stderr.
+The HTTP-only flags (`--port`, `--host`, `--token`, `--public-url`, `--allow-unauthenticated`) do nothing under stdio. Passing them there prints a warning on stderr. A malformed `--public-url` is still refused there (exit code `2`), since the value is checked as it is parsed.
+
+#### Behind a reverse proxy or tunnel
+
+On a loopback bind, the endpoint rejects any request whose `Host` or `Origin` header is not a local name (DNS-rebinding protection). A tunnel or reverse proxy that forwards a public hostname to the loopback port, such as a Cloudflare Tunnel (`cloudflared`) sending `https://mcp.example.com` to `http://127.0.0.1:8765`, keeps that public `Host`, so every request would get `403`. Tell Ritual the address it is reached at:
+
+```bash
+ritual mcp --transport http --public-url https://mcp.example.com --token "$MCP_TOKEN"
+```
+
+- The value must be an **origin only**: an absolute `http://` or `https://` URL with a host and optional port, and no path (other than `/`), query, fragment, or user name/password. It is normalized to the origin (`https://MCP.example.com:443/` becomes `https://mcp.example.com`): an internationalized host name is punycoded, and a trailing dot on the host name is dropped (`https://mcp.example.com.` becomes `https://mcp.example.com`), since that is the `Host` a tunnel sends. Anything else exits with code `2`, and a value carrying a user name or password is refused without echoing it.
+- The public URL's host name is accepted in the `Host` and `Origin` checks beside the local names. The checks compare host names only, so a public URL on a non-default port (`https://mcp.example.com:8443`) needs nothing extra. Every other non-local host is still rejected with `403`.
+- The startup output prints the public endpoint (`https://mcp.example.com/mcp`) below the local one. Point remote clients at that address.
+- A public URL means the endpoint is reachable from outside even though the bind is loopback, so **it needs a token** exactly like a non-loopback `--host`. Without one the command refuses to start (exit `2`) unless you pass `--allow-unauthenticated`.
+
+[`ritual admin --mcp`](/commands/admin/#embedded-mcp-server) takes the same value as `--mcp-public-url`.
 
 `Ctrl+C` (`SIGINT`) or `SIGTERM` stops the listener and drops active connections, so the port is released and the process exits on its own. A failed teardown is reported on stderr. `ritual admin --mcp` does the same for both of its listeners.
 
 #### Errors
 
-| Response | When                                                                                                                                                                                                                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `401`    | Missing or wrong bearer token. The JSON-RPC body carries implementation-defined code `-32010`, and `error.data.messageKey` `admin.api.server.unauthorized`.                                                                                                                                            |
-| `403`    | On a **loopback bind only**: a request whose `Host` or `Origin` header is not local (DNS-rebinding protection, checked before auth). An exposed host skips this and relies on the token.                                                                                                               |
-| `404`    | A path other than `/mcp`. The body carries implementation-defined code `-32011`, and `error.data` `{ "messageKey": "cli.mcp.endpointNotFound", "messageParams": { "path": "/mcp" } }`.                                                                                                                 |
-| `405`    | `GET`/`DELETE` on `/mcp` — the 2025-era session operations, which stateless serving does not have.                                                                                                                                                                                                     |
-| `415`    | A POST whose `Content-Type` is not `application/json`.                                                                                                                                                                                                                                                 |
-| `413`    | A request body over about 32 MiB, refused before it reaches the protocol layer (no JSON-RPC body). Tool arguments are also held to each route's own [size limit](/admin/api/#request-size-limits): an `apply_changes` batch carries at most 50,000 changes, and an oversized argument is a tool error. |
-| `500`    | An unexpected failure while handling the request. The JSON-RPC body carries code `-32603` (InternalError) and `error.data.messageKey` `admin.api.server.internalError`; the details go to the server's console, never to the client.                                                                   |
+| Response | When                                                                                                                                                                                                                                                                                                                                                                            |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `401`    | Missing or wrong bearer token. The JSON-RPC body carries implementation-defined code `-32010`, and `error.data.messageKey` `admin.api.server.unauthorized`.                                                                                                                                                                                                                     |
+| `403`    | On a **loopback bind only**: a request whose `Host` or `Origin` header is neither local nor the [`--public-url`](#behind-a-reverse-proxy-or-tunnel) host (DNS-rebinding protection, checked before auth). Behind a tunnel or reverse proxy, a `403` on every request means `--public-url` is missing or names another host. An exposed host skips this and relies on the token. |
+| `404`    | A path other than `/mcp`. The body carries implementation-defined code `-32011`, and `error.data` `{ "messageKey": "cli.mcp.endpointNotFound", "messageParams": { "path": "/mcp" } }`.                                                                                                                                                                                          |
+| `405`    | `GET`/`DELETE` on `/mcp` — the 2025-era session operations, which stateless serving does not have.                                                                                                                                                                                                                                                                              |
+| `415`    | A POST whose `Content-Type` is not `application/json`.                                                                                                                                                                                                                                                                                                                          |
+| `413`    | A request body over about 32 MiB, refused before it reaches the protocol layer (no JSON-RPC body). Tool arguments are also held to each route's own [size limit](/admin/api/#request-size-limits): an `apply_changes` batch carries at most 50,000 changes, and an oversized argument is a tool error.                                                                          |
+| `500`    | An unexpected failure while handling the request. The JSON-RPC body carries code `-32603` (InternalError) and `error.data.messageKey` `admin.api.server.internalError`; the details go to the server's console, never to the client.                                                                                                                                            |
 
 On 2026-07-28 responses, the catalog surfaces (`tools/list`, `resources/templates/list`, `server/discover`) advertise a one-hour private cache hint. `resources/list` and `resources/read` are marked never-cacheable, since their contents change with every edit. Ritual declares no tool-list-changed notifications and no resource subscriptions; see [Resources](#resources) for the transport-dependent `resources.listChanged`.
 
 ### Embedding in a running admin server
 
-[`ritual admin --mcp`](/commands/admin/#embedded-mcp-server) serves the same MCP endpoint **inside a running web admin** instead of a standalone process. One process exposes both the web admin and an MCP endpoint (on `--mcp-port`, default `8765`), sharing config, cache, and data. It uses the same bearer-token auth as this command. A token (`--mcp-token` or `RITUAL_MCP_TOKEN`) is required there, since the admin binds `0.0.0.0` by default. The token is independent of the browser admin login.
+[`ritual admin --mcp`](/commands/admin/#embedded-mcp-server) serves the same MCP endpoint **inside a running web admin** instead of a standalone process. One process exposes both the web admin and an MCP endpoint (on `--mcp-port`, default `8765`), sharing config, cache, and data. It uses the same bearer-token auth as this command. A token (`--mcp-token` or `RITUAL_MCP_TOKEN`) is required there, since the admin binds `0.0.0.0` by default. The token is independent of the browser admin login. Behind a tunnel or reverse proxy, pass `--mcp-public-url` there, as described in [Behind a reverse proxy or tunnel](#behind-a-reverse-proxy-or-tunnel).
 
 ## Results and errors
 

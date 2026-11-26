@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { hasErrorCode } from '../util/errors'
 import { isRecord } from '../util/json'
+import { parseHttpUrl } from '../util/http-url'
 import { writeFileAtomic } from '../util/atomic-write'
 import { errorParam, nestSync, syncList, syncMessage, type SyncMessage } from '../sync/message'
 import { invalidJsonMessage, sidecarProblem } from './sidecar-message'
@@ -171,16 +172,16 @@ function parseCardArtFile(value: unknown): CardArtFileRef | CardArtRefError {
 function parseCardArtUrl(value: unknown): CardArtUrlRef | CardArtRefError {
   if (typeof value !== 'string') return { error: syncMessage('domain.list.art.urlNotString') }
   const trimmed = value.trim()
-  let parsed: URL
-  try {
-    parsed = new URL(trimmed)
-  } catch {
-    return { error: syncMessage('domain.list.art.invalidUrl', { url: trimmed }) }
+  const parsed = parseHttpUrl(trimmed)
+  if (parsed instanceof URL) return { url: trimmed }
+  switch (parsed.problem) {
+    case 'invalid':
+      return { error: syncMessage('domain.list.art.invalidUrl', { url: trimmed }) }
+    case 'scheme':
+      return { error: syncMessage('domain.list.art.notHttp', { url: trimmed }) }
+    default:
+      return parsed.problem satisfies never
   }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return { error: syncMessage('domain.list.art.notHttp', { url: trimmed }) }
-  }
-  return { url: trimmed }
 }
 
 /**

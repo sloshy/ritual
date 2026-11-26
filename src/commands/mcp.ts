@@ -1,11 +1,12 @@
 import { Command, Option } from 'commander'
-import { isLoopbackHost } from '../mcp/host'
+import { unauthenticatedExposure, type UnauthenticatedExposure } from '../mcp/host'
+import { parseMcpPublicUrl, type McpPublicUrl } from '../mcp/public-url'
 import { runHttpServer, runStdioServer } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
 import { t } from '../i18n/t'
-import { addSellModeOption, applySellModeOverride, parsePort } from '../cli/options'
+import { addSellModeOption, applySellModeOverride, parsedFlag, parsePort } from '../cli/options'
 import { ExitCode } from '../util/errors'
-import { CONFIG_KEY, ENV_VAR, FLAG, flagValue } from '../util/cli-tokens'
+import { CONFIG_KEY, ENV_VAR, EXAMPLE, FLAG, flagValue } from '../util/cli-tokens'
 
 type McpTransport = 'stdio' | 'http'
 
@@ -14,6 +15,12 @@ type McpCommandOptions = {
   port: number
   host: string
   token?: string
+  /**
+   * The external origin a tunnel or reverse proxy forwards to this bind. Its
+   * hostname joins the loopback DNS-rebinding allowlist, and it marks the
+   * endpoint as exposed, so it needs a token like a non-loopback host.
+   */
+  publicUrl?: McpPublicUrl
   allowUnauthenticated?: boolean
   /**
    * Answer the sell/buylist tools for this run whatever `site.sellMode` says
@@ -31,8 +38,37 @@ const HTTP_ONLY_OPTIONS: readonly HttpOnlyOption[] = [
   { name: 'port', flag: FLAG.port },
   { name: 'host', flag: FLAG.host },
   { name: 'token', flag: FLAG.token },
+  { name: 'publicUrl', flag: FLAG.publicUrl },
   { name: 'allowUnauthenticated', flag: FLAG.allowUnauthenticated },
 ]
+
+/** The flags a refusal names as its ways out. */
+type RefusalRemedyParams = {
+  tokenFlag: string
+  envVar: string
+  allowUnauthenticatedFlag: string
+}
+
+/** The refusal printed for an exposed tokenless endpoint without `--allow-unauthenticated`. */
+function exposureRefusal(exposure: UnauthenticatedExposure): string {
+  const remedy: RefusalRemedyParams = {
+    tokenFlag: flagValue(FLAG.token, '<secret>'),
+    envVar: ENV_VAR.mcpToken,
+    allowUnauthenticatedFlag: FLAG.allowUnauthenticated,
+  }
+  switch (exposure.reason) {
+    case 'host':
+      return t('cli.mcp.refusingUnauthenticated', { host: exposure.exposedAt, ...remedy })
+    case 'public-url':
+      return t('cli.mcp.refusingUnauthenticatedPublicUrl', {
+        url: exposure.exposedAt,
+        publicUrlFlag: FLAG.publicUrl,
+        ...remedy,
+      })
+    default:
+      return exposure.reason satisfies never
+  }
+}
 
 export function registerMcpCommand(program: Command): void {
   const mcp = program
@@ -46,7 +82,15 @@ export function registerMcpCommand(program: Command): void {
     .option('-p, --port <number>', t('help.mcp.port'), parsePort, 8765)
     .option('--host <address>', t('help.mcp.host'), '127.0.0.1')
     .option('--token <secret>', t('help.mcp.token', { envVar: ENV_VAR.mcpToken }))
-    .option('--allow-unauthenticated', t('help.mcp.allowUnauthenticated'))
+    .option(
+      '--public-url <url>',
+      t('help.mcp.publicUrl', { example: EXAMPLE.mcpPublicUrl }),
+      parsedFlag(parseMcpPublicUrl),
+    )
+    .option(
+      '--allow-unauthenticated',
+      t('help.mcp.allowUnauthenticated', { publicUrlFlag: FLAG.publicUrl }),
+    )
     .action(async (options: McpCommandOptions, command: Command) => {
       // Set before either transport starts serving, so the gated sell routes
       // the tools call agree with the flag for the whole session. Applies to
@@ -56,22 +100,16 @@ export function registerMcpCommand(program: Command): void {
       if (options.transport === 'http') {
         const token = resolveMcpToken(options.token)
         if (!token) {
-          if (!isLoopbackHost(options.host)) {
+          const exposure = unauthenticatedExposure(options.host, options.publicUrl)
+          if (exposure !== undefined) {
             if (!options.allowUnauthenticated) {
-              console.error(
-                t('cli.mcp.refusingUnauthenticated', {
-                  host: options.host,
-                  tokenFlag: flagValue(FLAG.token, '<secret>'),
-                  envVar: ENV_VAR.mcpToken,
-                  allowUnauthenticatedFlag: FLAG.allowUnauthenticated,
-                }),
-              )
+              console.error(exposureRefusal(exposure))
               process.exitCode = ExitCode.UsageError
               return
             }
             console.error(
               t('cli.mcp.unauthenticatedWarning', {
-                host: options.host,
+                host: exposure.exposedAt,
                 flag: FLAG.allowUnauthenticated,
               }),
             )
@@ -83,6 +121,7 @@ export function registerMcpCommand(program: Command): void {
           port: options.port,
           host: options.host,
           auth: token ? { kind: 'bearer', token } : { kind: 'none' },
+          publicUrl: options.publicUrl,
         })
         // The listener holds the process open; without this the HTTP leg had
         // strictly less teardown wiring than stdio (which installs its own).

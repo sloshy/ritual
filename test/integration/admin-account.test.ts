@@ -258,9 +258,21 @@ describe('admin parent command (Integration)', () => {
     expect(result.stdout).toContain('--port')
     expect(result.stdout).toContain('--host')
     expect(result.stdout).toContain('--mcp-token')
+    expect(result.stdout).toContain('--mcp-public-url')
     // The account subcommands are registered underneath it.
     expect(result.stdout).toContain('setup')
     expect(result.stdout).toContain('reset-password')
     expect(result.stdout).toContain('disable-totp')
+  })
+
+  test('refuses an --mcp-public-url that is not a bare origin with exit code 2', async () => {
+    // Parsed before the admin server starts, so a regression fails here
+    // rather than serving.
+    const result = await runCli(
+      ['admin', '--mcp', '--mcp-public-url', 'https://mcp.example.com/mcp'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain("'https://mcp.example.com/mcp' must be an origin only")
   })
 })

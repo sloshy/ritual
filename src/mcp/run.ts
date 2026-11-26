@@ -15,6 +15,7 @@ import {
   type RitualWireErrorCode,
 } from './error-codes'
 import { isLoopbackHost } from './host'
+import type { McpPublicUrl } from './public-url'
 import { buildMcpServer } from './server'
 import { verifyTaskSupport } from './tasks/probe'
 import { sharedTaskRuntime } from './tasks/runtime'
@@ -69,6 +70,13 @@ export interface HttpServerOptions {
   port: number
   host: string
   auth: McpHttpAuth
+  /**
+   * The external origin a tunnel or reverse proxy forwards to this listener.
+   * On a loopback bind its hostname is allowed through the DNS-rebinding
+   * checks beside the local names; the endpoint it implies is announced at
+   * startup.
+   */
+  publicUrl?: McpPublicUrl
 }
 
 /**
@@ -174,7 +182,7 @@ function isAuthorized(request: Request, auth: McpHttpAuth): boolean {
  * reach, so claiming the capability here would be a promise Ritual cannot keep.
  */
 export async function runHttpServer(options: HttpServerOptions): Promise<McpHttpServer> {
-  const { port, host, auth } = options
+  const { port, host, auth, publicUrl } = options
 
   // Before anything is served, so no client sees the Tasks extension
   // advertised by a server that would not honour it.
@@ -189,8 +197,15 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
   // any other loopback address (`isLoopbackHost` accepts all of 127.0.0.0/8)
   // must still accept its own name, or every request would be rejected as a
   // rebinding attempt.
-  const allowedHosts = [...new Set([...localhostAllowedHostnames(), host])]
-  const allowedOrigins = [...new Set([...localhostAllowedOrigins(), host])]
+  //
+  // A public URL's hostname joins both lists. The SDK compares hostnames only
+  // (port-agnostic, IPv6 bracketed, which is the form `URL.hostname` yields):
+  // `Host: mcp.example.com:8443` and `Origin: https://mcp.example.com:8443`
+  // both reduce to `mcp.example.com`, so a non-default port needs no entry of
+  // its own, and any other hostname is still turned away.
+  const publicHostnames = publicUrl === undefined ? [] : [publicUrl.hostname]
+  const allowedHosts = [...new Set([...localhostAllowedHostnames(), host, ...publicHostnames])]
+  const allowedOrigins = [...new Set([...localhostAllowedOrigins(), host, ...publicHostnames])]
   const loopbackOnly = isLoopbackHost(host)
 
   let server: Bun.Server<undefined>
@@ -256,5 +271,8 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
 
   const boundPort = server.port ?? port
   console.error(t('cli.mcp.httpListening', { url: `http://${host}:${boundPort}${MCP_PATH}` }))
+  if (publicUrl !== undefined) {
+    console.error(t('cli.mcp.httpPublicEndpoint', { url: `${publicUrl.origin}${MCP_PATH}` }))
+  }
   return { server, port: boundPort, stop, [Symbol.asyncDispose]: () => stop(true) }
 }

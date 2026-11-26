@@ -91,7 +91,7 @@ claude mcp add --transport http ritual http://127.0.0.1:8765/mcp \
 
 Your shell expands the token before Claude Code sees it, so the token is written in plain text into Claude Code's config (`~/.claude.json`).
 
-Keep the default `127.0.0.1` bind unless you need to reach it from another machine. Without a token, Ritual refuses to bind any other host unless you pass `--allow-unauthenticated`, because anyone who can reach the port could then edit your lists. The bearer token is the only authentication.
+Keep the default `127.0.0.1` bind unless you need to reach it from another machine. Without a token, Ritual refuses to bind any other host unless you pass `--allow-unauthenticated`, because anyone who can reach the port could then edit your lists. The bearer token is the only authentication. To reach a loopback-bound server through a tunnel or reverse proxy (such as a Cloudflare Tunnel), pass its public address with `--public-url`, which also requires a token. See [Behind a reverse proxy or tunnel](/commands/mcp/#behind-a-reverse-proxy-or-tunnel).
 
 If you already run the web admin, `ritual admin --mcp` serves the same endpoint inside it (on `--mcp-port`, default `8765`) and requires a token. See [Embedding in a running admin server](/commands/mcp/#embedding-in-a-running-admin-server).
 

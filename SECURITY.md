@@ -20,16 +20,16 @@ properties to know before you expose any of it to a network. The
 
 ### Servers and where they listen
 
-| Command                    | Default bind            | Authentication                                                                                           |
-| -------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| `serve`                    | `0.0.0.0:3000`          | None. Serves the built site's static files only.                                                         |
-| `serve --api`              | `0.0.0.0:3000`          | None. Read-only API with CORS `*`; see below.                                                            |
-| `admin`                    | `0.0.0.0:8080`          | Account login with a session cookie; see below.                                                          |
-| `admin --mcp`              | admin's host, port 8765 | Bearer token, required.                                                                                  |
-| `mcp --transport http`     | `127.0.0.1:8765`        | Bearer token. Without one, a non-loopback `--host` is refused unless you pass `--allow-unauthenticated`. |
-| `mcp` (stdio, the default) | no socket               | Whoever launches the process.                                                                            |
-| `cache server`             | `127.0.0.1:4000`        | **None, including its write routes.** Trusted networks only.                                             |
-| `cache feed host`          | `127.0.0.1:4010`        | None. Read-only (GET/HEAD); seeding opens a BitTorrent listener.                                         |
+| Command                    | Default bind            | Authentication                                                                                                               |
+| -------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `serve`                    | `0.0.0.0:3000`          | None. Serves the built site's static files only.                                                                             |
+| `serve --api`              | `0.0.0.0:3000`          | None. Read-only API with CORS `*`; see below.                                                                                |
+| `admin`                    | `0.0.0.0:8080`          | Account login with a session cookie; see below.                                                                              |
+| `admin --mcp`              | admin's host, port 8765 | Bearer token, required.                                                                                                      |
+| `mcp --transport http`     | `127.0.0.1:8765`        | Bearer token. Without one, a non-loopback `--host` or a `--public-url` is refused unless you pass `--allow-unauthenticated`. |
+| `mcp` (stdio, the default) | no socket               | Whoever launches the process.                                                                                                |
+| `cache server`             | `127.0.0.1:4000`        | **None, including its write routes.** Trusted networks only.                                                                 |
+| `cache feed host`          | `127.0.0.1:4010`        | None. Read-only (GET/HEAD); seeding opens a BitTorrent listener.                                                             |
 
 - **`serve --api` has no write routes and no authentication.** It answers list data,
   card search, prices and buylist quotes to anyone who can reach it. Some routes read
@@ -87,7 +87,8 @@ properties to know before you expose any of it to a network. The
 - The token comes from `--token` / `--mcp-token` or `RITUAL_MCP_TOKEN` (the environment
   variable keeps it out of the process list), and is compared in constant time.
 - On a loopback bind, the HTTP transport also checks the `Host` and `Origin` headers
-  against DNS rebinding. On any other bind, the token is the only check.
+  against DNS rebinding: only local names and the host name of `--public-url` /
+  `--mcp-public-url` pass. On any other bind, the token is the only check.
 - **A connected client can do anything the admin site can,** including deleting lists,
   rewriting history and changing `ritual.config.json` (the admin's allow lists among
   it). Treat the token like the admin password.

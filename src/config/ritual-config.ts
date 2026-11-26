@@ -19,6 +19,7 @@ import {
 } from '../card/card-categories'
 import { isValidSemver } from './semver'
 import { isRecord } from '../util/json'
+import { parseHttpUrl } from '../util/http-url'
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../cache/constants'
 import { cacheDirProblem, type CacheDirCheckContext } from './cache-location'
 import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './list-selection'
@@ -1042,14 +1043,7 @@ export function parseCacheSource(value: unknown): CacheSource | ConfigParseError
  * an `undefined` input is malformed here.
  */
 export function parseCacheFeedUrl(value: unknown): string | ConfigParseError {
-  if (typeof value === 'string') {
-    try {
-      const url = new URL(value)
-      if (url.protocol === 'http:' || url.protocol === 'https:') return value
-    } catch {
-      // Fall through to the error below.
-    }
-  }
+  if (typeof value === 'string' && parseHttpUrl(value) instanceof URL) return value
   return configError('domain.config.mustBeHttpUrl', { field: 'cacheFeedUrl' })
 }
 
@@ -1117,14 +1111,7 @@ export function parseSiteApiBaseUrl(value: unknown): string | ConfigParseError {
     return sectionError('site', syncRef('domain.config.mustBeString', { field: 'apiBaseUrl' }))
   }
   if (value === '') return ''
-  try {
-    const url = new URL(value)
-    if (url.protocol === 'http:' || url.protocol === 'https:') {
-      return value.replace(/\/+$/, '')
-    }
-  } catch {
-    // Fall through to the error below.
-  }
+  if (parseHttpUrl(value) instanceof URL) return value.replace(/\/+$/, '')
   return sectionError(
     'site',
     syncRef('domain.config.mustBeHttpUrlOrEmpty', { field: 'apiBaseUrl' }),

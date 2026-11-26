@@ -181,6 +181,8 @@ export const helpInfraMessages = {
   'help.admin.mcp':
     'Also serve an MCP (Model Context Protocol) endpoint in this process (requires {flag})',
   'help.admin.mcpPort': 'Port for the embedded MCP server (with {flag})',
+  'help.admin.mcpPublicUrl':
+    'External origin a tunnel or reverse proxy forwards to the embedded MCP endpoint, such as {example} (with {flag})',
   'help.admin.mcpToken':
     'Bearer token required on the embedded MCP endpoint (with {flag}; or set {envVar})',
   'help.admin.sellMode':
@@ -204,8 +206,10 @@ export const helpInfraMessages = {
   'help.mcp.port': 'Port for the HTTP transport',
   'help.mcp.host': 'Host to bind for the HTTP transport',
   'help.mcp.token': 'Require this bearer token on the HTTP transport (or set {envVar})',
+  'help.mcp.publicUrl':
+    'External origin a tunnel or reverse proxy forwards to this endpoint, such as {example}: its host passes the loopback Host/Origin check (requires a token)',
   'help.mcp.allowUnauthenticated':
-    'Serve the HTTP transport without a bearer token on a non-loopback host',
+    'Serve the HTTP transport without a bearer token on a non-loopback host or with {publicUrlFlag}',
   'help.mcp.sellMode':
     'Answer the sell and buylist tools for this run even when the {configKey} config is off (they use the locally cached Card Kingdom buylist)',
 

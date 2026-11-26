@@ -51,6 +51,36 @@ async function rpcErrorCode(response: Response): Promise<number | undefined> {
   return (await rpcError(response))?.code
 }
 
+/** How {@link listToolsVia} authenticates: the suite's token unless told otherwise. */
+type ListToolsOptions = {
+  /** The bearer token to send; `null` sends no Authorization header at all. */
+  token?: string | null
+  /** The request's Content-Type. */
+  contentType?: string
+}
+
+/**
+ * POST a bare tools/list to `server` carrying `headers` (a forwarded Host or
+ * Origin), authenticated with the suite's token unless `options` says otherwise.
+ */
+function listToolsVia(
+  server: McpHttpServer,
+  headers: Record<string, string> = {},
+  options: ListToolsOptions = {},
+): Promise<Response> {
+  const token = options.token === undefined ? TOKEN : options.token
+  return fetch(endpoint(server), {
+    method: 'POST',
+    headers: {
+      'Content-Type': options.contentType ?? 'application/json',
+      Accept: 'application/json, text/event-stream',
+      ...(token === null ? {} : { Authorization: `Bearer ${token}` }),
+      ...headers,
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+  })
+}
+
 // No Scryfall fetch stub on purpose: these tests exercise the HTTP transport (the
 // real client uses global fetch to reach the loopback server) and only call tools
 // that don't load card data (list_lists reads list files only), so no network is hit.
@@ -191,15 +221,7 @@ describe('ritual mcp HTTP — bearer auth', () => {
   test('serves a bare tools/list POST with no initialize and no session', async () => {
     // Serving is stateless now: what used to be a 400 ("send an initialize
     // request first") is the ordinary way to call the server.
-    const res = await fetch(endpoint(server), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${TOKEN}`,
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
-    })
+    const res = await listToolsVia(server)
     expect(res.status).toBe(200)
     // The stateless invariant on the wire: no session is minted, ever.
     expect(res.headers.get('mcp-session-id')).toBeNull()
@@ -227,43 +249,17 @@ describe('ritual mcp HTTP — bearer auth', () => {
   test('rejects a foreign Host header on a loopback bind (DNS rebinding)', async () => {
     // Host validation runs before auth on loopback binds; a rebinding page
     // reaches 127.0.0.1 under its own hostname and must be turned away.
-    const res = await fetch(endpoint(server), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${TOKEN}`,
-        Host: 'evil.example',
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
-    })
+    const res = await listToolsVia(server, { Host: 'evil.example' })
     expect(res.status).toBe(403)
   })
 
   test('rejects a non-local Origin header on a loopback bind', async () => {
-    const res = await fetch(endpoint(server), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${TOKEN}`,
-        Origin: 'http://evil.example',
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
-    })
+    const res = await listToolsVia(server, { Origin: 'http://evil.example' })
     expect(res.status).toBe(403)
   })
 
   test('returns 415 for a POST that is not application/json', async () => {
-    const res = await fetch(endpoint(server), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain',
-        Accept: 'application/json, text/event-stream',
-        Authorization: `Bearer ${TOKEN}`,
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
-    })
+    const res = await listToolsVia(server, {}, { contentType: 'text/plain' })
     expect(res.status).toBe(415)
   })
 
@@ -318,6 +314,83 @@ describe('ritual mcp HTTP — console', () => {
     } finally {
       if (started !== undefined) await started.stop(true)
       await ws.dispose()
+    }
+  })
+})
+
+describe('ritual mcp HTTP — public URL behind a tunnel', () => {
+  // What `cloudflared` forwards: the public hostname, on a non-default port
+  // here so the port-agnostic hostname match is what lets it through.
+  const PUBLIC_ORIGIN = 'https://mcp.example.com:8443'
+  let ws: BoundWorkspace
+  let server: McpHttpServer
+  let lines: string[]
+
+  beforeEach(async () => {
+    ws = await makeWorkspace()
+    const captured = await captureConsole(['error'], async () => {
+      server = await runHttpServer({
+        port: 0,
+        host: '127.0.0.1',
+        auth: { kind: 'bearer', token: TOKEN },
+        publicUrl: { origin: PUBLIC_ORIGIN, hostname: 'mcp.example.com' },
+      })
+    })
+    lines = captured.lines.error
+  })
+  afterEach(async () => teardown(ws, server))
+
+  const PUBLIC_HEADERS: Record<string, string> = {
+    Host: 'mcp.example.com:8443',
+    Origin: PUBLIC_ORIGIN,
+  }
+
+  test('accepts the public Host and Origin on a loopback bind', async () => {
+    const res = await listToolsVia(server, PUBLIC_HEADERS)
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain('list_lists')
+  })
+
+  test('still requires the bearer token from the public Host and Origin', async () => {
+    // Allowlisting the hostname widens the rebinding check only: auth still applies.
+    const missing = await listToolsVia(server, PUBLIC_HEADERS, { token: null })
+    expect(missing.status).toBe(401)
+    expect(await rpcErrorCode(missing)).toBe(UNAUTHORIZED_ERROR_CODE)
+
+    const wrong = await listToolsVia(server, PUBLIC_HEADERS, { token: 'wrong-token' })
+    expect(wrong.status).toBe(401)
+    expect(await rpcErrorCode(wrong)).toBe(UNAUTHORIZED_ERROR_CODE)
+  })
+
+  test('still rejects any other non-local Host or Origin', async () => {
+    expect((await listToolsVia(server, { Host: 'evil.example' })).status).toBe(403)
+    expect((await listToolsVia(server, { Origin: 'https://evil.example' })).status).toBe(403)
+  })
+
+  test('announces the public endpoint after the local one', () => {
+    expect(lines).toEqual([
+      `Ritual MCP server (HTTP) listening at http://127.0.0.1:${server.port}/mcp`,
+      `Public endpoint: ${PUBLIC_ORIGIN}/mcp`,
+    ])
+  })
+})
+
+describe('ritual mcp HTTP — IPv6 public URL', () => {
+  test('accepts the bracketed IPv6 Host the public URL names', async () => {
+    const ws = await makeWorkspace()
+    const server = await runHttpServer({
+      port: 0,
+      host: '127.0.0.1',
+      auth: { kind: 'bearer', token: TOKEN },
+      // As `parseMcpPublicUrl('https://[2001:db8::1]:8443')` returns it.
+      publicUrl: { origin: 'https://[2001:db8::1]:8443', hostname: '[2001:db8::1]' },
+    })
+    try {
+      const res = await listToolsVia(server, { Host: '[2001:db8::1]:8443' })
+      expect(res.status).toBe(200)
+      expect((await listToolsVia(server, { Host: '[2001:db8::2]:8443' })).status).toBe(403)
+    } finally {
+      await teardown(ws, server)
     }
   })
 })
@@ -391,43 +464,103 @@ describe('ritual mcp HTTP — in-call progress notifications', () => {
   })
 })
 
+/**
+ * Run `body` with a port already taken on `hostname`. A gate test passes it as
+ * `-p`, so if the gate ever stops refusing, the server fails to bind and the
+ * run exits 1 at once instead of serving on the default port until the test
+ * times out.
+ */
+async function withBusyPort(
+  hostname: string,
+  body: (port: string) => Promise<void>,
+): Promise<void> {
+  const busy = Bun.serve({ port: 0, hostname, fetch: () => new Response('busy') })
+  try {
+    await body(String(busy.port))
+  } finally {
+    await busy.stop(true)
+  }
+}
+
 describe('ritual mcp CLI flag gate', () => {
   test('refuses tokenless HTTP on a non-loopback host with exit code 2', async () => {
-    await withTempDir(async (dir) => {
-      const result = await runCli(['mcp', '--transport', 'http', '--host', '0.0.0.0'], dir, {
-        RITUAL_MCP_TOKEN: undefined,
+    await withBusyPort('0.0.0.0', async (port) => {
+      await withTempDir(async (dir) => {
+        const result = await runCli(
+          ['mcp', '--transport', 'http', '--host', '0.0.0.0', '-p', port],
+          dir,
+          { RITUAL_MCP_TOKEN: undefined },
+        )
+        expect(result.exitCode).toBe(2)
+        expect(result.stderr).toContain('Refusing to serve MCP without authentication')
       })
-      expect(result.exitCode).toBe(2)
-      expect(result.stderr).toContain('Refusing to serve MCP without authentication')
+    })
+  })
+
+  test('refuses tokenless HTTP with a public URL on a loopback bind with exit code 2', async () => {
+    await withBusyPort('127.0.0.1', async (port) => {
+      await withTempDir(async (dir) => {
+        const result = await runCli(
+          ['mcp', '--transport', 'http', '--public-url', 'https://mcp.example.com/', '-p', port],
+          dir,
+          { RITUAL_MCP_TOKEN: undefined },
+        )
+        expect(result.exitCode).toBe(2)
+        expect(result.stderr).toContain(
+          "Refusing to serve MCP without authentication at public URL 'https://mcp.example.com'",
+        )
+      })
+    })
+  })
+
+  test('an invalid --public-url is a usage error, exit code 2', async () => {
+    await withBusyPort('127.0.0.1', async (port) => {
+      await withTempDir(async (dir) => {
+        const result = await runCli(
+          ['mcp', '--transport', 'http', '--public-url', 'https://mcp.example.com/mcp', '-p', port],
+          dir,
+          { RITUAL_MCP_TOKEN: 'secret' },
+        )
+        expect(result.exitCode).toBe(2)
+        expect(result.stderr).toContain('must be an origin only')
+      })
     })
   })
 
   test('a busy port is a one-line error and exit code 1, not a crash', async () => {
-    const busy = Bun.serve({ port: 0, hostname: '127.0.0.1', fetch: () => new Response('busy') })
-    try {
+    await withBusyPort('127.0.0.1', async (port) => {
       await withTempDir(async (dir) => {
-        const port = String(busy.port)
         const result = await runCli(['mcp', '--transport', 'http', '-p', port], dir)
         expect(result.exitCode).toBe(1)
         expect(result.stderr).toContain(`Failed to start the server on 127.0.0.1:${port}`)
       })
-    } finally {
-      await busy.stop(true)
-    }
+    })
   })
 
-  test('--allow-unauthenticated is accepted by the option parser', async () => {
-    await withTempDir(async (dir) => {
-      // An invalid port keeps the command from actually binding a server; the
-      // parse error proves --allow-unauthenticated itself was not rejected.
-      const result = await runCli(
-        ['mcp', '--transport', 'http', '--host', '0.0.0.0', '--allow-unauthenticated', '-p', '0'],
-        dir,
-        { RITUAL_MCP_TOKEN: undefined },
-      )
-      expect(result.exitCode).toBe(2)
-      expect(result.stderr).not.toContain('Refusing to serve MCP')
-      expect(result.stderr).toContain('Port must be an integer between 1 and 65535')
+  test('--allow-unauthenticated lets a tokenless non-loopback bind through the gate', async () => {
+    // The busy port stops the run at the bind, after the gate: exit 1 with the
+    // warning proves the flag was parsed and honoured, where a refusal or a
+    // rejected flag would exit 2.
+    await withBusyPort('0.0.0.0', async (port) => {
+      await withTempDir(async (dir) => {
+        const result = await runCli(
+          [
+            'mcp',
+            '--transport',
+            'http',
+            '--host',
+            '0.0.0.0',
+            '--allow-unauthenticated',
+            '-p',
+            port,
+          ],
+          dir,
+          { RITUAL_MCP_TOKEN: undefined },
+        )
+        expect(result.exitCode).toBe(1)
+        expect(result.stderr).toContain("Warning: serving MCP without authentication on '0.0.0.0'")
+        expect(result.stderr).toContain(`Failed to start the server on 0.0.0.0:${port}`)
+      })
     })
   })
 })

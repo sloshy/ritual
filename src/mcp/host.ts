@@ -1,3 +1,5 @@
+import type { McpPublicUrl } from './public-url'
+
 /**
  * Loopback host names that don't fit the 127.0.0.0/8 dotted-quad pattern:
  * the bracketed IPv6 form users copy out of URLs (and the SDK's own host
@@ -17,4 +19,29 @@ export function isLoopbackHost(host: string): boolean {
   const normalized = host.toLowerCase()
   if (LOOPBACK_NAMES.has(normalized)) return true
   return LOOPBACK_V4_PATTERN.test(normalized)
+}
+
+/**
+ * Why a tokenless HTTP endpoint would be reachable beyond this machine: it
+ * binds a non-loopback host, or a public URL says a tunnel or reverse proxy
+ * forwards to its loopback bind.
+ */
+export type UnauthenticatedExposure = {
+  reason: 'host' | 'public-url'
+  /** Where it is exposed: the bind host, or the public origin. */
+  exposedAt: string
+}
+
+/**
+ * Where a tokenless endpoint bound to `host` would be exposed, or `undefined`
+ * when it is reachable from this machine only. A non-loopback host wins over
+ * a public URL: the bind itself is already the wider exposure.
+ */
+export function unauthenticatedExposure(
+  host: string,
+  publicUrl: McpPublicUrl | undefined,
+): UnauthenticatedExposure | undefined {
+  if (!isLoopbackHost(host)) return { reason: 'host', exposedAt: host }
+  if (publicUrl !== undefined) return { reason: 'public-url', exposedAt: publicUrl.origin }
+  return undefined
 }

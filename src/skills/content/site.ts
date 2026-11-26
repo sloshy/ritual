@@ -647,6 +647,11 @@ ritual admin --mcp --mcp-token "$RITUAL_MCP_TOKEN"
 ritual admin --mcp --mcp-token "$RITUAL_MCP_TOKEN" --mcp-port 9100
 \`\`\`
 
+Behind a tunnel or reverse proxy that forwards a public hostname to a loopback
+bind, pass \`--mcp-public-url <url>\` (an origin such as
+\`https://mcp.example.com\`) so the embedded endpoint accepts that hostname; see
+\`--public-url\` below.
+
 **First run:** while no account exists, \`ritual admin\` prints a setup link
 carrying a one-time token; the browser setup form refuses to create the account
 without it (\`RITUAL_ADMIN_SETUP_TOKEN\` pins the token for scripted setup).
@@ -715,6 +720,18 @@ The HTTP transport binds \`--host\` (default \`127.0.0.1\`). Without a token
 (\`--token\` or \`RITUAL_MCP_TOKEN\`) it serves unauthenticated on loopback only.
 On a non-loopback host it refuses to start unless \`--allow-unauthenticated\` is
 passed explicitly.
+
+On a loopback bind the endpoint rejects any \`Host\` or \`Origin\` that is not a
+local name with \`403\` (DNS-rebinding protection). When a tunnel or reverse
+proxy (e.g. \`cloudflared\`) forwards a public hostname to the loopback bind,
+pass \`--public-url <url>\`: an origin only (\`http:\`/\`https:\`, no path,
+query, fragment or credentials), whose hostname is then accepted too, and whose
+\`<url>/mcp\` endpoint is printed at startup. A public URL means the endpoint is
+exposed, so it needs a token exactly like a non-loopback host:
+
+\`\`\`bash
+ritual mcp --transport http --public-url https://mcp.example.com --token "$RITUAL_MCP_TOKEN"
+\`\`\`
 
 Register it with Claude Code:
 
