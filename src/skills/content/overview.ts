@@ -4,7 +4,7 @@ import { asBullet, NO_INPUT_GUARANTEE, REFRESH_COMMANDS } from './shared'
 export const overviewSkill: RitualSkill = {
   name: 'ritual',
   description:
-    'Entry point for working with Ritual, a Magic: The Gathering toolkit that manages decks, collections, and wanted lists as Markdown files. Use when a workspace has decks/, collections/, or wanted/ folders or a ritual.config.json, or when the user mentions Ritual, MTG decks, collections, or wanted lists, or asks to update Ritual itself (ritual self-update) or to diagnose or report a Ritual problem (ritual doctor).',
+    'Entry point for working with Ritual, a Magic: The Gathering toolkit that manages decks, collections, and wanted lists as Markdown files. Use when a workspace has decks/, collections/, or wanted/ folders or a ritual.config.json, or when the user mentions Ritual, MTG decks, collections, or wanted lists, asks how many cards or how much value their lists hold across several of them (ritual lists --summary), or asks to update Ritual itself (ritual self-update) or to diagnose or report a Ritual problem (ritual doctor).',
   body: `# Ritual — Magic: The Gathering decks, collections & wanted lists
 
 Ritual is a CLI that manages Magic: The Gathering **decks**, **collections**, and
@@ -88,6 +88,23 @@ file column (the slug) only when some list's file name differs from its name (th
 text type column is worded in the UI language, e.g. \`wanted list\`). Filter with
 \`--deck\`/\`--collection\`/\`--wanted\`, and pass \`--output json\` for machine-readable
 \`{type, slug, name}\` objects whose \`type\` is always \`deck\`/\`collection\`/\`wanted\`. Prefer it over globbing the workspace folders.
+
+**Counting and valuing many lists:** \`ritual lists --summary\` reads every list once
+and reports each one's entries (lines) and cards (copies), plus totals across them;
+add \`--source <store>\` for each list's value. Use it instead of reading or pricing
+lists one by one: \`ritual lists --summary --collection\` (cards across all
+collections), \`--name box\` (lists whose name has every term), \`--deck --section
+Commander --section Main\` (deck boards that count, exact heading), \`--label\`,
+\`--format\`, \`--no-empty\`, named lists as arguments (\`deck:Burn\`), and \`--sort
+name|quantity|value\` with \`--ascending\`/\`--descending\` and \`--limit\` (the totals
+still cover every selected list). \`--sort value\` needs \`--source\`. Every one of
+these options needs \`--summary\`. Under \`--output json\` each row is
+\`{listType, slug, name, counts, value?, …}\` (note \`listType\`, where plain \`lists\`
+says \`type\`), with \`totals\` and, across types, \`typeTotals\`; \`warnings\` are
+message objects naming their list as \`list: {listType, slug}\` (an unreadable list, a
+skipped line, missing prices), so a short total is never silent. Prices that cannot be
+had (empty cache, no Card Kingdom feed) leave the counts with a warning; only
+\`--sort value\` then fails (exit 1), since that order cannot be had.
 
 **List lifecycle:** \`ritual new <deck|collection|wanted> "<name>"\` creates a list
 (plurals such as \`decks\` or \`"wanted lists"\` are accepted too, as by

@@ -500,7 +500,8 @@ ritual get-primer <moxfield-url>          # fetch a primer from Moxfield
 ${priceIntro({ scopeFlag: '--deck' })}
 
 \`\`\`bash
-ritual price --deck --summary                       # every deck's totals
+ritual lists --summary --deck --source tcgplayer   # every deck's totals
+ritual lists --summary --deck --section Commander --section Main   # board counts, no sideboard
 ritual price "Winota Stax" --no-input               # one deck's cards + totals
 ritual price "Winota Stax" --output json --quiet
 ritual price "Winota Stax" --source cardkingdom     ${PRICE_SOURCE_COMMENT}

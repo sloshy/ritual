@@ -129,7 +129,7 @@ Most commands that produce data can emit it in a machine-readable form:
 
 ```bash
 # One JSON document
-ritual price "My Commander Deck" --output json | jq '.totals'
+ritual price "My Commander Deck" --output json | jq '.list.total'
 
 # One JSON object per line, with only the fields you want
 ritual card --from-file cards.txt --output ndjson --fields name,set,prices.usd

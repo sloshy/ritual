@@ -72,7 +72,7 @@ ritual delete deck:"Trade Binder" --collection
 #   Drop the 'deck:' prefix or the --collection flag.
 ```
 
-Commands that take **more than one** list cannot scope each argument with one whole-command flag, so their ambiguity errors suggest the prefix. That covers [`diff`](/commands/diff/)'s two sides, [`move`](/commands/move/)'s `--from`/`--to`, and the list arguments of [`export`](/commands/export/) and [`sell`](/commands/sell/). [`lists`](/commands/lists/) does not resolve a name, but accepts the same three flags to filter which types it enumerates.
+Commands that take **more than one** list cannot scope each argument with one whole-command flag, so their ambiguity errors suggest the prefix. That covers [`diff`](/commands/diff/)'s two sides, [`move`](/commands/move/)'s `--from`/`--to`, and the list arguments of [`export`](/commands/export/), [`sell`](/commands/sell/) and [`lists --summary`](/commands/lists/#summary). Plain `lists` resolves no name, but accepts the same three flags to filter which types it enumerates.
 
 Single-type commands (`deck-sync`, `collection-sync`, `get-primer`, and the CSV importer) already know their type, so they take no flag. They match names by the same folding, substring, and ambiguity rules. Their ambiguity errors never suggest a type selector: they use the first row of the table below, or the second when the matching names fold together.
 
@@ -80,14 +80,14 @@ Single-type commands (`deck-sync`, `collection-sync`, `get-primer`, and the CSV 
 
 The error always lists every match. The remedy line under it names the mechanism the command you ran has:
 
-| Situation                                                                           | Advice                                                                                                  |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| All matches are the **same type** (including single-type commands)                  | `Type more of the name to narrow the match (e.g. 'burn').`                                              |
-| Matches that fold together but differ byte-wise                                     | `Type one list's exact full name, spelled and capitalized as its file is (e.g. 'Atraxa Superfriends').` |
-| Matches span types, command takes type flags                                        | `Disambiguate with --deck, --collection, or --wanted.`                                                  |
-| Matches span types, the name takes a type prefix (`move`, `diff`, `export`, `sell`) | `Disambiguate with a type prefix, e.g. 'deck:Storm' or 'wanted:Storm'.`                                 |
-| Matches span types, the caller sends a structured type field (`POST /api/export`)   | `Set the list's type to 'deck' or 'wanted'.`                                                            |
-| Matches span types, no type selector exists at all                                  | `Type more of the name to narrow the match (e.g. 'Storm').`                                             |
+| Situation                                                                                    | Advice                                                                                                  |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| All matches are the **same type** (including single-type commands)                           | `Type more of the name to narrow the match (e.g. 'burn').`                                              |
+| Matches that fold together but differ byte-wise                                              | `Type one list's exact full name, spelled and capitalized as its file is (e.g. 'Atraxa Superfriends').` |
+| Matches span types, command takes type flags                                                 | `Disambiguate with --deck, --collection, or --wanted.`                                                  |
+| Matches span types, the name takes a type prefix (`move`, `diff`, `export`, `sell`, `lists`) | `Disambiguate with a type prefix, e.g. 'deck:Storm' or 'wanted:Storm'.`                                 |
+| Matches span types, the caller sends a structured type field (`POST /api/export`)            | `Set the list's type to 'deck' or 'wanted'.`                                                            |
+| Matches span types, no type selector exists at all                                           | `Type more of the name to narrow the match (e.g. 'Storm').`                                             |
 
 A type selector cannot break a tie between two lists of the same type, so the same-type case always asks for a longer name. A type is only suggested when it holds exactly **one** match. When no type qualifies, the error asks for a longer name instead.
 

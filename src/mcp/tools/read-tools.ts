@@ -746,7 +746,8 @@ export function registerReadTools(server: McpServer): void {
         'selected list, while sort and limit only order and trim the rows. Prices are ' +
         'strictly cache-backed: an empty card cache, a list that fails to price, or ' +
         'cardkingdom with no cached feed leaves the counts in place with a warning (sort ' +
-        '"value" with no Card Kingdom feed is an error instead). For one list’s priced card ' +
+        '"value" is an error instead when the cache is empty or the Card Kingdom feed is ' +
+        'missing, since that order cannot be produced). For one list’s priced card ' +
         'entries use get_list_prices.',
       inputSchema: summarizeListsSchema,
       outputSchema: outputSchemaFor<SummarizeListsResult>('summarize_lists'),

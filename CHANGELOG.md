@@ -21,17 +21,77 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Breaking
 
-- Price reports now name each list by its display title (the list's `# Title`), not its file
-  name: `lists[].name` and `cards[].listName` in `ritual price --output json` (and `ndjson`), in
-  the admin `/api/price/*` routes and in the MCP `get_price_report` tool. To find a list, use the
-  new `slug` / `listSlug` fields (with the list type) instead of the name; a script that matched
-  rows by file name must switch to `slug`.
+- The MCP `get_price_report` tool is now
+  [`get_list_prices`](https://ritual.rpeters.dev/commands/mcp/#tools) and prices **one** list:
+  `listType` and `slug` are both required. For totals across many lists (every list, or every
+  list of a type), call the new [`summarize_lists`](https://ritual.rpeters.dev/commands/mcp/#summarizing-lists)
+  with `source` instead. Rename the tool in any prompt, script or client allowlist that names it.
+- `GET /api/price/summary` is removed. Use
+  [`GET /api/lists/summary?source=<store>`](https://ritual.rpeters.dev/admin/api/lists/#list-summary)
+  (with `listType=` in place of the old `type=`), which returns each list's `value` beside its
+  counts. It has no default store: without `source` it reports counts only.
+- `ritual price --summary` is removed. Run
+  [`ritual lists --summary --source <store>`](https://ritual.rpeters.dev/commands/lists/#summary)
+  for every list's totals (add `--deck`, `--collection` or `--wanted` to scope it, as before).
+  Its JSON is shaped differently: rows are `lists[]` with `listType`, `slug`, `name`, `counts`
+  and `value`, and the totals are `totals.value` and `typeTotals[].value`.
+- A non-interactive `ritual price` (piped, `--output json`/`ndjson`, or `--no-input`) with
+  neither a list name nor a card filter (`--name`, `--set`, `--collector`) now exits `2` with a
+  usage error pointing at `ritual lists --summary --source <store>`. Before, it printed the
+  summary. The interactive browser is unchanged.
+- Price reports name each list by its display title (the list's `# Title`), not its file name:
+  `list.name` and `cards[].listName` in `ritual price --output json` (and `ndjson`), in
+  [`GET /api/price/:type/:slug`](https://ritual.rpeters.dev/admin/api/prices/#price-list) and in
+  the MCP `get_list_prices` tool. To identify a list, read the new `list.slug` /
+  `cards[].listSlug` (with the list type), which stay unique when two lists share a title; a
+  script that matched rows by file name must switch to the slug.
+- Price responses drop `mode` (`GET /api/price/:type/:slug`, MCP `get_list_prices`): there is
+  only one body now. A client that branched on it can stop reading it.
+- Price and sell `warnings` are message objects instead of strings, each naming its list:
+  `{ message, messageKey, messageParams, list: { listType, slug } }`, where `messageParams.cause`
+  nests what went wrong. This covers `ritual price --output json`, `ritual sell --output json`,
+  `GET /api/price/:type/:slug`, `GET /api/sell/report` and the MCP `get_list_prices` and
+  `get_sell_report` tools. Read `message` where you read the string, and match on `messageKey`.
+  The stderr lines are unchanged.
+- The sell routes (`GET /api/sell/report`, `GET /api/sell/cart`) take one list per repeated
+  [`list=type:slug`](https://ritual.rpeters.dev/admin/api/prices/#parameters) parameter
+  (`?list=collection:binder&list=deck:burn`) instead of the comma-separated `lists=`, so a slug
+  holding a comma works. A list named twice is matched once, and the type half is
+  case-insensitive. A malformed ref is refused with key `admin.api.listRefInvalid` (was
+  `admin.api.sell.refInvalid`), and a slug holding a path separator is now that `400` instead of
+  a `404`. A ref naming no list is a `404` keyed `admin.api.list.notFound` with `listType` and
+  `slug` params (was `admin.api.listNotFound` with `list`). The MCP sell tools' `lists` input is
+  unchanged.
+- The sell routes' `type=` is matched case-insensitively and an unknown value is refused with
+  `errors.enum.invalid`, like every other enum parameter, instead of `admin.api.listTypeInvalid`.
+  The message keys `admin.api.listTypeInvalid` and `admin.api.listNotFound` no longer exist; a
+  client matching on them must switch to `errors.enum.invalid` and `admin.api.list.notFound`.
+- `GET /api/price/:type/:slug` answers `404` (`admin.api.list.notFound`) when the list's file
+  disappears between the lookup and the read, rather than `200` with no `list`;
+  `ritual price <list>` exits `1` in that case.
 
 ### Added
 
-- Price reports carry each list's slug: `lists[].slug` and `cards[].listSlug` in
-  `ritual price --output json`, the admin `/api/price/*` routes and the MCP `get_price_report`
-  tool. With the list type it identifies the list, even when two lists share a title.
+- [`ritual lists --summary`](https://ritual.rpeters.dev/commands/lists/#summary) counts every
+  list's entries (lines) and cards (copies) in one pass, with per-type and grand totals
+  (including distinct card names), and with `--source <store>` each list's value. Select with
+  list names as arguments (`deck:Burn`), `--deck`/`--collection`/`--wanted`, `--name <terms>`,
+  `--label`, `--format` and `--no-empty`; count only some deck boards with repeated
+  `--section` (`--section Commander --section Main`); order with `--sort name|quantity|value`,
+  `--ascending`/`--descending` and `--limit` (the totals still cover every selected list). It
+  answers "how many cards are in all my collections", "which lists have box in the name",
+  "each deck's board counts" and "my most valuable collections" in one command. Counting never
+  needs the card cache; prices that cannot be had (an empty cache, no Card Kingdom feed) leave
+  the counts with a warning, and only `--sort value` refuses then. Every summary option needs
+  `--summary`; plain `ritual lists` is unchanged.
+- [`GET /api/lists/summary`](https://ritual.rpeters.dev/admin/api/lists/#list-summary) and the
+  MCP [`summarize_lists`](https://ritual.rpeters.dev/commands/mcp/#summarizing-lists) tool return
+  the same summary, with the same filters (`listType`, `nameContains`, list refs, `label`,
+  `format`, `includeEmpty`, deck sections; the route takes refs and sections as repeated
+  `list=type:slug` and `section` parameters, the tool as `lists` and `sections` arrays), `source`, `sort`, `descending` and
+  `limit`. Pricing is strictly cache-backed. A `list` ref naming no list is a warning, not an
+  error. The MCP server's instructions now steer agents to one `summarize_lists` call instead
+  of a `get_list` per list.
 - [`ritual mcp --transport http --public-url <url>`](https://ritual.rpeters.dev/commands/mcp/#behind-a-reverse-proxy-or-tunnel)
   and [`ritual admin --mcp --mcp-public-url <url>`](https://ritual.rpeters.dev/commands/admin/#embedded-mcp-server)
   serve the MCP endpoint behind a tunnel or reverse proxy (such as a Cloudflare Tunnel) that
@@ -54,6 +114,17 @@ release changes a file format or a generated file, it ships the change as a
   refuses to start without it and says how to set it). Changing the admin password, or turning
   TOTP on or off, revokes every OAuth grant at once, even on a running server; deleting
   `.logins/mcp-oauth.json` with the server stopped also forgets every registered client.
+
+### Changed
+
+- Price reports at Card Kingdom (`source=cardkingdom`) report `lastRefreshedAt` as the age of the
+  Card Kingdom feed they were priced from, not the card cache's last refresh: in
+  `GET /api/price/:type/:slug`, MCP `get_list_prices`, the new summary surfaces, and the header
+  of the `ritual price` browser. Every other store still reports the card cache's age.
+- The `ritual price` browser's main screen is built from the new list summary, and a list's card
+  screen is priced only when you open it, so a list file that cannot be read is left out with a
+  warning rather than stopping the browser. **Refresh prices** also refreshes the Card Kingdom
+  feed when Card Kingdom is the store.
 
 ### Fixed
 

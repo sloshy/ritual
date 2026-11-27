@@ -116,8 +116,9 @@ export function parseListsSummaryParams(params: URLSearchParams): ListsSummaryQu
  * is strictly cache-backed (`refresh: 'never'`). Prices that cannot be had are
  * a warning beside the counts, never a refusal — an empty card cache, a list
  * that fails to price, or Card Kingdom with no cached feed — except that
- * `sort=value` with no Card Kingdom feed is refused (503) with the refresh
- * advice, since the order asked for cannot be had (the engine's rule).
+ * `sort=value` is refused (503) when the card cache is empty or Card Kingdom
+ * has no cached feed, since the order asked for cannot be had (the engine's
+ * rule).
  */
 export async function handleListsSummary(req: Request): Promise<Response> {
   try {

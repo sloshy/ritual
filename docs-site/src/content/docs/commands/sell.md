@@ -159,7 +159,7 @@ ritual sell --sets dsk,fdn --min 0.50 --output json
 ritual sell --output ndjson
 ```
 
-`--output json` emits the full report: `feedCreatedAt`, `feedRetrievedAt`, the active `filters`, per-list summaries, every entry, grand totals, and parser `warnings`. `ndjson` emits one entry per line. Text reports sort each list's offers by value, best first.
+`--output json` emits the full report: `feedCreatedAt`, `feedRetrievedAt`, the active `filters`, per-list summaries, every entry, grand totals, and parser `warnings`. Each warning is a message object (`message`, `messageKey`, `messageParams`) naming its list as `list: { listType, slug }`, the same shape [`price`](/commands/price/#non-interactive-output) reports; the warnings also print to stderr in every output mode. `ndjson` emits one entry per line. Text reports sort each list's offers by value, best first.
 
 ## Exit Codes
 

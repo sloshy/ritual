@@ -81,7 +81,7 @@ Ritual never creates `artDir`. It reads the directory only when a list reference
 
 The store decides the currency too (`tcgplayer` and `cardkingdom` are USD, `cardmarket` is EUR, `cardhoarder` is MTGO tix). Leave the key unset to use the first enabled [price store](#price-stores-pricesources), or TCGplayer when none is enabled. It sets the starting point for:
 
-- the [price](/commands/price/) command, and the admin price API and MCP `get_price_report`, when no store is given. There is no separate currency setting or flag; a store's currency comes with it.
+- the [price](/commands/price/) command, and the admin [price route](/admin/api/prices/#price-list) and MCP `get_list_prices`, when no store is given. The cross-list summary ([`lists --summary`](/commands/lists/#summary), [`GET /api/lists/summary`](/admin/api/lists/#list-summary), MCP `summarize_lists`) does not use it: it is unpriced unless you name a store (`--source`, `?source=`). There is no separate currency setting or flag; a store's currency comes with it.
 - the CLI editor's [printing and finish picker price columns](/commands/edit/#printing-and-finish-prices) and the price lines shown when adding or editing cards. These read Scryfall prices in the store's currency.
 - the public and admin sites' initial price store. The sites can only open on a store listed in `priceSources`; otherwise they open on the first store in the header's dropdown (the first enabled store of the first offered currency).
 

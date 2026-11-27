@@ -9,9 +9,9 @@ import Recording from '../../../components/Recording.astro'
 
 Browse the prices of every deck, collection, and wanted list in one place.
 
-Run in a terminal with no flags, `price` opens an [interactive browser](#the-interactive-browser). The same information prints non-interactively when you pass scripting flags, when stdin or stdout is piped, or under the global `--no-input` flag.
+Run in a terminal with no flags, `price` opens an [interactive browser](#the-interactive-browser). A card filter (`--name`, `--set`, `--collector`) always prints those cards; a list name prints that list instead of opening it when you pass scripting flags, when stdin or stdout is piped, or under the global `--no-input` flag (see [Non-Interactive Output](#non-interactive-output)). For every list's totals without the browser, use [`ritual lists --summary --source <store>`](/commands/lists/#summary).
 
-The same pricing engine backs the [MCP](/commands/mcp/) `get_price_report` tool. For what a store would pay you for these cards, see [`sell`](/commands/sell/).
+The same pricing engine backs the [MCP](/commands/mcp/) `get_list_prices` tool (one list) and the value in `summarize_lists` (many lists). For what a store would pay you for these cards, see [`sell`](/commands/sell/).
 
 ## Usage
 
@@ -21,11 +21,11 @@ ritual price [listName] [options]
 
 ## Arguments
 
-| Argument     | Description                                        | Required |
-| ------------ | -------------------------------------------------- | -------- |
-| `[listName]` | Open (or print) a single list instead of all lists | No       |
+| Argument     | Description                                  | Required |
+| ------------ | -------------------------------------------- | -------- |
+| `[listName]` | The list to open in the browser, or to print | No       |
 
-The name is matched across all three list types; see [List Names](/list-resolution/). An ambiguous name is rejected. Disambiguate with `--deck`, `--collection`, or `--wanted`.
+Without a name the browser opens on every list. The name is matched across all three list types; see [List Names](/list-resolution/). An ambiguous name is rejected. Disambiguate with `--deck`, `--collection`, or `--wanted`.
 
 ## Options
 
@@ -40,7 +40,6 @@ The name is matched across all three list types; see [List Names](/list-resoluti
 | `--collector <number>` | Print cards with this collector number                                                                                                                                                                                             |
 | `--sort <field>`       | Sort cards by `name`, `price`, `lowest`, `set`, `cmc`, `edhrec`, or `quantity`                                                                                                                                                     |
 | `--descending`         | Reverse the sort direction                                                                                                                                                                                                         |
-| `--summary`            | Print the price summary instead of opening the browser                                                                                                                                                                             |
 | `--refresh <mode>`     | Card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`; see [Price Freshness](#price-freshness)                                                                                                                 |
 | `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                                                                                                                                        |
 | `--quiet`              | Suppress progress lines, the marker legend, and the price disclaimer; never the results or the parser warnings                                                                                                                     |
@@ -51,7 +50,7 @@ The name is matched across all three list types; see [List Names](/list-resoluti
 
 The main screen shows:
 
-- When prices were last updated, and the store (with its currency) prices come from
+- When the store's prices were last updated (for Card Kingdom, when its feed was downloaded), and the store (with its currency) prices come from
 - Every list with its total price, its lowest possible total (every card at its cheapest printing, when that differs), its unpriced count, and its card count
 - Totals per list type (decks / collections / wanted lists) and across all lists
 
@@ -62,7 +61,7 @@ Selecting a list opens a card browser over it. **🔎 Search all cards** opens t
 - Menu items change the sort field and direction, and set persistent set-code, collector-number, and (in the global search) list-type filters.
 - Selecting a card shows its printing, unit and line price, cheapest printing, mana value, and EDHREC rank. It can also list every printing with per-finish prices.
 
-**🔄 Refresh prices** redownloads the card database (which carries the prices) and rebuilds the report. **🏪 Change store** re-prices everything at another store, in that store's currency (the header reads, for example, `Store: Card Kingdom (USD)`). Switching to Card Kingdom loads its feed under the run's `--refresh` policy; if none can be had, the browser says so and keeps the current store.
+**🔄 Refresh prices** redownloads the card database (which carries the prices), and at Card Kingdom its feed too, then rebuilds the report. **🏪 Change store** re-prices everything at another store, in that store's currency (the header reads, for example, `Store: Card Kingdom (USD)`). Switching to Card Kingdom loads its feed under the run's `--refresh` policy; if none can be had, the browser says so and keeps the current store.
 
 ## Price stores (`--source`)
 
@@ -86,7 +85,7 @@ When the store is Card Kingdom (`--source cardkingdom`, or a `cardkingdom` defau
 
 ## Price Freshness
 
-Prices come from the local Scryfall card cache. The shared `--refresh <mode>` option decides how its freshness is handled (see [CLI conventions](/cli-conventions/)). On launch, `price` reports when the cache was last refreshed.
+Prices come from the local Scryfall card cache. The shared `--refresh <mode>` option decides how its freshness is handled (see [CLI conventions](/cli-conventions/)). On launch, `price` reports when the store's prices were last refreshed.
 
 | Situation                  | `ask` (default)                 | `auto`                   | `no-bulk` / `never` |
 | -------------------------- | ------------------------------- | ------------------------ | ------------------- |
@@ -116,12 +115,9 @@ Prompts never fire when they cannot be answered. Under `--no-input` / `RITUAL_NO
 
 ## Non-Interactive Output
 
-Three views, chosen by the flags:
+Two views, chosen by the arguments:
 
 ```bash
-# Summary of every list (the main screen as text)
-ritual price --summary
-
 # One list's cards and totals
 ritual price "Red Binder" --no-input
 
@@ -141,13 +137,41 @@ Prices are for the whole line (quantity × one copy); 'lowest' is the line at it
 
 `--quiet` leaves out the legend along with the disclaimer.
 
-Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). Every JSON result names its `source` (the store) and `currency` (that store's). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, grand totals, and a `warnings` array. The single-list and card-search results carry the same `warnings` field. Card listings include per-entry prices, lowest prices, and unpriced reasons.
+A non-interactive run with neither a list name nor a card filter has nothing to print, and exits `2` with a usage error pointing at `ritual lists --summary --source <store>`, which prints every list's totals (see [`lists`](/commands/lists/#summary)).
 
-`warnings` holds lines the list parsers could not read (prose, comments, malformed card lines). Such lines are not priced, so the totals exclude them. The warnings also print to stderr in every output mode, including under `--quiet`.
+Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per card). Every JSON result names its `source` (the store) and `currency` (that store's) and carries a `warnings` array. The single-list result's `list` holds the list's totals: `type`, `name` (its display title), `slug` (with `type`, what identifies it), `cardCount`, `total`, `lowestTotal`, `unpricedCount` and `estimatedCount`. Card listings include per-entry prices, lowest prices, and unpriced reasons, and each entry names its list as `listType`, `listName` and `listSlug`.
 
 ```bash
-ritual price --summary --output json
+ritual price "Red Binder" --output json
 ritual price --wanted --set otc --output ndjson
 ```
 
+`warnings` holds lines the list parsers could not read (prose, comments, malformed card lines) and custom art that could not be loaded. Such lines are not priced, so the totals exclude them. Each warning is a message object naming its list:
+
+```json
+{
+  "message": "Burn: Skipped malformed line: - 2x",
+  "messageKey": "domain.price.inList",
+  "messageParams": {
+    "list": "Burn",
+    "cause": {
+      "messageKey": "domain.import.text.malformedLine",
+      "messageParams": { "line": "- 2x" }
+    }
+  },
+  "list": { "listType": "deck", "slug": "burn" }
+}
+```
+
+Match on `messageKey` rather than on `message`, which follows the CLI's language. The warnings also print to stderr in every output mode, including under `--quiet`.
+
 Prices reflect NM (Near Mint) values: Scryfall market prices, or Card Kingdom's NM retail when that is the store.
+
+## Exit Codes
+
+| Code | Meaning                                                                                                                                         |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                                                         |
+| `1`  | Runtime error: the card cache is empty and was not downloaded, no Card Kingdom feed could be had, or the list's file vanished while it was read |
+| `2`  | Usage error: a non-interactive run with no list name and no card filter, conflicting type flags, an ambiguous list name, or a bad flag value    |
+| `3`  | The named list was not found                                                                                                                    |

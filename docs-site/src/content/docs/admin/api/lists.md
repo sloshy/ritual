@@ -25,6 +25,90 @@ Returns every list (deck, collection, wanted) as a slug-keyed summary. The singl
 }
 ```
 
+## List Summary
+
+```
+GET /api/lists/summary
+```
+
+Counts (and, with `?source=`, value at that store) across many lists in one call: one row per selected list, plus totals over the whole selection. The same payload as [`lists --summary --output json`](/commands/lists/#json), plus `success`; the MCP [`summarize_lists`](/commands/mcp/#summarizing-lists) tool calls this route. Counting reads only the list files. Pricing is strictly cache-backed (`refresh: never`): the route never downloads anything, and a card the cache does not hold is unpriced rather than fetched.
+
+**Query Parameters** (all optional; the selection filters intersect):
+
+| Parameter      | Description                                                                                                                                                                                        |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `listType`     | Only `deck`, `collection` or `wanted` lists                                                                                                                                                        |
+| `nameContains` | Whitespace-separated terms that must all appear, in any order, in the list's display name (case, accents and punctuation folded)                                                                   |
+| `list`         | One list as `type:slug` (`deck:burn`); **repeat** for several (`list=deck:burn&list=collection:binder`). The type is case-insensitive; a list named twice is kept once                             |
+| `label`        | Only lists whose front-matter default labels include this one (`sale`, `trade`, `keep`, `proxy`)                                                                                                   |
+| `includeEmpty` | `true` (default) or `false`: whether lists with no entries in their counted sections are kept                                                                                                      |
+| `format`       | Only decks of this format; collections and wanted lists never match                                                                                                                                |
+| `section`      | **Decks only:** a section that counts, by exact, case-sensitive heading (`Commander`, `Main`); **repeat** for several. Omit to count every section                                                 |
+| `source`       | Price every selected list at this store: `tcgplayer`, `cardmarket`, `cardhoarder` or `cardkingdom`. Omit for counts only. Unlike the [price routes](/admin/api/prices/), there is no default store |
+| `sort`         | `name` (default, ascending), `quantity` (copies, descending) or `value` (priced total, descending; needs `source`)                                                                                 |
+| `descending`   | `true` or `false`, overriding the sort's default direction. Ties fall back to name ascending                                                                                                       |
+| `limit`        | At most this many rows (a positive integer), after sorting. The totals still cover every selected list                                                                                             |
+
+Enum and boolean values are case-insensitive and trimmed, and a blank parameter reads as absent, except `list` and `section`: given only blank values (even once), they are an empty selection, which is refused rather than widened to every list.
+
+**Status codes:**
+
+| Status | When                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `400`  | A malformed parameter: an unknown enum value (`errors.enum.invalid`), a bad `list` ref (`admin.api.listRefInvalid`: no `type:`, an unknown type, an empty slug, or one holding a path separator), a `limit` that is not a positive integer (`admin.api.field.notPositiveInteger`), and, keyed `domain.list.summary.*`, no `list` or `section` named or `sort=value` without `source` |
+| `503`  | `sort=value` when the prices cannot be had: `source=cardkingdom` with no cached feed (keyed `domain.cache.cardKingdom.missingApiAdvice`), or an empty card cache (`domain.list.summary.cacheEmpty`)                                                                                                                                                                                  |
+
+Prices that cannot be had are otherwise not a refusal: an empty card cache, a list that fails to price, or Card Kingdom with no feed leaves the counts in place, with the reason in `warnings`. A `list` ref naming no list is a warning too, not a `404`.
+
+**Response** (`?listType=collection&source=tcgplayer`):
+
+```json
+{
+  "success": true,
+  "lists": [
+    {
+      "listType": "collection",
+      "slug": "main-binder",
+      "name": "Main Binder",
+      "counts": {
+        "entryCount": 3,
+        "cardCount": 3,
+        "sections": [{ "name": "Main", "entryCount": 3, "cardCount": 3 }]
+      },
+      "value": {
+        "cardCount": 3,
+        "total": 5.5,
+        "lowestTotal": 5.5,
+        "unpricedCount": 0,
+        "estimatedCount": 0
+      }
+    }
+  ],
+  "totals": {
+    "listCount": 1,
+    "entryCount": 3,
+    "cardCount": 3,
+    "distinctCardCount": 2,
+    "value": {
+      "cardCount": 3,
+      "total": 5.5,
+      "lowestTotal": 5.5,
+      "unpricedCount": 0,
+      "estimatedCount": 0
+    }
+  },
+  "warnings": [],
+  "source": "tcgplayer",
+  "currency": "usd",
+  "lastRefreshedAt": 1795739886172
+}
+```
+
+- A row carries the list's default `labels`, `description`, cover `image` and deck `format` when it declares them, and `value` only when priced. `counts` is the shape the [load routes'](#list-load-parameters) `view=summary` reports. A deck's `value.cardCount` can be lower than its `counts.cardCount`, since deck prices leave out the maybeboard and token sections.
+- `typeTotals` (per-type totals, each with its `listType`) is present only when the selection spans more than one type.
+- `source`, `currency` and `lastRefreshedAt` are present only when priced. `lastRefreshedAt` (Unix milliseconds, or `null`) is the Card Kingdom feed's download time for `cardkingdom`, the card cache's last refresh for every other store.
+- Each `warnings` entry is a [message triple](/admin/api/#the-message-triple); one about a single list also names it as `list: { listType, slug }`. See [`lists --summary` warnings](/commands/lists/#warnings) for an example.
+
 ## List Decks
 
 ```

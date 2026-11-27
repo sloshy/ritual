@@ -138,7 +138,7 @@ Tags, notes and language travel with the card. Labels are kept as far as the des
 ritual price --collection
 ```
 
-[`price`](/commands/price/) opens a browser of your lists and their totals. Add `--summary` to print the totals instead. Prices come from TCGplayer by default; `--source cardmarket` shows euros, and [`priceSources`](/configuration/#price-stores-pricesources) sets which stores you use. Proxies count as zero.
+[`price`](/commands/price/) opens a browser of your lists and their totals. To print the totals instead, run [`ritual lists --summary --collection --source tcgplayer`](/commands/lists/#summary). Prices come from TCGplayer by default; `--source cardmarket` shows euros, and [`priceSources`](/configuration/#price-stores-pricesources) sets which stores you use. Proxies count as zero.
 
 ## 8. Plan a Trade on Your Site
 

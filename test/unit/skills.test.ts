@@ -75,6 +75,9 @@ describe('skill catalog invariants', () => {
     ['ritual-site', '--locale-file <path...>'],
     // The other half of the contract: what the locale never moves.
     ['ritual-site', 'English by contract'],
+    // The message-object list mirrors the MCP server instructions; a tool
+    // added there must be added here too.
+    ['ritual-site', '`summarize_lists`'],
     // Sell mode's admin control, and the one thing about it an agent will
     // otherwise guess wrong: unticking *removes* `site.sellMode` rather than
     // storing `false`, so `config get site.sellMode` exits 3 afterwards.
@@ -178,6 +181,22 @@ describe('skill bodies name only tools that exist', () => {
           .toEqual({ skill: skill.name, retired, found: false })
       }
     }
+  })
+
+  // `price --summary` was removed: cross-list totals are `lists --summary`. Matched
+  // across one line (never past a backtick or a newline), so an unrelated
+  // `--summary` later in the prose cannot trip it.
+  test('no skill teaches the removed `price --summary`', () => {
+    for (const skill of SKILLS) {
+      const found = /ritual price[^\n`]*--summary/.test(skillText(skill))
+      expect({ skill: skill.name, found }).toEqual({ skill: skill.name, found: false })
+    }
+  })
+
+  test('the overview skill teaches `ritual lists --summary` for cross-list counts', () => {
+    const overview = SKILLS.find((skill) => skill.name === 'ritual')
+    expect(overview?.body).toContain('`ritual lists --summary`')
+    expect(overview?.body).toContain('`--sort value` needs `--source`')
   })
 
   test('the site skill teaches previewing migrate before applying it', () => {

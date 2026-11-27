@@ -8,92 +8,40 @@ sidebar:
 
 Routes for list prices and for [sell mode](/public-site/sell/): the sell report, the sell cart, refreshing the buylist, and buylist quotes. Every route here follows the [conventions on the overview page](/admin/api/): the [message triple](/admin/api/#the-message-triple), the [error responses](/admin/api/#error-responses) and [authentication](/admin/api/#authentication).
 
-## Price Summary
-
-```
-GET /api/price/summary
-```
-
-Price every deck, collection, and wanted list from the local card cache and return per-list, per-type, and grand totals plus any list-parser warnings. This is the same payload as [`price --summary --output json`](/commands/price/). Prices are read strictly from the cache: an empty cache returns `503` without downloading anything (run [`ritual cache preload-all`](/commands/cache/) first), and a card the cache does not hold is reported as unpriced rather than fetched from Scryfall. `lastRefreshedAt` is the cache's last bulk-refresh time in Unix milliseconds, or `null` when unknown.
-
-**Query Parameters:**
-
-| Parameter | Description                                                                                                                                                                                                                                  | Required |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `type`    | Only price `deck`, `collection`, or `wanted` lists                                                                                                                                                                                           | No       |
-| `source`  | The store, which sets the currency: `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), `cardhoarder` (Scryfall MTGO tix), or `cardkingdom` (Card Kingdom NM retail from the cached feed). Default: the configured `defaultPriceSource` | No       |
-
-An unknown `type` or `source` returns `400`. There is no currency parameter: each store has one (`tcgplayer`/`cardkingdom` → `usd`, `cardmarket` → `eur`, `cardhoarder` → `tix`), and every response names both its `source` and its `currency`.
-
-When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configured default), the route reads the cached [buylist feed](/commands/sell/). With a feed cached, printings Card Kingdom does not sell are reported unpriced. With no feed downloaded it returns `503` with the refresh advice rather than falling back to Scryfall. The parameter is not gated on the [`priceSources`](/configuration/#price-stores-pricesources) config key; it needs only a cached feed.
-
-`mode` discriminates the two price bodies: `"summary"` here, `"list"` on [Price List](#price-list).
-
-`unpricedCount` counts copies whose price the data could not supply, and only those. `estimatedCount` counts deck and wanted-list copies whose price is an estimate: the line pins no printing (priced at a representative one) or has no price. Any such copy makes `total` an estimate, which the CLI and sites render with a `~` prefix (`~$12.34`). Collections never estimate. Cards that carry no price [by rule](/custom-art/#custom-art-carries-no-price) (a `proxy` label, custom art, or both) are priced at `0` and counted in `cardCount`, but are left out of `unpricedCount`: they are not a gap in the price data.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "mode": "summary",
-  "source": "tcgplayer",
-  "currency": "usd",
-  "lastRefreshedAt": 1752600000000,
-  "lists": [
-    {
-      "type": "deck",
-      "name": "my-deck",
-      "cardCount": 100,
-      "total": 245.1,
-      "lowestTotal": 199.9,
-      "unpricedCount": 2,
-      "estimatedCount": 12
-    }
-  ],
-  "typeTotals": [
-    {
-      "type": "deck",
-      "listCount": 1,
-      "cardCount": 100,
-      "total": 245.1,
-      "lowestTotal": 199.9,
-      "unpricedCount": 2,
-      "estimatedCount": 12
-    }
-  ],
-  "totals": {
-    "listCount": 1,
-    "cardCount": 100,
-    "total": 245.1,
-    "lowestTotal": 199.9,
-    "unpricedCount": 2,
-    "estimatedCount": 12
-  },
-  "warnings": []
-}
-```
-
 ## Price List
 
 ```
 GET /api/price/:type/:slug
 ```
 
-Price a single list and return its summary plus every priced card entry in file order. This is the same payload as the CLI's single-list `price <name> --output json`. `:type` is `deck`, `collection`, or `wanted`; `:slug` is the list's file basename, as on the load routes. Takes the same `source` query parameter as [Price Summary](#price-summary), with the same `503` when the card cache is empty (or when `source=cardkingdom` finds no cached feed). An unknown slug returns `404`.
+Price a single list from the local card cache and return its totals plus every priced card entry in file order. This is the same payload as the CLI's single-list `price <name> --output json`, plus `success` and `lastRefreshedAt`. `:type` is `deck`, `collection`, or `wanted`; `:slug` is the list's file basename, as on the load routes. For totals across many lists, use [List Summary](/admin/api/lists/#list-summary) with `?source=`.
+
+Prices are read strictly from the cache: an empty cache returns `503` without downloading anything (run [`ritual cache preload-all`](/commands/cache/) first), and a card the cache does not hold is reported as unpriced rather than fetched from Scryfall. An unknown slug returns `404` (`admin.api.list.notFound`), as does a list whose file disappears between the lookup and the read.
+
+**Query Parameters:**
+
+| Parameter | Description                                                                                                                                                                                                                                  | Required |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `source`  | The store, which sets the currency: `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), `cardhoarder` (Scryfall MTGO tix), or `cardkingdom` (Card Kingdom NM retail from the cached feed). Default: the configured `defaultPriceSource` | No       |
+
+An unknown `source` returns `400` (`errors.enum.invalid`; the value is matched case-insensitively). There is no currency parameter: each store has one (`tcgplayer`/`cardkingdom` → `usd`, `cardmarket` → `eur`, `cardhoarder` → `tix`), and every response names both its `source` and its `currency`.
+
+When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configured default), the route reads the cached [buylist feed](/commands/sell/). With a feed cached, printings Card Kingdom does not sell are reported unpriced. With no feed downloaded it returns `503` with the refresh advice rather than falling back to Scryfall. The parameter is not gated on the [`priceSources`](/configuration/#price-stores-pricesources) config key; it needs only a cached feed.
+
+`lastRefreshedAt` is when the prices were last refreshed, in Unix milliseconds, or `null` when unknown: the Card Kingdom feed's download time for `cardkingdom`, the card cache's last bulk refresh for every other store.
 
 **Response:**
 
 ```json
 {
   "success": true,
-  "mode": "list",
   "source": "tcgplayer",
   "currency": "usd",
   "lastRefreshedAt": 1752600000000,
   "list": {
     "type": "deck",
-    "name": "my-deck",
+    "name": "My Deck",
+    "slug": "my-deck",
     "cardCount": 100,
     "total": 245.1,
     "lowestTotal": 199.9,
@@ -103,7 +51,8 @@ Price a single list and return its summary plus every priced card entry in file 
   "cards": [
     {
       "listType": "deck",
-      "listName": "my-deck",
+      "listName": "My Deck",
+      "listSlug": "my-deck",
       "section": "Main",
       "name": "Sol Ring",
       "quantity": 1,
@@ -125,12 +74,33 @@ Price a single list and return its summary plus every priced card entry in file 
 }
 ```
 
+`list.name` and `cards[].listName` are the list's display name (its `# Title`); `list.slug` and `cards[].listSlug`, with the type, identify it.
+
+`unpricedCount` counts copies whose price the data could not supply, and only those. `estimatedCount` counts deck and wanted-list copies whose price is an estimate: the line pins no printing (priced at a representative one) or has no price. Any such copy makes `total` an estimate, which the CLI and sites render with a `~` prefix (`~$12.34`). Collections never estimate. Cards that carry no price [by rule](/custom-art/#custom-art-carries-no-price) (a `proxy` label, custom art, or both) are priced at `0` and counted in `cardCount`, but are left out of `unpricedCount`: they are not a gap in the price data.
+
 An entry that could not be priced also carries **`unpricedReason`**, absent on every priced card:
 
 - Data gaps, which `unpricedCount` counts: `no-printings`, `printing-not-found`, `currency-unavailable`, `finish-unpriced-in-currency`, `no-price-data`.
-- By-rule reasons, which it does not count (see [Price Summary](#price-summary)): `proxy` and `custom-art`. `custom-art` wins when a card is both.
+- By-rule reasons, which it does not count: `proxy` and `custom-art`. `custom-art` wins when a card is both.
 
 By-rule entries still carry their printing and their `set`/`collectorNumber`, since a proxy or a card with custom art still refers to that printing.
+
+`warnings` lists lines the list's parser could not read (which are not priced, so the totals exclude them) and custom art that could not be loaded. Each is a [message triple](/admin/api/#the-message-triple) keyed `domain.price.inList`, with what went wrong nested as `cause` and the list named beside the triple:
+
+```json
+{
+  "message": "My Deck: Skipped malformed line: - 2x",
+  "messageKey": "domain.price.inList",
+  "messageParams": {
+    "list": "My Deck",
+    "cause": {
+      "messageKey": "domain.import.text.malformedLine",
+      "messageParams": { "line": "- 2x" }
+    }
+  },
+  "list": { "listType": "deck", "slug": "my-deck" }
+}
+```
 
 ## Sell Report
 
@@ -154,17 +124,21 @@ Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) (l
 
 ### Parameters
 
-| Parameter  | Description                                                                                                   | Required |
-| ---------- | ------------------------------------------------------------------------------------------------------------- | -------- |
-| `type`     | Match every `deck`, `collection`, or `wanted` list (default: every collection)                                | No       |
-| `lists`    | Comma-separated `type:slug` refs to match exactly these lists (overrides `type`); unknown → 404               | No       |
-| `tags`     | Comma-separated card tags (exact); scopes matching to lines carrying one, before CK's buy caps are shared out | No       |
-| `sets`     | Comma-separated set codes to filter to                                                                        | No       |
-| `min`      | Minimum per-copy offer (USD)                                                                                  | No       |
-| `minOwned` | Minimum total owned copies (`ownedCopies.collection + ownedCopies.deck`, a whole number)                      | No       |
-| `minRatio` | Minimum offer-to-market ratio (`offerRatio`, e.g. `0.8`); entries with no market price drop                   | No       |
+| Parameter  | Description                                                                                                                            | Required |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `type`     | Match every `deck`, `collection`, or `wanted` list (default: every collection)                                                         | No       |
+| `list`     | One list as `type:slug` (`collection:binder`), **repeated** for several; matches exactly these lists (overrides `type`); unknown → 404 | No       |
+| `tags`     | Comma-separated card tags (exact); scopes matching to lines carrying one, before CK's buy caps are shared out                          | No       |
+| `sets`     | Comma-separated set codes to filter to                                                                                                 | No       |
+| `min`      | Minimum per-copy offer (USD)                                                                                                           | No       |
+| `minOwned` | Minimum total owned copies (`ownedCopies.collection + ownedCopies.deck`, a whole number)                                               | No       |
+| `minRatio` | Minimum offer-to-market ratio (`offerRatio`, e.g. `0.8`); entries with no market price drop                                            | No       |
 
 A blank parameter (`?min=`) reads as absent. A malformed one is a `400` carrying the parser's message: a tag that breaks the [tag shape rule](/list-format/#card-tags), a `min`/`minRatio` that is not a plain non-negative decimal (`1.5`, not `1e1` or `-1`), or a `minOwned` that is not a whole number (`Invalid minOwned '2.5' (expected a whole number)`, key `errors.number.notWholeNumber`). A numeric refusal names the parameter as it is spelled in the query string.
+
+Each `list` value is `type:slug`; the type is case-insensitive, and a list named twice is matched once. A value with no `type:`, an unknown type, an empty slug, or a slug holding a path separator is a `400` keyed `admin.api.listRefInvalid`; `list` given only blank values is a `400` too (`admin.api.sell.noRefs`), rather than silently widening the scope to every collection. An unknown `type` is a `400` keyed `errors.enum.invalid` (also case-insensitive).
+
+`warnings` lists lines a list's parser could not read, which the report leaves out. Each is a [message triple](/admin/api/#the-message-triple) naming its list as `list: { listType, slug }`, shaped like [Price List](#price-list)'s.
 
 **Response:**
 
@@ -246,7 +220,7 @@ Entry fields:
 GET /api/sell/cart
 ```
 
-The entries CK is buying, rendered in their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export): `card name, edition, foil, quantity`, no header row, CK's own listing titles with variant note, quantities capped at their buy limits. Takes the same `?type=`/`?lists=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` parameters and `503` prerequisites as [Sell Report](#sell-report). Backs the CLI's `sell --output csv`.
+The entries CK is buying, rendered in their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export): `card name, edition, foil, quantity`, no header row, CK's own listing titles with variant note, quantities capped at their buy limits. Takes the same `?type=`/`?list=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` parameters and `503` prerequisites as [Sell Report](#sell-report). Backs the CLI's `sell --output csv`.
 
 **Response:**
 
@@ -316,7 +290,7 @@ The failure is a message triple, English whatever the server's UI language, both
 
 Its key is one of `domain.cache.cardKingdom.downloadFailed` (the request never got an answer; `error` is the underlying error), `downloadHttpFailed` (`status` is the HTTP status), `notJson` (`error` is the parser's message), or a `domain.cache.cardKingdom.feed.*` refusal of a feed that does not have the expected shape.
 
-Every buylist route that needs a downloaded feed (the sell report and cart, [Buylist Status](#buylist-status), [Buylist Quotes](#buylist-quotes), and the [price report](#price-summary) under `?source=cardkingdom`) answers `503` without one, keyed `domain.cache.cardKingdom.missingApiAdvice`. Its `lead` param nests the `domain.cache.cardKingdom.noFeed` sentence, and `tool`, `route` and `command` are the identifiers it names: `refresh_buylist`, `POST /api/sell/refresh` and `ritual sell --refresh auto`.
+Every buylist route that needs a downloaded feed (the sell report and cart, [Buylist Status](#buylist-status), [Buylist Quotes](#buylist-quotes), and [Price List](#price-list) under `?source=cardkingdom`) answers `503` without one, keyed `domain.cache.cardKingdom.missingApiAdvice`. Its `lead` param nests the `domain.cache.cardKingdom.noFeed` sentence, and `tool`, `route` and `command` are the identifiers it names: `refresh_buylist`, `POST /api/sell/refresh` and `ritual sell --refresh auto`.
 
 ## Buylist Quotes
 

@@ -167,7 +167,7 @@ ritual import more.csv --type wanted --name "To Buy" --append --columns "name=1"
 ${priceIntro({ scopeFlag: '--wanted' })}
 
 \`\`\`bash
-ritual price --wanted --summary                # every wanted list's totals
+ritual lists --summary --wanted --source tcgplayer   # every wanted list's totals
 ritual price to-buy --no-input                 # one list's cards + totals
 ritual price to-buy --output json --quiet
 ritual price to-buy --sort price --descending --no-input

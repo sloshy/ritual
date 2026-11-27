@@ -234,7 +234,7 @@ export const helpInfraMessages = {
 
   // ── price ─────────────────────────────────────────────────────────────
   'help.price.description': 'Browse prices of every deck, collection, and wanted list',
-  'help.price.listArg': 'Open (or print) a single list instead of all lists',
+  'help.price.listArg': 'The list to open (or, non-interactively, print)',
   'help.price.source':
     'Price store, which sets the currency: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), cardkingdom (NM retail from the Card Kingdom feed), or cardhoarder (Scryfall MTGO tix). Default: the configured {configKey}',
   'help.price.name': 'Print cards whose name contains every term',

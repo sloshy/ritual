@@ -223,7 +223,11 @@ export type PriceIntroOptions = {
 export function priceIntro(options: PriceIntroOptions): string {
   return wrapProse(
     `The unified \`price\` command covers all list types; scope it with ` +
-      `\`${options.scopeFlag}\` or a name. \`--source\` picks the store, and the ` +
+      `\`${options.scopeFlag}\` or a name, and give it a list name or a card ` +
+      `filter (\`--name\`, \`--set\`, \`--collector\`): a non-interactive run with ` +
+      `neither is a usage error (exit 2). For every list's totals, run ` +
+      `\`ritual lists --summary ${options.scopeFlag} --source <store>\` instead. ` +
+      `\`--source\` picks the store, and the ` +
       `store sets the currency (default: config \`defaultPriceSource\`): ` +
       `\`tcgplayer\` (Scryfall USD), \`cardmarket\` (Scryfall EUR), ` +
       `\`cardhoarder\` (Scryfall MTGO tix), or ` +
@@ -237,9 +241,13 @@ export function priceIntro(options: PriceIntroOptions): string {
       `row's price is for the whole line (quantity × one copy), a \`*\` after a ` +
       `printing marks one the line does not pin, the cheapest-printing total reads ` +
       `\`Lowest possible $X\`, and a legend under the listing explains whichever ` +
-      `of these it shows (\`--quiet\` drops it). An ` +
+      `of these it shows (\`--quiet\` drops it). Under \`--output json\` the ` +
+      `list's totals are \`list\` (\`type\`, \`slug\`, \`name\`, \`total\`, …) and ` +
+      `each \`warnings\` entry is a message object (\`message\`, \`messageKey\`, ` +
+      `\`messageParams\`) naming its list as \`list: {listType, slug}\`; match on ` +
+      `\`messageKey\`, never the prose. An ` +
       `interactive browser opens on a TTY. ` +
-      `For agents, always pass \`--summary\`, \`--output json\`, or the global ` +
+      `For agents, always pass \`--output json\` or the global ` +
       `\`--no-input\` flag:`,
   )
 }
