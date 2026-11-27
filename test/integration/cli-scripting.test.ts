@@ -58,7 +58,7 @@ describe('CLI scripting behavior (Integration)', () => {
         name: 'sample',
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       })
-      const result = await runCli(['price', '--summary', '--output', 'json'], dir)
+      const result = await runCli(['price', 'sample', '--output', 'json'], dir)
 
       expect(result.exitCode).toBe(1)
       const errorJson = JSON.parse(result.stderr) as {
@@ -451,8 +451,10 @@ describe('CLI scripting behavior (Integration)', () => {
 
       expect(result.exitCode).toBe(0)
       expect(result.stderr).toContain('sideboard ideas: maybe a counterspell')
-      const payload = JSON.parse(result.stdout) as { warnings: string[] }
-      expect(payload.warnings.join('\n')).toContain('sideboard ideas: maybe a counterspell')
+      const payload = JSON.parse(result.stdout) as { warnings: { message: string }[] }
+      expect(payload.warnings.map((warning) => warning.message).join('\n')).toContain(
+        'sideboard ideas: maybe a counterspell',
+      )
     })
   })
 

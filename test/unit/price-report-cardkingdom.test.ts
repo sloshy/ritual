@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   buildPriceReport,
+  sumPricedEntries,
   type CardKingdomPricing,
   type PriceListInput,
 } from '../../src/pricing/price-report'
@@ -42,14 +43,14 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         ]),
       ],
       {
-        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        pricing: { source: 'cardkingdom', cardKingdom: ck, feedRetrievedAt: 0 },
         lookup: lookupFor({ 'Test Card': [bolt] }),
       },
     )
     expect(report.source).toBe('cardkingdom')
     expect(report.entries[0]!.price).toBe(4.5)
     expect(report.entries[0]!.unpricedReason).toBeUndefined()
-    expect(report.totals.total).toBe(9)
+    expect(sumPricedEntries(report.entries).total).toBe(9)
     // The lookup carried the Scryfall id, the primary CK join key.
     expect(ck.asked[0]!.scryfallId).toBe('sf-bolt-aaa')
   })
@@ -62,7 +63,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         ]),
       ],
       {
-        pricing: { source: 'cardkingdom', cardKingdom: ckFor({}) },
+        pricing: { source: 'cardkingdom', cardKingdom: ckFor({}), feedRetrievedAt: 0 },
         lookup: lookupFor({ 'Test Card': [bolt] }),
       },
     )
@@ -85,7 +86,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         ]),
       ],
       {
-        pricing: { source: 'cardkingdom', cardKingdom: zero },
+        pricing: { source: 'cardkingdom', cardKingdom: zero, feedRetrievedAt: 0 },
         lookup: lookupFor({ 'Test Card': [bolt] }),
       },
     )
@@ -108,7 +109,11 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         ]),
       ],
       {
-        pricing: { source: 'cardkingdom', cardKingdom: ckFor({ 'aaa:1:nonfoil': 4.5 }) },
+        pricing: {
+          source: 'cardkingdom',
+          cardKingdom: ckFor({ 'aaa:1:nonfoil': 4.5 }),
+          feedRetrievedAt: 0,
+        },
         lookup: lookupFor({ 'Test Card': [bolt] }),
       },
     )
@@ -132,7 +137,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         ]),
       ],
       {
-        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        pricing: { source: 'cardkingdom', cardKingdom: ck, feedRetrievedAt: 0 },
         lookup: lookupFor({ 'Test Card': [bolt] }),
       },
     )
@@ -161,7 +166,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         },
       ],
       {
-        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        pricing: { source: 'cardkingdom', cardKingdom: ck, feedRetrievedAt: 0 },
         lookup: lookupFor({ 'Test Card': [bolt, other] }),
       },
     )
@@ -200,7 +205,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         },
       ],
       {
-        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        pricing: { source: 'cardkingdom', cardKingdom: ck, feedRetrievedAt: 0 },
         lookup: lookupFor({ 'Test Card': [newer, older] }),
       },
     )
@@ -239,7 +244,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         },
       ],
       {
-        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        pricing: { source: 'cardkingdom', cardKingdom: ck, feedRetrievedAt: 0 },
         lookup: lookupFor({ 'Test Card': [older, newer] }),
       },
     )
@@ -264,7 +269,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         },
       ],
       {
-        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        pricing: { source: 'cardkingdom', cardKingdom: ck, feedRetrievedAt: 0 },
         lookup: lookupFor({ 'Test Card': [bolt] }),
       },
     )

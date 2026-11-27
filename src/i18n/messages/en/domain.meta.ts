@@ -308,6 +308,10 @@ export const domainMeta = {
     description:
       "The same line when none of the card's printings has a published price in the active currency.",
   },
+  'domain.price.inList': {
+    description:
+      "A warning from a price report about one of the lists it priced. {list} is the list's name; {cause} is a full sentence about it (a line its reader could not understand, so the totals leave that card out, or a custom-art file that could not be read). Only the order and the separator are yours to change.",
+  },
 
   'domain.nav.decks': { description: `${NAV_CONTEXT} The deck index.`, maxLen: 12 },
   'domain.nav.collections': { description: `${NAV_CONTEXT} The collection index.`, maxLen: 12 },

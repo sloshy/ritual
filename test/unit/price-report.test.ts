@@ -459,10 +459,10 @@ describe('buildPriceReport aggregation', () => {
     expect(deckSummary.total).toBe(6)
     expect(deckSummary.unpricedCount).toBe(2)
 
-    expect(report.typeTotals.map((t) => t.type)).toEqual(['deck', 'wanted'])
-    expect(report.totals.listCount).toBe(2)
-    expect(report.totals.total).toBe(8)
-    expect(report.totals.unpricedCount).toBe(2)
+    const totals = sumPricedEntries(report.entries)
+    expect(report.lists.map((list) => list.type)).toEqual(['deck', 'wanted'])
+    expect(totals.total).toBe(8)
+    expect(totals.unpricedCount).toBe(2)
   })
   test("a Cardmarket report prices every entry in that store's one currency, EUR", async () => {
     const { report } = await buildPriceReport(
@@ -483,7 +483,7 @@ describe('buildPriceReport aggregation', () => {
     )
     expect(report.source).toBe('cardmarket')
     expect(report.currency).toBe('eur')
-    expect(report.totals.total).toBe(3)
+    expect(sumPricedEntries(report.entries).total).toBe(3)
   })
 })
 

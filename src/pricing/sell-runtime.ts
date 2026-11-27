@@ -4,7 +4,7 @@ import { priceLookupFor } from './price-runtime'
 import type { ListLocation } from '../list/resolve-list'
 import type { RefreshMode } from '../cache/refresh'
 import type { CardTag } from '../card/card-tags'
-import { loadPriceListInputs } from './price-report'
+import { loadPriceListInputs, type PriceWarning } from './price-report'
 import {
   buildSellReport,
   countOwnedCopies,
@@ -16,7 +16,7 @@ import {
 /** A sell report built from disk plus the list parsers' warnings. */
 export type LoadedSellReport = {
   report: SellReport
-  warnings: string[]
+  warnings: PriceWarning[]
 }
 
 /** How a sell report resolves card names — same policy as the price report. */

@@ -16,8 +16,9 @@ import {
   GET_DIAGNOSTICS_OUTPUT,
   GET_HISTORY_OUTPUT,
   GET_LIST_OUTPUT,
-  GET_PRICE_REPORT_OUTPUT,
+  GET_LIST_PRICES_OUTPUT,
   GET_SELL_CART_OUTPUT,
+  GET_SELL_REPORT_OUTPUT,
   IMPORT_CHANGE_BUNDLE_OUTPUT,
   IMPORT_CSV_OUTPUT,
   IMPORT_DECK_OUTPUT,
@@ -29,6 +30,7 @@ import {
   RENAME_LIST_OUTPUT,
   REWRITE_HISTORY_OUTPUT,
   SET_CARD_ART_OUTPUT,
+  SUMMARIZE_LISTS_OUTPUT,
   SYNC_COLLECTION_OUTPUT,
   SYNC_DECKS_OUTPUT,
   TOOL_ERROR_OUTPUT,
@@ -392,20 +394,54 @@ describe('MCP output schemas, as authored', () => {
     expect(setCardArt.required).toEqual(['message', 'slug', 'cardId', 'art'])
     expect((setCardArt.properties?.art?.anyOf ?? []).at(-1)?.type).toBe('null')
 
-    // export_cards and get_price_report are both unions; each must be
-    // discriminable by a single const-valued key, and the two values a client
-    // branches on are themselves the contract.
-    type UnionPin = { schema: JsonSchemaType; key: string; values: string[] }
-    const unionPins: UnionPin[] = [
-      { schema: EXPORT_CARDS_OUTPUT, key: 'mode', values: ['content', 'file'] },
-      { schema: GET_PRICE_REPORT_OUTPUT, key: 'mode', values: ['summary', 'list'] },
-    ]
-    for (const { schema, key, values } of unionPins) {
-      const branches = (schema as unknown as SchemaNode).oneOf ?? []
-      expect(branches).toHaveLength(values.length)
-      for (const branch of branches) expect(branch.required).toContain(key)
-      expect(branches.map((b) => b.properties?.[key]?.const)).toEqual(values)
-    }
+    // export_cards is a union, discriminable by a single const-valued key, and
+    // the two values a client branches on are themselves the contract.
+    const exportBranches = (EXPORT_CARDS_OUTPUT as unknown as SchemaNode).oneOf ?? []
+    expect(exportBranches).toHaveLength(2)
+    for (const branch of exportBranches) expect(branch.required).toContain('mode')
+    expect(exportBranches.map((b) => b.properties?.mode?.const)).toEqual(['content', 'file'])
+
+    // get_list_prices: one body, so no `mode`; exactly one list, always there;
+    // each warning a message naming its list by identity.
+    const listPrices = GET_LIST_PRICES_OUTPUT as unknown as SchemaNode
+    expect(listPrices.oneOf).toBeUndefined()
+    expect(Object.keys(listPrices.properties ?? {})).toEqual([
+      'source',
+      'currency',
+      'lastRefreshedAt',
+      'list',
+      'cards',
+      'warnings',
+    ])
+    expect(listPrices.required).toEqual([
+      'source',
+      'currency',
+      'lastRefreshedAt',
+      'list',
+      'cards',
+      'warnings',
+    ])
+    expect(listPrices.properties?.warnings?.items?.required).toEqual(['message', 'list'])
+    // get_sell_report shares the loader, and so the same warning shape.
+    const sellReport = GET_SELL_REPORT_OUTPUT as unknown as SchemaNode
+    expect(sellReport.properties?.warnings?.items?.required).toEqual(['message', 'list'])
+
+    // summarize_lists: the priced fields, `typeTotals` and the cache age are all
+    // conditional, so only the rows, the totals and the warnings are required.
+    const summarize = SUMMARIZE_LISTS_OUTPUT as unknown as SchemaNode
+    expect(Object.keys(summarize.properties ?? {})).toEqual([
+      'lists',
+      'totals',
+      'typeTotals',
+      'source',
+      'currency',
+      'lastRefreshedAt',
+      'warnings',
+    ])
+    expect(summarize.required).toEqual(['lists', 'totals', 'warnings'])
+    expect(summarize.properties?.warnings?.items?.required).toEqual(['message'])
+    const row = defsFor('ListsSummaryRow')['ListsSummaryRow'] as unknown as SchemaNode
+    expect(row.required).toEqual(['listType', 'slug', 'name', 'counts'])
 
     // PricedEntry: both finish fields are the shared enum, not free strings. The
     // report only ever emits a modelled finish, so a client can switch on them.

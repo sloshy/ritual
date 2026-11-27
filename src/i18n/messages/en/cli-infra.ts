@@ -1030,6 +1030,9 @@ export const cliInfraMessages = {
   'cli.depLicense.primarySeparator': '── Primary Dependencies ──',
   'cli.depLicense.transitiveSeparator': '── Transitive Dependencies ──',
 
+  // ── Warnings any reporting command prints ─────────────────────────────
+  'cli.output.warningLine': '⚠️  {warning}',
+
   // ── price: report output ──────────────────────────────────────────────
   'cli.price.disclaimer':
     '⚠️  Prices are from Scryfall and reflect NM (Near Mint) market values. Card condition can significantly decrease actual value.',
@@ -1040,15 +1043,26 @@ export const cliInfraMessages = {
     wanted: 'Pricing wanted list "{name}"{suffix}',
   },
   'cli.price.emptyCache': 'The card cache is empty; prices are unavailable.',
+  'cli.price.listMissing': {
+    $select: 'type',
+    deck: "The deck '{slug}' could not be priced: its file was gone by the time it was read.",
+    collection:
+      "The collection '{slug}' could not be priced: its file was gone by the time it was read.",
+    wanted:
+      "The wanted list '{slug}' could not be priced: its file was gone by the time it was read.",
+  },
   'cli.price.calculating': 'Calculating prices...',
   'cli.price.listFooter': '  {count} cards · {totals}',
   'cli.price.searchFooter': '{count} matching entries · {totals}',
+  'cli.price.needsTarget':
+    'Name a list to price, or search the cards with {name}, {set} or {collector}. For every list’s totals, run {command}.',
 
   // ── price: the interactive browser ────────────────────────────────────
   'cli.price.totalsTotal': 'Total {price}',
   'cli.price.totalsLowest': 'Lowest possible {price}',
   'cli.price.rowLowest': 'lowest {price}',
   'cli.price.totalsUnpriced': '{count} unpriced',
+  'cli.price.notPriced': 'not priced',
   'cli.price.legendLineTotals':
     "Prices are for the whole line (quantity × one copy); 'lowest' is the line at its cheapest printing.",
   'cli.price.legendUnpinned':

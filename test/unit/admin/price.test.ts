@@ -4,12 +4,7 @@ import path from 'node:path'
 import { cardCache } from '../../../src/cache'
 import { refreshRitualConfig } from '../../../src/config/ritual-config'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
-import {
-  handlePriceList,
-  handlePriceSummary,
-  type PriceListDetailResponse,
-  type PriceSummaryResponse,
-} from '../../../src/admin/api/price'
+import { handlePriceList, type PriceListDetailResponse } from '../../../src/admin/api/price'
 import type { ApiErrorResponse } from '../../../src/api/http'
 import {
   makeCardKingdomCacheFile,
@@ -50,10 +45,6 @@ async function seedCache(): Promise<void> {
   await cardCache.bulkSet({ 'Test Card': TEST_CARD_PRINTINGS })
 }
 
-function summaryRequest(query = ''): Request {
-  return new Request(`http://localhost/api/price/summary${query}`)
-}
-
 function listRequest(type: string, slug: string, query = ''): Request {
   return new Request(`http://localhost/api/price/${type}/${slug}${query}`)
 }
@@ -67,50 +58,8 @@ async function seedFeedCache(): Promise<void> {
   await fs.writeFile(path.join(ws.dir, 'cache', 'cardkingdom.json'), JSON.stringify(file))
 }
 
-describe('GET /api/price/summary — ?source=', () => {
-  test('source=cardkingdom prices from the cached feed and stamps the payload', async () => {
-    await writeLists()
-    await seedCache()
-    await seedFeedCache()
-    const resp = await handlePriceSummary(summaryRequest('?source=cardkingdom'))
-    expect(resp.status).toBe(200)
-    const body = (await resp.json()) as PriceSummaryResponse
-    expect(body.currency).toBe('usd')
-    expect(body.source).toBe('cardkingdom')
-    // Binder: 1 copy at CK retail; the deck's unpinned copies quote CK too.
-    const binder = body.lists.find((l) => l.slug === 'binder')
-    expect(binder?.total).toBeCloseTo(6.25)
-  })
-
-  test('source=cardmarket is Scryfall EUR, and the payload names the store', async () => {
-    await writeLists()
-    await seedCache()
-    const resp = await handlePriceSummary(summaryRequest('?source=cardmarket'))
-    expect(resp.status).toBe(200)
-    const body = (await resp.json()) as PriceSummaryResponse
-    expect(body.currency).toBe('eur')
-    expect(body.source).toBe('cardmarket')
-  })
-
-  test('an unknown source is a 400', async () => {
-    await writeLists()
-    const unknown = await handlePriceSummary(summaryRequest('?source=ebay'))
-    expect(unknown.status).toBe(400)
-  })
-
-  test('source=cardkingdom with no cached feed is a 503 with the refresh remedy', async () => {
-    await writeLists()
-    await seedCache()
-    const resp = await handlePriceSummary(summaryRequest('?source=cardkingdom'))
-    expect(resp.status).toBe(503)
-    const body = (await resp.json()) as ApiErrorResponse
-    expect(body.message).toContain('No Card Kingdom buylist')
-    expect(body.messageKey).toBe('domain.cache.cardKingdom.missingApiAdvice')
-  })
-})
-
 describe('GET /api/price/:type/:slug — ?source=', () => {
-  test('the single-list view takes the same source parameter', async () => {
+  test('source=cardkingdom prices from the cached feed and stamps the payload', async () => {
     await writeLists()
     await seedCache()
     await seedFeedCache()
@@ -118,24 +67,25 @@ describe('GET /api/price/:type/:slug — ?source=', () => {
     expect(resp.status).toBe(200)
     const body = (await resp.json()) as PriceListDetailResponse
     expect(body.source).toBe('cardkingdom')
+    expect(body.currency).toBe('usd')
     expect(body.cards[0]?.price).toBeCloseTo(6.25)
+    expect(body.list.total).toBeCloseTo(6.25)
   })
-})
 
-describe('GET /api/price/summary', () => {
-  test('returns 503 when the card cache is empty', async () => {
+  test('an unknown source is a 400', async () => {
     await writeLists()
-    const resp = await handlePriceSummary(summaryRequest())
+    const unknown = await handlePriceList(listRequest('collection', 'binder', '?source=ebay'))
+    expect(unknown.status).toBe(400)
+  })
+
+  test('source=cardkingdom with no cached feed is a 503 with the refresh remedy', async () => {
+    await writeLists()
+    await seedCache()
+    const resp = await handlePriceList(listRequest('collection', 'binder', '?source=cardkingdom'))
     expect(resp.status).toBe(503)
     const body = (await resp.json()) as ApiErrorResponse
-    expect(body.success).toBe(false)
-    expect(body.message).toContain('cache is empty')
-  })
-
-  test('returns 400 for an invalid type', async () => {
-    const resp = await handlePriceSummary(summaryRequest('?type=bogus'))
-    expect(resp.status).toBe(400)
-    expect(((await resp.json()) as ApiErrorResponse).success).toBe(false)
+    expect(body.message).toContain('No Card Kingdom buylist')
+    expect(body.messageKey).toBe('domain.cache.cardKingdom.missingApiAdvice')
   })
 
   test('with no ?source=, the configured defaultPriceSource sets the store', async () => {
@@ -146,54 +96,10 @@ describe('GET /api/price/summary', () => {
       JSON.stringify({ defaultPriceSource: 'cardmarket' }),
     )
     await refreshRitualConfig()
-    const resp = await handlePriceSummary(summaryRequest())
-    const body = (await resp.json()) as PriceSummaryResponse
+    const resp = await handlePriceList(listRequest('collection', 'binder'))
+    const body = (await resp.json()) as PriceListDetailResponse
     expect(body.source).toBe('cardmarket')
     expect(body.currency).toBe('eur')
-  })
-
-  test('prices every list with per-type and grand totals', async () => {
-    await writeLists()
-    await seedCache()
-
-    const resp = await handlePriceSummary(summaryRequest())
-    expect(resp.status).toBe(200)
-    const body = (await resp.json()) as PriceSummaryResponse
-    expect(body.success).toBe(true)
-    expect(body.currency).toBe('usd')
-    expect(typeof body.lastRefreshedAt).toBe('number')
-    expect(body.warnings).toEqual([])
-
-    // Keyed by slug; `name` is the display title (`# Binder`, `# Burn`).
-    expect(body.lists.map((l) => `${l.type}:${l.slug}:${l.name}`).sort()).toEqual([
-      'collection:binder:Binder',
-      'deck:burn:burn',
-    ])
-    const binder = body.lists.find((l) => l.slug === 'binder')!
-    expect(binder.cardCount).toBe(1)
-    expect(binder.total).toBeCloseTo(2.5)
-
-    const deckTotals = body.typeTotals.find((t) => t.type === 'deck')!
-    expect(deckTotals.listCount).toBe(1)
-    expect(deckTotals.total).toBeCloseTo(5.0)
-
-    // Grand totals: 1 collection copy + 2 deck copies at $2.50 each.
-    expect(body.totals.listCount).toBe(2)
-    expect(body.totals.cardCount).toBe(3)
-    expect(body.totals.total).toBeCloseTo(7.5)
-    // The deck's unpinned copies are estimates; the pinned collection copy is not.
-    expect(body.totals.estimatedCount).toBe(2)
-  })
-
-  test('?type= restricts the report to one list type', async () => {
-    await writeLists()
-    await seedCache()
-
-    const resp = await handlePriceSummary(summaryRequest('?type=collection'))
-    expect(resp.status).toBe(200)
-    const body = (await resp.json()) as PriceSummaryResponse
-    expect(body.lists.map((l) => l.type)).toEqual(['collection'])
-    expect(body.typeTotals.map((t) => t.type)).toEqual(['collection'])
   })
 })
 
@@ -233,10 +139,12 @@ describe('GET /api/price/:type/:slug', () => {
     expect(typeof body.lastRefreshedAt).toBe('number')
     expect(body.warnings).toEqual([])
 
-    expect(body.list?.slug).toBe('binder')
-    expect(body.list?.name).toBe('Binder')
-    expect(body.list?.cardCount).toBe(1)
-    expect(body.list?.total).toBeCloseTo(4.0)
+    expect(body.list.slug).toBe('binder')
+    expect(body.list.name).toBe('Binder')
+    expect(body.list.cardCount).toBe(1)
+    expect(body.list.total).toBeCloseTo(4.0)
+    // One price body, so no discriminant rides along.
+    expect('mode' in body).toBe(false)
 
     expect(body.cards).toHaveLength(1)
     const card = body.cards[0]!
@@ -245,5 +153,23 @@ describe('GET /api/price/:type/:slug', () => {
     expect(card.collectorNumber).toBe('1')
     expect(card.pinned).toBe(true)
     expect(card.price).toBeCloseTo(4.0)
+  })
+
+  test('a line the parser cannot read is a warning message naming its list', async () => {
+    await fs.writeFile(
+      path.join(ws.dir, 'collections', 'binder.md'),
+      ['# Binder', '', '- Test Card (TST:1) &1', '- Test Card (TST:1) &2 [nonsense', ''].join('\n'),
+    )
+    await seedCache()
+    const resp = await handlePriceList(listRequest('collection', 'binder'))
+    expect(resp.status).toBe(200)
+    const body = (await resp.json()) as PriceListDetailResponse
+    expect(body.warnings).toHaveLength(1)
+    const [warning] = body.warnings
+    expect(warning?.messageKey).toBe('domain.price.inList')
+    expect(warning?.message).toStartWith('Binder: ')
+    expect(warning?.list).toEqual({ listType: 'collection', slug: 'binder' })
+    // The line's own diagnostic, nested whole under the list's name.
+    expect(warning?.messageParams?.cause).toMatchObject({ messageKey: 'domain.card.line.atLine' })
   })
 })

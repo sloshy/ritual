@@ -148,9 +148,9 @@ export const domainListFilesMessages = {
   'domain.list.guard.commitTwice': 'PreparedMoves.commit() is single-use',
 
   // ── The cross-list summary ────────────────────────────────────────────
-  'domain.list.summary.inList': '{list}: {warning}',
+  'domain.list.summary.inList': '{list}: {cause}',
   'domain.list.summary.unreadable':
-    '{list} could not be read, so it is left out of the summary: {error}',
+    '{list} could not be read, so it is left out of the summary: {cause}',
   'domain.list.summary.notFound': {
     $select: 'listType',
     deck: "No deck '{slug}' exists, so it is left out of the summary.",
@@ -162,9 +162,9 @@ export const domainListFilesMessages = {
   'domain.list.summary.sortNeedsPricing':
     'Sorting lists by value needs a price store to price them at.',
   'domain.list.summary.artUnreadable':
-    '{list}: its custom art could not be read, so cards with custom art are priced like any other: {error}',
+    '{list}: its custom art could not be read, so cards with custom art are priced like any other: {cause}',
   'domain.list.summary.priceFailed':
-    '{list} could not be priced, so it is counted but left out of the value totals: {error}',
+    '{list} could not be priced, so it is counted but left out of the value totals: {cause}',
   'domain.list.summary.limitInvalid': 'The limit must be a whole number above zero (got {limit}).',
   'domain.list.summary.sectionsEmpty':
     'Name at least one deck section to count, or leave the sections out to count them all.',

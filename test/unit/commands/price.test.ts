@@ -8,45 +8,29 @@ const TEXT: ScriptingOptions = { output: 'text', quiet: false }
 
 describe('shouldRunInteractive', () => {
   test('launches the browser for a plain-text run on a full terminal', () => {
-    expect(shouldRunInteractive({ refresh: 'ask' }, TEXT, {}, FULL_TERMINAL)).toBe(true)
+    expect(shouldRunInteractive(TEXT, {}, FULL_TERMINAL)).toBe(true)
   })
 
   test('a piped stdin falls back to report mode even with a terminal stdout', () => {
-    expect(
-      shouldRunInteractive({ refresh: 'ask' }, TEXT, {}, { ...FULL_TERMINAL, stdinIsTTY: false }),
-    ).toBe(false)
+    expect(shouldRunInteractive(TEXT, {}, { ...FULL_TERMINAL, stdinIsTTY: false })).toBe(false)
   })
 
   test('a piped stdout falls back to report mode', () => {
-    expect(
-      shouldRunInteractive({ refresh: 'ask' }, TEXT, {}, { ...FULL_TERMINAL, stdoutIsTTY: false }),
-    ).toBe(false)
+    expect(shouldRunInteractive(TEXT, {}, { ...FULL_TERMINAL, stdoutIsTTY: false })).toBe(false)
   })
 
   test('--no-input forces report mode even on a full terminal', () => {
-    expect(
-      shouldRunInteractive({ refresh: 'ask' }, TEXT, {}, { ...FULL_TERMINAL, noInput: true }),
-    ).toBe(false)
-  })
-
-  test('--summary always prints instead of opening the browser', () => {
-    expect(shouldRunInteractive({ refresh: 'ask', summary: true }, TEXT, {}, FULL_TERMINAL)).toBe(
-      false,
-    )
+    expect(shouldRunInteractive(TEXT, {}, { ...FULL_TERMINAL, noInput: true })).toBe(false)
   })
 
   test('structured output is never interactive', () => {
     for (const output of ['json', 'ndjson'] as const) {
-      expect(
-        shouldRunInteractive({ refresh: 'ask' }, { output, quiet: false }, {}, FULL_TERMINAL),
-      ).toBe(false)
+      expect(shouldRunInteractive({ output, quiet: false }, {}, FULL_TERMINAL)).toBe(false)
     }
   })
 
   test('card-search filters print a report instead of opening the browser', () => {
-    expect(shouldRunInteractive({ refresh: 'ask' }, TEXT, { name: 'bolt' }, FULL_TERMINAL)).toBe(
-      false,
-    )
+    expect(shouldRunInteractive(TEXT, { name: 'bolt' }, FULL_TERMINAL)).toBe(false)
   })
 })
 

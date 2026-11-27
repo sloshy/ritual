@@ -2,16 +2,19 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { callApi, callApiData } from '../dispatch'
 import { loadProjectedList, type ListProjection } from '../projection'
-import { VALID_PRICE_SOURCES } from '../../pricing/price-source'
 import { formatCardTags } from '../../card/card-tags'
 import { outputSchemaFor, runTool } from '../result'
 import {
+  cardLabelSchema,
   cardTagSchema,
+  deckFormatSchema,
   finishSchema,
   languageSchema,
   listRefSchema,
   listSlugRefSchema,
   listTypeSchema,
+  PRICE_SOURCE_CURRENCIES,
+  priceSourceSchema,
   setCodeField,
   setField,
   slugField,
@@ -29,7 +32,14 @@ import type { CardIndexResponse } from '../../admin/api/card-index'
 import type { ConfigResponse } from '../../admin/api/config'
 import type { DiffResponseBody } from '../../admin/api/diff'
 import type { HistoryLoadResponse } from '../../admin/api/history'
-import type { PriceListDetailResponse, PriceSummaryResponse } from '../../admin/api/price'
+import type { PriceListDetailResponse } from '../../admin/api/price'
+import type {
+  ListsSummaryQuery,
+  ListsSummaryQueryKey,
+  ListsSummaryResponse,
+} from '../../admin/api/lists'
+import { formatListRefParam } from '../../admin/api/list-refs'
+import { LISTS_SUMMARY_SORTS } from '../../summary/lists'
 import type { SellCartResponse, SellReportResponse } from '../../admin/api/sell'
 import type {
   CollectionSyncList,
@@ -47,8 +57,7 @@ import { CARD_LABELS } from '../../card/card-labels'
 import { BUYERS, type BuylistQuotesResponse } from '../../buylist'
 import { MAX_BUYLIST_PRINTINGS } from '../../api/buylist'
 import { DIFF_BY_MODES } from '../../changes/list-diff'
-import type { ListInfo } from '../../list/list-info'
-import type { ListType } from '../../list/list-type'
+import type { ListIdentity, ListInfo } from '../../list/list-info'
 import type {
   CacheStatusResult,
   CardDetails,
@@ -71,9 +80,7 @@ import {
  * can be handed straight to another. The engine-side `ListInfo` still spells the
  * first field `type`; this is where that is normalized for the tool surface.
  */
-export interface ListRefResult {
-  listType: ListType
-  slug: string
+export interface ListRefResult extends ListIdentity {
   name: string
 }
 
@@ -168,8 +175,96 @@ export type CardSearchResult = OmitSuccess<CardSearchSuccess>
 /** `autocomplete_card` result: matching card names from the local cache. */
 export type AutocompleteResult = OmitSuccess<AutocompleteResponse>
 
-/** `get_price_report` result: the summary or the single-list body, keyed by `mode`. */
-export type PriceReportResult = OmitSuccess<PriceSummaryResponse | PriceListDetailResponse>
+/** `get_list_prices` result: one list's price totals plus its priced card entries. */
+export type ListPricesResult = OmitSuccess<PriceListDetailResponse>
+
+/** `summarize_lists` result: per-list counts (and value), totals, and warnings. */
+export type SummarizeListsResult = OmitSuccess<ListsSummaryResponse>
+
+/** `summarize_lists` input: which lists, how they are counted and priced, and the row order. */
+const summarizeListsSchema = z.object({
+  // `satisfies` below: the tool takes exactly the route's parameters, each
+  // parsing to the route's value type, so a new engine option missing here (or
+  // a stray or mistyped one) is a compile error.
+  listType: listTypeSchema.optional().describe('Only lists of this type.'),
+  nameContains: z
+    .string()
+    .optional()
+    .describe(
+      'Whitespace-separated terms that must all appear, in any order, in the list’s display ' +
+        'name (case, diacritics and punctuation folded), e.g. "box".',
+    ),
+  lists: z
+    .array(listSlugRefSchema)
+    .min(1)
+    .optional()
+    .describe(
+      'Only these lists. A ref no list on disk matches is a warning, not an error; one of a ' +
+        'type the other filters leave out is skipped.',
+    ),
+  label: cardLabelSchema
+    .optional()
+    .describe('Only lists whose front-matter default labels include this one.'),
+  includeEmpty: z
+    .boolean()
+    .optional()
+    .describe('Keep lists with no entries in their counted sections. Default true.'),
+  format: deckFormatSchema
+    .optional()
+    .describe('Only decks of this format (collections and wanted lists never match).'),
+  sections: z
+    .array(z.string().min(1))
+    .min(1)
+    .optional()
+    .describe(
+      'Decks only: the sections (boards) that count, by exact, case-sensitive heading name ' +
+        '(e.g. ["Commander", "Main"]); value narrows to them too. Omit to count every section. ' +
+        'Collections and wanted lists are unaffected.',
+    ),
+  source: priceSourceSchema
+    .optional()
+    .describe(
+      'Price every selected list at this store, adding `value` to each row and to the totals. ' +
+        `${PRICE_SOURCE_CURRENCIES} Omit for counts only, which never need the card cache.`,
+    ),
+  sort: z
+    .enum(LISTS_SUMMARY_SORTS)
+    .optional()
+    .describe(
+      'Row order: name (default, ascending), quantity (copies, descending) or value (priced ' +
+        'total, descending; needs source).',
+    ),
+  descending: z
+    .boolean()
+    .optional()
+    .describe('Override the sort’s default direction; ties fall back to name ascending.'),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(10_000)
+    .optional()
+    .describe('At most this many rows, after sorting. Totals still cover every selected list.'),
+} satisfies { [K in ListsSummaryQueryKey]-?: z.ZodType<ListsSummaryQuery[K]> })
+
+type SummarizeListsInput = z.infer<typeof summarizeListsSchema>
+
+/** The `GET /api/lists/summary` query string for a tool input. */
+export function summarizeListsQuery(input: SummarizeListsInput): string {
+  const params = new URLSearchParams()
+  if (input.listType !== undefined) params.set('listType', input.listType)
+  if (input.nameContains !== undefined) params.set('nameContains', input.nameContains)
+  for (const ref of input.lists ?? []) params.append('list', formatListRefParam(ref))
+  if (input.label !== undefined) params.set('label', input.label)
+  if (input.includeEmpty !== undefined) params.set('includeEmpty', String(input.includeEmpty))
+  if (input.format !== undefined) params.set('format', input.format)
+  for (const section of input.sections ?? []) params.append('section', section)
+  if (input.source !== undefined) params.set('source', input.source)
+  if (input.sort !== undefined) params.set('sort', input.sort)
+  if (input.descending !== undefined) params.set('descending', String(input.descending))
+  if (input.limit !== undefined) params.set('limit', String(input.limit))
+  return params.size > 0 ? `?${params}` : ''
+}
 
 /** `get_sell_report` result: entries matched against the Card Kingdom buylist. */
 export type SellReportResult = OmitSuccess<SellReportResponse>
@@ -229,7 +324,7 @@ type SellScopeInput = z.infer<typeof sellScopeSchema>
 function sellScopeQuery(scope: SellScopeInput): string {
   const params = new URLSearchParams()
   if (scope.lists !== undefined && scope.lists.length > 0) {
-    params.set('lists', scope.lists.map((ref) => `${ref.listType}:${ref.slug}`).join(','))
+    for (const ref of scope.lists) params.append('list', formatListRefParam(ref))
   } else if (scope.listType !== undefined) {
     params.set('type', scope.listType)
   }
@@ -635,60 +730,71 @@ export function registerReadTools(server: McpServer): void {
   )
 
   server.registerTool(
-    'get_price_report',
+    'summarize_lists',
     {
-      title: 'Price report',
+      title: 'Summarize lists',
       description:
-        'Price lists from the local card cache. With listType + slug, one list’s summary plus ' +
-        'its priced card entries; with listType alone, per-list totals across every list of ' +
-        'that type; with neither, per-list totals across every list. Errors when the card ' +
-        'cache is empty (run refresh_cache first). source picks the store, and the store sets ' +
-        'the currency (default: the configured defaultPriceSource): tcgplayer (Scryfall USD), ' +
-        'cardmarket (Scryfall EUR), cardhoarder (Scryfall MTGO tix), or cardkingdom (USD NM ' +
-        'retail from the cached Card Kingdom feed, and errors when no feed is downloaded; run ' +
-        'refresh_buylist, which itself needs sell mode or "cardkingdom" in priceSources).',
-      inputSchema: z
-        .object({
-          listType: listTypeSchema
-            .optional()
-            .describe('Restrict to one list type (alone) or name one list (with slug).'),
-          slug: slugField.optional(),
-          source: z
-            .enum(VALID_PRICE_SOURCES)
-            .optional()
-            .describe(
-              'Price store, which sets the currency (tcgplayer/cardkingdom: usd, cardmarket: eur, cardhoarder: tix). Default: the configured defaultPriceSource.',
-            ),
-        })
-        .superRefine((val, ctx) => {
-          if (val.slug !== undefined && val.listType === undefined) {
-            ctx.addIssue({
-              code: 'custom',
-              message: 'slug requires listType (omit both for the all-lists summary).',
-            })
-          }
-        }),
-      outputSchema: outputSchemaFor<PriceReportResult>('get_price_report'),
+        'Counts — and, with source, value at that store — across many lists in one call: one ' +
+        'row per selected list (entries, copies and per-section counts, default labels, ' +
+        'description, cover, deck format, and its priced totals), plus totals over the whole ' +
+        'selection (lists, entries, copies, distinct card names, value) and per-type totals ' +
+        'when it spans types. Use it instead of fanning out get_list summaries over ' +
+        'list_lists: how many cards across all collections, which lists match a name, every ' +
+        'deck with its board counts, the most valuable collections. Select with listType, ' +
+        'nameContains, lists, label, format and includeEmpty (they intersect); sections picks ' +
+        'which deck boards count. Counts never need the card cache. Totals always cover every ' +
+        'selected list, while sort and limit only order and trim the rows. Prices are ' +
+        'strictly cache-backed: an empty card cache, a list that fails to price, or ' +
+        'cardkingdom with no cached feed leaves the counts in place with a warning (sort ' +
+        '"value" with no Card Kingdom feed is an error instead). For one list’s priced card ' +
+        'entries use get_list_prices.',
+      inputSchema: summarizeListsSchema,
+      outputSchema: outputSchemaFor<SummarizeListsResult>('summarize_lists'),
+      annotations: { readOnlyHint: true },
+    },
+    async (input) =>
+      runTool(async (): Promise<SummarizeListsResult> => {
+        const data = await callApiData<ListsSummaryResponse>(
+          'GET',
+          `/api/lists/summary${summarizeListsQuery(input)}`,
+        )
+        return data
+      }),
+  )
+
+  server.registerTool(
+    'get_list_prices',
+    {
+      title: 'List prices',
+      description:
+        'Price one list from the local card cache: its totals plus every priced card entry, in ' +
+        'file order. For counts and totals across many lists (every collection’s value, the ' +
+        'top decks by value) use summarize_lists with source instead. Errors when the card ' +
+        'cache is empty (run refresh_cache first). source picks the store (default: the ' +
+        'configured defaultPriceSource): tcgplayer, cardmarket and cardhoarder read Scryfall’s ' +
+        'copies of their prices; cardkingdom prices NM retail from the cached Card Kingdom feed, ' +
+        'and errors when no feed is downloaded (run refresh_buylist, which itself needs sell ' +
+        `mode or "cardkingdom" in priceSources). ${PRICE_SOURCE_CURRENCIES}`,
+      inputSchema: z.object({
+        listType: listTypeSchema,
+        slug: slugField,
+        source: priceSourceSchema
+          .optional()
+          .describe(
+            `Price store. ${PRICE_SOURCE_CURRENCIES} Default: the configured defaultPriceSource.`,
+          ),
+      }),
+      outputSchema: outputSchemaFor<ListPricesResult>('get_list_prices'),
       annotations: { readOnlyHint: true },
     },
     async ({ listType, slug, source }) =>
-      runTool(async (): Promise<PriceReportResult> => {
-        if (listType !== undefined && slug !== undefined) {
-          const params = new URLSearchParams()
-          if (source !== undefined) params.set('source', source)
-          const query = params.size > 0 ? `?${params}` : ''
-          const detail = await callApiData<PriceListDetailResponse>(
-            'GET',
-            `/api/price/${listType}/${encodeURIComponent(slug)}${query}`,
-          )
-          return detail
-        }
-        const params = new URLSearchParams()
-        if (listType !== undefined) params.set('type', listType)
-        if (source !== undefined) params.set('source', source)
-        const query = params.size > 0 ? `?${params}` : ''
-        const summary = await callApiData<PriceSummaryResponse>('GET', `/api/price/summary${query}`)
-        return summary
+      runTool(async (): Promise<ListPricesResult> => {
+        const query = source === undefined ? '' : `?${new URLSearchParams({ source })}`
+        const data = await callApiData<PriceListDetailResponse>(
+          'GET',
+          `/api/price/${listType}/${encodeURIComponent(slug)}${query}`,
+        )
+        return data
       }),
   )
 
@@ -842,7 +948,7 @@ export function registerReadTools(server: McpServer): void {
         'bulk built it (cardBulkType: default_cards for an English defaultLanguage, all_cards ' +
         'otherwise; bulkTypeStale means the cache and the configured defaultLanguage disagree ' +
         'and a full refresh_cache is needed). ' +
-        'Check empty before pricing (an empty cache is what get_price_report errors on) and ' +
+        'Check empty before pricing (an empty cache is what get_list_prices errors on) and ' +
         'priceStale before trusting the numbers; refresh_cache fixes both. Diagnostic only: ' +
         'reading this never refreshes or writes the cache.',
       inputSchema: z.object({}),

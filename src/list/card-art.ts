@@ -341,6 +341,21 @@ export async function loadCardArt(
 }
 
 /**
+ * A list's custom art for a read-only report (a price report, a summary): an
+ * unreadable sidecar is handed to `warn` and reads as no art, so the list
+ * still prices — every card priced as if it carried none.
+ */
+export async function loadListArtOrWarn(
+  listFilePath: string,
+  warn: (cause: SyncMessage) => void,
+): Promise<CardArtMap> {
+  const loaded = await loadCardArt(listFilePath)
+  if (loaded.ok) return loaded.art
+  warn(loaded.message)
+  return new Map()
+}
+
+/**
  * A per-run cache of lists' custom art, read at most once per file.
  *
  * Every path that carries art across a cross-list move needs the same thing: the

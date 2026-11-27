@@ -242,7 +242,6 @@ export const helpInfraMessages = {
   'help.price.collector': 'Print cards with this collector number',
   'help.price.sort': 'Sort cards by: {fields}',
   'help.price.descending': 'Reverse the sort direction',
-  'help.price.summary': 'Print the price summary instead of opening the browser',
 
   // ── sell ──────────────────────────────────────────────────────────────
   'help.sell.description': "Check what Card Kingdom's buylist pays for cards in your lists",

@@ -107,6 +107,10 @@ import type {
 import { TOOL_ERROR_CODES } from './error-codes'
 import type { SessionOverrides } from '../config/ritual-config'
 import type { SellCartResponse, SellRefreshResponse } from '../admin/api/sell'
+import type { ListWarning } from '../list/list-info'
+import type { PriceWarning } from '../pricing/price-report'
+import type { ListsSummaryWarning } from '../summary/lists'
+import type { ListPricesResult, SummarizeListsResult } from './tools/read-tools'
 import {
   CARD_ART_REF,
   CARD_LABEL,
@@ -386,59 +390,96 @@ export const GET_CARD_PRICE_OUTPUT: JsonSchemaType = withDefs(
   'PrintingSummary',
 )
 
+/** What a priced result's `lastRefreshedAt` says. */
+const PRICES_REFRESHED_AT =
+  'Epoch ms the prices were last refreshed: the Card Kingdom feed’s download for ' +
+  'cardkingdom, the card cache’s last bulk refresh for every other store.'
+
+/** The keys of `T` that are not optional. */
+type RequiredKeys<T> = { [K in keyof T]-?: object extends Pick<T, K> ? never : K }[keyof T]
+
 /**
- * What both price arms carry. Hoisted into a shared const, not out of the arms
- * into the union root: each arm has to stay complete on its own, because that
- * completeness is what lets a client discriminate on `mode` and then read the
- * arm without consulting the root. Spreading a const keeps the duplication in
- * the emitted JSON — where it belongs — and out of the authoring, where the two
- * verbatim copies of every description were the drift risk.
+ * A list warning: a message (English plus its key and params) with the list it
+ * is about, by identity. `required` names exactly the keys the TS warning type
+ * `W` requires — every one of them, and no optional one — so the schema's
+ * `required` cannot drift from the type it advertises.
  */
-const PRICE_REPORT_COMMON_PROPS = {
-  source: enumOf(VALID_PRICE_SOURCES, 'The store every price comes from.'),
-  currency: enumOf(VALID_CURRENCIES, 'The store’s one currency.'),
-  lastRefreshedAt: nullable(int(), 'Epoch ms of the last cache refresh.'),
-  warnings: arr(str()),
-} as const satisfies Properties
+function listWarningSchema<W extends ListsSummaryWarning>(
+  required: Record<RequiredKeys<W>, true>,
+): JsonSchemaType {
+  return obj(
+    {
+      ...SYNC_MESSAGE_PROPS,
+      list: ref('ListIdentity'),
+    } as const satisfies Record<keyof ListWarning, JsonSchemaType>,
+    LIST_WARNING_KEYS.filter((key) => key in required),
+  )
+}
 
-const PRICE_REPORT_COMMON_REQUIRED = [
-  'mode',
-  'source',
-  'currency',
-  'lastRefreshedAt',
-  'warnings',
-] as const
+/** Every key a list warning declares, in schema order. */
+const LIST_WARNING_KEYS = [
+  'message',
+  'messageKey',
+  'messageParams',
+  'list',
+] as const satisfies readonly (keyof ListWarning)[]
 
-export const GET_PRICE_REPORT_OUTPUT: JsonSchemaType = withDefs(
-  {
-    type: 'object',
-    description: 'A price report, discriminated by `mode`.',
-    oneOf: [
-      obj(
-        {
-          mode: literal('summary'),
-          ...PRICE_REPORT_COMMON_PROPS,
-          lists: arr(ref('ListPriceSummary')),
-          typeTotals: arr(ref('ListTypeTotals')),
-          totals: ref('PriceReportTotals'),
-        },
-        [...PRICE_REPORT_COMMON_REQUIRED, 'lists', 'typeTotals', 'totals'],
+/** A price report's warning: always about one list. */
+const PRICE_WARNING = listWarningSchema<PriceWarning>({ message: true, list: true })
+
+/** A summary's warning: naming its list when it is about one. */
+const LISTS_SUMMARY_WARNING = listWarningSchema<ListsSummaryWarning>({ message: true })
+
+export const GET_LIST_PRICES_OUTPUT: JsonSchemaType = withDefs(
+  obj(
+    {
+      source: enumOf(VALID_PRICE_SOURCES, 'The store every price comes from.'),
+      currency: enumOf(VALID_CURRENCIES, 'The store’s one currency.'),
+      lastRefreshedAt: nullable(int(), PRICES_REFRESHED_AT),
+      list: ref('ListPriceSummary'),
+      cards: arr(ref('PricedEntry'), 'Priced entries in file order.'),
+      warnings: arr(
+        PRICE_WARNING,
+        'Lines pricing could not read (the totals leave those cards out) and custom art it ' +
+          'could not load, each a message.',
       ),
-      obj(
-        {
-          mode: literal('list'),
-          ...PRICE_REPORT_COMMON_PROPS,
-          list: ref('ListPriceSummary'),
-          cards: arr(ref('PricedEntry'), 'Priced entries in file order.'),
-        },
-        [...PRICE_REPORT_COMMON_REQUIRED, 'cards'],
-      ),
-    ],
-  },
+    } as const satisfies Record<keyof ListPricesResult, JsonSchemaType>,
+    ['source', 'currency', 'lastRefreshedAt', 'list', 'cards', 'warnings'],
+  ),
   'ListPriceSummary',
-  'ListTypeTotals',
-  'PriceReportTotals',
   'PricedEntry',
+  'ListIdentity',
+)
+
+export const SUMMARIZE_LISTS_OUTPUT: JsonSchemaType = withDefs(
+  obj(
+    {
+      lists: arr(ref('ListsSummaryRow'), 'The selected lists, sorted, then trimmed to limit.'),
+      totals: ref('ListsSummaryTotals'),
+      typeTotals: arr(
+        ref('ListsSummaryTypeTotals'),
+        'Totals per list type, in deck/collection/wanted order; present only when the ' +
+          'selection spans more than one type. Like totals, these cover every selected list.',
+      ),
+      source: enumOf(VALID_PRICE_SOURCES, 'The store the values come from, when priced.'),
+      currency: enumOf(VALID_CURRENCIES, 'The store’s one currency, when priced.'),
+      lastRefreshedAt: nullable(
+        int(),
+        `${PRICES_REFRESHED_AT} Present when the summary was priced.`,
+      ),
+      warnings: arr(
+        LISTS_SUMMARY_WARNING,
+        'A list that could not be (fully) read or priced, a list ref naming no list, or prices ' +
+          'that could not be had — each a message, with `list` naming the list it is about. ' +
+          'Always present, empty when everything read and priced cleanly.',
+      ),
+    } as const satisfies Record<keyof SummarizeListsResult, JsonSchemaType>,
+    ['lists', 'totals', 'warnings'],
+  ),
+  'ListsSummaryRow',
+  'ListsSummaryTotals',
+  'ListsSummaryTypeTotals',
+  'ListIdentity',
 )
 
 // ── Sell report ───────────────────────────────────────────────────────
@@ -549,29 +590,39 @@ const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(SELL_ENTRY_PROPS, [
   'fileOrder',
 ])
 
-export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = obj(
-  {
-    feedCreatedAt: str('Card Kingdom’s feed generation stamp, verbatim.'),
-    feedRetrievedAt: int('Epoch ms when the feed was downloaded.'),
-    filters: obj({
-      tags: arr(str(), 'Tags the report was scoped to (lines carrying any of them).'),
-      sets: arr(str(), 'Set codes the entries were filtered to.'),
-      minPrice: num('Minimum per-copy offer the entries were filtered to.'),
-      minRatio: num('Minimum offer-to-market ratio the entries were filtered to.'),
-      minOwned: int('Minimum total owned copies the entries were filtered to.'),
-    }),
-    lists: arr(
-      obj({ type: LIST_TYPE, name: str(), ...SELL_TOTALS_PROPS }, [
-        'type',
-        'name',
+export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = withDefs(
+  obj(
+    {
+      feedCreatedAt: str('Card Kingdom’s feed generation stamp, verbatim.'),
+      feedRetrievedAt: int('Epoch ms when the feed was downloaded.'),
+      filters: obj({
+        tags: arr(str(), 'Tags the report was scoped to (lines carrying any of them).'),
+        sets: arr(str(), 'Set codes the entries were filtered to.'),
+        minPrice: num('Minimum per-copy offer the entries were filtered to.'),
+        minRatio: num('Minimum offer-to-market ratio the entries were filtered to.'),
+        minOwned: int('Minimum total owned copies the entries were filtered to.'),
+      }),
+      lists: arr(
+        obj({ type: LIST_TYPE, name: str(), ...SELL_TOTALS_PROPS }, [
+          'type',
+          'name',
+          ...SELL_TOTALS_REQUIRED,
+        ]),
+      ),
+      entries: arr(SELL_ENTRY_SCHEMA, 'Matched entries; filtered when filters are active.'),
+      totals: obj({ ...SELL_TOTALS_PROPS, listCount: int() }, [
         ...SELL_TOTALS_REQUIRED,
+        'listCount',
       ]),
-    ),
-    entries: arr(SELL_ENTRY_SCHEMA, 'Matched entries; filtered when filters are active.'),
-    totals: obj({ ...SELL_TOTALS_PROPS, listCount: int() }, [...SELL_TOTALS_REQUIRED, 'listCount']),
-    warnings: arr(str()),
-  },
-  ['feedCreatedAt', 'feedRetrievedAt', 'filters', 'lists', 'entries', 'totals', 'warnings'],
+      warnings: arr(
+        PRICE_WARNING,
+        'Lines matching could not read (the report leaves those cards out) and custom art it ' +
+          'could not load, each a message naming its list.',
+      ),
+    },
+    ['feedCreatedAt', 'feedRetrievedAt', 'filters', 'lists', 'entries', 'totals', 'warnings'],
+  ),
+  'ListIdentity',
 )
 
 const GET_SELL_CART_PROPS = {
@@ -893,7 +944,14 @@ export const DIFF_LISTS_OUTPUT: JsonSchemaType = withDefs(
   'DiffOnly',
 )
 
-/** What both export arms carry; see the note on {@link PRICE_REPORT_COMMON_PROPS}. */
+/**
+ * What both export arms carry. Hoisted into a shared const, not out of the arms
+ * into the union root: each arm has to stay complete on its own, because that
+ * completeness is what lets a client discriminate on `mode` and then read the
+ * arm without consulting the root. Spreading a const keeps the duplication in
+ * the emitted JSON — where it belongs — and out of the authoring, where two
+ * verbatim copies of every description were the drift risk.
+ */
 const EXPORT_COMMON_PROPS = {
   format: enumOf(EXPORT_FORMATS),
   entryCount: int(),
@@ -1569,7 +1627,8 @@ export const TOOL_OUTPUT_SCHEMAS: Readonly<Record<McpToolName, JsonSchemaType>> 
   get_card_details: GET_CARD_DETAILS_OUTPUT,
   get_card_printings: GET_CARD_PRINTINGS_OUTPUT,
   get_card_price: GET_CARD_PRICE_OUTPUT,
-  get_price_report: GET_PRICE_REPORT_OUTPUT,
+  summarize_lists: SUMMARIZE_LISTS_OUTPUT,
+  get_list_prices: GET_LIST_PRICES_OUTPUT,
   get_sell_report: GET_SELL_REPORT_OUTPUT,
   get_sell_cart: GET_SELL_CART_OUTPUT,
   get_buylist_quotes: GET_BUYLIST_QUOTES_OUTPUT,

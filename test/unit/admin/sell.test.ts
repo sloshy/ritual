@@ -76,9 +76,9 @@ describe('admin sell handlers', () => {
   })
 
   test.each<[string, MessageKey]>([
-    ['?type=binder', 'admin.api.listTypeInvalid'],
-    ['?lists=nonsense', 'admin.api.sell.refInvalid'],
-    ['?lists=,,', 'admin.api.sell.noRefs'],
+    ['?type=binder', 'errors.enum.invalid'],
+    ['?list=nonsense', 'admin.api.listRefInvalid'],
+    ['?list=&list=%20', 'admin.api.sell.noRefs'],
     ['?min=abc', 'errors.number.notNonNegative'],
     ['?min=-1', 'errors.number.notNonNegative'],
     ['?minRatio=half', 'errors.number.notNonNegative'],
@@ -120,12 +120,34 @@ describe('admin sell handlers', () => {
     expect(body.entries.map((entry) => [entry.cardIds, entry.sellableQuantity])).toEqual([[[2], 1]])
   })
 
+  test('a line the matcher cannot read is a warning message naming its list', async () => {
+    await writeShoebox(env.dir, (pin) => [
+      `- Sol Ring (${pin}) &1`,
+      `- Sol Ring (${pin}) &2 [nonsense`,
+    ])
+    const body = (await (await report('')).json()) as SellReportResponse
+    expect(body.warnings).toHaveLength(1)
+    expect(body.warnings[0]).toMatchObject({
+      messageKey: 'domain.price.inList',
+      list: { listType: 'collection', slug: 'shoebox' },
+    })
+  })
+
+  test('a list named twice is matched once', async () => {
+    const once = (await (await report('?list=collection:shoebox')).json()) as SellReportResponse
+    const twice = (await (
+      await report('?list=collection:shoebox&list=Collection:shoebox')
+    ).json()) as SellReportResponse
+    expect(twice.lists).toHaveLength(1)
+    expect(twice.totals).toEqual(once.totals)
+  })
+
   test('404s an unknown list reference', async () => {
-    expect((await report('?lists=collection:no-such-list')).status).toBe(404)
+    expect((await report('?list=collection:no-such-list')).status).toBe(404)
   })
 
   test('lists override type, and the report scopes to exactly those lists', async () => {
-    const response = await report('?type=wanted&lists=collection:shoebox')
+    const response = await report('?type=wanted&list=collection:shoebox')
     expect(response.status).toBe(200)
     const body = (await response.json()) as SellReportResponse
     expect(body.lists.map((list) => `${list.type}:${list.name}`)).toEqual(['collection:shoebox'])

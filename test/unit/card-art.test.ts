@@ -6,6 +6,7 @@ import {
   cardArtFilePath,
   isCardArtRefError,
   loadCardArt,
+  loadListArtOrWarn,
   parseCardArtInput,
   parseCardArtRef,
   parseCardArtSidecar,
@@ -491,5 +492,36 @@ describe('reconcileCardArt', () => {
 
     expect(failureText(result)).toContain(artSidecarPath(listPath))
     expect(await fs.readFile(artSidecarPath(listPath), 'utf-8')).toBe('{ not json')
+  })
+})
+
+describe('loadListArtOrWarn', () => {
+  let dir: string
+  let listPath: string
+
+  beforeEach(async () => {
+    dir = await createWorkspace()
+    listPath = path.join(dir, 'collections', 'binder.md')
+  })
+
+  afterEach(async () => {
+    await removeWorkspace(dir)
+  })
+
+  test('a readable sidecar is the art, and nothing is said', async () => {
+    await saveCardArt(listPath, new Map<number, CardArtRef>([[1, { file: 'bolt.png' }]]))
+    const warned: SyncMessage[] = []
+    const art = await loadListArtOrWarn(listPath, (cause) => warned.push(cause))
+    expect(art.get(1)).toEqual({ file: 'bolt.png' })
+    expect(warned).toEqual([])
+  })
+
+  test('an unreadable sidecar is said once and reads as no art', async () => {
+    await fs.writeFile(artSidecarPath(listPath), '{ not json')
+    const warned: SyncMessage[] = []
+    const art = await loadListArtOrWarn(listPath, (cause) => warned.push(cause))
+    expect(art.size).toBe(0)
+    expect(warned).toHaveLength(1)
+    expect(warned[0]?.message).toContain(artSidecarPath(listPath))
   })
 })

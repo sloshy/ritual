@@ -199,8 +199,6 @@ export const adminApiMessages = {
   'admin.api.target.typeInvalid': 'Invalid or missing list type',
   'admin.api.target.slugRequired': 'List slug is required',
   'admin.api.target.slugInvalid': 'Invalid list slug',
-  'admin.api.listNotFound': "List '{list}' not found",
-  'admin.api.listTypeInvalid': "Invalid list type '{type}'",
   'admin.api.list.notFound': {
     $select: 'listType',
     deck: "Deck '{slug}' not found",
@@ -312,8 +310,8 @@ export const adminApiMessages = {
   'admin.api.diff.sidesRequired': "Query parameters 'a' and 'b' are required ([type:]name).",
 
   // ── Prices and the sell report ────────────────────────────────────────
-  'admin.api.sell.refInvalid': "Invalid list reference '{ref}' (expected type:slug)",
-  'admin.api.sell.noRefs': "No list references in 'lists'",
+  'admin.api.listRefInvalid': "Invalid list reference '{ref}' (expected type:slug)",
+  'admin.api.sell.noRefs': "No list references in 'list'",
 
   // ── Request bodies, any route ─────────────────────────────────────────
   'admin.api.body.notJson': 'Request body must be JSON.',

@@ -844,6 +844,49 @@ export const cliCardsMeta = {
     description:
       "Column heading of `ritual lists`' table: the list's file name without `.md`. Shown only when some list's file name differs from its display name.",
   },
+  'cli.lists.columnEntries': {
+    description:
+      'Column heading of `ritual lists --summary`: how many entries (card lines) each list has. Keep it short.',
+  },
+  'cli.lists.columnCards': {
+    description:
+      'Column heading of `ritual lists --summary`: how many cards (copies, counting quantities) each list holds. Keep it short.',
+  },
+  'cli.lists.columnValue': {
+    description:
+      'Column heading of `ritual lists --summary --source`: what each list is worth at the chosen store. Keep it short.',
+  },
+  'cli.lists.allLists': {
+    description:
+      'Label of the last totals line under `ritual lists --summary`, the totals across every list shown (the other totals lines are labelled with a list type, such as Decks).',
+  },
+  'cli.lists.totalsLine': {
+    description:
+      'One totals line under `ritual lists --summary`. {label} is what it totals (All lists, or a list type such as Decks); {totals} is the counts, separated by " · ", with the value at the end when priced.',
+  },
+  'cli.lists.totalsLists': {
+    description: 'In a totals line of `ritual lists --summary`: how many lists it covers.',
+  },
+  'cli.lists.totalsEntries': {
+    description:
+      'In a totals line of `ritual lists --summary`: how many entries (card lines) the lists hold.',
+  },
+  'cli.lists.totalsCards': {
+    description:
+      'In a totals line of `ritual lists --summary`: how many cards (copies, counting quantities) the lists hold.',
+  },
+  'cli.lists.totalsDistinct': {
+    description:
+      'In a totals line of `ritual lists --summary`: how many different cards (by name) the lists hold, however many copies of each.',
+  },
+  'cli.lists.directionConflict': {
+    description:
+      'Usage error: `ritual lists --summary` was given both the ascending and the descending sort flag. {ascending} and {descending} are the two flags, verbatim.',
+  },
+  'cli.lists.needsSummary': {
+    description:
+      'Usage error: options (or list names) that only make sense for a summary were given to `ritual lists` without --summary. {summary} is the --summary flag; {given} is the options and names given, comma-separated, verbatim.',
+  },
   'cli.lists.empty': {
     description:
       'Placeholder row when the listing is empty. The parentheses mark it as not a list name.',

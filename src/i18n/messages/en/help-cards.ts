@@ -170,6 +170,23 @@ export const helpCardsMessages = {
   'help.lists.deck': 'Only list decks',
   'help.lists.collection': 'Only list collections',
   'help.lists.wanted': 'Only list wanted lists',
+  'help.lists.lists':
+    'With {flag}, summarize only these lists (a name, optionally prefixed with deck:, collection: or wanted:)',
+  'help.lists.summary':
+    'Count each list’s entries and cards, with totals across them, instead of listing names',
+  'help.lists.name': 'Only lists whose name contains every one of these terms (with {flag})',
+  'help.lists.label':
+    'Only lists whose default card labels include this one: {labels} (with {flag})',
+  'help.lists.noEmpty': 'Leave out lists with no entries (with {flag})',
+  'help.lists.format': 'Only decks of this format (with {flag})',
+  'help.lists.section':
+    'Count only this deck section, by its exact heading; repeat for several (with {flag})',
+  'help.lists.source': 'Price each list at this store and show its value (with {flag})',
+  'help.lists.sort':
+    'Order the lists by {fields}; quantity and value start with the largest (with {flag})',
+  'help.lists.ascending': 'Smallest (or A) first, the default for name (with {flag})',
+  'help.lists.descending': 'Largest (or Z) first, the default for quantity and value (with {flag})',
+  'help.lists.limit': 'Show at most this many lists; the totals still cover them all (with {flag})',
   'help.listAllCards.description':
     'Print a manifest of every unique card across decks, collections, and wanted lists. Useful as a deterministic cache key for CI builds.',
   'help.listAllCards.out':

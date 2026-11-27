@@ -13,7 +13,6 @@ import type { Choice } from 'prompts'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import { quantityRow } from '../cli/rows'
-import { formatDateTime } from '../ui/format'
 import { sectionDisplayName } from '../list/deck-format'
 import { LIST_TYPE_DISPLAY, LIST_TYPES, listTypeTitle, type ListType } from '../list/list-type'
 import { printingFinishes } from '../card/finish-condition'
@@ -21,22 +20,20 @@ import {
   formatPrice,
   formatFinishTaggedPrice,
   formatPriceOrNA,
-  formatTotalPrice,
   getCardPriceForFinish,
   type PriceCurrency,
 } from '../pricing/price-currency'
 import { UNRANKED_EDHREC } from '../card/card-printing'
 import {
   comparePricedEntries,
+  entriesOfList,
   filterPricedEntries,
   isByRuleUnpricedReason,
   isPriceSortField,
   PRICE_SORT_FIELDS,
   sumPricedEntries,
   type BuiltPriceReport,
-  type ListPriceSummary,
   type PriceEntryFilters,
-  type PriceReport,
   type PricedEntry,
   type PriceSortField,
   type ByRuleUnpricedReason,
@@ -44,8 +41,23 @@ import {
   type UnpricedReason,
 } from '../pricing/price-report'
 import { comparePrintings } from '../scryfall'
-import type { ListSlugRef } from '../list/list-info'
-import { formatDuration } from '../util/duration'
+import { errorMessage, renderSyncMessage } from '../sync/message'
+import { isExpectedListReadFailure } from '../list/list-content'
+import type { ListIdentity } from '../list/list-info'
+import {
+  findSummaryRow,
+  groupRowsByType,
+  type ListsSummary,
+  type ListsSummaryRow,
+  type ListsSummaryTypeTotals,
+} from '../summary/lists'
+import {
+  formatStoreLine,
+  formatTotalsSegment,
+  formatValueSegment,
+  isEstimatedTotal,
+  showsLowestTotal,
+} from '../cli/price-format'
 import type { ScryfallCard } from '../scryfall/types'
 import { ask, promptTextFilter, suggestByTitleTerms } from '../cli/prompts'
 import { printingLabel } from '../card/card-line-tail'
@@ -120,7 +132,7 @@ function formatEntryPrice(entry: PricedEntry, amount: number, currency: PriceCur
 
 /** What the user picked on the main screen. */
 export type PriceMainSelection =
-  | { kind: 'open'; list: ListSlugRef }
+  | { kind: 'open'; list: ListIdentity }
   | { kind: 'search' }
   | { kind: 'refresh' }
   | { kind: 'store' }
@@ -135,25 +147,6 @@ export type CardBrowserState = {
 
 export function createDefaultBrowserState(): CardBrowserState {
   return { sort: 'name', descending: false, filters: {} }
-}
-
-/**
- * "Total $12.34 · Lowest $10.00 · 2 unpriced" (lowest/unpriced only when they
- * add information), the total prefixed "~" when it is an estimate.
- */
-export function formatTotalsSegment(totals: PriceTotals, currency: PriceCurrency): string {
-  const parts: string[] = [
-    t('cli.price.totalsTotal', {
-      price: formatTotalPrice(totals.total, currency, isEstimatedTotal(totals)),
-    }),
-  ]
-  if (showsLowestTotal(totals)) {
-    parts.push(t('cli.price.totalsLowest', { price: formatPrice(totals.lowestTotal, currency) }))
-  }
-  if (totals.unpricedCount > 0) {
-    parts.push(t('cli.price.totalsUnpriced', { count: totals.unpricedCount }))
-  }
-  return parts.join(' · ')
 }
 
 /**
@@ -178,16 +171,6 @@ export function formatPriceLegend(
   return lines
 }
 
-/** Whether a total reads `~` ({@link formatTotalsSegment}). */
-function isEstimatedTotal(totals: PriceTotals): boolean {
-  return totals.estimatedCount > 0
-}
-
-/** Whether a totals segment shows its "Lowest possible" figure ({@link formatTotalsSegment}). */
-function showsLowestTotal(totals: PriceTotals): boolean {
-  return totals.lowestTotal !== totals.total
-}
-
 /** Whether a row carries the trailing "lowest" note ({@link formatEntryChoiceTitle}). */
 function hasLowerPrinting(entry: PricedEntry): boolean {
   return entry.lowest > 0 && entry.lowest !== entry.price
@@ -198,43 +181,38 @@ function showsUnpinnedMarker(entry: PricedEntry): boolean {
   return Boolean(entry.set && entry.collectorNumber) && !entry.pinned
 }
 
-/** The main screen's at-a-glance header: cache age, per-type totals, grand total. */
-export function formatReportHeaderLines(
-  report: PriceReport,
+/**
+ * The main screen's at-a-glance header: cache age and store, per-type totals,
+ * and a grand total when the lists span more than one type.
+ */
+export function formatSummaryHeaderLines(
+  summary: ListsSummary,
+  source: PriceSource,
   lastRefreshedAt: number | null,
   now: number,
 ): string[] {
-  const updated =
-    lastRefreshedAt === null
-      ? t('cli.price.updatedUnknown')
-      : t('cli.price.updatedAt', {
-          timestamp: formatDateTime(lastRefreshedAt),
-          age: formatDuration(now - lastRefreshedAt),
-        })
-  const lines: string[] = [
-    t('cli.price.headerUpdated', {
-      updated,
-      store: t(PRICE_SOURCE_LABELS[report.source]),
-      currency: report.currency.toUpperCase(),
-    }),
-    '',
-  ]
-  for (const typeTotal of report.typeTotals) {
-    const display = LIST_TYPE_DISPLAY[typeTotal.type]
+  const currency = sourceCurrency(source)
+  const lines: string[] = [formatStoreLine(source, lastRefreshedAt, now), '']
+  // With one type the summary reports no per-type totals: the overall ones are that type's.
+  const onlyType = summary.lists[0]?.listType
+  const perType: ListsSummaryTypeTotals[] =
+    summary.typeTotals ??
+    (onlyType === undefined ? [] : [{ listType: onlyType, ...summary.totals }])
+  for (const typeTotal of perType) {
     lines.push(
       t('cli.price.headerTypeTotals', {
-        icon: display.icon,
-        title: listTypeTitle(typeTotal.type),
+        icon: LIST_TYPE_DISPLAY[typeTotal.listType].icon,
+        title: listTypeTitle(typeTotal.listType),
         count: typeTotal.listCount,
-        totals: formatTotalsSegment(typeTotal, report.currency),
+        totals: formatValueSegment(typeTotal.value, currency),
       }),
     )
   }
-  if (report.typeTotals.length > 1) {
+  if (summary.typeTotals !== undefined) {
     lines.push(
       t('cli.price.headerGrandTotals', {
-        count: report.totals.listCount,
-        totals: formatTotalsSegment(report.totals, report.currency),
+        count: summary.totals.listCount,
+        totals: formatValueSegment(summary.totals.value, currency),
       }),
     )
   }
@@ -243,15 +221,15 @@ export function formatReportHeaderLines(
 
 /** One list's menu row: icon, name, totals, unpriced badge, card count. */
 export function formatListChoiceTitle(
-  summary: ListPriceSummary,
+  row: ListsSummaryRow,
   currency: PriceCurrency,
-  name: string = summary.name,
+  name: string = row.name,
 ): string {
   return t('cli.price.listRow', {
-    icon: LIST_TYPE_DISPLAY[summary.type].icon,
+    icon: LIST_TYPE_DISPLAY[row.listType].icon,
     name,
-    totals: formatTotalsSegment(summary, currency),
-    count: summary.cardCount,
+    totals: formatValueSegment(row.value, currency),
+    count: row.counts.cardCount,
   })
 }
 
@@ -260,27 +238,23 @@ export function formatListChoiceTitle(
  * another list of the same type shares that title — two rows that read the
  * same would otherwise be told apart only by their position.
  */
-export function listRowName(summary: ListPriceSummary, lists: readonly ListPriceSummary[]): string {
-  const shared = lists.some(
-    (other) => other !== summary && other.type === summary.type && other.name === summary.name,
+export function listRowName(row: ListsSummaryRow, rows: readonly ListsSummaryRow[]): string {
+  const shared = rows.some(
+    (other) => other !== row && other.listType === row.listType && other.name === row.name,
   )
-  return shared
-    ? t('cli.price.listNameWithSlug', { name: summary.name, slug: summary.slug })
-    : summary.name
+  return shared ? t('cli.price.listNameWithSlug', { name: row.name, slug: row.slug }) : row.name
 }
 
 /** The main screen menu: every list (grouped by type), then the global actions. */
-export function buildMainMenuChoices(report: PriceReport): Choice[] {
-  const listChoices = LIST_TYPES.flatMap((type) =>
-    report.lists
-      .filter((summary) => summary.type === type)
-      .map((summary): Choice => ({
-        title: formatListChoiceTitle(summary, report.currency, listRowName(summary, report.lists)),
-        value: {
-          kind: 'open',
-          list: { type: summary.type, slug: summary.slug },
-        } satisfies PriceMainSelection,
-      })),
+export function buildMainMenuChoices(summary: ListsSummary, currency: PriceCurrency): Choice[] {
+  const listChoices = groupRowsByType(summary.lists).flatMap((group) =>
+    group.rows.map((row): Choice => ({
+      title: formatListChoiceTitle(row, currency, listRowName(row, summary.lists)),
+      value: {
+        kind: 'open',
+        list: { listType: row.listType, slug: row.slug },
+      } satisfies PriceMainSelection,
+    })),
   )
   return [
     ...listChoices,
@@ -465,27 +439,50 @@ export function formatPrintingPriceLines(
 
 // ── Interactive loops ───────────────────────────────────────────────
 
-/** Everything the browser needs from the command that launches it. */
-export type PriceBrowserDeps = {
-  built: BuiltPriceReport
-  lastRefreshedAt: number | null
-  /**
-   * Rebuild the report (rereading lists) at the given store, or the reason it
-   * cannot be priced there (Card Kingdom with no feed to read).
-   */
-  rebuild: (source: PriceSource) => Promise<BuiltPriceReport | string>
-  /** Redownload the bulk card cache (which carries prices). */
-  refreshPrices: () => Promise<void>
-  getLastRefreshedAt: () => Promise<number | null>
-  /** Open directly into this list before showing the main screen. */
-  openList?: ListSlugRef
+/**
+ * Everything the browser needs from the command that launches it. The main
+ * screen reads the cross-list summary; the card screens read the full price
+ * report, built only when one is first opened (and again after the store or
+ * the prices change), so a run that only looks at the totals prices each list
+ * once.
+ */
+/** A price refresh that happened. */
+export interface PricesRefreshed {
+  refreshed: true
 }
 
-async function promptMainSelection(report: PriceReport): Promise<PriceMainSelection | undefined> {
+export type PriceBrowserDeps = {
+  /** The summary the browser opens on, priced at `source`. */
+  summary: ListsSummary
+  source: PriceSource
+  lastRefreshedAt: number | null
+  /**
+   * Re-summarize (rereading lists) at the given store, or the reason it cannot
+   * be priced there (Card Kingdom with no feed to read).
+   */
+  loadSummary: (source: PriceSource) => Promise<ListsSummary | string>
+  /** Build the full price report at the given store, or the reason it cannot be. */
+  loadReport: (source: PriceSource) => Promise<BuiltPriceReport | string>
+  /**
+   * Refresh the prices `source` reads — the bulk card cache, and Card
+   * Kingdom's feed when that is the store — or say why the refresh failed (a
+   * download that did not happen), which keeps the screen as it was.
+   */
+  refreshPrices: (source: PriceSource) => Promise<PricesRefreshed | string>
+  /** When the prices `source` reads were last refreshed (its feed's age for Card Kingdom). */
+  getLastRefreshedAt: (source: PriceSource) => Promise<number | null>
+  /** Open directly into this list before showing the main screen. */
+  openList?: ListIdentity
+}
+
+async function promptMainSelection(
+  summary: ListsSummary,
+  currency: PriceCurrency,
+): Promise<PriceMainSelection | undefined> {
   return ask<PriceMainSelection>({
     type: 'autocomplete',
     message: t('cli.price.promptMainMenu'),
-    choices: buildMainMenuChoices(report),
+    choices: buildMainMenuChoices(summary, currency),
     suggest: suggestByTitleTerms,
   })
 }
@@ -648,20 +645,53 @@ async function promptStoreChange(current: PriceSource): Promise<PriceSource | un
   })
 }
 
+/**
+ * What a browser step loaded, or `undefined` once the reason it could not be
+ * had is said: a refusal the command worded (a store with no prices, a
+ * download that failed), or a failure reading the lists (a file gone or broken
+ * since the summary read it) that the summary would have tolerated — so the
+ * main screen stays, rather than the session ending on a screen the menu
+ * offered. Any other failure is a bug, and is rethrown.
+ */
+async function settle<T extends object>(loading: Promise<T | string>): Promise<T | undefined> {
+  let loaded: T | string
+  try {
+    loaded = await loading
+  } catch (error) {
+    // Only a list the summary would have tolerated; anything else is a bug.
+    if (!isExpectedListReadFailure(error)) throw error
+    loaded = renderSyncMessage(errorMessage(error))
+  }
+  if (typeof loaded !== 'string') return loaded
+  console.error(loaded)
+  return undefined
+}
+
 /** Run the interactive price browser until the user exits. */
 export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
-  let built = deps.built
+  let summary = deps.summary
+  let source = deps.source
   let lastRefreshedAt = deps.lastRefreshedAt
+  // The full report behind the card screens, at `source`; dropped whenever the
+  // store or the prices change, and rebuilt on the next card screen.
+  let report: BuiltPriceReport | undefined
 
-  const openList = async ({ type, slug }: ListSlugRef): Promise<void> => {
-    const listEntries = built.report.entries.filter(
-      (entry) => entry.listType === type && entry.listSlug === slug,
-    )
-    const summary = built.report.lists.find((list) => list.type === type && list.slug === slug)
-    const icon = LIST_TYPE_DISPLAY[type].icon
+  const fullReport = async (): Promise<BuiltPriceReport | undefined> => {
+    if (report) return report
+    const built = await settle(deps.loadReport(source))
+    if (built === undefined) return undefined
+    report = built
+    return report
+  }
+
+  const openList = async (list: ListIdentity): Promise<void> => {
+    const built = await fullReport()
+    if (!built) return
+    const row = findSummaryRow(summary.lists, list)
+    const icon = LIST_TYPE_DISPLAY[list.listType].icon
     await runCardBrowser(
-      `${icon} ${summary ? listRowName(summary, built.report.lists) : slug}`,
-      listEntries,
+      `${icon} ${row ? listRowName(row, summary.lists) : list.slug}`,
+      entriesOfList(built.report, list),
       built.report.currency,
       built.printingsByName,
       {
@@ -671,25 +701,41 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
     )
   }
 
+  /**
+   * Re-summarize at `store`, and whether it worked: a store that cannot be
+   * priced keeps the current screen.
+   */
+  const resummarize = async (store: PriceSource): Promise<void> => {
+    const next = await settle(deps.loadSummary(store))
+    if (next === undefined) return
+    summary = next
+    source = store
+    report = undefined
+    // The header's age moves only with the totals it describes.
+    lastRefreshedAt = await deps.getLastRefreshedAt(store)
+  }
+
   if (deps.openList) {
     await openList(deps.openList)
   }
 
   while (true) {
     console.log('')
-    for (const line of formatReportHeaderLines(built.report, lastRefreshedAt, Date.now())) {
+    for (const line of formatSummaryHeaderLines(summary, source, lastRefreshedAt, Date.now())) {
       console.log(line)
     }
     console.log('')
 
-    const selection = await promptMainSelection(built.report)
+    const selection = await promptMainSelection(summary, sourceCurrency(source))
     if (!selection || selection.kind === 'exit') return
 
     switch (selection.kind) {
       case 'open':
         await openList(selection.list)
         break
-      case 'search':
+      case 'search': {
+        const built = await fullReport()
+        if (!built) break
         await runCardBrowser(
           t('cli.price.allCardsHeading'),
           built.report.entries,
@@ -701,24 +747,19 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
           },
         )
         break
+      }
       case 'refresh': {
         console.log(t('cli.price.refreshing'))
-        await deps.refreshPrices()
-        lastRefreshedAt = await deps.getLastRefreshedAt()
-        const rebuilt = await deps.rebuild(built.report.source)
-        if (typeof rebuilt === 'string') console.error(rebuilt)
-        else built = rebuilt
+        // A download that failed leaves the prices — and the screen — as they were.
+        if ((await settle(deps.refreshPrices(source))) === undefined) break
+        // The prices changed under the report either way.
+        report = undefined
+        await resummarize(source)
         break
       }
       case 'store': {
-        const next = await promptStoreChange(built.report.source)
-        if (next && next !== built.report.source) {
-          const rebuilt = await deps.rebuild(next)
-          // A store that cannot be priced (Card Kingdom with no feed) keeps the
-          // current report on screen.
-          if (typeof rebuilt === 'string') console.error(rebuilt)
-          else built = rebuilt
-        }
+        const next = await promptStoreChange(source)
+        if (next && next !== source) await resummarize(next)
         break
       }
     }

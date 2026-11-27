@@ -5,7 +5,7 @@ import path from 'node:path'
 // scryfall/index, which reads `cardCache` at module top level — importing the
 // cache first leaves that binding in its temporal dead zone.
 import '../../src/scryfall'
-import type { PriceSummaryPayload } from '../../src/pricing/price-report'
+import type { PriceListDetailPayload } from '../../src/pricing/price-report'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
 import { runCli } from './helpers/cli'
@@ -54,35 +54,36 @@ afterEach(async () => {
   await removeWorkspace(dir)
 })
 
-async function summary(args: string[]): Promise<PriceSummaryPayload> {
+/** `price binder --output json`: the one list, priced at the store `args` choose. */
+async function binderPrices(args: string[]): Promise<PriceListDetailPayload> {
   const result = await runCli(
-    ['price', '--summary', '--output', 'json', '--refresh', 'never', ...args],
+    ['price', 'binder', '--output', 'json', '--refresh', 'never', ...args],
     dir,
     OFFLINE_ENV,
   )
   expect(result.exitCode).toBe(0)
-  return JSON.parse(result.stdout) as PriceSummaryPayload
+  return JSON.parse(result.stdout) as PriceListDetailPayload
 }
 
 describe('price --source (Integration)', () => {
   test('--source cardkingdom prices from the cached feed, USD, and stamps the payload', async () => {
-    const payload = await summary(['--source', 'cardkingdom'])
+    const payload = await binderPrices(['--source', 'cardkingdom'])
     expect(payload.currency).toBe('usd')
     expect(payload.source).toBe('cardkingdom')
-    expect(payload.totals.total).toBeCloseTo(3.49)
+    expect(payload.list.total).toBeCloseTo(3.49)
   })
 
   test('each store brings its currency, and the payload names the store', async () => {
-    const eur = await summary(['--source', 'cardmarket'])
+    const eur = await binderPrices(['--source', 'cardmarket'])
     expect(eur.currency).toBe('eur')
     expect(eur.source).toBe('cardmarket')
-    expect(eur.totals.total).toBeCloseTo(1.1)
+    expect(eur.list.total).toBeCloseTo(1.1)
 
-    const usd = await summary(['--source', 'tcgplayer'])
+    const usd = await binderPrices(['--source', 'tcgplayer'])
     expect(usd.currency).toBe('usd')
-    expect(usd.totals.total).toBeCloseTo(1.99)
+    expect(usd.list.total).toBeCloseTo(1.99)
 
-    const tix = await summary(['--source', 'cardhoarder'])
+    const tix = await binderPrices(['--source', 'cardhoarder'])
     expect(tix.currency).toBe('tix')
     expect(tix.source).toBe('cardhoarder')
   })
@@ -92,14 +93,14 @@ describe('price --source (Integration)', () => {
       path.join(dir, 'ritual.config.json'),
       JSON.stringify({ defaultPriceSource: 'cardkingdom' }),
     )
-    const byDefault = await summary([])
+    const byDefault = await binderPrices([])
     expect(byDefault.source).toBe('cardkingdom')
     expect(byDefault.currency).toBe('usd')
-    expect(byDefault.totals.total).toBeCloseTo(3.49)
+    expect(byDefault.list.total).toBeCloseTo(3.49)
   })
 
   test('there is no currency flag to choose a currency apart from a store', async () => {
-    const result = await runCli(['price', '--summary', '--prices', 'eur'], dir, OFFLINE_ENV)
+    const result = await runCli(['price', 'binder', '--prices', 'eur'], dir, OFFLINE_ENV)
     expect(result.exitCode).toBe(2)
     expect(result.stderr).toContain("unknown option '--prices'")
   })
@@ -107,12 +108,20 @@ describe('price --source (Integration)', () => {
   test('--source cardkingdom with no cached feed is a runtime error, not a Scryfall fallback', async () => {
     await fs.rm(path.join(dir, 'cache', 'cardkingdom.json'))
     const result = await runCli(
-      ['price', '--summary', '--source', 'cardkingdom', '--refresh', 'never'],
+      ['price', 'binder', '--source', 'cardkingdom', '--refresh', 'never'],
       dir,
       OFFLINE_ENV,
     )
-    expect(result.exitCode).not.toBe(0)
+    expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('No Card Kingdom buylist')
+  })
+
+  test('a non-interactive run with nothing to price is a usage error pointing at the summary', async () => {
+    const result = await runCli(['price', '--output', 'json'], dir, OFFLINE_ENV)
+    expect(result.exitCode).toBe(2)
+    const envelope = JSON.parse(result.stderr) as { error: { code: string; message: string } }
+    expect(envelope.error.code).toBe('usage_error')
+    expect(envelope.error.message).toContain('ritual lists --summary --source <store>')
   })
 
   test('an unknown store is rejected at parse time', async () => {

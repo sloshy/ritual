@@ -246,9 +246,9 @@ describe('pseudo-locale (Integration)', () => {
       const missingArgument = await runCli(['diff', 'a'], dir)
       expect(missingArgument.stderr).toBe("error: missing required argument 'listB'\n")
 
-      const excess = await runCli(['lists', 'x', 'y'], dir)
+      const excess = await runCli(['doctor', 'x', 'y'], dir)
       expect(excess.stderr).toBe(
-        "error: too many arguments for 'lists'. Expected 0 arguments but got 2: x, y.\n",
+        "error: too many arguments for 'doctor'. Expected 0 arguments but got 2: x, y.\n",
       )
     })
   })
@@ -329,7 +329,7 @@ describe('pseudo-locale (Integration)', () => {
     await withTempDir(async (dir) => {
       // An empty cache under `--refresh never`: the price command's own lead-in,
       // then the cache layer's shared remedy, both through the catalog.
-      const result = await runCli(['price', '--refresh', 'never'], dir, PSEUDO_ENV)
+      const result = await runCli(['price', '--name', 'sol', '--refresh', 'never'], dir, PSEUDO_ENV)
 
       expect(result.exitCode).toBe(1)
       const advice = (await pseudoText('cli.cacheGate.emptyAdvice'))
@@ -581,7 +581,17 @@ describe('pseudo-locale (Integration)', () => {
 
       // `price` reaches the same gate for the Card Kingdom store.
       const price = await runFailing(
-        ['price', '--source', 'cardkingdom', '--refresh', 'never', '--output', 'json'],
+        [
+          'price',
+          '--name',
+          'sol',
+          '--source',
+          'cardkingdom',
+          '--refresh',
+          'never',
+          '--output',
+          'json',
+        ],
         dir,
         { ...PSEUDO_ENV, ...OFFLINE_ENV },
       )

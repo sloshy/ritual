@@ -19,7 +19,7 @@ import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../card/
 import {
   isApiMessage,
   nonNegativeIntegerParam,
-  parseEnumParam,
+  enumQueryParam,
   positiveIntegerParam,
   type ApiMessage,
 } from '../../api/result'
@@ -65,15 +65,11 @@ export interface FilteredEntries<T> {
  * nothing is an empty result, not a bad request.
  */
 export function parseListLoadParams(params: URLSearchParams): ListLoadParams | ApiMessage {
-  const rawView = params.get('view')?.trim()
-  let view: ListLoadView = 'full'
-  if (rawView) {
-    // Through the shared enum parser, so `?view=Cards` is accepted here exactly
-    // as `--output JSON` is on the CLI, and the refusal reads the same.
-    const parsedView = parseEnumParam(rawView, LIST_LOAD_VIEWS, 'view')
-    if (isApiMessage(parsedView)) return parsedView
-    view = parsedView
-  }
+  // Through the shared enum parser, so `?view=Cards` is accepted here exactly
+  // as `--output JSON` is on the CLI, and the refusal reads the same.
+  const parsedView = enumQueryParam(params, 'view', LIST_LOAD_VIEWS)
+  if (isApiMessage(parsedView)) return parsedView
+  const view: ListLoadView = parsedView ?? 'full'
 
   const parsed: ListLoadParams = { view, offset: 0 }
 

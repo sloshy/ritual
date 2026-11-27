@@ -8,6 +8,8 @@
  */
 
 import { parseDeckText, type DeckParseResult } from '../importers/text-file'
+import { SyncMessageError } from '../sync/message'
+import { hasErrorCode } from '../util/errno'
 import { parseCollectionFile, type CollectionParseResult } from './collection-file'
 import { deckFrontMatterFromText, type DeckFrontMatter } from './deck-file'
 import type { ListInfo } from './list-info'
@@ -70,4 +72,19 @@ export function parseListContent(
     case 'wanted':
       return { ...identity, type, parse: parseWantedListFile(content) }
   }
+}
+
+/**
+ * The failures reading a list file is expected to meet: an engine refusal, a
+ * front-matter block that is not YAML, or the file system refusing the read
+ * (gone since it was listed, a directory, no permission). Anything else is a
+ * bug, which a reader that tolerates unreadable lists must rethrow rather than
+ * report as one.
+ */
+export function isExpectedListReadFailure(error: unknown): boolean {
+  if (error instanceof SyncMessageError) return true
+  if (error instanceof Error && error.name === 'YAMLException') return true
+  return (['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'] as const).some((code) =>
+    hasErrorCode(error, code),
+  )
 }

@@ -10,21 +10,18 @@ import {
   listRowName,
   formatPriceLegend,
   formatPrintingPriceLines,
-  formatReportHeaderLines,
+  formatSummaryHeaderLines,
   runPriceBrowser,
   storeChoices,
-  formatTotalsSegment,
+  type PricesRefreshed,
   visibleBrowserEntries,
   type CardBrowserSelection,
   type PriceMainSelection,
 } from '../../src/commands/price-browser'
 import { UNRANKED_EDHREC } from '../../src/card/card-printing'
-import {
-  type ListPriceSummary,
-  type PriceTotals,
-  type PricedEntry,
-  type PriceReport,
-} from '../../src/pricing/price-report'
+import { formatTotalsSegment } from '../../src/cli/price-format'
+import type { PriceTotals, PricedEntry } from '../../src/pricing/price-report'
+import type { ListsSummary, ListsSummaryRow } from '../../src/summary/lists'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard, stubTty } from '../test-utils'
 import { captureConsole } from '../helpers/capture'
@@ -52,11 +49,8 @@ function entry(overrides: Partial<PricedEntry> = {}): PricedEntry {
   }
 }
 
-function summary(overrides: Partial<ListPriceSummary> = {}): ListPriceSummary {
+function value(overrides: Partial<PriceTotals> = {}): PriceTotals {
   return {
-    type: 'deck',
-    name: 'My Deck',
-    slug: 'my-deck',
     cardCount: 100,
     total: 250,
     lowestTotal: 200,
@@ -66,40 +60,58 @@ function summary(overrides: Partial<ListPriceSummary> = {}): ListPriceSummary {
   }
 }
 
-function report(overrides: Partial<PriceReport> = {}): PriceReport {
+function row(overrides: Partial<ListsSummaryRow> = {}): ListsSummaryRow {
   return {
-    source: 'tcgplayer',
-    currency: 'usd',
-    lists: [summary(), summary({ type: 'wanted', name: 'Wanted', total: 5, lowestTotal: 5 })],
-    entries: [],
-    typeTotals: [
-      {
-        type: 'deck',
-        listCount: 1,
-        cardCount: 100,
-        total: 250,
-        lowestTotal: 200,
-        unpricedCount: 0,
-        estimatedCount: 0,
-      },
-      {
-        type: 'wanted',
-        listCount: 1,
-        cardCount: 2,
-        total: 5,
-        lowestTotal: 5,
-        unpricedCount: 1,
-        estimatedCount: 0,
-      },
+    listType: 'deck',
+    slug: 'my-deck',
+    name: 'My Deck',
+    counts: { entryCount: 90, cardCount: 100, sections: [] },
+    value: value(),
+    ...overrides,
+  }
+}
+
+/** A deck and a wanted list, priced: two types, so per-type totals and a grand total. */
+function listsSummary(overrides: Partial<ListsSummary> = {}): ListsSummary {
+  return {
+    lists: [
+      row(),
+      row({
+        listType: 'wanted',
+        slug: 'wanted',
+        name: 'Wanted',
+        counts: { entryCount: 2, cardCount: 2, sections: [] },
+        value: value({ cardCount: 2, total: 5, lowestTotal: 5, unpricedCount: 1 }),
+      }),
     ],
     totals: {
       listCount: 2,
+      entryCount: 92,
       cardCount: 102,
-      total: 255,
-      lowestTotal: 205,
-      unpricedCount: 1,
-      estimatedCount: 0,
+      distinctCardCount: 92,
+      value: value({ cardCount: 102, total: 255, lowestTotal: 205, unpricedCount: 1 }),
     },
+    typeTotals: [
+      {
+        listType: 'deck',
+        listCount: 1,
+        entryCount: 90,
+        cardCount: 100,
+        distinctCardCount: 90,
+        value: value(),
+      },
+      {
+        listType: 'wanted',
+        listCount: 1,
+        entryCount: 2,
+        cardCount: 2,
+        distinctCardCount: 2,
+        value: value({ cardCount: 2, total: 5, lowestTotal: 5, unpricedCount: 1 }),
+      },
+    ],
+    source: 'tcgplayer',
+    currency: 'usd',
+    warnings: [],
     ...overrides,
   }
 }
@@ -186,11 +198,12 @@ describe('storeChoices', () => {
   })
 })
 
-describe('formatReportHeaderLines', () => {
+describe('formatSummaryHeaderLines', () => {
   test('shows cache age, per-type totals, and a grand total across types', () => {
     const now = Date.parse('2026-07-02T12:00:00Z')
-    const lines = formatReportHeaderLines(
-      report({ source: 'cardmarket', currency: 'eur' }),
+    const lines = formatSummaryHeaderLines(
+      listsSummary(),
+      'cardmarket',
       now - 3 * 60 * 60 * 1000,
       now,
     )
@@ -201,35 +214,26 @@ describe('formatReportHeaderLines', () => {
     expect(lines.some((line) => line.includes('All lists (2)'))).toBe(true)
   })
 
-  test('reports an unknown refresh time and omits the grand total for one type', () => {
-    const single = report({
-      typeTotals: [
-        {
-          type: 'deck',
-          listCount: 1,
-          cardCount: 100,
-          total: 250,
-          lowestTotal: 200,
-          unpricedCount: 0,
-          estimatedCount: 0,
-        },
-      ],
-    })
-    const lines = formatReportHeaderLines(single, null, Date.now())
+  // A single-type summary carries no `typeTotals` (they would repeat `totals`),
+  // so the browser labels the overall totals with the one type its rows hold.
+  test('one type: its line from the overall totals, and no grand total', () => {
+    const single = listsSummary({ lists: [row()], typeTotals: undefined })
+    const lines = formatSummaryHeaderLines(single, 'tcgplayer', null, Date.now())
     expect(lines[0]).toContain('Prices last updated: unknown')
+    expect(lines.some((line) => line.includes('Decks (2) — Total $255.00'))).toBe(true)
     expect(lines.some((line) => line.includes('All lists'))).toBe(false)
   })
 })
 
 describe('buildMainMenuChoices', () => {
   test('lists every list in type order followed by the actions', () => {
-    const outOfOrder = report({
+    const outOfOrder = listsSummary({
       lists: [
-        summary({ type: 'wanted', name: 'Wanted' }),
-        summary({ type: 'deck', name: 'My Deck' }),
+        row({ listType: 'wanted', name: 'Wanted' }),
+        row({ listType: 'deck', name: 'My Deck' }),
       ],
     })
-    const choices = buildMainMenuChoices(outOfOrder)
+    const choices = buildMainMenuChoices(outOfOrder, 'usd')
     const titles = choices.map((choice) => choice.title)
     expect(titles[0]).toContain('My Deck')
     expect(titles[1]).toContain('Wanted')
@@ -242,34 +246,41 @@ describe('buildMainMenuChoices', () => {
   })
 
   test('choice values identify the list to open', () => {
-    const choices = buildMainMenuChoices(report())
+    const choices = buildMainMenuChoices(listsSummary(), 'usd')
     const first = choices[0]!.value as PriceMainSelection
-    expect(first).toEqual({ kind: 'open', list: { type: 'deck', slug: 'my-deck' } })
+    expect(first).toEqual({ kind: 'open', list: { listType: 'deck', slug: 'my-deck' } })
   })
 })
 
 describe('formatListChoiceTitle', () => {
   test('includes totals, unpriced badge, and card count', () => {
-    const title = formatListChoiceTitle(summary({ unpricedCount: 3 }), 'usd')
+    const title = formatListChoiceTitle(row({ value: value({ unpricedCount: 3 }) }), 'usd')
     expect(title).toContain(
       'My Deck — Total $250.00 · Lowest possible $200.00 · 3 unpriced · 100 cards',
     )
   })
 
   test('counts a one-card list in the singular', () => {
-    expect(formatListChoiceTitle(summary({ cardCount: 1 }), 'usd')).toEndWith(' · 1 card')
+    const one = row({ counts: { entryCount: 1, cardCount: 1, sections: [] } })
+    expect(formatListChoiceTitle(one, 'usd')).toEndWith(' · 1 card')
+  })
+
+  test('a list the summary could not price says so instead of a total', () => {
+    expect(formatListChoiceTitle(row({ value: undefined }), 'usd')).toContain(
+      'My Deck — not priced · 100 cards',
+    )
   })
 })
 
 describe('listRowName', () => {
   test('a title shared within a type gains its slug; across types it does not', () => {
-    const one = summary({ name: 'Burn', slug: 'burn' })
-    const two = summary({ name: 'Burn', slug: 'burn-2' })
-    const binder = summary({ type: 'collection', name: 'Burn', slug: 'burn' })
-    const lists = [one, two, binder]
-    expect(listRowName(one, lists)).toBe('Burn (burn)')
-    expect(listRowName(two, lists)).toBe('Burn (burn-2)')
-    expect(listRowName(binder, lists)).toBe('Burn')
+    const one = row({ name: 'Burn', slug: 'burn' })
+    const two = row({ name: 'Burn', slug: 'burn-2' })
+    const binder = row({ listType: 'collection', name: 'Burn', slug: 'burn' })
+    const rows = [one, two, binder]
+    expect(listRowName(one, rows)).toBe('Burn (burn)')
+    expect(listRowName(two, rows)).toBe('Burn (burn-2)')
+    expect(listRowName(binder, rows)).toBe('Burn')
   })
 })
 
@@ -475,6 +486,8 @@ describe('formatPrintingPriceLines', () => {
 })
 
 describe('runPriceBrowser store switching', () => {
+  const REFRESHED: PricesRefreshed = { refreshed: true }
+
   // `ask` refuses to prompt without a terminal; the answers below are injected.
   stubTty({ stdin: true })
 
@@ -482,11 +495,11 @@ describe('runPriceBrowser store switching', () => {
   const storeHeaders = (lines: readonly string[]): string[] =>
     lines.filter((line) => line.includes('Store:'))
 
-  test('a store that cannot be priced keeps the current report; one that can replaces it', async () => {
+  test('a store that cannot be priced keeps the current summary; one that can replaces it', async () => {
     const asked: string[] = []
-    const rebuilds: (PriceReport | string)[] = [
+    const resummaries: (ListsSummary | string)[] = [
       'No Card Kingdom buylist is cached.',
-      report({ source: 'cardkingdom', currency: 'usd' }),
+      listsSummary({ source: 'cardkingdom' }),
     ]
     prompts.inject([
       { kind: 'store' } satisfies PriceMainSelection,
@@ -499,29 +512,162 @@ describe('runPriceBrowser store switching', () => {
 
     const { lines } = await captureConsole(['log', 'error'], () =>
       runPriceBrowser({
-        built: { report: report(), printingsByName: new Map() },
+        summary: listsSummary(),
+        source: 'tcgplayer',
         lastRefreshedAt: null,
-        rebuild: (source) => {
+        loadSummary: (source) => {
           asked.push(source)
-          const next = rebuilds.shift() ?? report({ source: 'cardkingdom', currency: 'usd' })
-          return Promise.resolve(
-            typeof next === 'string' ? next : { report: next, printingsByName: new Map() },
-          )
+          return Promise.resolve(resummaries.shift() ?? listsSummary({ source: 'cardkingdom' }))
         },
-        refreshPrices: () => Promise.resolve(),
+        loadReport: () => Promise.reject(new Error('no card screen was opened')),
+        refreshPrices: () => Promise.resolve(REFRESHED),
         getLastRefreshedAt: () => Promise.resolve(null),
       }),
     )
 
-    // Two switches to Card Kingdom, then a refresh that rebuilds at the store
-    // now in force rather than the one the browser opened on.
+    // Two switches to Card Kingdom, then a refresh that re-summarizes at the
+    // store now in force rather than the one the browser opened on. No card
+    // screen was opened, so the full report was never built.
     expect(asked).toEqual(['cardkingdom', 'cardkingdom', 'cardkingdom'])
     expect(lines.error).toEqual(['No Card Kingdom buylist is cached.'])
     const headers = storeHeaders(lines.log)
     expect(headers[0]).toContain('Store: TCGplayer (USD)')
     // The failed switch left TCGplayer on screen…
     expect(headers[1]).toContain('Store: TCGplayer (USD)')
-    // …and the one that succeeded swapped the report.
+    // …and the one that succeeded swapped the summary.
     expect(headers[2]).toContain('Store: Card Kingdom (USD)')
+  })
+
+  test('the full report is built once, on the first card screen, and reused', async () => {
+    let builds = 0
+    prompts.inject([
+      { kind: 'open', list: { listType: 'deck', slug: 'my-deck' } } satisfies PriceMainSelection,
+      { kind: 'back' } satisfies CardBrowserSelection,
+      { kind: 'search' } satisfies PriceMainSelection,
+      { kind: 'back' } satisfies CardBrowserSelection,
+      { kind: 'exit' } satisfies PriceMainSelection,
+    ])
+    const { lines } = await captureConsole(['log', 'error'], () =>
+      runPriceBrowser({
+        summary: listsSummary(),
+        source: 'tcgplayer',
+        lastRefreshedAt: null,
+        loadSummary: () => Promise.resolve(listsSummary()),
+        loadReport: () => {
+          builds += 1
+          return Promise.resolve({
+            report: {
+              source: 'tcgplayer',
+              currency: 'usd',
+              lists: [],
+              entries: [entry()],
+            },
+            printingsByName: new Map(),
+          })
+        },
+        refreshPrices: () => Promise.resolve(REFRESHED),
+        getLastRefreshedAt: () => Promise.resolve(null),
+      }),
+    )
+    expect(builds).toBe(1)
+    // The list's card screen is headed by its summary row's name.
+    expect(lines.log.some((line) => line.startsWith('🎴 My Deck — '))).toBe(true)
+  })
+
+  test('a card screen whose report cannot be read says why and keeps the session', async () => {
+    prompts.inject([
+      { kind: 'search' } satisfies PriceMainSelection,
+      { kind: 'exit' } satisfies PriceMainSelection,
+    ])
+    const { lines } = await captureConsole(['log', 'error'], () =>
+      runPriceBrowser({
+        summary: listsSummary(),
+        source: 'tcgplayer',
+        lastRefreshedAt: null,
+        loadSummary: () => Promise.resolve(listsSummary()),
+        // A list file gone since the summary read it: the loader throws.
+        loadReport: () =>
+          Promise.reject(Object.assign(new Error('ENOENT: decks/gone.md'), { code: 'ENOENT' })),
+        refreshPrices: () => Promise.resolve(REFRESHED),
+        getLastRefreshedAt: () => Promise.resolve(null),
+      }),
+    )
+    expect(lines.error).toEqual(['ENOENT: decks/gone.md'])
+    // Back on the main screen after the failure, then out through the menu.
+    expect(storeHeaders(lines.log)).toHaveLength(2)
+  })
+
+  test('a refresh whose summary fails keeps the age the shown totals have', async () => {
+    const refreshedAt = Date.parse('2026-07-02T12:00:00Z')
+    prompts.inject([
+      { kind: 'refresh' } satisfies PriceMainSelection,
+      { kind: 'exit' } satisfies PriceMainSelection,
+    ])
+    const { lines } = await captureConsole(['log', 'error'], () =>
+      runPriceBrowser({
+        summary: listsSummary(),
+        source: 'cardkingdom',
+        lastRefreshedAt: null,
+        loadSummary: () => Promise.resolve('No Card Kingdom buylist is cached.'),
+        loadReport: () => Promise.reject(new Error('no card screen was opened')),
+        refreshPrices: () => Promise.resolve(REFRESHED),
+        getLastRefreshedAt: () => Promise.resolve(refreshedAt),
+      }),
+    )
+    const headers = storeHeaders(lines.log)
+    expect(headers).toHaveLength(2)
+    expect(headers[1]).toContain('Prices last updated: unknown')
+  })
+
+  test('a failure that is no unreadable list is a bug, and ends the session', async () => {
+    prompts.inject([{ kind: 'search' } satisfies PriceMainSelection])
+    let thrown: unknown
+    await captureConsole(['log', 'error'], async () => {
+      try {
+        await runPriceBrowser({
+          summary: listsSummary(),
+          source: 'tcgplayer',
+          lastRefreshedAt: null,
+          loadSummary: () => Promise.resolve(listsSummary()),
+          loadReport: () => Promise.reject(new TypeError('undefined is not a function')),
+          refreshPrices: () => Promise.resolve(REFRESHED),
+          getLastRefreshedAt: () => Promise.resolve(null),
+        })
+      } catch (error) {
+        thrown = error
+      }
+    })
+    expect(thrown).toBeInstanceOf(TypeError)
+  })
+
+  test('a refresh at a store whose download fails keeps the screen and skips the re-summary', async () => {
+    const refreshedFor: string[] = []
+    let summaries = 0
+    prompts.inject([
+      { kind: 'refresh' } satisfies PriceMainSelection,
+      { kind: 'exit' } satisfies PriceMainSelection,
+    ])
+    const { lines } = await captureConsole(['log', 'error'], () =>
+      runPriceBrowser({
+        summary: listsSummary({ source: 'cardkingdom' }),
+        source: 'cardkingdom',
+        lastRefreshedAt: null,
+        loadSummary: () => {
+          summaries += 1
+          return Promise.resolve(listsSummary())
+        },
+        loadReport: () => Promise.reject(new Error('no card screen was opened')),
+        refreshPrices: (source) => {
+          refreshedFor.push(source)
+          return Promise.resolve('The Card Kingdom download failed.')
+        },
+        getLastRefreshedAt: () => Promise.resolve(Date.now()),
+      }),
+    )
+    // The refresh is the store's own: Card Kingdom's feed, not only the cache.
+    expect(refreshedFor).toEqual(['cardkingdom'])
+    expect(summaries).toBe(0)
+    expect(lines.error).toEqual(['The Card Kingdom download failed.'])
+    expect(storeHeaders(lines.log)[1]).toContain('Prices last updated: unknown')
   })
 })

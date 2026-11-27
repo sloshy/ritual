@@ -22,12 +22,24 @@ import type { CardLabel } from '../card/card-labels'
 import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../card/term-match'
 import { compareData, compareDisplay } from '../i18n/collate'
 import { foldedCardNameSet } from '../list/card-names'
-import { loadCardArt, type CardArtMap } from '../list/card-art'
+import { loadListArtOrWarn } from '../list/card-art'
 import type { DeckFormatKey, DeckSection } from '../list/deck'
 import { readFlatListMetadata, type FlatListFrontMatter } from '../list/flat-list-front-matter'
-import { parseListContent, type ParsedListContent } from '../list/list-content'
+import {
+  isExpectedListReadFailure,
+  parseListContent,
+  type ParsedListContent,
+} from '../list/list-content'
 import { countDeck, countEntries, type ListCounts } from '../list/list-counts'
-import { listSlug } from '../list/list-file-name'
+import {
+  listIdentityKey,
+  listIdentityOf,
+  listWarning,
+  uniqueListIdentities,
+  type ListIdentity,
+  type ListWarning,
+  type NamedListIdentity,
+} from '../list/list-info'
 import type { ListImageRef } from '../list/list-image'
 import { LIST_TYPES, type ListType } from '../list/list-type'
 import { listLocations, type ListLocation } from '../list/resolve-list'
@@ -43,27 +55,13 @@ import {
 } from '../pricing/price-report'
 import { buildPriceReportFromInputs } from '../pricing/price-runtime'
 import { sourceCurrency, type PriceSource } from '../pricing/price-source'
-import { hasErrorCode } from '../util/errno'
-import {
-  isSyncMessage,
-  nestSync,
-  syncMessage,
-  SyncMessageError,
-  syncText,
-  type SyncMessage,
-} from '../sync/message'
+import { errorMessage, isSyncMessage, syncMessage, type SyncMessage } from '../sync/message'
 
 /** The orders rows can be returned in, in the order a refusal lists them. */
 export const LISTS_SUMMARY_SORTS = ['name', 'quantity', 'value'] as const
 
 /** What rows are ordered by. */
 export type ListsSummarySort = (typeof LISTS_SUMMARY_SORTS)[number]
-
-/** A list named by its identity: its type and slug (the file basename). */
-export interface ListsSummaryRef {
-  listType: ListType
-  slug: string
-}
 
 /**
  * The store a summary is priced at, and the card-cache refresh mode pricing
@@ -74,6 +72,59 @@ export interface ListsSummaryPricing {
   /** The caller resolves it: a Card Kingdom pricing already carries its feed. */
   pricing: ReportPricing
   refresh: RefreshMode
+}
+
+/**
+ * A store was asked for but its prices cannot be had (Card Kingdom with no
+ * feed): the reason, which the summary reports as its first warning beside
+ * the counts — or, for a `value` sort it cannot honor, refuses with.
+ */
+export interface ListsSummaryUnpriceable {
+  unavailable: SyncMessage
+}
+
+/**
+ * The `priced` option for a store's resolved pricing — or, when the store
+ * cannot price (the surface's own reason, such as Card Kingdom with no feed),
+ * the {@link ListsSummaryUnpriceable} that says why. The one place a surface's
+ * "here is the store" becomes the engine's option.
+ */
+export function summaryPricing(
+  pricing: ReportPricing | SyncMessage,
+  refresh: RefreshMode,
+): ListsSummaryPricing | ListsSummaryUnpriceable {
+  return isSyncMessage(pricing) ? { unavailable: pricing } : { pricing, refresh }
+}
+
+/**
+ * Why a summary was refused: a bad option (`options`), or the reason a
+ * `value` sort cannot be priced (`prices` — a store that cannot price, see
+ * {@link ListsSummaryUnpriceable}, or an empty card cache), which a surface
+ * answers as a missing prerequisite (a 503, a runtime error) rather than a
+ * bad request.
+ */
+export interface ListsSummaryRefusal {
+  refused: 'options' | 'prices'
+  reason: SyncMessage
+}
+
+/** `never` for a type declaring `refused`, which {@link isListsSummaryRefusal} would misread. */
+type NoRefusedKey<T> = 'refused' extends keyof T ? never : object
+
+/**
+ * Whether a summary result is its refusal. The other member must declare no
+ * `refused` (checked, as a compile error), so the discriminant can never
+ * misread a success.
+ */
+export function isListsSummaryRefusal<T extends NoRefusedKey<T>>(
+  result: T | ListsSummaryRefusal,
+): result is ListsSummaryRefusal {
+  return 'refused' in result
+}
+
+/** A bad option's refusal. */
+function optionsRefusal(reason: SyncMessage): ListsSummaryRefusal {
+  return { refused: 'options', reason }
 }
 
 /**
@@ -95,7 +146,7 @@ export interface ListsSummaryOptions {
    * Only these lists; must name at least one. A ref of a type the other
    * filters leave out is skipped; a ref naming no list on disk is a warning.
    */
-  lists?: readonly ListsSummaryRef[]
+  lists?: readonly ListIdentity[]
   /** Only lists whose front-matter default labels include this one. */
   label?: CardLabel
   /** Whether lists with no entries (in their counted sections) are kept. Default `true`. */
@@ -112,8 +163,12 @@ export interface ListsSummaryOptions {
    * pages, not boards.
    */
   sections?: readonly string[]
-  /** Price each list at this store. Absent means no `value` anywhere. */
-  priced?: ListsSummaryPricing
+  /**
+   * Price each list at this store. Absent means no `value` anywhere; a store
+   * whose prices cannot be had ({@link ListsSummaryUnpriceable}) leaves no
+   * `value` either, and says why.
+   */
+  priced?: ListsSummaryPricing | ListsSummaryUnpriceable
   /**
    * Row order. `name` (the default) is ascending by display name; `quantity`
    * (copies) and `value` (priced total) are descending by default. `value`
@@ -186,7 +241,7 @@ export interface ListsSummaryTypeTotals extends ListsSummaryTotals {
  * warning names its list in `list`, so a total is never silently short and a
  * client can tell which row to distrust.
  */
-export type ListsSummaryWarning = SyncMessage & { list?: ListsSummaryRef }
+export type ListsSummaryWarning = SyncMessage & Partial<Pick<ListWarning, 'list'>>
 
 /** The cross-list summary. */
 export interface ListsSummary {
@@ -208,6 +263,15 @@ export interface ListsSummary {
 }
 
 /**
+ * The summary as the surfaces report it — the admin route, `summarize_lists`
+ * and `lists --summary --output json` — plus, when it was priced, when its
+ * prices were last refreshed (epoch ms, `null` when unknown; `pricesRefreshedAt`):
+ * the Card Kingdom feed's download for `cardkingdom`, the card cache's last
+ * bulk refresh for every other store.
+ */
+export type ListsSummaryPayload = ListsSummary & { lastRefreshedAt?: number | null }
+
+/**
  * Summary options after {@link parseListsSummaryOptions}: validated, with every
  * default resolved, so the engine's steps read one settled value each.
  */
@@ -215,38 +279,68 @@ export interface ParsedListsSummaryOptions {
   listType?: ListType
   /** `nameContains` split into terms; empty selects every name. */
   nameTerms: string[]
-  lists?: readonly ListsSummaryRef[]
+  lists?: readonly ListIdentity[]
   label?: CardLabel
   includeEmpty: boolean
   format?: DeckFormatKey
   /** The counted deck sections, trimmed and non-empty; absent counts every section. */
   sections?: ReadonlySet<string>
   priced?: ListsSummaryPricing
+  /** Why the store asked for cannot price: the summary's first warning. */
+  unavailable?: SyncMessage
   sort: ListsSummarySort
   /** The resolved direction: the sort's default unless `descending` was given. */
   descending: boolean
   limit?: number
 }
 
+/** A `sections` option trimmed, blanks dropped. */
+function countedSections(sections: readonly string[]): string[] {
+  return sections.map((name) => name.trim()).filter((name) => name !== '')
+}
+
+/**
+ * The option checks alone, before any store is resolved — so a surface that
+ * has to load prices (a download, a feed) can refuse a bad option first.
+ * `willPrice` says whether a store was asked for, which is all a `value`
+ * sort's check needs to know. `undefined` when the options are acceptable.
+ */
+export function checkListsSummaryOptions(
+  options: Omit<ListsSummaryOptions, 'priced'>,
+  willPrice: boolean,
+): ListsSummaryRefusal | undefined {
+  const { limit, lists, sections } = options
+  if (limit !== undefined && !(Number.isInteger(limit) && limit > 0)) {
+    return optionsRefusal(syncMessage('domain.list.summary.limitInvalid', { limit: String(limit) }))
+  }
+  if (lists !== undefined && lists.length === 0) {
+    return optionsRefusal(syncMessage('domain.list.summary.listsEmpty'))
+  }
+  if (options.sort === 'value' && !willPrice) {
+    return optionsRefusal(syncMessage('domain.list.summary.sortNeedsPricing'))
+  }
+  if (sections !== undefined && countedSections(sections).length === 0) {
+    return optionsRefusal(syncMessage('domain.list.summary.sectionsEmpty'))
+  }
+  return undefined
+}
+
 /**
  * Validate and normalize summary options — the one check the admin route, the
  * CLI and {@link summarizeLists} itself share. Refused, as a message: a `limit`
  * that is not a positive integer, a `sections` with no non-blank name, an
- * empty `lists`, and a `value` sort without `priced`.
+ * empty `lists`, and a `value` sort without `priced` — or, as a `prices`
+ * refusal, with a store that cannot price (its own reason).
  */
 export function parseListsSummaryOptions(
   options: ListsSummaryOptions,
-): ParsedListsSummaryOptions | SyncMessage {
+): ParsedListsSummaryOptions | ListsSummaryRefusal {
   const { limit, lists, priced } = options
-  if (limit !== undefined && !(Number.isInteger(limit) && limit > 0)) {
-    return syncMessage('domain.list.summary.limitInvalid', { limit: String(limit) })
-  }
-  if (lists !== undefined && lists.length === 0) {
-    return syncMessage('domain.list.summary.listsEmpty')
-  }
+  const refused = checkListsSummaryOptions(options, priced !== undefined)
+  if (refused) return refused
   const sort = options.sort ?? 'name'
-  if (sort === 'value' && priced === undefined) {
-    return syncMessage('domain.list.summary.sortNeedsPricing')
+  if (sort === 'value' && priced !== undefined && 'unavailable' in priced) {
+    return { refused: 'prices', reason: priced.unavailable }
   }
   const parsed: ParsedListsSummaryOptions = {
     nameTerms: splitNameTerms(options.nameContains ?? ''),
@@ -254,16 +348,15 @@ export function parseListsSummaryOptions(
     sort,
     descending: options.descending ?? sort !== 'name',
   }
-  if (options.sections !== undefined) {
-    const sections = options.sections.map((name) => name.trim()).filter((name) => name !== '')
-    if (sections.length === 0) return syncMessage('domain.list.summary.sectionsEmpty')
-    parsed.sections = new Set(sections)
-  }
+  if (options.sections !== undefined) parsed.sections = new Set(countedSections(options.sections))
   if (options.listType !== undefined) parsed.listType = options.listType
   if (lists !== undefined) parsed.lists = lists
   if (options.label !== undefined) parsed.label = options.label
   if (options.format !== undefined) parsed.format = options.format
-  if (priced !== undefined) parsed.priced = priced
+  if (priced !== undefined) {
+    if ('unavailable' in priced) parsed.unavailable = priced.unavailable
+    else parsed.priced = priced
+  }
   if (limit !== undefined) parsed.limit = limit
   return parsed
 }
@@ -271,16 +364,21 @@ export function parseListsSummaryOptions(
 /**
  * Summarize the selected lists. Bad options are refused as a message rather
  * than thrown (see {@link parseListsSummaryOptions}). Prices that cannot be
- * had are not a refusal: an empty card cache, or a list that fails to price,
- * leaves the counts in place with a warning.
+ * had are not a refusal: a store that cannot price, an empty card cache, or a
+ * list that fails to price leaves the counts in place with a warning — the
+ * store's reason first. Only a `value` sort that cannot be priced is refused —
+ * the store's reason, or the empty card cache's — as a `prices` refusal.
  */
 export async function summarizeLists(
   input: ListsSummaryOptions = {},
-): Promise<ListsSummary | SyncMessage> {
+): Promise<ListsSummary | ListsSummaryRefusal> {
   const options = parseListsSummaryOptions(input)
-  if (isSyncMessage(options)) return options
+  if (isListsSummaryRefusal(options)) return options
+  if (options.sort === 'value' && options.priced && (await cardCache.isEmpty())) {
+    return { refused: 'prices', reason: syncMessage('domain.list.summary.cacheEmpty') }
+  }
 
-  const warnings: ListsSummaryWarning[] = []
+  const warnings: ListsSummaryWarning[] = options.unavailable ? [options.unavailable] : []
   const locations = await selectLocations(options, warnings)
 
   const selected: ReadList[] = []
@@ -297,7 +395,7 @@ export async function summarizeLists(
     // could not read. Only the lines themselves: a fenced block is prose, which
     // a read-only summary does not lose.
     for (const warning of rewriteBlockingMessages(read.content.parse)) {
-      warnings.push(inListWarning(read.row, 'domain.list.summary.inList', warning))
+      warnings.push(listWarning('domain.list.summary.inList', read.row, warning))
     }
   }
 
@@ -322,6 +420,14 @@ export async function summarizeLists(
     summary.currency = priced.currency
   }
   return summary
+}
+
+/** A summary row found by its list's identity. */
+export function findSummaryRow(
+  rows: readonly ListsSummaryRow[],
+  { listType, slug }: ListIdentity,
+): ListsSummaryRow | undefined {
+  return rows.find((row) => row.listType === listType && row.slug === slug)
 }
 
 /** A summary's rows grouped by list type, in canonical type order. */
@@ -366,12 +472,6 @@ interface PricedSelection {
   currency: PriceCurrency
 }
 
-/** The keys a list-level warning nests its cause under. */
-type InListKey =
-  | 'domain.list.summary.inList'
-  | 'domain.list.summary.artUnreadable'
-  | 'domain.list.summary.priceFailed'
-
 /**
  * The candidate files: the type, format and explicit-ref filters, applied
  * before any file is read. A ref naming no list on disk is a warning.
@@ -390,17 +490,13 @@ async function selectLocations(
 
   const byKey = new Map(
     all.map((location): [string, ListLocation] => [
-      refKey(location.type, listSlug(location.filePath)),
+      listIdentityKey(listIdentityOf(location)),
       location,
     ]),
   )
   const chosen: ListLocation[] = []
-  const seen = new Set<string>()
-  for (const ref of options.lists) {
-    const key = refKey(ref.listType, ref.slug)
-    if (seen.has(key)) continue
-    seen.add(key)
-    const location = byKey.get(key)
+  for (const ref of uniqueListIdentities(options.lists)) {
+    const location = byKey.get(listIdentityKey(ref))
     if (location) {
       chosen.push(location)
       continue
@@ -416,10 +512,6 @@ async function selectLocations(
   return chosen
 }
 
-function refKey(listType: ListType, slug: string): string {
-  return `${listType}:${slug}`
-}
-
 /** The filters that need the file read: name, label, format, emptiness. */
 function matchesSelection(row: ListsSummaryRow, options: ParsedListsSummaryOptions): boolean {
   const { nameTerms } = options
@@ -430,39 +522,6 @@ function matchesSelection(row: ListsSummaryRow, options: ParsedListsSummaryOptio
   if (options.format !== undefined && row.format !== options.format) return false
   if (!options.includeEmpty && row.counts.entryCount === 0) return false
   return true
-}
-
-/** A list-level warning: `cause` nested under the list's name, the list named beside it. */
-function inListWarning(
-  row: ListsSummaryRow,
-  key: InListKey,
-  cause: SyncMessage,
-): ListsSummaryWarning {
-  const list: ListsSummaryRef = { listType: row.listType, slug: row.slug }
-  if (key === 'domain.list.summary.inList') {
-    return { ...syncMessage(key, { list: row.name, warning: nestSync(cause) }), list }
-  }
-  return { ...syncMessage(key, { list: row.name, error: nestSync(cause) }), list }
-}
-
-/** The message a failed step carries: a keyed one when the engine gave it, else its text. */
-function errorMessage(error: unknown): SyncMessage {
-  if (error instanceof SyncMessageError) return error.syncMessage
-  return syncText(error instanceof Error ? error.message : String(error))
-}
-
-/**
- * The failures reading a list file is expected to meet: an engine refusal, a
- * front-matter block that is not YAML, or the file system refusing the read
- * (gone since it was listed, a directory, no permission). Anything else is a
- * bug, and is rethrown rather than reported as an unreadable list.
- */
-function isExpectedReadFailure(error: unknown): boolean {
-  if (error instanceof SyncMessageError) return true
-  if (error instanceof Error && error.name === 'YAMLException') return true
-  return (['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'] as const).some((code) =>
-    hasErrorCode(error, code),
-  )
 }
 
 /** Read one list file once, and build its row from that one parse. */
@@ -478,19 +537,15 @@ async function readList(
       location.filePath,
     )
   } catch (error) {
-    if (!isExpectedReadFailure(error)) throw error
-    const slug = listSlug(location.filePath)
+    if (!isExpectedListReadFailure(error)) throw error
+    const { listType, slug } = listIdentityOf(location)
     // A file that cannot be parsed at all (unreadable deck front matter) is left
-    // out — and said so, rather than counted as empty.
+    // out — and said so, rather than counted as empty. It has no title to go
+    // by, so the warning names it by its slug.
+    const named: NamedListIdentity = { listType, slug, name: slug }
     return {
       ok: false,
-      warning: {
-        ...syncMessage('domain.list.summary.unreadable', {
-          list: slug,
-          error: nestSync(errorMessage(error)),
-        }),
-        list: { listType: location.type, slug },
-      },
+      warning: listWarning('domain.list.summary.unreadable', named, errorMessage(error)),
     }
   }
   return { ok: true, read: { location, content, ...rowOf(content, sections) } }
@@ -500,7 +555,11 @@ async function readList(
 type RowRead = Pick<ReadList, 'row' | 'names'>
 
 function rowOf(content: ParsedListContent, sections: ReadonlySet<string> | undefined): RowRead {
-  const identity = { listType: content.type, slug: content.slug, name: content.name }
+  const identity: NamedListIdentity = {
+    listType: content.type,
+    slug: content.slug,
+    name: content.name,
+  }
   switch (content.type) {
     case 'deck': {
       const { parse, frontMatter } = content
@@ -580,7 +639,9 @@ async function priceRows(
   }
   const memo = createNamePricingMemo(priced.pricing)
   for (const read of selected) {
-    const art = await listArt(read, warnings)
+    const art = await loadListArtOrWarn(read.location.filePath, (cause) => {
+      warnings.push(listWarning('domain.list.summary.artUnreadable', read.row, cause))
+    })
     try {
       const { report } = await buildPriceReportFromInputs(
         [priceListInput(read.content, art)],
@@ -590,19 +651,11 @@ async function priceRows(
       read.pricedEntries = countedEntries(read, report.entries)
       read.row.value = sumPricedEntries(read.pricedEntries)
     } catch (error) {
-      warnings.push(inListWarning(read.row, 'domain.list.summary.priceFailed', errorMessage(error)))
+      warnings.push(listWarning('domain.list.summary.priceFailed', read.row, errorMessage(error)))
     }
   }
   const { source } = priced.pricing
   return { source, currency: sourceCurrency(source) }
-}
-
-/** A list's custom art; an unreadable sidecar is a warning, and prices as no art. */
-async function listArt(read: ReadList, warnings: ListsSummaryWarning[]): Promise<CardArtMap> {
-  const loaded = await loadCardArt(read.location.filePath)
-  if (loaded.ok) return loaded.art
-  warnings.push(inListWarning(read.row, 'domain.list.summary.artUnreadable', loaded.message))
-  return new Map()
 }
 
 /** A list's priced entries in its counted sections (decks only narrow). */

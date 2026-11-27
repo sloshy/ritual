@@ -27,7 +27,7 @@
 import { listTypeEstimatesPrices } from './price-summary'
 import * as fs from 'node:fs/promises'
 import { compareData } from '../i18n/collate'
-import { loadCardArt, type CardArtMap } from '../list/card-art'
+import { loadListArtOrWarn, type CardArtMap } from '../list/card-art'
 import {
   effectiveLabels,
   pricelessReason,
@@ -44,7 +44,7 @@ import {
 } from '../card/card-printing'
 import { displayFinish, type Condition, type Finish } from '../card/finish-condition'
 import { isExtraSection } from '../list/deck-format'
-import { LIST_TYPES, type ListType } from '../list/list-type'
+import type { ListType } from '../list/list-type'
 import {
   findCheapestPrinting,
   getCardPriceForEntry,
@@ -69,6 +69,9 @@ import type { DeckData } from '../list/deck'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLanguage } from '../card/card-language'
 import { normalizedTags, type CardTag } from '../card/card-tags'
+import { rewriteBlockingMessages } from '../list/unreadable-content'
+import { listWarning, type ListIdentity, type ListWarning } from '../list/list-info'
+import type { SyncMessage } from '../sync/message'
 
 /**
  * A card line from any list, flattened to the fields the report engines need.
@@ -151,10 +154,18 @@ export type PriceListInput = {
   entries: PriceListEntry[]
 }
 
-/** Lists loaded from disk plus any parser warnings, keyed by list name. */
+/**
+ * A warning about one priced list — a line its parser could not read (so the
+ * totals leave that card out) or a custom-art sidecar it could not read — as a
+ * message (English plus its key) nested under the list's display name, with
+ * the list named beside it so a client can tell which list it is about.
+ */
+export type PriceWarning = ListWarning
+
+/** Lists loaded from disk plus a warning per problem reading them. */
 export type LoadedPriceInputs = {
   inputs: PriceListInput[]
-  warnings: string[]
+  warnings: PriceWarning[]
 }
 
 /**
@@ -252,15 +263,6 @@ export type ListPriceSummary = PriceTotals & {
   slug: string
 }
 
-export type ListTypeTotals = PriceTotals & {
-  type: ListType
-  listCount: number
-}
-
-export type PriceReportTotals = PriceTotals & {
-  listCount: number
-}
-
 /**
  * The store a report is priced at. Every store but Card Kingdom reads
  * Scryfall's copy of its prices; Card Kingdom carries the retail lookup its
@@ -271,8 +273,16 @@ export type ReportPricing = ScryfallReportPricing | CardKingdomReportPricing
 /** A report priced at a store whose prices ride in the card cache (Scryfall's copies). */
 export type ScryfallReportPricing = { source: Exclude<PriceSource, 'cardkingdom'> }
 
-/** A Card Kingdom report, carrying the retail lookup its feed provides. */
-export type CardKingdomReportPricing = { source: 'cardkingdom'; cardKingdom: CardKingdomPricing }
+/**
+ * A Card Kingdom report, carrying the retail lookup its feed provides and when
+ * that feed was downloaded — the age of every price in the report.
+ */
+export type CardKingdomReportPricing = {
+  source: 'cardkingdom'
+  cardKingdom: CardKingdomPricing
+  /** Epoch ms the feed was downloaded. */
+  feedRetrievedAt: number
+}
 
 export type PriceReport = {
   /** The store every price in the report comes from. */
@@ -281,9 +291,25 @@ export type PriceReport = {
   currency: PriceCurrency
   lists: ListPriceSummary[]
   entries: PricedEntry[]
-  /** Totals per list type, in canonical type order; types with no lists are omitted. */
-  typeTotals: ListTypeTotals[]
-  totals: PriceReportTotals
+}
+
+/**
+ * A list's row in a report, found by its identity — never by position or
+ * display name (a deck and a collection may share both a name and a slug).
+ */
+export function findListRow(
+  report: Pick<PriceReport, 'lists'>,
+  { listType, slug }: ListIdentity,
+): ListPriceSummary | undefined {
+  return report.lists.find((row) => row.type === listType && row.slug === slug)
+}
+
+/** A list's priced entries in a report, in file order, found by its identity. */
+export function entriesOfList(
+  report: Pick<PriceReport, 'entries'>,
+  { listType, slug }: ListIdentity,
+): PricedEntry[] {
+  return report.entries.filter((entry) => entry.listType === listType && entry.listSlug === slug)
 }
 
 export type BuildPriceReportOptions = {
@@ -345,22 +371,6 @@ export type BuiltPriceReport = {
 }
 
 /**
- * The JSON contract of the all-lists summary view, shared by the CLI's
- * `--output json` mode and the admin price API.
- */
-export type PriceSummaryPayload = {
-  /** The store the prices come from; `currency` is its one currency. */
-  source: PriceSource
-  currency: PriceCurrency
-  lastRefreshedAt: number | null
-  lists: ListPriceSummary[]
-  typeTotals: ListTypeTotals[]
-  totals: PriceReportTotals
-  /** List parse warnings (prefixed with the list name) — lines pricing could not read. */
-  warnings: string[]
-}
-
-/**
  * The JSON contract of the single-list view, shared by the CLI's
  * `--output json` mode and the admin price API.
  */
@@ -368,10 +378,11 @@ export type PriceListDetailPayload = {
   /** The store the prices come from; `currency` is its one currency. */
   source: PriceSource
   currency: PriceCurrency
-  list: ListPriceSummary | undefined
+  /** The one list priced. */
+  list: ListPriceSummary
   cards: PricedEntry[]
-  /** List parse warnings (prefixed with the list name) — lines pricing could not read. */
-  warnings: string[]
+  /** Lines pricing could not read and custom art it could not load, as messages. */
+  warnings: PriceWarning[]
 }
 
 /** The JSON contract of the CLI's card-search view (`--output json`). */
@@ -382,8 +393,8 @@ export type PriceCardSearchPayload = {
   filters: PriceEntryFilters
   cards: PricedEntry[]
   totals: PriceTotals
-  /** List parse warnings (prefixed with the list name) — lines pricing could not read. */
-  warnings: string[]
+  /** Lines pricing could not read and custom art it could not load, as messages. */
+  warnings: PriceWarning[]
 }
 
 /**
@@ -517,20 +528,21 @@ export async function loadPriceListInputs(
 ): Promise<LoadedPriceInputs> {
   const resolvedLocations = locations ?? (await listLocations(type))
   const inputs: PriceListInput[] = []
-  const warnings: string[] = []
+  const warnings: PriceWarning[] = []
 
   for (const location of resolvedLocations) {
+    const content = await fs.readFile(location.filePath, 'utf-8')
+    const parsed = parseListContent(location.type, content, location.filePath)
+    const named = { listType: parsed.type, slug: parsed.slug, name: parsed.name }
+    const warn = (cause: SyncMessage): void => {
+      warnings.push(listWarning('domain.price.inList', named, cause))
+    }
     // Custom art is per-list metadata in a sidecar, and it prices a card at 0
     // the way the proxy label does, so every list is read alongside its lines.
     // An unreadable sidecar is a warning, not a failure: the lines still price.
-    const loadedArt = await loadCardArt(location.filePath)
-    // English, like the report's other warnings.
-    if (!loadedArt.ok) warnings.push(`${location.name}: ${loadedArt.message.message}`)
-    const art: CardArtMap = loadedArt.ok ? loadedArt.art : new Map()
-
-    const content = await fs.readFile(location.filePath, 'utf-8')
-    const parsed = parseListContent(location.type, content, location.filePath)
-    warnings.push(...parsed.parse.warnings.map((w) => `${location.name}: ${w}`))
+    const art = await loadListArtOrWarn(location.filePath, warn)
+    // The lines the parser could not read: the totals leave those cards out.
+    for (const warning of rewriteBlockingMessages(parsed.parse)) warn(warning)
     inputs.push(priceListInput(parsed, art))
   }
 
@@ -779,24 +791,11 @@ export async function buildPriceReport(
     })
   }
 
-  const typeTotals: ListTypeTotals[] = []
-  for (const type of LIST_TYPES) {
-    const ofType = lists.filter((list) => list.type === type)
-    if (ofType.length === 0) continue
-    typeTotals.push({
-      type,
-      listCount: ofType.length,
-      ...sumPricedEntries(entries.filter((entry) => entry.listType === type)),
-    })
-  }
-
   const report: PriceReport = {
     source: options.pricing.source,
     currency,
     lists,
     entries,
-    typeTotals,
-    totals: { listCount: lists.length, ...sumPricedEntries(entries) },
   }
   return {
     report,

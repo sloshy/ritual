@@ -1,9 +1,7 @@
 import { Command } from 'commander'
-import { cardCache } from '../cache'
-import { cardKingdomReportPricing, ensureCardKingdomFeed, loadEnsuredFeed } from '../cardkingdom'
 import type { PriceSource } from '../pricing/price-source'
 import { t } from '../i18n/t'
-import { emptyCacheAdvice, ensureFreshPriceData } from '../cache/freshness'
+import { emptyCacheAdvice, ensureFreshPriceData, tryPreload } from '../cache/freshness'
 import type { PriceCurrency } from '../pricing/price-currency'
 import {
   filterPricedEntries,
@@ -17,14 +15,17 @@ import {
   type PricedEntry,
   type PriceListDetailPayload,
   type PriceSortField,
-  type PriceSummaryPayload,
-  type CardKingdomReportPricing,
-  type ReportPricing,
+  type PriceWarning,
+  entriesOfList,
+  findListRow,
 } from '../pricing/price-report'
-import { loadAndBuildPriceReport, type LoadedPriceReport } from '../pricing/price-runtime'
+import {
+  loadAndBuildPriceReport,
+  pricesRefreshedAt,
+  type LoadedPriceReport,
+} from '../pricing/price-runtime'
 import { isResolveListError, resolveList, type ListLocation } from '../list/resolve-list'
-import { listSlug } from '../list/list-file-name'
-import type { ListSlugRef } from '../list/list-info'
+import { listIdentityOf, type ListIdentity } from '../list/list-info'
 import { listDisplayName } from '../list/list-lifecycle'
 import { getDefaultPriceSource } from '../config/ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
@@ -39,29 +40,24 @@ import {
 } from '../cli/options'
 import type { RefreshMode } from '../cache/refresh'
 import { isNoInput } from '../util/no-input'
-import {
-  formatEntryChoiceTitle,
-  formatPriceLegend,
-  formatListChoiceTitle,
-  listRowName,
-  formatReportHeaderLines,
-  formatTotalsSegment,
-  runPriceBrowser,
-} from './price-browser'
+import { formatEntryChoiceTitle, formatPriceLegend, runPriceBrowser } from './price-browser'
+import { formatTotalsSegment } from '../cli/price-format'
 import {
   emitError,
   emitOutput,
+  emitMessageWarnings,
   emitResolveListError,
-  emitWarnings,
   installScriptingLogger,
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
-import { failWithMessage, runCommandAction } from '../cli/action'
+import { fail, failWithMessage, runCommandAction } from '../cli/action'
 import { isSyncMessage, renderSyncMessage, type SyncMessage } from '../sync/message'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
+import { cliPricingResolver } from '../cli/price-pricing'
+import { isListsSummaryRefusal, summarizeLists, type ListsSummary } from '../summary/lists'
 import { ExitCode } from '../util/errors'
-import { CONFIG_KEY, FLAG } from '../util/cli-tokens'
+import { COMMAND, CONFIG_KEY, FLAG, commandLine, flagValue } from '../util/cli-tokens'
 
 type PriceCommandOptions = Partial<ScriptingOptions> & {
   deck?: boolean
@@ -73,7 +69,6 @@ type PriceCommandOptions = Partial<ScriptingOptions> & {
   collector?: string
   sort?: PriceSortField
   descending?: boolean
-  summary?: boolean
   refresh: RefreshMode
 }
 
@@ -92,17 +87,15 @@ export type InteractiveTerminal = {
  * The browser launches only for a plain-text run where interaction is
  * available (stdin and stdout are both terminals and `--no-input` isn't in
  * force — the browser prompts on stdin, so a piped stdin must fall back to
- * report mode) that didn't ask for a non-interactive view (summary or
- * card-search filters).
+ * report mode) that didn't ask for a non-interactive view (card-search
+ * filters).
  */
 export function shouldRunInteractive(
-  options: PriceCommandOptions,
   scriptingOptions: ScriptingOptions,
   filters: PriceEntryFilters,
   terminal: InteractiveTerminal,
 ): boolean {
   if (!terminal.stdinIsTTY || !terminal.stdoutIsTTY || terminal.noInput) return false
-  if (options.summary) return false
   if (scriptingOptions.output !== 'text') return false
   if (hasActiveFilters(filters)) return false
   return true
@@ -116,64 +109,29 @@ function sortedEntries(
   return [...entries].sort((a, b) => comparePricedEntries(a, b, sort, descending))
 }
 
-function emitSummary(
-  built: BuiltPriceReport,
-  lastRefreshedAt: number | null,
-  warnings: string[],
-  scriptingOptions: ScriptingOptions,
-): void {
-  const { report } = built
-  if (scriptingOptions.output === 'json') {
-    const payload: PriceSummaryPayload = {
-      source: report.source,
-      currency: report.currency,
-      lastRefreshedAt,
-      lists: report.lists,
-      typeTotals: report.typeTotals,
-      totals: report.totals,
-      warnings,
-    }
-    emitOutput(payload, scriptingOptions)
-    return
-  }
-  if (scriptingOptions.output === 'ndjson') {
-    emitOutput(report.lists, scriptingOptions)
-    return
-  }
-
-  for (const line of formatReportHeaderLines(report, lastRefreshedAt, Date.now())) {
-    emitOutput(line, scriptingOptions)
-  }
-  emitOutput('', scriptingOptions)
-  for (const summary of report.lists) {
-    emitOutput(
-      formatListChoiceTitle(summary, report.currency, listRowName(summary, report.lists)),
-      scriptingOptions,
-    )
-  }
-  emitLegendAndDisclaimer(formatPriceLegend([], report.totals), scriptingOptions)
-}
-
 function emitListDetail(
   built: BuiltPriceReport,
-  list: ListSlugRef,
+  list: ListIdentity,
   currency: PriceCurrency,
   sort: PriceSortField,
   descending: boolean,
-  warnings: string[],
+  warnings: PriceWarning[],
   scriptingOptions: ScriptingOptions,
 ): void {
   // Keyed by type + slug, never by name: a deck and a collection may share a
   // name, and the slug is what identifies the file.
-  const { slug } = list
-  const summary = built.report.lists.find(
-    (candidate) => candidate.type === list.type && candidate.slug === slug,
-  )
-  const entries = sortedEntries(
-    built.report.entries.filter((entry) => entry.listType === list.type && entry.listSlug === slug),
-    sort,
-    descending,
-  )
+  const summary = findListRow(built.report, list)
+  // The run priced exactly this list, so its row is there unless the file
+  // vanished mid-run — a failure, as the admin route's 404 is, never an
+  // empty report.
+  if (!summary) {
+    fail(scriptingOptions, 'runtime_error', 'cli.price.listMissing', {
+      type: list.listType,
+      slug: list.slug,
+    })
+    return
+  }
+  const entries = sortedEntries(entriesOfList(built.report, list), sort, descending)
 
   if (scriptingOptions.output === 'json') {
     const payload: PriceListDetailPayload = {
@@ -191,20 +149,18 @@ function emitListDetail(
     return
   }
 
-  emitOutput(`[${summary?.name ?? slug}]`, scriptingOptions)
+  emitOutput(`[${summary.name}]`, scriptingOptions)
   for (const entry of entries) {
     emitOutput(`  ${formatEntryChoiceTitle(entry, currency, false)}`, scriptingOptions)
   }
-  if (summary) {
-    emitOutput('', scriptingOptions)
-    emitOutput(
-      t('cli.price.listFooter', {
-        count: summary.cardCount,
-        totals: formatTotalsSegment(summary, currency),
-      }),
-      scriptingOptions,
-    )
-  }
+  emitOutput('', scriptingOptions)
+  emitOutput(
+    t('cli.price.listFooter', {
+      count: summary.cardCount,
+      totals: formatTotalsSegment(summary, currency),
+    }),
+    scriptingOptions,
+  )
   emitLegendAndDisclaimer(formatPriceLegend(entries, summary), scriptingOptions)
 }
 
@@ -229,7 +185,7 @@ function emitCardSearch(
   currency: PriceCurrency,
   sort: PriceSortField,
   descending: boolean,
-  warnings: string[],
+  warnings: PriceWarning[],
   scriptingOptions: ScriptingOptions,
 ): void {
   const matches = sortedEntries(
@@ -292,8 +248,7 @@ export function registerPriceCommand(program: Command): void {
           t('help.price.sort', { fields: PRICE_SORT_FIELDS.join(', ') }),
           parseSortFlag,
         )
-        .option('--descending', t('help.price.descending'))
-        .option('--summary', t('help.price.summary')),
+        .option('--descending', t('help.price.descending')),
       'text',
     ),
   ).action(async (listName: string | undefined, options: PriceCommandOptions) => {
@@ -317,24 +272,33 @@ export function registerPriceCommand(program: Command): void {
         set: options.set,
         collector: options.collector,
       }
-      const interactive = shouldRunInteractive(options, scriptingOptions, filters, {
+      const interactive = shouldRunInteractive(scriptingOptions, filters, {
         stdinIsTTY: process.stdin.isTTY === true,
         stdoutIsTTY: process.stdout.isTTY === true,
         noInput: isNoInput(),
       })
+      // With nothing to price and no browser to pick from, there is no report
+      // to print: every list's totals are the cross-list summary's job.
+      if (!listName && !interactive && !hasActiveFilters(filters)) {
+        fail(scriptingOptions, 'usage_error', 'cli.price.needsTarget', {
+          name: FLAG.name,
+          set: FLAG.set,
+          collector: FLAG.collector,
+          command: commandLine(COMMAND.lists, FLAG.summary, flagValue(FLAG.source, '<store>')),
+        })
+        return
+      }
 
       let scope: ListLocation[] | undefined
-      let openList: ListSlugRef | undefined
+      let openList: ListIdentity | undefined
       if (listName) {
         const resolved = await resolveList(listName, type)
         if (isResolveListError(resolved)) {
           emitResolveListError(resolved, scriptingOptions, 'type-flags')
           return
         }
-        openList = { type: resolved.type, slug: listSlug(resolved.filePath) }
-        // The browser needs every list for its main screen; a non-interactive
-        // run only needs the one being printed.
-        scope = interactive ? undefined : [resolved]
+        openList = listIdentityOf(resolved)
+        scope = [resolved]
         if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
           emitOutput(
             t('cli.price.pricingList', {
@@ -357,20 +321,7 @@ export function registerPriceCommand(program: Command): void {
         return
       }
 
-      // Card Kingdom retail prices come from the buylist pricelist feed, under
-      // this run's --refresh policy exactly like the card cache above. No feed,
-      // no report: falling back to Scryfall would silently answer with a
-      // different store's prices. Loaded once, on first use — the browser's
-      // store switcher can ask for it mid-session.
-      let cardKingdom: CardKingdomReportPricing | undefined
-      const pricingFor = async (store: PriceSource): Promise<ReportPricing | SyncMessage> => {
-        if (store !== 'cardkingdom') return { source: store }
-        if (cardKingdom) return cardKingdom
-        const feed = await ensureCardKingdomFeed(refreshPolicy)
-        if (isSyncMessage(feed)) return feed
-        cardKingdom = cardKingdomReportPricing(await loadEnsuredFeed(feed))
-        return cardKingdom
-      }
+      const { pricingFor, refreshCardKingdom } = cliPricingResolver(refreshPolicy)
 
       const buildScoped = async (
         store: PriceSource,
@@ -378,18 +329,67 @@ export function registerPriceCommand(program: Command): void {
       ): Promise<LoadedPriceReport | SyncMessage> => {
         const pricing = await pricingFor(store)
         if (isSyncMessage(pricing)) return pricing
-        const result = await loadAndBuildPriceReport(type, locations, pricing, {
-          refresh: refreshMode,
+        return loadAndBuildPriceReport(type, locations, pricing, { refresh: refreshMode })
+      }
+
+      if (interactive) {
+        // The main screen's rows are the cross-list summary's; the card screens
+        // build the full report when first opened. The summary reports every
+        // problem reading the lists, so the report's copies of them stay quiet.
+        const summarize = async (store: PriceSource): Promise<ListsSummary | SyncMessage> => {
+          const pricing = await pricingFor(store)
+          if (isSyncMessage(pricing)) return pricing
+          const summary = await summarizeLists({
+            listType: type,
+            priced: { pricing, refresh: refreshMode },
+          })
+          // Unreachable with these options; said as the refusal it is.
+          if (isListsSummaryRefusal(summary)) return summary.reason
+          emitMessageWarnings(summary.warnings, scriptingOptions)
+          return summary
+        }
+        if (!scriptingOptions.quiet) emitOutput(t('cli.price.calculating'), scriptingOptions)
+        const summary = await summarize(source)
+        if (isSyncMessage(summary)) {
+          failWithMessage(scriptingOptions, 'runtime_error', summary)
+          return
+        }
+        // Resolved by the summary just now (and memoized): a refusal cannot recur.
+        const initialPricing = await pricingFor(source)
+        if (isSyncMessage(initialPricing)) {
+          failWithMessage(scriptingOptions, 'runtime_error', initialPricing)
+          return
+        }
+        await runPriceBrowser({
+          summary,
+          source,
+          lastRefreshedAt: await pricesRefreshedAt(initialPricing),
+          // The browser shows a refusal as a line of text, in the CLI's language.
+          loadSummary: async (store) => {
+            const result = await summarize(store)
+            return isSyncMessage(result) ? renderSyncMessage(result) : result
+          },
+          loadReport: async (store) => {
+            const result = await buildScoped(store)
+            return isSyncMessage(result) ? renderSyncMessage(result) : result.built
+          },
+          refreshPrices: async (store) => {
+            const failed = await tryPreload(refreshCardCache)
+            if (failed) return renderSyncMessage(failed)
+            // Card Kingdom's prices are its feed's, not the card cache's.
+            if (store === 'cardkingdom') {
+              const feedFailed = await refreshCardKingdom()
+              if (feedFailed) return renderSyncMessage(feedFailed)
+            }
+            return { refreshed: true }
+          },
+          getLastRefreshedAt: async (store) => {
+            const pricing = await pricingFor(store)
+            return isSyncMessage(pricing) ? null : pricesRefreshedAt(pricing)
+          },
+          openList,
         })
-        // A skipped card line means the totals exclude cards. That is data
-        // loss, so it always reaches stderr — in every output mode and under
-        // --quiet — while the structured payloads also carry `warnings`.
-        emitWarnings(
-          result.warnings.map((warning) => `⚠️  ${warning}`),
-          scriptingOptions,
-          { essential: true },
-        )
-        return result
+        return
       }
 
       if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
@@ -401,23 +401,10 @@ export function registerPriceCommand(program: Command): void {
         return
       }
       const { built, warnings } = loadedReport
+      // A skipped card line means the totals exclude cards: data loss, so it
+      // always reaches stderr, while the structured payloads carry it too.
+      emitMessageWarnings(warnings, scriptingOptions)
       const currency = built.report.currency
-
-      if (interactive) {
-        await runPriceBrowser({
-          built,
-          lastRefreshedAt: freshness.lastRefreshedAt,
-          rebuild: async (store) => {
-            const result = await buildScoped(store)
-            // The browser shows a refusal as a line of text, in the CLI's language.
-            return isSyncMessage(result) ? renderSyncMessage(result) : result.built
-          },
-          refreshPrices: refreshCardCache,
-          getLastRefreshedAt: () => cardCache.getLastRefreshedAt(),
-          openList,
-        })
-        return
-      }
 
       const sort = options.sort ?? 'name'
       const descending = options.descending ?? false
@@ -427,9 +414,7 @@ export function registerPriceCommand(program: Command): void {
       }
       if (openList) {
         emitListDetail(built, openList, currency, sort, descending, warnings, scriptingOptions)
-        return
       }
-      emitSummary(built, freshness.lastRefreshedAt, warnings, scriptingOptions)
     })
   })
 }

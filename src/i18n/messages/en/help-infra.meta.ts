@@ -319,7 +319,6 @@ export const helpInfraMeta = {
     description: '`price --sort`. {fields} is the comma-separated list of sort field names.',
   },
   'help.price.descending': { description: '`price --descending`.' },
-  'help.price.summary': { description: '`price --summary`.' },
 
   // ── sell ──────────────────────────────────────────────────────────────
   'help.sell.description': { description: 'Summary of the `sell` command.' },

@@ -18,6 +18,9 @@ import {
   type PriceTotals,
 } from '../pricing/price-report'
 import type { ListCounts, ListSectionCount } from '../list/list-counts'
+import { DECK_FORMAT_KEYS } from '../list/deck-format'
+import type { ListIdentity } from '../list/list-info'
+import type { ListsSummaryRow, ListsSummaryTotals, ListsSummaryTypeTotals } from '../summary/lists'
 import type { ListImportResult } from '../admin/api/import-changes'
 import type { CsvRowFailure as CsvRowFailureType } from '../importers/csv'
 
@@ -131,8 +134,11 @@ export type SharedDefName =
   | 'DiffSideDetail'
   | 'PricedEntry'
   | 'ListPriceSummary'
-  | 'ListTypeTotals'
-  | 'PriceReportTotals'
+  | 'PriceTotals'
+  | 'ListIdentity'
+  | 'ListsSummaryRow'
+  | 'ListsSummaryTotals'
+  | 'ListsSummaryTypeTotals'
   | 'ArchidektLoginStatus'
   | 'SyncableDeck'
   | 'CollectionSyncList'
@@ -327,6 +333,42 @@ const PRICE_TOTALS_REQUIRED = [
   'unpricedCount',
   'estimatedCount',
 ] as const satisfies readonly (keyof typeof PRICE_TOTALS_PROPS)[]
+
+/** A list named by its identity, `listType` + slug — never by its display name. */
+export const LIST_IDENTITY_PROPS = {
+  listType: LIST_TYPE,
+  slug: str('The list’s slug; with listType, the key that identifies the list.'),
+} as const satisfies Properties & Record<keyof ListIdentity, unknown>
+
+/** One `summarize_lists` row. */
+const LISTS_SUMMARY_ROW_PROPS = {
+  ...LIST_IDENTITY_PROPS,
+  name: str('The list’s display name: its "# Title", else its slug.'),
+  counts: ref('ListCounts'),
+  labels: arr(CARD_LABEL, 'The list’s front-matter default card labels, when it declares any.'),
+  description: str('The list’s front-matter description.'),
+  image: LIST_IMAGE_REF,
+  format: enumOf(DECK_FORMAT_KEYS, 'The deck’s format, when it declares one. Decks only.'),
+  value: ref('PriceTotals'),
+} as const satisfies Properties & Record<keyof ListsSummaryRow, unknown>
+
+/** Counts (and value, when priced) over a set of lists. */
+const LISTS_SUMMARY_TOTALS_PROPS = {
+  listCount: int(),
+  entryCount: int('Lines across the lists’ counted sections.'),
+  cardCount: int('Copies across the lists’ counted sections.'),
+  distinctCardCount: int(
+    'Distinct card names across the lists’ counted sections, case and whitespace folded.',
+  ),
+  value: ref('PriceTotals'),
+} as const satisfies Properties & Record<keyof ListsSummaryTotals, unknown>
+
+const LISTS_SUMMARY_TOTALS_REQUIRED = [
+  'listCount',
+  'entryCount',
+  'cardCount',
+  'distinctCardCount',
+] as const satisfies readonly (keyof typeof LISTS_SUMMARY_TOTALS_PROPS)[]
 
 /**
  * The printing an entry-shaped payload pins, spelled once.
@@ -609,15 +651,18 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
     'name',
     'slug',
   ]),
-  ListTypeTotals: obj({ ...PRICE_TOTALS_PROPS, type: LIST_TYPE, listCount: int() }, [
-    ...PRICE_TOTALS_REQUIRED,
-    'type',
-    'listCount',
-  ]),
-  PriceReportTotals: obj({ ...PRICE_TOTALS_PROPS, listCount: int() }, [
-    ...PRICE_TOTALS_REQUIRED,
-    'listCount',
-  ]),
+  PriceTotals: obj(PRICE_TOTALS_PROPS, PRICE_TOTALS_REQUIRED),
+  ListIdentity: obj(LIST_IDENTITY_PROPS, ['listType', 'slug']),
+
+  ListsSummaryRow: obj(LISTS_SUMMARY_ROW_PROPS, ['listType', 'slug', 'name', 'counts']),
+  ListsSummaryTotals: obj(LISTS_SUMMARY_TOTALS_PROPS, LISTS_SUMMARY_TOTALS_REQUIRED),
+  ListsSummaryTypeTotals: obj(
+    {
+      ...LISTS_SUMMARY_TOTALS_PROPS,
+      listType: LIST_TYPE,
+    } as const satisfies Properties & Record<keyof ListsSummaryTypeTotals, unknown>,
+    [...LISTS_SUMMARY_TOTALS_REQUIRED, 'listType'],
+  ),
 
   ArchidektLoginStatus: obj(
     {

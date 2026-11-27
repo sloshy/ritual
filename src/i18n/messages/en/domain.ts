@@ -180,6 +180,8 @@ export const domainMessages = {
   'domain.price.printingUnavailable': 'Price: unavailable',
   'domain.price.cheapest': 'Cheapest printing: {price} ({printing}) [{finish}]',
   'domain.price.cheapestUnavailable': 'Cheapest printing: unavailable',
+  // A price report's warning about one of the lists it priced.
+  'domain.price.inList': '{list}: {cause}',
 
   // ── Site navigation ───────────────────────────────────────────────────
   //

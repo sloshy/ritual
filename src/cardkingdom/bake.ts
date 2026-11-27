@@ -53,7 +53,11 @@ export function detailBuylistContext(
  * seam the site bake quotes with.
  */
 export function cardKingdomReportPricing(feed: LoadedCardKingdomFeed): CardKingdomReportPricing {
-  return { source: 'cardkingdom', cardKingdom: { quote: detailBuylistContext(feed).quote } }
+  return {
+    source: 'cardkingdom',
+    cardKingdom: { quote: detailBuylistContext(feed).quote },
+    feedRetrievedAt: feed.file.retrievedAt,
+  }
 }
 
 /**

@@ -24,7 +24,7 @@ import {
   type ResolveListError,
 } from '../list/resolve-list'
 import { getAtPath } from '../util/object'
-import { envelopeRef } from '../sync/message'
+import { envelopeRef, renderSyncMessage, type SyncMessage } from '../sync/message'
 import { promptsUnavailable } from '../util/no-input'
 import { QUIET_STDERR_LOGGER, setLogger, STDERR_LOGGER } from '../util/logger'
 import { FLAG, flagValue } from '../util/cli-tokens'
@@ -206,6 +206,23 @@ export function emitWarnings(
   for (const warning of warnings) {
     writeStderr(`${warning}\n`)
   }
+}
+
+/**
+ * Report warnings that mean data was left out — a list line a report could not
+ * read, a list a summary could not price — as messages worded in the CLI's
+ * language, one marked line each. Essential: they reach stderr in every output
+ * mode and under `--quiet`, while a structured payload carries them too.
+ */
+export function emitMessageWarnings(
+  warnings: readonly SyncMessage[],
+  options: ScriptingOptions,
+): void {
+  emitWarnings(
+    warnings.map((warning) => t('cli.output.warningLine', { warning: renderSyncMessage(warning) })),
+    options,
+    { essential: true },
+  )
 }
 
 /**

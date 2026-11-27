@@ -6,7 +6,7 @@ import { caughtMessage, refusalOf, statusForError } from './http'
 import {
   apiMessage,
   isApiMessage,
-  parseEnumParam,
+  booleanQueryParam,
   positiveIntegerParam,
   type ApiMessage,
 } from './result'
@@ -80,16 +80,11 @@ export function parseCardSearchParams(params: URLSearchParams): CardSearchParams
   const page = positiveIntegerParam(params, 'page')
   if (isApiMessage(page)) return page
 
-  let warm = false
-  const rawWarm = params.get('warm')?.trim()
-  if (rawWarm) {
-    // English plus its key, never the server's own UI language.
-    const warmChoice = parseEnumParam(rawWarm, ['true', 'false'] as const, 'warm')
-    if (isApiMessage(warmChoice)) return warmChoice
-    warm = warmChoice === 'true'
-  }
+  // English plus its key, never the server's own UI language.
+  const warm = booleanQueryParam(params, 'warm')
+  if (isApiMessage(warm)) return warm
 
-  const result: CardSearchParams = { query, page: page ?? 1, warm }
+  const result: CardSearchParams = { query, page: page ?? 1, warm: warm ?? false }
 
   const limit = positiveIntegerParam(params, 'limit')
   if (isApiMessage(limit)) return limit

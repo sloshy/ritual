@@ -57,10 +57,10 @@ import { handleMoveCommit, handleRemoveCommit, handleSelectedMove } from './api/
 import { handleCardIndex } from './api/card-index'
 import { handleArtSave } from './api/art'
 import { handleMetadataSave } from './api/metadata'
-import { handleLists } from './api/lists'
+import { handleLists, handleListsSummary } from './api/lists'
 import { handleDiff } from './api/diff'
 import { handleHistoryLoad, handleHistorySave } from './api/history'
-import { handlePriceSummary, handlePriceList } from './api/price'
+import { handlePriceList } from './api/price'
 import { handleSellReport, handleSellCart, handleSellRefresh } from './api/sell'
 import { handleBuylistQuotes, handleBuylistStatus, withBuylistFeedGate } from '../api/buylist'
 import {
@@ -345,6 +345,7 @@ export const routes: Route[] = [
   // at that path. Authed like everything else the admin exposes.
   { method: 'GET', path: '/art/*', handler: (req) => handleArtFile(req), requiresAuth: true },
   { method: 'GET', path: '/api/lists', handler: handleLists, requiresAuth: true },
+  { method: 'GET', path: '/api/lists/summary', handler: handleListsSummary, requiresAuth: true },
   { method: 'GET', path: '/api/diff', handler: handleDiff, requiresAuth: true },
   { method: 'GET', path: '/api/card-index', handler: handleCardIndex, requiresAuth: true },
   { method: 'POST', path: '/api/move/commit', handler: handleMoveCommit, requiresAuth: true },
@@ -369,7 +370,6 @@ export const routes: Route[] = [
     requiresAuth: true,
   },
   { method: 'PUT', path: '/api/art/:type/:slug', handler: handleArtSave, requiresAuth: true },
-  { method: 'GET', path: '/api/price/summary', handler: handlePriceSummary, requiresAuth: true },
   {
     method: 'GET',
     path: '/api/price/:type/:slug',

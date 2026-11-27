@@ -2145,6 +2145,18 @@ export const cliInfraMeta = {
     description: 'Footer of a single list’s printed detail. Keep the indentation.',
   },
   'cli.price.searchFooter': { description: 'Footer of a card-filter search result.' },
+  'cli.output.warningLine': {
+    description:
+      'Prefixes a warning a report prints on stderr (a list line it could not read, a list it could not price). {warning} is the full sentence. The emoji is part of the marker.',
+  },
+  'cli.price.listMissing': {
+    description:
+      'Error: `ritual price <list>` found the list, but its file disappeared (deleted or renamed) before it could be priced. One branch per list type (a wanted list is a list of cards the user is looking for). {slug} is the list file name.',
+  },
+  'cli.price.needsTarget': {
+    description:
+      'Usage error: `ritual price` was run with nothing to price and no terminal to browse in. {name}, {set} and {collector} are the card-search flags; {command} is the command line that prints every list’s totals instead. All four stay verbatim.',
+  },
 
   // ── price: the interactive browser ────────────────────────────────────
   'cli.price.totalsTotal': {
@@ -2175,6 +2187,10 @@ export const cliInfraMeta = {
       'Trailing note on one card\'s row in the price browser and price report: what its copies would cost at the cheapest printing, when that differs from the price shown. {price} is the formatted amount. Follows a " · " separator, so it stays lowercase in English.',
   },
   'cli.price.totalsUnpriced': { description: 'How many entries have no price at all.' },
+  'cli.price.notPriced': {
+    description:
+      'Stands in for a price total that could not be worked out: the chosen store had no prices for this run (such as Card Kingdom with no price list downloaded), or the list failed to price.',
+  },
   'cli.price.headerUpdated': {
     description:
       'Top line of the browser: price age, the store prices come from ({store}, a store name such as TCGplayer or Card Kingdom), and its currency ({currency}, an upper-case code).',

@@ -1,113 +1,70 @@
-import { cardCache } from '../../cache'
 import {
   cardKingdomReportPricing,
   getCardKingdomFeed,
   missingFeedApiAdvice,
 } from '../../cardkingdom'
-import { isListType, type ListType } from '../../list/list-type'
-import type {
-  PriceListDetailPayload,
-  PriceSummaryPayload,
-  ReportPricing,
+import {
+  findListRow,
+  type PriceListDetailPayload,
+  type ReportPricing,
 } from '../../pricing/price-report'
 import { VALID_PRICE_SOURCES, type PriceSource } from '../../pricing/price-source'
-import { loadAndBuildPriceReport } from '../../pricing/price-runtime'
+import { loadAndBuildPriceReport, pricesRefreshedAt } from '../../pricing/price-runtime'
 import { getDefaultPriceSource } from '../../config/ritual-config'
 import { listLocationForSlug } from './list-info'
-import { listSlug } from '../../list/list-file-name'
+import { listIdentityOf } from '../../list/list-info'
 import { parseListTarget } from './target'
 import { apiError, badRequest, errorResponse, nestedRefusal } from '../../api/http'
-import { apiMessage, isApiMessage, parseEnumParam } from '../../api/result'
+import { apiMessage, enumQueryParam, isApiMessage, type ApiMessage } from '../../api/result'
+import { isSyncMessage, type SyncMessage } from '../../sync/message'
 import { requireCardCache } from './save-helpers'
 
-/**
- * GET /api/price/summary body — the CLI summary payload plus parser warnings.
- *
- * `mode` discriminates the two price bodies (matching `ExportResponseBody`'s
- * precedent), so a client that can receive either — the MCP `get_price_report`
- * tool does — reads one field to know which it got.
- */
-export type PriceSummaryResponse = PriceSummaryPayload & {
-  success: true
-  mode: 'summary'
-  warnings: string[]
-}
-
-/** GET /api/price/:type/:slug body — the CLI single-list payload plus cache age and warnings. */
+/** GET /api/price/:type/:slug body — the CLI single-list payload plus the prices' age. */
 export type PriceListDetailResponse = PriceListDetailPayload & {
   success: true
-  mode: 'list'
+  /**
+   * When the prices were last refreshed (epoch ms, `null` when unknown): the
+   * Card Kingdom feed's download for `cardkingdom`, the card cache's last bulk
+   * refresh for every other store (`pricesRefreshedAt`).
+   */
   lastRefreshedAt: number | null
-  warnings: string[]
+}
+
+/**
+ * `?source=` as a store: `undefined` when absent or blank, the store, or the
+ * refusal naming the stores there are. The one reading every priced route
+ * shares.
+ */
+export function sourceParam(params: URLSearchParams): PriceSource | undefined | ApiMessage {
+  return enumQueryParam(params, 'source', VALID_PRICE_SOURCES)
+}
+
+/**
+ * The pricing a server route prices `source` with. `cardkingdom` prices from
+ * the cached buyer feed — strictly cache-backed, like every other server read:
+ * no feed is the refresh advice (a message the caller decides how to report),
+ * never a silent fallback to Scryfall prices or a download.
+ */
+export async function serverReportPricing(
+  source: PriceSource,
+): Promise<ReportPricing | SyncMessage> {
+  if (source !== 'cardkingdom') return { source }
+  const feed = await getCardKingdomFeed()
+  if (!feed) return missingFeedApiAdvice()
+  return cardKingdomReportPricing(feed)
 }
 
 /**
  * Resolve `?source=` to the store the report is priced at: the named store,
  * else the configured `defaultPriceSource` (a store names its own currency, so
- * there is no currency to choose). An unknown store is a 400. `cardkingdom`
- * prices from the cached buyer feed — strictly cache-backed, like every other
- * server read; a missing feed is refused with the refresh advice rather than
- * silently answered with Scryfall prices.
+ * there is no currency to choose). An unknown store is a 400; Card Kingdom with
+ * no cached feed is refused (503) with the refresh advice.
  */
 async function parsePricingParam(url: URL): Promise<ReportPricing | Response> {
-  const raw = url.searchParams.get('source')
-  let source: PriceSource = getDefaultPriceSource()
-  if (raw) {
-    const parsed = parseEnumParam(raw, VALID_PRICE_SOURCES, 'source')
-    if (isApiMessage(parsed)) return badRequest(parsed)
-    source = parsed
-  }
-  if (source !== 'cardkingdom') return { source }
-  const feed = await getCardKingdomFeed()
-  if (!feed) return nestedRefusal(missingFeedApiAdvice(), 503)
-  return cardKingdomReportPricing(feed)
-}
-
-/**
- * GET /api/price/summary — per-list price totals across every list, optionally
- * restricted with `?type=` and priced at `?source=` (default: the configured
- * defaultPriceSource). Mirrors the CLI's `price --summary --output json` payload.
- */
-export async function handlePriceSummary(req: Request): Promise<Response> {
-  try {
-    const url = new URL(req.url)
-    const rawType = url.searchParams.get('type')
-    let type: ListType | undefined
-    if (rawType) {
-      if (!isListType(rawType)) {
-        return apiError(apiMessage('admin.api.listTypeInvalid', { type: rawType }), 400)
-      }
-      type = rawType
-    }
-    const pricing = await parsePricingParam(url)
-    if (pricing instanceof Response) return pricing
-
-    const unavailable = await requireCardCache('prices')
-    if (unavailable) return unavailable
-
-    const lastRefreshedAt = await cardCache.getLastRefreshedAt()
-    // `refresh: 'never'` makes the lookup cache-only, honoring this module's
-    // "prices come strictly from the local cache" contract: a server handler
-    // must not fire (and wait on) a per-card Scryfall fetch for every name the
-    // cache happens not to hold.
-    const { built, warnings } = await loadAndBuildPriceReport(type, undefined, pricing, {
-      refresh: 'never',
-    })
-    const body: PriceSummaryResponse = {
-      success: true,
-      mode: 'summary',
-      source: built.report.source,
-      currency: built.report.currency,
-      lastRefreshedAt,
-      lists: built.report.lists,
-      typeTotals: built.report.typeTotals,
-      totals: built.report.totals,
-      warnings,
-    }
-    return Response.json(body)
-  } catch (err) {
-    return errorResponse(err)
-  }
+  const source = sourceParam(url.searchParams)
+  if (isApiMessage(source)) return badRequest(source)
+  const pricing = await serverReportPricing(source ?? getDefaultPriceSource())
+  return isSyncMessage(pricing) ? nestedRefusal(pricing, 503) : pricing
 }
 
 /**
@@ -133,20 +90,25 @@ export async function handlePriceList(req: Request): Promise<Response> {
     const unavailable = await requireCardCache('prices')
     if (unavailable) return unavailable
 
-    const lastRefreshedAt = await cardCache.getLastRefreshedAt()
+    const lastRefreshedAt = await pricesRefreshedAt(pricing)
     const { built, warnings } = await loadAndBuildPriceReport(target.type, [location], pricing, {
       refresh: 'never',
     })
+    // By type + slug, the list's identity — never by position or display name.
+    const list = findListRow(built.report, listIdentityOf(location))
+    // Only a file gone between the lookup and the read leaves no row.
+    if (!list) {
+      return apiError(
+        apiMessage('admin.api.list.notFound', { listType: target.type, slug: target.slug }),
+        404,
+      )
+    }
     const body: PriceListDetailResponse = {
       success: true,
-      mode: 'list',
       source: built.report.source,
       currency: built.report.currency,
       lastRefreshedAt,
-      // By type + slug, the list's identity — never by position or display name.
-      list: built.report.lists.find(
-        (list) => list.type === target.type && list.slug === listSlug(location.filePath),
-      ),
+      list,
       cards: built.report.entries,
       warnings,
     }

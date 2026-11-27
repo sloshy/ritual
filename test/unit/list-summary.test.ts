@@ -3,7 +3,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { cardCache } from '../../src/cache'
 import {
+  checkListsSummaryOptions,
   groupRowsByType,
+  isListsSummaryRefusal,
+  summaryPricing,
   parseListsSummaryOptions,
   summarizeLists,
   type ListsSummary,
@@ -12,7 +15,9 @@ import {
 } from '../../src/summary/lists'
 import { loadAndBuildPriceReport } from '../../src/pricing/price-runtime'
 import { listLocations } from '../../src/list/resolve-list'
-import { isSyncMessage } from '../../src/sync/message'
+import { syncMessage } from '../../src/sync/message'
+import { sumPricedEntries } from '../../src/pricing/price-report'
+import { ExitCode, localizedCommandError } from '../../src/util/errors'
 import {
   bindWorkspace,
   writeCollectionFile,
@@ -120,7 +125,7 @@ async function writeRaw(dir: string, file: string, lines: string[]): Promise<voi
 /** Summarize, failing the test on a refusal. */
 async function summarize(options: ListsSummaryOptions = {}): Promise<ListsSummary> {
   const result = await summarizeLists(options)
-  if (isSyncMessage(result)) throw new Error(`refused: ${result.message}`)
+  if (isListsSummaryRefusal(result)) throw new Error(`refused: ${result.reason.message}`)
   return result
 }
 
@@ -362,7 +367,7 @@ describe('summarizeLists — warnings', () => {
     const [warning] = summary.warnings
     expect(warning?.message).toStartWith('Broken: ')
     expect(warning?.messageParams?.list).toBe('Broken')
-    expect(warning?.messageParams?.warning).toMatchObject({ messageKey: 'domain.card.line.atLine' })
+    expect(warning?.messageParams?.cause).toMatchObject({ messageKey: 'domain.card.line.atLine' })
   })
 
   test('a deck line the parser could not read is a warning too', async () => {
@@ -370,7 +375,7 @@ describe('summarizeLists — warnings', () => {
     const summary = await summarize()
     expect(rowOf(summary, 'deck', 'typo').counts.entryCount).toBe(1)
     expect(warningKeys(summary)).toEqual([['domain.list.summary.inList', 'deck', 'typo']])
-    expect(summary.warnings[0]?.messageParams?.warning).toMatchObject({
+    expect(summary.warnings[0]?.messageParams?.cause).toMatchObject({
       messageKey: 'domain.import.text.malformedLine',
     })
   })
@@ -414,7 +419,7 @@ describe('summarizeLists — warnings', () => {
     expect(slugs(summary)).toEqual(['deck:burn', 'deck:elves'])
     expect(warningKeys(summary)).toEqual([['domain.list.summary.unreadable', 'deck', 'mangled']])
     expect(summary.warnings[0]?.messageParams?.list).toBe('mangled')
-    expect(summary.warnings[0]?.messageParams?.error).toBeDefined()
+    expect(summary.warnings[0]?.messageParams?.cause).toBeDefined()
   })
 })
 
@@ -470,17 +475,43 @@ describe('summarizeLists — sort and limit', () => {
     expect(limited.typeTotals).toEqual(full.typeTotals)
   })
 
-  test('sorting by value without a price store is refused as a message', async () => {
+  test('sorting by value without a price store is refused as a bad option', async () => {
     const result = await summarizeLists({ sort: 'value' })
-    expect(isSyncMessage(result)).toBe(true)
-    expect(result).toMatchObject({ messageKey: 'domain.list.summary.sortNeedsPricing' })
+    expect(result).toMatchObject({
+      refused: 'options',
+      reason: { messageKey: 'domain.list.summary.sortNeedsPricing' },
+    })
+  })
+})
+
+describe('checkListsSummaryOptions', () => {
+  test('refuses what parsing would, before any store is resolved', () => {
+    expect(checkListsSummaryOptions({ sections: [' '] }, true)?.reason.messageKey).toBe(
+      'domain.list.summary.sectionsEmpty',
+    )
+    // A value sort needs only to know a store was asked for.
+    expect(checkListsSummaryOptions({ sort: 'value' }, true)).toBeUndefined()
+    expect(checkListsSummaryOptions({ sort: 'value' }, false)?.reason.messageKey).toBe(
+      'domain.list.summary.sortNeedsPricing',
+    )
+  })
+})
+
+describe('summaryPricing', () => {
+  test('a pricing is priced at the refresh mode; a reason is the unpriceable option', () => {
+    const reason = syncMessage('domain.cache.cardKingdom.noFeed')
+    expect(summaryPricing({ source: 'tcgplayer' }, 'never')).toEqual({
+      pricing: { source: 'tcgplayer' },
+      refresh: 'never',
+    })
+    expect(summaryPricing(reason, 'never')).toEqual({ unavailable: reason })
   })
 })
 
 describe('parseListsSummaryOptions', () => {
   function refusalKey(options: ListsSummaryOptions): string | undefined {
     const parsed = parseListsSummaryOptions(options)
-    return isSyncMessage(parsed) ? parsed.messageKey : undefined
+    return isListsSummaryRefusal(parsed) ? parsed.reason.messageKey : undefined
   }
 
   test.each([0, -1, 1.5, Number.NaN])('limit %p is refused', (limit) => {
@@ -641,23 +672,84 @@ describe('summarizeLists — value', () => {
         refresh: 'never',
       },
     )
-    const { listCount: _count, ...combinedTotals } = combined.built.report.totals
-    expect(summary.totals.value).toEqual(combinedTotals)
+    const { entries } = combined.built.report
+    expect(summary.totals.value).toEqual(sumPricedEntries(entries))
     expect(summary.typeTotals?.map((totals) => [totals.listType, totals.value])).toEqual(
-      combined.built.report.typeTotals.map(({ type, listCount: _n, ...totals }) => [type, totals]),
+      (['deck', 'collection', 'wanted'] as const).map((type) => [
+        type,
+        sumPricedEntries(entries.filter((entry) => entry.listType === type)),
+      ]),
     )
   })
 
   test('an empty card cache still counts, with a warning and no value', async () => {
     await writeStandardLists()
-    const summary = await summarize({ priced: PRICED, sort: 'value' })
+    const summary = await summarize({ priced: PRICED, sort: 'quantity' })
     expect(summary.totals.cardCount).toBe(15)
     expect(summary.lists.every((row) => row.value === undefined)).toBe(true)
     expect(summary.totals.value).toBeUndefined()
     expect(summary.source).toBeUndefined()
     expect(warningKeys(summary)).toEqual([['domain.list.summary.cacheEmpty', undefined, undefined]])
-    // Nothing priced, so the value sort ties everywhere and falls back to name.
-    expect(slugs(summary)).toEqual(slugs(await summarize()))
+  })
+
+  test('a value sort over an empty card cache is refused as prices, as a store with none is', async () => {
+    await writeStandardLists()
+    expect(await summarizeLists({ priced: PRICED, sort: 'value' })).toEqual({
+      refused: 'prices',
+      reason: syncMessage('domain.list.summary.cacheEmpty'),
+    })
+  })
+})
+
+describe('summarizeLists — a store that cannot price', () => {
+  const UNAVAILABLE = syncMessage('domain.cache.cardKingdom.noFeed')
+
+  test('the counts stand, the reason is the first warning, and nothing is valued', async () => {
+    await writeStandardLists()
+    await writeRaw('collections', 'broken.md', ['# Broken', '', '- Sol Ring &1 [nonsense', ''])
+    const summary = await summarize({ priced: { unavailable: UNAVAILABLE } })
+    expect(summary.totals.cardCount).toBeGreaterThan(0)
+    expect(summary.warnings[0]).toEqual(UNAVAILABLE)
+    expect(summary.warnings.length).toBeGreaterThan(1)
+    expect(summary.source).toBeUndefined()
+    expect(summary.totals.value).toBeUndefined()
+  })
+
+  test('a value sort it cannot honor is refused with the store’s own reason', async () => {
+    expect(await summarizeLists({ priced: { unavailable: UNAVAILABLE }, sort: 'value' })).toEqual({
+      refused: 'prices',
+      reason: UNAVAILABLE,
+    })
+  })
+
+  test('a list that fails to price nests the error’s own key under its name', async () => {
+    await writeCollectionFile(ws.dir, 'binder', {
+      title: 'Trade Binder',
+      entries: [{ name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' }],
+    })
+    await seedPrices()
+    const failing: ListsSummaryOptions['priced'] = {
+      pricing: {
+        source: 'cardkingdom',
+        cardKingdom: {
+          quote: () => {
+            throw localizedCommandError(
+              'runtime_error',
+              ExitCode.RuntimeError,
+              'cli.price.emptyCache',
+            )
+          },
+        },
+        feedRetrievedAt: 0,
+      },
+      refresh: 'never',
+    }
+    const summary = await summarize({ priced: failing })
+    const warning = summary.warnings.find(
+      (candidate) => candidate.messageKey === 'domain.list.summary.priceFailed',
+    )
+    expect(warning?.list).toEqual({ listType: 'collection', slug: 'binder' })
+    expect(warning?.messageParams?.cause).toEqual({ messageKey: 'cli.price.emptyCache' })
   })
 })
 

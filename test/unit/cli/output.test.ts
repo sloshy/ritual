@@ -4,6 +4,7 @@ import {
   classifyFileReadError,
   emitError,
   emitOutput,
+  emitMessageWarnings,
   emitWarnings,
   markStdoutClosed,
   resetStdoutClosed,
@@ -19,6 +20,8 @@ import { exitCodeFor } from '../../../src/cli/action'
 import type { ScriptingOptions } from '../../../src/cli/output'
 import { setNoInputOverride } from '../../../src/util/no-input'
 import { stubTty } from '../../test-utils'
+import { syncMessage, syncText } from '../../../src/sync/message'
+import { withSyntheticLocaleAsync } from '../../helpers/sync-text'
 
 type WritableTarget = {
   write: (chunk: string | Uint8Array, ...args: unknown[]) => boolean
@@ -217,6 +220,32 @@ describe('emitWarnings', () => {
 
   test('an empty warning list writes nothing', async () => {
     expect(await captureOutput('stderr', () => emitWarnings([], json))).toBe('')
+  })
+})
+
+describe('emitMessageWarnings', () => {
+  test('one marked line per message, in the CLI language, and essential under --quiet', async () => {
+    const warnings = [syncText('first'), syncText('second')]
+    const stderr = await captureOutput('stderr', () =>
+      emitMessageWarnings(warnings, { output: 'json', quiet: true }),
+    )
+    expect(stderr).toBe('⚠️  first\n⚠️  second\n')
+  })
+
+  test('a keyed message is worded in the active locale, not its English', async () => {
+    await withSyntheticLocaleAsync(
+      'xx',
+      { 'cli.output.warningLine': '!! {warning}', 'domain.list.summary.cacheEmpty': 'leer' },
+      async () => {
+        const stderr = await captureOutput('stderr', () =>
+          emitMessageWarnings([syncMessage('domain.list.summary.cacheEmpty')], {
+            output: 'text',
+            quiet: false,
+          }),
+        )
+        expect(stderr).toBe('!! leer\n')
+      },
+    )
   })
 })
 

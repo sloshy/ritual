@@ -125,6 +125,37 @@ export function positiveIntegerParam(
 }
 
 /**
+ * An enum query parameter through the shared enum parser ({@link
+ * parseEnumParam}, case-insensitive): `undefined` when absent or blank, the
+ * canonical member, or its refusal naming `field` and the accepted values.
+ */
+export function enumQueryParam<T extends string>(
+  params: URLSearchParams,
+  field: string,
+  values: readonly T[],
+): T | undefined | ApiMessage {
+  const raw = params.get(field)?.trim()
+  if (!raw) return undefined
+  return parseEnumParam(raw, values, field)
+}
+
+/** The spellings a boolean query parameter takes. */
+const BOOLEAN_PARAM_VALUES = ['true', 'false'] as const
+
+/**
+ * A boolean query parameter, `true` or `false` (any case): `undefined` when
+ * absent or blank, else the value, or the enum refusal naming `field`.
+ */
+export function booleanQueryParam(
+  params: URLSearchParams,
+  field: string,
+): boolean | undefined | ApiMessage {
+  const parsed = enumQueryParam(params, field, BOOLEAN_PARAM_VALUES)
+  if (parsed === undefined || isApiMessage(parsed)) return parsed
+  return parsed === 'true'
+}
+
+/**
  * {@link positiveIntegerParam} for a parameter where zero is an ordinary
  * value — an `offset`.
  */

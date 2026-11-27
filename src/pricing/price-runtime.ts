@@ -6,17 +6,19 @@ import {
   type BuiltPriceReport,
   type NamePricingMemo,
   type PriceListInput,
+  type PriceWarning,
   type ReportPricing,
 } from './price-report'
 import type { ListLocation } from '../list/resolve-list'
 import { getBannedPrintings } from '../config/ritual-config'
 import { refreshStaleAllowed, type RefreshMode } from '../cache/refresh'
 import { getCachedCardPrintings, getCardPrintings } from '../scryfall'
+import { cardCache } from '../cache'
 
-/** A price report built from disk plus the list parsers' warnings. */
+/** A price report built from disk plus a warning per problem reading its lists. */
 export type LoadedPriceReport = {
   built: BuiltPriceReport
-  warnings: string[]
+  warnings: PriceWarning[]
 }
 
 /** How a price report resolves card names that the cache does not hold. */
@@ -80,4 +82,15 @@ export function buildPriceReportFromInputs(
     bannedPrintings: getBannedPrintings(),
     memo: options?.memo,
   })
+}
+
+/**
+ * When the prices a report is priced with were last refreshed (epoch ms,
+ * `null` when unknown): Card Kingdom's are its feed's, downloaded on its own
+ * schedule; every other store's ride in the card cache, so they are as old as
+ * its last bulk refresh.
+ */
+export async function pricesRefreshedAt(pricing: ReportPricing): Promise<number | null> {
+  if (pricing.source === 'cardkingdom') return pricing.feedRetrievedAt
+  return cardCache.getLastRefreshedAt()
 }

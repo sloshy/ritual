@@ -45,6 +45,7 @@ import {
   emitError,
   emitResolveListError,
   emitToFileOrStdout,
+  emitMessageWarnings,
   emitWarnings,
   installScriptingLogger,
   resolveOutPath,
@@ -338,11 +339,7 @@ export function registerSellCommand(program: Command): void {
       )
       // A skipped card line means the report excludes cards: essential, so it
       // survives --quiet and structured output.
-      emitWarnings(
-        warnings.map((warning) => `⚠️  ${warning}`),
-        scripting,
-        { essential: true },
-      )
+      emitMessageWarnings(warnings, scripting)
 
       const filters: SellEntryFilters = {
         tags: options.tags,

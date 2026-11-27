@@ -274,6 +274,54 @@ export const helpCardsMeta = {
   'help.lists.wanted': {
     description: 'Help for lists --wanted (filter the listing to wanted lists).',
   },
+  'help.lists.lists': {
+    description:
+      'Help for the optional list names `lists` takes. {flag} is the --summary flag, which the names need. The deck:/collection:/wanted: prefixes are typed verbatim and stay untranslated.',
+  },
+  'help.lists.summary': {
+    description:
+      'Help for lists --summary: instead of only naming every list, count how many entries (lines) and cards (copies) each list holds, and total them across the lists.',
+  },
+  'help.lists.name': {
+    description:
+      'Help for lists --name: keep only lists whose name contains all of the words given, in any order. {flag} is the --summary flag this option needs.',
+  },
+  'help.lists.label': {
+    description:
+      'Help for lists --label: keep only lists that mark their cards with this label by default (for example "trade"). {labels} is the comma-separated list of accepted labels, which stay verbatim. {flag} is the --summary flag this option needs.',
+  },
+  'help.lists.noEmpty': {
+    description:
+      'Help for lists --no-empty: leave lists that hold no cards out of the summary. {flag} is the --summary flag this option needs.',
+  },
+  'help.lists.format': {
+    description:
+      'Help for lists --format: keep only decks of one game format (such as commander or modern). {flag} is the --summary flag this option needs.',
+  },
+  'help.lists.section': {
+    description:
+      'Help for lists --section: count only one part of each deck (such as Main or Sideboard), named exactly as its heading in the deck file; the option can be given several times. {flag} is the --summary flag this option needs.',
+  },
+  'help.lists.source': {
+    description:
+      'Help for lists --source: price every list at one store (such as TCGplayer or Card Kingdom) and show what it is worth. {flag} is the --summary flag this option needs.',
+  },
+  'help.lists.sort': {
+    description:
+      'Help for lists --sort: the order the lists are shown in. {fields} is the comma-separated list of accepted values (name, quantity, value), which stay verbatim; quantity and value show the biggest first. {flag} is the --summary flag this option needs.',
+  },
+  'help.lists.ascending': {
+    description:
+      'Help for lists --ascending: show the lists smallest first (A first when ordered by name, which is already the default there). {flag} is the --summary flag this option needs.',
+  },
+  'help.lists.descending': {
+    description:
+      'Help for lists --descending: show the lists largest first (Z first when ordered by name); ordering by quantity or value already does. {flag} is the --summary flag this option needs.',
+  },
+  'help.lists.limit': {
+    description:
+      'Help for lists --limit: show at most this many lists; the totals underneath still count every list chosen, not only the ones shown. {flag} is the --summary flag this option needs.',
+  },
   'help.listAllCards.description': {
     description: 'One-line summary of the `list-all-cards` command, plus its intended CI use.',
   },

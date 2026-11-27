@@ -63,7 +63,8 @@ const EXPECTED_TOOLS = [
   'get_card_details',
   'get_card_printings',
   'get_card_price',
-  'get_price_report',
+  'summarize_lists',
+  'get_list_prices',
   'get_sell_report',
   'get_sell_cart',
   'get_buylist_quotes',
@@ -1267,74 +1268,97 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(data).toMatchObject({ removed: 1, requested: 2, skipped: 1 })
   })
 
-  test('get_price_report summarizes every list and details one list', async () => {
-    // Seed one priced printing so the cache is non-empty; the other synthetic
-    // cards resolve to no printings via the offline stub and price as missing.
+  test('summarize_lists counts every list, its types and warnings through the schema', async () => {
+    // Shape-only wiring checks: the summary's semantics are pinned by the engine
+    // tests and the admin route tests, not re-computed here. Unfiltered, so
+    // `typeTotals` and (Card Kingdom has no feed here) a warning ride the
+    // advertised schema.
+    const counts = toolData<{
+      lists: unknown[]
+      totals: { listCount: number }
+      typeTotals?: { listType: string }[]
+      source?: string
+      warnings: { messageKey?: string }[]
+    }>(await callTool(client, 'summarize_lists', { source: 'cardkingdom' }))
+    expect(counts.totals.listCount).toBe(3)
+    expect(counts.typeTotals?.map((totals) => totals.listType)).toEqual([
+      'deck',
+      'collection',
+      'wanted',
+    ])
+    expect(counts.source).toBeUndefined()
+    expect(counts.warnings[0]?.messageKey).toBe('domain.cache.cardKingdom.missingApiAdvice')
+  })
+
+  test('summarize_lists prices at a store, trimming rows but not totals', async () => {
+    const priced = toolData<{
+      lists: { value?: { total: number } }[]
+      totals: { listCount: number }
+      currency?: string
+      lastRefreshedAt?: number | null
+    }>(await callTool(client, 'summarize_lists', { source: 'cardmarket', sort: 'value', limit: 1 }))
+    expect(priced.lists).toHaveLength(1)
+    expect(priced.totals.listCount).toBe(3)
+    expect(priced.currency).toBe('eur')
+    expect(typeof priced.lists[0]?.value?.total).toBe('number')
+    expect(typeof priced.lastRefreshedAt).toBe('number')
+  })
+
+  test('summarize_lists narrows to the lists named', async () => {
+    const named = toolData<{ lists: { listType: string; slug: string }[] }>(
+      await callTool(client, 'summarize_lists', {
+        lists: [
+          { listType: 'wanted', slug: 'wishlist' },
+          { listType: 'deck', slug: 'test-deck' },
+        ],
+      }),
+    )
+    expect(named.lists.map((row) => `${row.listType}:${row.slug}`)).toEqual([
+      'deck:test-deck',
+      'wanted:wishlist',
+    ])
+  })
+
+  test('summarize_lists rejects a limit below one', async () => {
+    const result = await callTool(client, 'summarize_lists', { limit: 0 })
+    expectSchemaRejection(result, /limit/)
+  })
+
+  test('get_list_prices prices one list at a store, which sets the currency', async () => {
     await cardCache.bulkSet({
       'Sol Ring': [makeScryfallCard({ name: 'Sol Ring', prices: { usd: '2.50', eur: '4.00' } })],
     })
-
-    const summary = toolData<{
-      mode: string
-      currency: string
-      lists: { type: string }[]
-    }>(await callTool(client, 'get_price_report', {}))
-    // `mode` is what discriminates the two price bodies for a client.
-    expect(summary.mode).toBe('summary')
-    // No source: the configured default store, which names its currency.
-    expect(summary.currency).toBe('usd')
-    expect(summary.lists.length).toBeGreaterThan(0)
-
-    // Shape-only wiring checks: the exact totals are pinned by the price-report
-    // engine tests and the admin handler tests, not re-computed here.
+    // cardmarket → the handler prices in EUR. The cardkingdom path needs a
+    // cached feed and is pinned at the handler layer (test/unit/admin/price.test.ts).
     const detail = toolData<{
-      mode: string
+      source: string
       currency: string
-      list?: { name: string; slug: string; total: number }
+      list: { name: string; slug: string; total: number }
       cards: unknown[]
+      warnings: unknown[]
     }>(
-      await callTool(client, 'get_price_report', {
+      await callTool(client, 'get_list_prices', {
         listType: 'deck',
         slug: 'test-deck',
         source: 'cardmarket',
       }),
     )
-    expect(detail.mode).toBe('list')
+    expect(detail.source).toBe('cardmarket')
     expect(detail.currency).toBe('eur')
-    expect(detail.list?.slug).toBe('test-deck')
-    expect(detail.list?.name).toBe('Test Deck')
-    expect(typeof detail.list?.total).toBe('number')
+    expect(detail.list.slug).toBe('test-deck')
+    expect(detail.list.name).toBe('Test Deck')
+    expect(typeof detail.list.total).toBe('number')
     expect(detail.cards.length).toBeGreaterThan(0)
+    expect(detail.warnings).toEqual([])
+    expect('mode' in detail).toBe(false)
   })
 
-  test('get_price_report scopes the summary to one list type with listType alone', async () => {
-    await cardCache.bulkSet({
-      'Sol Ring': [makeScryfallCard({ name: 'Sol Ring', prices: { usd: '2.50', eur: '4.00' } })],
-    })
-
-    const summary = toolData<{
-      lists: { type: string }[]
-    }>(await callTool(client, 'get_price_report', { listType: 'deck' }))
-    expect(summary.lists.length).toBeGreaterThan(0)
-    expect(summary.lists.every((l) => l.type === 'deck')).toBe(true)
-  })
-
-  test('get_price_report rejects a slug without a listType', async () => {
-    const result = await callTool(client, 'get_price_report', { slug: 'test-deck' })
-    expectSchemaRejection(result, /slug requires listType/)
-  })
-
-  test('get_price_report forwards source, which sets the currency', async () => {
-    await cardCache.bulkSet({
-      'Sol Ring': [makeScryfallCard({ name: 'Sol Ring', prices: { usd: '2.50', eur: '4.00' } })],
-    })
-    // cardmarket → the handler prices in EUR. The cardkingdom path needs a cached feed and is pinned at the handler layer
-    // (test/unit/admin/price.test.ts); this asserts only the wiring.
-    const summary = toolData<{ currency: string; source?: string }>(
-      await callTool(client, 'get_price_report', { source: 'cardmarket' }),
+  test('get_list_prices requires both listType and slug', async () => {
+    expectSchemaRejection(
+      await callTool(client, 'get_list_prices', { slug: 'test-deck' }),
+      /listType/,
     )
-    expect(summary.currency).toBe('eur')
-    expect(summary.source).toBe('cardmarket')
+    expectSchemaRejection(await callTool(client, 'get_list_prices', { listType: 'deck' }), /slug/)
   })
 
   test('get_history returns the change sets for a list', async () => {

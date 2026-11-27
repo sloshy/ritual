@@ -20,7 +20,10 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 
 - Lists are addressed by listType ("deck" | "collection" | "wanted") + slug (the file basename
   without ".md"). list_lists enumerates; get_list reads (start with view "summary" on an unfamiliar
-  list). Lists are also readable resources at ritual://{type}/{slug}.
+  list). Lists are also readable resources at ritual://{type}/{slug}. For counts or value across
+  several lists (copies in every collection, lists whose name contains a word, each deck's board
+  counts, the most valuable collections), call summarize_lists once rather than list_lists plus
+  a get_list per list; get_list_prices prices one list card by card.
 - Card targeting is exact and case-sensitive; cardId (the &N id get_list shows) wins when present,
   so pair it only with a cardName from the same get_list snapshot (ids are recycled after removals).
 - Single-list edits are all-or-nothing; the cross-list batch tools and import_change_bundle skip
@@ -47,7 +50,10 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   diff_lists' "warnings", import_deck's and import_csv's "warnings"/"advisories", and
   refresh_buylist's "staleFallback" and "skippedRows" (a skipped feed row's reason nested as
   "reason"), and get_diagnostics' "checks[].summary"/"hint"/"details", "config.problems",
-  "migrations.problem" and "cache.problem" are message objects, not strings ({ message,
+  "migrations.problem" and "cache.problem", and summarize_lists', get_list_prices' and
+  get_sell_report's "warnings" (each naming the list it is about as "list": { listType, slug }
+  when it is about one) are
+  message objects, not strings ({ message,
   messageKey?, messageParams? }; an import_deck warning whose card was kept without its labels
   adds "labelsDropped": true), and each import_csv "failures" row carries "reasonKey"/
   "reasonParams" beside its English "reason".

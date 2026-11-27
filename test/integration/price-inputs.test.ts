@@ -123,8 +123,10 @@ describe('loadPriceListInputs custom art', () => {
 
     const { inputs, warnings } = await loadPriceListInputs(undefined, locations)
     expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('binder: ')
-    expect(warnings[0]).toContain('.art.json')
+    // A message naming its list by identity, the cause nested under its name.
+    expect(warnings[0]?.messageKey).toBe('domain.price.inList')
+    expect(warnings[0]?.list).toEqual({ listType: 'collection', slug: 'binder' })
+    expect(warnings[0]?.message).toContain('.art.json')
     expect(entriesOf(inputs, 'binder')).toHaveLength(3)
     expect(entriesOf(inputs, 'binder').every((entry) => entry.hasCustomArt === undefined)).toBe(
       true,

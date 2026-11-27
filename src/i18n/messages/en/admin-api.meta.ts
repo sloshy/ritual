@@ -262,14 +262,6 @@ export const adminApiMeta = {
     description:
       'Refusal when a route’s list path segment contains a path separator or a NUL byte, so it cannot name one list file.',
   },
-  'admin.api.listNotFound': {
-    description:
-      'Error body (HTTP 404) when no list matches the name a request gave. {list} is that name as the request spelled it (sometimes with a type prefix, e.g. "collection:binder").',
-  },
-  'admin.api.listTypeInvalid': {
-    description:
-      'Refusal when a `type` query parameter is not deck, collection or wanted. {type} is the value sent.',
-  },
   'admin.api.list.notFound': {
     description:
       'Error body (HTTP 404) when the list a route names does not exist. {slug} is the list’s file name. One branch per list type; translate each branch as a whole sentence.',
@@ -437,13 +429,13 @@ export const adminApiMeta = {
   },
 
   // ── Prices and the sell report ────────────────────────────────────────
-  'admin.api.sell.refInvalid': {
+  'admin.api.listRefInvalid': {
     description:
-      'Refusal of a sell-report query whose lists parameter holds an entry not shaped type:slug. {ref} is the entry sent; "type:slug" is the format and stays verbatim.',
+      'Refusal of a query naming a list by a reference not shaped type:slug (the list parameter of a list summary or a sell report), or whose type is not a list type. {ref} is the reference sent; "type:slug" is the format and stays verbatim.',
   },
   'admin.api.sell.noRefs': {
     description:
-      "Refusal of a sell-report query whose lists parameter was given but names no list. 'lists' is the query parameter and stays verbatim.",
+      "Refusal of a sell-report query whose list parameter was given but names no list. 'list' is the query parameter and stays verbatim.",
   },
 
   // ── Request bodies and fields, any route ──────────────────────────────

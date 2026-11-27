@@ -15,6 +15,7 @@ import { CARD_CATEGORY_SHAPE_RULE, CARD_TAG_SHAPE_RULE } from './shape-rules'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { isListType } from '../list/list-type'
 import type { ListImageRef } from '../list/list-image'
+import { sourceCurrency, VALID_PRICE_SOURCES } from '../pricing/price-source'
 
 /**
  * Shared zod field schemas composed into each tool's `inputSchema` object.
@@ -35,6 +36,16 @@ export const conditionUpdateSchema = z.enum([...VALID_CONDITIONS, 'NONE'])
 export const deckFormatSchema = z.enum(DECK_FORMAT_KEYS)
 /** Derived from the canonical label vocabulary, so the tool schema cannot drift from it. */
 export const cardLabelSchema = z.enum(CARD_LABELS)
+/** A price store; the store sets the currency. */
+export const priceSourceSchema = z.enum(VALID_PRICE_SOURCES)
+
+/**
+ * "The store sets the currency: tcgplayer usd, …" — derived from the stores
+ * and their currencies, so no tool description can name a pairing that drifts.
+ */
+export const PRICE_SOURCE_CURRENCIES = `The store sets the currency: ${VALID_PRICE_SOURCES.map(
+  (source) => `${source} ${sourceCurrency(source)}`,
+).join(', ')}.`
 /** One member of a card's label override: a label or its `no-` negation. */
 export const signedCardLabelSchema = z.enum(SIGNED_CARD_LABELS)
 /**

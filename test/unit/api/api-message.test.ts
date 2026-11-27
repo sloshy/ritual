@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import {
   apiMessage,
+  booleanQueryParam,
+  enumQueryParam,
+  isApiMessage,
   parseEnumParam,
   renderApiMessage,
   type ApiMessage,
@@ -137,6 +140,30 @@ describe('request parsers answer in English whatever the process locale', () => 
         "Invalid direction 'sideways'. Use one of: push, pull.",
       )
     })
+  })
+})
+
+describe('enumQueryParam and booleanQueryParam', () => {
+  const params = new URLSearchParams('mode=PULL&blank=%20&on=True&off=false&bad=maybe')
+
+  test('absent and blank are undefined; a member is canonical, whatever its case', () => {
+    expect(enumQueryParam(params, 'missing', ['push', 'pull'])).toBeUndefined()
+    expect(enumQueryParam(params, 'blank', ['push', 'pull'])).toBeUndefined()
+    expect(enumQueryParam(params, 'mode', ['push', 'pull'])).toBe('pull')
+    expect(booleanQueryParam(params, 'blank')).toBeUndefined()
+    expect(booleanQueryParam(params, 'on')).toBe(true)
+    expect(booleanQueryParam(params, 'off')).toBe(false)
+  })
+
+  test('anything else is the shared enum refusal, naming the parameter', () => {
+    for (const refused of [
+      enumQueryParam(params, 'bad', ['push', 'pull']),
+      booleanQueryParam(params, 'bad'),
+    ]) {
+      if (!isApiMessage(refused)) throw new Error('accepted "maybe"')
+      expect(refused.messageKey).toBe('errors.enum.invalid')
+      expect(refused.messageParams).toMatchObject({ field: 'bad', value: 'maybe' })
+    }
   })
 })
 

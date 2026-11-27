@@ -4,7 +4,7 @@ import {
   ensureCardKingdomFeed,
   type LoadedCardKingdomFeed,
 } from '../../cardkingdom'
-import { isListType, type ListType } from '../../list/list-type'
+import { LIST_TYPES, type ListType } from '../../list/list-type'
 import type { ListLocation } from '../../list/resolve-list'
 import { cartWarningMessage, type BuylistFeedStamp, type SellCartCsv } from '../../buylist'
 import {
@@ -18,12 +18,14 @@ import {
   type SellReportView,
 } from '../../pricing/sell-report'
 import { loadAndBuildSellReport } from '../../pricing/sell-runtime'
+import type { PriceWarning } from '../../pricing/price-report'
 import { parseSetCodesInput } from '../../card/set-codes'
 import { parseTagFilterInput } from '../../card/card-tags'
 import { listLocationForSlug } from './list-info'
 import { apiError, badRequest, errorResponse, nestedRefusal } from '../../api/http'
 import { isSyncMessage, type SyncMessage } from '../../sync/message'
-import { apiMessage, type NotAMessage } from '../../api/result'
+import { apiMessage, enumQueryParam, isApiMessage, type NotAMessage } from '../../api/result'
+import { parseListRefParams } from './list-refs'
 import { requireBuylistFeed } from '../../api/buylist'
 import { requireCardCache } from './save-helpers'
 
@@ -62,27 +64,25 @@ export type SellRefreshResponse = Omit<BuylistFeedStamp, 'stale'> & {
   skippedRows: SyncMessage[]
 }
 
-/** Parse `?lists=type:slug,...` into locations; 400/404 on bad or empty refs. */
+/**
+ * Parse the repeated `?list=type:slug` into locations: absent when not given,
+ * a 400 on a malformed ref or when every value given is blank, a 404 on a ref
+ * naming no list.
+ */
 async function parseListsParam(url: URL): Promise<ListLocation[] | undefined | Response> {
-  const raw = url.searchParams.get('lists')
-  if (raw === null) return undefined
+  const raws = url.searchParams.getAll('list')
+  if (raws.length === 0) return undefined
+  const refs = parseListRefParams(raws)
+  if (isApiMessage(refs)) return badRequest(refs)
+  // `?list=` was given but named nothing: refusing beats silently widening
+  // the scope to every collection.
+  if (refs.length === 0) return badRequest(apiMessage('admin.api.sell.noRefs'))
   const locations: ListLocation[] = []
-  for (const ref of raw.split(',')) {
-    const trimmed = ref.trim()
-    if (trimmed === '') continue
-    const separator = trimmed.indexOf(':')
-    const type = separator > 0 ? trimmed.slice(0, separator) : ''
-    const slug = separator > 0 ? trimmed.slice(separator + 1) : ''
-    if (!isListType(type) || slug === '') {
-      return badRequest(apiMessage('admin.api.sell.refInvalid', { ref: trimmed }))
-    }
-    const location = await listLocationForSlug(type, slug)
-    if (!location) return apiError(apiMessage('admin.api.listNotFound', { list: trimmed }), 404)
+  for (const ref of refs) {
+    const location = await listLocationForSlug(ref.listType, ref.slug)
+    if (!location) return apiError(apiMessage('admin.api.list.notFound', ref), 404)
     locations.push(location)
   }
-  // `?lists=` was given but named nothing: refusing beats silently widening
-  // the scope to every collection.
-  if (locations.length === 0) return badRequest(apiMessage('admin.api.sell.noRefs'))
   return locations
 }
 
@@ -112,18 +112,12 @@ function queryParam<T extends NotAMessage<T>>(
 }
 
 /**
- * Parse the shared `?type=`/`?lists=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/
+ * Parse the shared `?type=`/`?list=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/
  * `?minOwned=` params; a Response on refusal.
  */
 async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
-  const rawType = url.searchParams.get('type')
-  let type: ListType | undefined
-  if (rawType) {
-    if (!isListType(rawType)) {
-      return badRequest(apiMessage('admin.api.listTypeInvalid', { type: rawType }))
-    }
-    type = rawType
-  }
+  const type = enumQueryParam(url.searchParams, 'type', LIST_TYPES)
+  if (isApiMessage(type)) return badRequest(type)
   const locations = await parseListsParam(url)
   if (locations instanceof Response) return locations
   const minPrice = queryParam(url, 'min', parseMinPrice)
@@ -152,7 +146,7 @@ async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
 type BuiltSellView = {
   view: SellReportView
   feed: LoadedCardKingdomFeed
-  warnings: string[]
+  warnings: PriceWarning[]
 }
 
 /** Build the filtered sell view for a parsed query; a Response on a 503. */
@@ -176,7 +170,7 @@ async function buildSellView(query: SellQuery): Promise<BuiltSellView | Response
 /**
  * GET /api/sell/report — every listed card matched against the cached Card
  * Kingdom buylist. Scope with `?type=` (default: collections) or
- * `?lists=type:slug,...`, narrowed before matching to lines carrying one of
+ * repeated `?list=type:slug`, narrowed before matching to lines carrying one of
  * `?tags=`; filter with `?sets=` (comma-separated codes), `?min=` (minimum
  * per-copy offer), `?minRatio=` (offer ÷ TCGplayer market) and `?minOwned=`
  * (total copies owned). A blank param is absent; a malformed one is a 400.
@@ -211,7 +205,7 @@ export async function handleSellReport(req: Request): Promise<Response> {
 /**
  * GET /api/sell/cart — the entries CK is buying, rendered as their header-less sell-cart
  * CSV import format (CK's own listing titles — variant note included — and
- * edition spellings, quantities capped at their buy limits), over the same `?type=`/`?lists=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` scope
+ * edition spellings, quantities capped at their buy limits), over the same `?type=`/`?list=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` scope
  * as the report. The capability behind the CLI's `sell --output csv`; carries
  * the title/card counts against CK's upload caps alongside the CSV itself.
  */

@@ -69,9 +69,9 @@ import { LIST_TYPES, type ListType } from '../list/list-type'
 import {
   isPricelessEntry,
   loadPriceListInputs,
-  type LoadedPriceInputs,
   type PriceListEntry,
   type PriceListInput,
+  type PriceWarning,
 } from './price-report'
 import type { ListLocation } from '../list/resolve-list'
 import type { ScryfallCard } from '../scryfall/types'
@@ -105,8 +105,8 @@ export type SellInputScope = {
   tags?: readonly CardTag[]
 }
 
-/** Lists loaded from disk, aggregated for matching, plus any parser warnings. */
-export type LoadedSellInputs = Omit<LoadedPriceInputs, 'inputs'> & { inputs: SellListInput[] }
+/** Lists loaded from disk, aggregated for matching, plus the shared loader's warnings. */
+export type LoadedSellInputs = { inputs: SellListInput[]; warnings: PriceWarning[] }
 
 export const SELL_ENTRY_STATUSES = ['buying', 'not-buying', 'no-match'] as const
 
@@ -335,8 +335,8 @@ export type SellReportPayload = {
   lists: SellListSummary[]
   entries: SellReportEntry[]
   totals: SellReportTotals
-  /** List parse warnings (prefixed with the list name) — lines matching could not read. */
-  warnings: string[]
+  /** Lines matching could not read and custom art it could not load, as messages. */
+  warnings: PriceWarning[]
 }
 
 /**

@@ -47,7 +47,7 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000
  *
  * @returns `null` when the preload succeeded, else the reason it did not.
  */
-async function tryPreload(preload: () => Promise<void>): Promise<SyncMessage | null> {
+export async function tryPreload(preload: () => Promise<void>): Promise<SyncMessage | null> {
   try {
     await preload()
     return null
