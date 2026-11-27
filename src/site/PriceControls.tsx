@@ -1,4 +1,5 @@
-import { type JSX, Show, createMemo, type Accessor } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { Show, createMemo, type Accessor } from 'solid-js'
 import type { CardData } from '../list-view/card-sorting'
 import { usePriceRefresh, type PriceRefresh, type PriceCardRef } from './usePriceRefresh'
 import { pricesEnabled } from '../list-view/price-view'

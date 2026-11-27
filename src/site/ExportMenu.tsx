@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { Show, createEffect, createSignal, on, onCleanup } from 'solid-js'
+import { Show, createEffect, createSignal, onCleanup } from 'solid-js'
 import { MenuButton } from '../ui/MenuButton'
 import { useT } from '../ui/i18n'
 import type { MessageKey } from '../i18n/messages/en'
@@ -110,13 +110,11 @@ export const ExportMenu: Component<ExportMenuProps> = (props) => {
   // they describe can no longer be made from this menu.
   const [warnings, setWarnings] = createSignal<readonly SyncMessageRef[]>([])
   createEffect(
-    on(
-      () => (props.extraFormats ?? []).length === 0,
-      (noExtras) => {
-        if (noExtras) setWarnings([])
-      },
-      { defer: true },
-    ),
+    () => (props.extraFormats ?? []).length === 0,
+    (noExtras) => {
+      if (noExtras) setWarnings([])
+    },
+    { defer: true },
   )
 
   const entries = (): MenuEntry[] => [

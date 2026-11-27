@@ -1,5 +1,5 @@
 import type { Accessor, Component } from 'solid-js'
-import { createSignal, createMemo, For, Show, onCleanup, createEffect, onMount } from 'solid-js'
+import { createSignal, createMemo, For, Show, onCleanup, createEffect, onSettled } from 'solid-js'
 import type { ScryfallCard } from '../scryfall/types'
 import type { Finish } from '../card/finish-condition'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -174,20 +174,20 @@ export const TradePage: Component<TradePageProps> = (props) => {
     return changed ? next : cards
   }
 
-  createEffect(() => {
-    const currency = props.currency
-    setLeftCards((prev) => repriceForCurrency(prev, currency))
-    setRightCards((prev) => repriceForCurrency(prev, currency))
-  })
+  createEffect(
+    () => props.currency,
+    (currency) => {
+      setLeftCards((prev) => repriceForCurrency(prev, currency))
+      setRightCards((prev) => repriceForCurrency(prev, currency))
+    },
+  )
 
   onCleanup(() => {
     if (copyToastTimer !== null) clearTimeout(copyToastTimer)
   })
 
-  createEffect(() => {
-    if (includeDecks()) {
-      tradeData.loadDecks()
-    }
+  createEffect(includeDecks, (include) => {
+    if (include) tradeData.loadDecks()
   })
 
   const leftTotal = createMemo(() => leftCards().reduce((s, c) => s + (c.price ?? 0) * c.qty, 0))
@@ -461,13 +461,13 @@ export const TradePage: Component<TradePageProps> = (props) => {
     setResetConfirmOpen(false)
   }
 
-  createEffect(() => {
-    if (!resetConfirmOpen()) return
+  createEffect(resetConfirmOpen, (open) => {
+    if (!open) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setResetConfirmOpen(false)
     }
     document.addEventListener('keydown', handler)
-    onCleanup(() => document.removeEventListener('keydown', handler))
+    return () => document.removeEventListener('keydown', handler)
   })
 
   const showToast = (message: string, anchor?: HTMLElement) => {
@@ -547,7 +547,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
     }
   }
 
-  onMount(() => {
+  onSettled(() => {
     const params = getHashParams()
     if (!hasTradeParams(params)) return
     if (params.has('leftSideDeckIds')) {
@@ -556,27 +556,30 @@ export const TradePage: Component<TradePageProps> = (props) => {
     setDecodeStatus('pending')
   })
 
-  createEffect(() => {
-    if (decodeStatus() !== 'pending') return
-    if (!tradeData.initialReady()) return
-    const params = getHashParams()
-    if (params.has('leftSideDeckIds') && !tradeData.decksReady()) return
-
-    setDecodeStatus('applied')
-    void decodeTradeFromParams(
-      params,
-      {
-        collectionEntries: tradeData.collectionEntries(),
-        deckEntries: tradeData.deckEntries(),
-        wantedEntries: tradeData.wantedEntries(),
-      },
-      props.currency,
-    ).then((decoded) => {
-      if (decoded.left.length > 0) setLeftCards(decoded.left)
-      if (decoded.right.length > 0) setRightCards(decoded.right)
-      if (decoded.warnings.length > 0) setDecodeWarnings(decoded.warnings)
-    })
-  })
+  createEffect(
+    () =>
+      decodeStatus() === 'pending' &&
+      tradeData.initialReady() &&
+      (!getHashParams().has('leftSideDeckIds') || tradeData.decksReady()),
+    (ready) => {
+      if (!ready) return
+      const params = getHashParams()
+      setDecodeStatus('applied')
+      void decodeTradeFromParams(
+        params,
+        {
+          collectionEntries: tradeData.collectionEntries(),
+          deckEntries: tradeData.deckEntries(),
+          wantedEntries: tradeData.wantedEntries(),
+        },
+        props.currency,
+      ).then((decoded) => {
+        if (decoded.left.length > 0) setLeftCards(decoded.left)
+        if (decoded.right.length > 0) setRightCards(decoded.right)
+        if (decoded.warnings.length > 0) setDecodeWarnings(decoded.warnings)
+      })
+    },
+  )
 
   return (
     <div class="trade-page">
@@ -585,7 +588,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
       </div>
 
       <div ref={primaryToolbarSentinelRef} aria-hidden="true" class="toolbar-sentinel" />
-      <div class="primary-toolbar" classList={{ 'is-stuck': primaryToolbarStuck() }}>
+      <div class={['primary-toolbar', { 'is-stuck': primaryToolbarStuck() }]}>
         <div class="primary-toolbar-left">
           <button
             ref={updatePricesButtonRef}
@@ -649,19 +652,13 @@ export const TradePage: Component<TradePageProps> = (props) => {
       </Show>
 
       <div class="col-toggle">
-        <button
-          classList={{ active: activePane() === 'left' }}
-          onClick={() => setActivePane('left')}
-        >
+        <button class={{ active: activePane() === 'left' }} onClick={() => setActivePane('left')}>
           {t('site.trade.offering')}
           <span class="col-toggle-meta">
             {leftCount()} · {formatPrice(leftTotal(), props.currency)}
           </span>
         </button>
-        <button
-          classList={{ active: activePane() === 'right' }}
-          onClick={() => setActivePane('right')}
-        >
+        <button class={{ active: activePane() === 'right' }} onClick={() => setActivePane('right')}>
           {t('site.trade.receiving')}
           <span class="col-toggle-meta">
             {rightCount()} · {formatPrice(rightTotal(), props.currency)}

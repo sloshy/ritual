@@ -1,4 +1,4 @@
-import { type Component, createEffect, createSignal, For, Show, on } from 'solid-js'
+import { type Component, createEffect, createSignal, For, Show } from 'solid-js'
 import { Modal } from '../../../ui/Modal'
 import {
   cardLabelDefaultChoicesFor,
@@ -50,13 +50,11 @@ export const ListLabelsModal: Component<ListLabelsModalProps> = (props) => {
 
   // Re-seed the radio state each time the modal opens (or the list changes).
   createEffect(
-    on(
-      () => [props.open, props.slug] as const,
-      () => {
-        setSelected([...(props.labels ?? [])])
-        setError(null)
-      },
-    ),
+    () => [props.open, props.slug] as const,
+    () => {
+      setSelected([...(props.labels ?? [])])
+      setError(null)
+    },
   )
 
   const isSelected = (choice: CardLabelDefaultChoice): boolean =>

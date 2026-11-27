@@ -12,8 +12,6 @@ export const errorMessages = {
   'errors.enum.type': '{field} must be one of: {choices}.',
   'errors.number.notNonNegative': "Invalid {field} '{value}' (expected a non-negative number)",
   'errors.number.notWholeNumber': "Invalid {field} '{value}' (expected a whole number)",
-  'errors.invariant.outsideProvider':
-    'Internal error: {hook} was called outside {provider}. This is a bug in Ritual.',
   'errors.invariant.calledBeforeSetup':
     'Internal error: {method} was called before {setup}. This is a bug in Ritual.',
   'errors.invariant.emptyArgument':

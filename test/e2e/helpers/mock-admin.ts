@@ -1105,6 +1105,22 @@ const MOVE_DATA = {
   warnings: [],
 } satisfies CardIndexResponse
 
+/** Options for {@link mockMoveCardsApi}. */
+export type MoveCardsMockOptions = {
+  /** Add a second collection, holding the same one card as the first. */
+  secondBinder?: boolean
+}
+
+/** The second collection {@link MoveCardsMockOptions.secondBinder} adds. */
+const SECOND_BINDER_INFO: ListInfo = {
+  listType: 'collection',
+  slug: 'move-trade',
+  name: 'Move Trade',
+}
+
+/** Its one card's physical-copy key. */
+export const SECOND_BINDER_CARD_KEY = 'collection:move-trade:1:0'
+
 /**
  * Mock the admin Move Cards endpoints: the bulk `/api/card-index`, the per-list
  * load endpoints for the three synthetic lists, card printings (for moved-in
@@ -1113,8 +1129,26 @@ const MOVE_DATA = {
 export async function mockMoveCardsApi(
   page: Page,
   onCommit?: (body: unknown) => void,
+  options: MoveCardsMockOptions = {},
 ): Promise<void> {
-  await fulfillJson(page, '**/api/card-index', MOVE_DATA)
+  await fulfillJson(
+    page,
+    '**/api/card-index',
+    options.secondBinder
+      ? {
+          ...MOVE_DATA,
+          lists: [...MOVE_LISTS, SECOND_BINDER_INFO],
+          cards: [
+            ...MOVE_DATA.cards,
+            {
+              ...MOVE_DATA.cards[0]!,
+              key: SECOND_BINDER_CARD_KEY,
+              listSlug: SECOND_BINDER_INFO.slug,
+            },
+          ],
+        }
+      : MOVE_DATA,
+  )
 
   await fulfillJson(page, '**/api/move/commit', (route: Route) => {
     const body = route.request().postDataJSON()
@@ -1159,6 +1193,13 @@ export async function mockMoveCardsApi(
     warnings: [],
   }
   await fulfillJson(page, '**/api/collection/move-binder', binder)
+  if (options.secondBinder) {
+    await fulfillJson(page, `**/api/collection/${SECOND_BINDER_INFO.slug}`, {
+      ...binder,
+      slug: SECOND_BINDER_INFO.slug,
+      contentHash: 'move-trade-hash',
+    })
+  }
 
   const deck: DeckFullLoadResult = {
     success: true,

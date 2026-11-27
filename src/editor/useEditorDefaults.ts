@@ -110,8 +110,7 @@ export function useEditorDefaults(
 ): UseEditorDefaultsResult {
   const [defaults, setDefaultsSignal] = createSignal<EditorDefaults>(loadStored(kind, namespace))
 
-  createEffect(() => {
-    const value = defaults()
+  createEffect(defaults, (value) => {
     if (typeof localStorage === 'undefined') return
     const payload: RawStored = {
       sets: value.sets,

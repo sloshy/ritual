@@ -34,14 +34,15 @@ function resolveFlameStops(): FlameStops {
 export function syncFaviconToTheme(store: ThemeStore): void {
   const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
   if (!link) return
-  createEffect(() => {
+  createEffect(
     // Track both signals so the favicon re-tints on theme switch and on any
     // live edit in the theme editor. This relies on useTheme's setters
     // applying the DOM (the data-theme attribute and inline `--*` overrides)
-    // *synchronously, before* writing the signal — so by the time this effect
-    // body runs, getComputedStyle already reflects the new flame colors.
-    store.theme()
-    store.customVars()
-    link.href = buildFlameDataUri(resolveFlameStops())
-  })
+    // *synchronously, before* writing the signal — so by the time the apply
+    // phase runs, getComputedStyle already reflects the new flame colors.
+    () => [store.theme(), store.customVars()] as const,
+    () => {
+      link.href = buildFlameDataUri(resolveFlameStops())
+    },
+  )
 }

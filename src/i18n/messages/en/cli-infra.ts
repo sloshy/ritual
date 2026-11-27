@@ -539,6 +539,7 @@ export const cliInfraMessages = {
   'cli.buildSite.themeFileNotJson': "{source} '{path}' is not valid JSON: {reason}",
   'cli.buildSite.themeFileInvalid': "{source} '{path}': {reason}",
   'cli.buildSite.spaBuildFailed': 'Site SPA {ext} build failed',
+  'cli.buildSite.jsxCompileFailed': 'Could not compile the JSX in {file}: {reason}',
   'cli.buildSite.spaBuildNoOutput': 'Site SPA build produced no {ext} output',
   'cli.buildSite.outDirBlank': '{flag} requires a directory path.',
   'cli.buildSite.outDirIsBase':

@@ -187,6 +187,37 @@ test.describe('Swap Printings wizard (public deck editor)', () => {
     expect(listActions).not.toContain('move-to')
   })
 
+  test('changing the sources after a pick reloads the candidates and drops the pick', async ({
+    page,
+  }) => {
+    const wizard = await openForWholeList(page)
+    await advanceToMode(wizard)
+    await goNext(wizard, 'Pick')
+    const leaRow = candidateRows(wizard).filter({ hasText: 'LEA:270' })
+    await takeOneButton(leaRow).click()
+    await expect(takeOneButton(leaRow)).toBeDisabled()
+
+    // Back to Sources and drop the collections: the binder is out of scope.
+    await backButton(wizard).click()
+    await expect(currentStep(wizard)).toHaveText('Mode')
+    await backButton(wizard).click()
+    await expect(currentStep(wizard)).toHaveText('Sources')
+    await scopeTypeCheckbox(wizard, 'Collections').uncheck()
+    await goNext(wizard, 'Mode')
+    await goNext(wizard, 'Pick')
+    await expect(candidateRows(wizard)).toHaveCount(0)
+
+    // Collections back in: the binder's rows return, with the earlier pick gone.
+    await backButton(wizard).click()
+    await backButton(wizard).click()
+    await expect(currentStep(wizard)).toHaveText('Sources')
+    await scopeTypeCheckbox(wizard, 'Collections').check()
+    await goNext(wizard, 'Mode')
+    await goNext(wizard, 'Pick')
+    await expect(candidateRows(wizard)).toHaveCount(2)
+    await expect(takeOneButton(candidateRows(wizard).filter({ hasText: 'LEA:270' }))).toBeEnabled()
+  })
+
   test('hovering a wizard card previews its art; a printing-less line previews the placeholder', async ({
     page,
   }) => {

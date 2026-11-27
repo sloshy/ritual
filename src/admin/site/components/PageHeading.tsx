@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
 import { useTKey } from '../../../ui/i18n'
 import { PAGE_DISPLAY, type Page } from '../routing'
 

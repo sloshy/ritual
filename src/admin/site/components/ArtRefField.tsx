@@ -132,7 +132,7 @@ export const ArtRefField: Component<ArtRefFieldProps> = (props) => {
           class={`form-input${refError() !== null ? ' form-input--invalid' : ''}`}
           value={props.field.input.draft()}
           placeholder={props.mode === 'file' ? EXAMPLE.artFile : EXAMPLE.artUrl}
-          aria-invalid={refError() !== null}
+          aria-invalid={refError() !== null ? 'true' : 'false'}
           aria-describedby={refError() !== null ? noteId() : undefined}
           onInput={(e) => props.field.input.onInput(e.currentTarget.value)}
           onBlur={() => props.field.input.flush()}

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, on, onCleanup } from 'solid-js'
+import { createEffect, createSignal, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 
 export type DebouncedInput = {
@@ -62,14 +62,12 @@ export function useDebouncedInput(
   // commit still pending for the now-stale draft. `defer` skips the initial run so the
   // draft keeps its constructor-time seed.
   createEffect(
-    on(
-      external,
-      (value) => {
-        cancel()
-        setDraft(value)
-      },
-      { defer: true },
-    ),
+    external,
+    (value) => {
+      cancel()
+      setDraft(value)
+    },
+    { defer: true },
   )
 
   const reset = (): void => {

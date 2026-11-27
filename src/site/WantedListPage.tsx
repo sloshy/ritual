@@ -1,7 +1,7 @@
 import { buylistFieldsFor } from '../list-view/buylist-quotes'
 import type { Component } from 'solid-js'
 import { useListCategories } from './list-categories'
-import { createSignal, createMemo, Index, Show } from 'solid-js'
+import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, sessionCacheVersion } from '../list-view/session-cache'
 import { normalizeCardName } from '../card/term-match'
@@ -462,7 +462,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         <ListDescriptionSection description={props.description} symbolMap={props.symbolMap} />
       }
       sections={
-        <Index each={page.cardGroups()}>
+        <For keyed={false} each={page.cardGroups()}>
           {(group) => (
             <CardSection
               priceEstimated={page.priceEstimated}
@@ -474,7 +474,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
               renderCard={renderWantedListCard}
             />
           )}
-        </Index>
+        </For>
       }
       overlays={
         <>

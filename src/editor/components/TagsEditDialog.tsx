@@ -1,4 +1,4 @@
-import { type Component, createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
+import { type Component, createMemo, createSignal, For, Show } from 'solid-js'
 import { focusAndSelectOnOpen } from '../../ui/focus-on-open'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'
@@ -25,16 +25,14 @@ import { closeTagsPrompt, pendingTagsPrompt } from '../tags-prompt'
 export const TagsEditDialog: Component = () => {
   let inputRef: HTMLInputElement | undefined
   const t = useT()
-  const [value, setValue] = createSignal('')
-
-  // Seed the draft from the request itself rather than from the modal's open
-  // transition: a request that *replaces* one already open never re-opens the
-  // modal, and the field must still show the new card's tags.
-  createEffect(
-    on(pendingTagsPrompt, (prompt) => {
-      if (prompt) setValue(formatCardTags(prompt.current))
-    }),
-  )
+  // The draft: derived from the request itself rather than from the modal's
+  // open transition (a request that *replaces* one already open never re-opens
+  // the modal, and the field must still show the new card's tags), and written
+  // by typing. A closed prompt keeps the last draft through the closing fade.
+  const [value, setValue] = createSignal<string>((previous) => {
+    const prompt = pendingTagsPrompt()
+    return prompt ? formatCardTags(prompt.current) : (previous ?? '')
+  })
 
   const parsed = createMemo(() => parseCardTagsInput(value()))
   // `add` mode falls back to `edit` while the prompt is null so the closing
@@ -72,6 +70,9 @@ export const TagsEditDialog: Component = () => {
     setValue(next)
     const input = inputRef
     if (input) {
+      // Written here as well: the bound `value` updates only on the flush, and
+      // the caret is placed now.
+      input.value = next
       input.focus()
       input.setSelectionRange(next.length, next.length)
     }
@@ -104,11 +105,11 @@ export const TagsEditDialog: Component = () => {
           id="tags-prompt-input"
           ref={inputRef}
           type="text"
-          class={`form-input${error() !== null ? ' form-input--invalid' : ''}`}
+          class={['form-input', { 'form-input--invalid': error() !== null }]}
           value={value()}
           placeholder={t('ui.editor.tagsPlaceholder')}
           autocomplete="off"
-          spellcheck={false}
+          spellcheck="false"
           aria-invalid={error() !== null ? 'true' : undefined}
           aria-describedby={
             error() !== null ? 'tags-prompt-hint tags-prompt-error' : 'tags-prompt-hint'

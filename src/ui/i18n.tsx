@@ -20,7 +20,9 @@
  * `MessageKey`s — data — and is resolved at render time.
  */
 
-import { createContext, createSignal, useContext, type Accessor, type JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createContext, useContext, type Accessor } from 'solid-js'
+import { createLatestSignal } from './latest-signal'
 import {
   appliedLocaleTag,
   getDictionary,
@@ -101,7 +103,11 @@ function buildStore(): BuiltStore {
   // renders the first paint from the English fallback, and when the dictionary
   // lands the tag is unchanged — so a tag-only signal's equality check would
   // swallow the update and leave that first paint English for good.
-  const [rendered, setRendered] = createSignal<RenderedLocale>(renderedLocale(), {
+  //
+  // Latest-valued: `registerLocaleSource`'s contract is that `t()` and the
+  // formatters follow the locale as soon as it is set, including in the same
+  // handler that set it, before the update flushes.
+  const [rendered, setRendered] = createLatestSignal<RenderedLocale>(renderedLocale(), {
     equals: sameRendering,
   })
   // A plain accessor, never a memo: `currentLocale()` reads it through
@@ -160,7 +166,8 @@ export function createI18nStore(): I18nStore {
   return store
 }
 
-const I18nContext = createContext<I18nStore | undefined>(undefined)
+// `null`, not `undefined`: a default-less context throws outside its provider.
+const I18nContext = createContext<I18nStore | null>(null)
 
 /** Props for {@link I18nProvider}. */
 export type I18nProviderProps = {
@@ -169,7 +176,7 @@ export type I18nProviderProps = {
 }
 
 export function I18nProvider(props: I18nProviderProps): JSX.Element {
-  return <I18nContext.Provider value={props.store}>{props.children}</I18nContext.Provider>
+  return <I18nContext value={props.store}>{props.children}</I18nContext>
 }
 
 /**

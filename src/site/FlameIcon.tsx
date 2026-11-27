@@ -4,7 +4,8 @@
 // favicon via `src/flame.ts`. The `var(--flame-*, …)` fallbacks keep the
 // flame visible even if a theme omits the vars.
 
-import { createUniqueId, type JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createUniqueId } from 'solid-js'
 import { useT } from '../ui/i18n'
 import {
   defaultFlameStops,

@@ -1,4 +1,5 @@
-import { type JSX, batch, createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
 import { useT, useTKey } from '../../../ui/i18n'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { PageHeading } from '../components/PageHeading'
@@ -80,26 +81,20 @@ export function CacheRefresh(): JSX.Element {
   onCleanup(() => stream?.close())
 
   const finish = (message: ApiActionMessage | null): void => {
-    batch(() => {
-      setStage('done')
-      setPercentage(100)
-      setStatus(message ?? apiMessage('admin.cache.refreshed'))
-    })
+    setStage('done')
+    setPercentage(100)
+    setStatus(message ?? apiMessage('admin.cache.refreshed'))
   }
 
   const fail = (message: ApiActionMessage | null): void => {
-    batch(() => {
-      setStage('error')
-      setError(message ?? apiMessage('admin.cache.streamFailed'))
-    })
+    setStage('error')
+    setError(message ?? apiMessage('admin.cache.streamFailed'))
   }
 
   /** The refresh without a stream: one blocking request, no progress. */
   const fallbackRefresh = async (): Promise<void> => {
-    batch(() => {
-      setStage('download')
-      setProgressMessage(apiMessage('admin.cache.fallbackProgress'))
-    })
+    setStage('download')
+    setProgressMessage(apiMessage('admin.cache.fallbackProgress'))
     const ok = await run(
       '/api/cache/refresh',
       { method: 'POST' },
@@ -109,37 +104,31 @@ export function CacheRefresh(): JSX.Element {
       setStage('error')
       return
     }
-    batch(() => {
-      setStage('done')
-      setPercentage(100)
-      // The same notice the stream path shows when the server said nothing.
-      if (status() === null) setStatus(apiMessage('admin.cache.refreshed'))
-    })
+    setStage('done')
+    setPercentage(100)
+    // The same notice the stream path shows when the server said nothing.
+    if (status() === null) setStatus(apiMessage('admin.cache.refreshed'))
   }
 
   const handleRefresh = (): void => {
     stream?.close()
     stream = null
-    batch(() => {
-      setStage('connecting')
-      setPercentage(0)
-      setProgressMessage('')
-      setError(null)
-      setStatus(null)
-    })
+    setStage('connecting')
+    setPercentage(0)
+    setProgressMessage('')
+    setError(null)
+    setStatus(null)
 
     stream = openSyncStream<CacheRefreshEvent, SyncMessage, SyncMessage>(
       '/api/cache/refresh/stream',
       {
         progress: (event) => {
-          batch(() => {
-            if (isRenderedStage(event.stage)) setStage(event.stage)
-            if (event.percentage !== undefined) setPercentage(event.percentage)
-            // Held unrendered, like the alerts: the line is English plus its key
-            // (its sizes nested), so a language switch relabels it mid-refresh.
-            // Untyped JSON: a frame without a string `message` shows no line.
-            setProgressMessage(readSyncMessage(event) ?? '')
-          })
+          if (isRenderedStage(event.stage)) setStage(event.stage)
+          if (event.percentage !== undefined) setPercentage(event.percentage)
+          // Held unrendered, like the alerts: the line is English plus its key
+          // (its sizes nested), so a language switch relabels it mid-refresh.
+          // Untyped JSON: a frame without a string `message` shows no line.
+          setProgressMessage(readSyncMessage(event) ?? '')
         },
         // Read through `readSyncMessage`: a frame is untyped JSON, and one with no
         // `message` string falls back to the page's own wording.

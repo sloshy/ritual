@@ -127,7 +127,7 @@ async function writeAdminBootAssets(adminDistDir: string): Promise<void> {
 }
 
 async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<void> {
-  const { SolidPlugin } = await import('@dschz/bun-plugin-solid')
+  const { solidPlugin } = await import('../site-build/solid-plugin')
   const result = await Bun.build({
     entrypoints: [path.join(srcDir, 'admin', 'site', 'app.tsx')],
     outdir: adminDistDir,
@@ -135,7 +135,9 @@ async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<void>
     format: 'esm',
     naming: 'app.js',
     define: { 'process.env.NODE_ENV': '"development"' },
-    plugins: [SolidPlugin()],
+    plugins: [solidPlugin({ generate: 'dom', dev: true })],
+    // Failures come back as logs, worded by the message below.
+    throw: false,
   })
   if (!result.success) {
     for (const log of result.logs) console.error(log)
@@ -148,6 +150,7 @@ async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<void
     entrypoints: [path.join(srcDir, 'admin', 'site', 'styles.css')],
     target: 'browser',
     minify: false,
+    throw: false,
   })
   if (!result.success) {
     for (const log of result.logs) console.error(log)

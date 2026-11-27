@@ -1,4 +1,5 @@
-import { For, Show, type Accessor, type Component, type JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { For, Show, type Accessor, type Component } from 'solid-js'
 import { useT } from '../../../ui/i18n'
 import type { ParameterlessKey } from '../../../i18n/t'
 import { listRefKey, type ListRefKey, type NamedListRef } from '../../../list-view/combined-list'
@@ -51,8 +52,10 @@ function RadioGroup<V extends string>(props: RadioGroupProps<V>): JSX.Element {
         <For each={props.choices}>
           {(choice) => (
             <label
-              class="swap-wizard-radio"
-              classList={{ 'swap-wizard-radio--selected': props.value === choice.value }}
+              class={[
+                'swap-wizard-radio',
+                { 'swap-wizard-radio--selected': props.value === choice.value },
+              ]}
             >
               <input
                 type="radio"
@@ -91,8 +94,8 @@ export const FinishFilterToggle: Component<FinishFilterToggleProps> = (props) =>
         {(choice) => (
           <button
             type="button"
-            classList={{ active: props.value === choice.value }}
-            aria-pressed={props.value === choice.value}
+            class={{ active: props.value === choice.value }}
+            aria-pressed={props.value === choice.value ? 'true' : 'false'}
             onClick={() => props.onChange(choice.value)}
           >
             {t(choice.label)}
@@ -162,8 +165,10 @@ export const ModeStep: Component<ModeStepProps> = (props) => {
         <legend class="swap-wizard-legend">{t('ui.swap.displaced.label')}</legend>
         <div class="swap-wizard-radios">
           <label
-            class="swap-wizard-radio"
-            classList={{ 'swap-wizard-radio--selected': props.displaced().kind === 'swap' }}
+            class={[
+              'swap-wizard-radio',
+              { 'swap-wizard-radio--selected': props.displaced().kind === 'swap' },
+            ]}
           >
             <input
               type="radio"
@@ -178,11 +183,13 @@ export const ModeStep: Component<ModeStepProps> = (props) => {
             </span>
           </label>
           <label
-            class="swap-wizard-radio"
-            classList={{
-              'swap-wizard-radio--selected': props.displaced().kind === 'override',
-              'swap-wizard-radio--disabled': props.displacedTargets().length === 0,
-            }}
+            class={[
+              'swap-wizard-radio',
+              {
+                'swap-wizard-radio--selected': props.displaced().kind === 'override',
+                'swap-wizard-radio--disabled': props.displacedTargets().length === 0,
+              },
+            ]}
           >
             <input
               type="radio"
@@ -222,8 +229,7 @@ export const ModeStep: Component<ModeStepProps> = (props) => {
         <fieldset class="swap-wizard-fieldset">
           <legend class="swap-wizard-legend">{t('ui.swap.replaceTaken.label')}</legend>
           <label
-            class="swap-wizard-radio"
-            classList={{ 'swap-wizard-radio--selected': props.replaceTaken() }}
+            class={['swap-wizard-radio', { 'swap-wizard-radio--selected': props.replaceTaken() }]}
           >
             <input
               type="checkbox"

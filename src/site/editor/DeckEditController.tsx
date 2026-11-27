@@ -1,4 +1,5 @@
-import { type Accessor, type JSX, Show, batch, createMemo, createSignal } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { type Accessor, Show, createMemo, createSignal } from 'solid-js'
 import type { SellModeProps } from '../../list-view/sell-mode'
 import type { CardKingdomCards } from '../../list/site-data'
 import type { DeckData } from '../../list/deck'
@@ -161,12 +162,10 @@ export function useDeckEditController(
     const labels = findDeckCardLabels(d, cardName, cardId)
     const tags = findDeckCardTags(d, cardName, cardId)
     // One update: the change list and the deck repaint together.
-    batch(() => {
-      editor.changes.addCard(cardName, { cardId, labels, tags })
-      editor.setData((prev) =>
-        prev ? applyDeck(prev, { action: 'add', cardName, labels, tags, cardId }) : prev,
-      )
-    })
+    editor.changes.addCard(cardName, { cardId, labels, tags })
+    editor.setData((prev) =>
+      prev ? applyDeck(prev, { action: 'add', cardName, labels, tags, cardId }) : prev,
+    )
   }
 
   /** Does the deck still hold any line of `cardName`? (The shared fold rule.) */
@@ -192,18 +191,16 @@ export function useDeckEditController(
       }
     }
 
-    batch(() => {
-      editor.changes.decrementCard(
-        cardName,
-        cardId,
-        removedCardData,
-        findDeckCardLabels(d, cardName, cardId),
-        findDeckCardTags(d, cardName, cardId),
-      )
-      editor.setData((prev) =>
-        prev ? applyDeck(prev, { action: 'remove', cardName, cardId }) : prev,
-      )
-    })
+    editor.changes.decrementCard(
+      cardName,
+      cardId,
+      removedCardData,
+      findDeckCardLabels(d, cardName, cardId),
+      findDeckCardTags(d, cardName, cardId),
+    )
+    editor.setData((prev) =>
+      prev ? applyDeck(prev, { action: 'remove', cardName, cardId }) : prev,
+    )
     // The removal took the deck's last line of this name, so its pending
     // `set-categories` events no longer have a card — fold them onto the undo
     // entry the removal just pushed (the web half of `FoldOptions.goneCardName`).
@@ -297,26 +294,24 @@ export function useDeckEditController(
     const line = d ? findDeckCard(d, cardName, cardId) : undefined
     const language = line?.language ?? printing.language
     const copy: MovedCopyPayload = movedCopyFromLine(line, listLabels())
-    batch(() => {
-      for (let i = 0; i < copies; i++) {
-        editor.changes.moveCardToList(cardName, dest, { ...printing, language, ...copy, cardId })
-        editor.setData((prev) =>
-          prev
-            ? applyDeck(prev, {
-                action: 'move-from',
-                cardName,
-                ...printing,
-                language,
-                ...copy,
-                cardId,
-                to: dest,
-              })
-            : prev,
-        )
-      }
-      if (cardId !== undefined) editor.pool.release(cardId)
-      if (!deckHoldsCardName(cardName)) editor.changes.foldGoneCardCategories(cardName)
-    })
+    for (let i = 0; i < copies; i++) {
+      editor.changes.moveCardToList(cardName, dest, { ...printing, language, ...copy, cardId })
+      editor.setData((prev) =>
+        prev
+          ? applyDeck(prev, {
+              action: 'move-from',
+              cardName,
+              ...printing,
+              language,
+              ...copy,
+              cardId,
+              to: dest,
+            })
+          : prev,
+      )
+    }
+    if (cardId !== undefined) editor.pool.release(cardId)
+    if (!deckHoldsCardName(cardName)) editor.changes.foldGoneCardCategories(cardName)
   }
 
   const moveCardToList = (target: CardContextInfo, dest: ListRef) => {
@@ -387,14 +382,10 @@ export function useDeckEditController(
       )
     },
     setLanguage: (cards, language) => {
-      batch(() => {
-        for (const c of cards) editor.handleSetLanguageFor(c.name, language, c.cardIds[0])
-      })
+      for (const c of cards) editor.handleSetLanguageFor(c.name, language, c.cardIds[0])
     },
     setLabel: (cards, target) => {
-      batch(() => {
-        for (const c of cards) handleSetLabelFor(c.name, target, c.cardIds[0])
-      })
+      for (const c of cards) handleSetLabelFor(c.name, target, c.cardIds[0])
     },
     labelDefault: () => listLabels(),
     addTags: (cards, onApplied) =>

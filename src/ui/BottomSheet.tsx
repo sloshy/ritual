@@ -1,4 +1,5 @@
-import { type Component, type JSX, Show } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { type Component, Show } from 'solid-js'
 import { useDialogModal } from './useDialogModal'
 import { useT } from './i18n'
 
@@ -34,8 +35,7 @@ export const BottomSheet: Component<BottomSheetProps> = (props) => {
   return (
     <dialog
       ref={dialog.setDialog}
-      class="sheet-shell"
-      classList={{ 'is-closing': dialog.exiting() }}
+      class={['sheet-shell', { 'is-closing': dialog.exiting() }]}
       aria-label={props['aria-label'] ?? props.title}
       onCancel={(e) => {
         // Escape would close the element outright, skipping the slide-out.

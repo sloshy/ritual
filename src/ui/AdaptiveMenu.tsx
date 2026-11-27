@@ -1,4 +1,5 @@
-import { type Accessor, type Component, type JSX, Show } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { type Accessor, type Component, Show } from 'solid-js'
 import { useAnchoredMenu } from './useAnchoredMenu'
 import type { AnchoredToggle } from './useAnchoredToggle'
 import { usePointerCoarse } from './useMediaQuery'

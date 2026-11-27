@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, onCleanup } from 'solid-js'
+import { type Accessor, createEffect } from 'solid-js'
 import { anchoredMenuOpen } from './useAnchoredMenu'
 
 /** Listener options for {@link useDocumentKeydown}. */
@@ -66,6 +66,12 @@ export function isPlainTypingKey(e: KeyboardEvent): boolean {
  *
  * `handler` is captured once, so it must read any state it depends on when the
  * event fires rather than closing over values from setup time.
+ *
+ * A listener never handles the keystroke that armed it. Solid delegates events
+ * at the app's root rather than the document, so a key that switches `active`
+ * on (Enter choosing a search result opens the printing step) is still on its
+ * way up to the document when the new listener is attached, and would
+ * otherwise act a second time.
  */
 export function useDocumentKeydown(
   handler: (e: KeyboardEvent) => void,
@@ -73,9 +79,13 @@ export function useDocumentKeydown(
   options: DocumentKeydownOptions = {},
 ): void {
   const capture = options.capture ?? false
-  createEffect(() => {
-    if (!active()) return
-    document.addEventListener('keydown', handler, { capture })
-    onCleanup(() => document.removeEventListener('keydown', handler, { capture }))
+  createEffect(active, (isActive) => {
+    if (!isActive) return
+    const armedAt = performance.now()
+    const listener = (e: KeyboardEvent): void => {
+      if (e.timeStamp > armedAt) handler(e)
+    }
+    document.addEventListener('keydown', listener, { capture })
+    return () => document.removeEventListener('keydown', listener, { capture })
   })
 }

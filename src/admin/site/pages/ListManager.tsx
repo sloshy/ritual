@@ -1,13 +1,5 @@
-import {
-  type JSX,
-  createSignal,
-  createEffect,
-  createMemo,
-  batch,
-  onMount,
-  Show,
-  For,
-} from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createSignal, createEffect, createMemo, onSettled, Show, For } from 'solid-js'
 import { NavLink } from '../components/NavLink'
 import {
   DECK_FORMAT_KEYS,
@@ -224,24 +216,21 @@ export function ListManager(): JSX.Element {
   }
 
   const resetForms = () => {
-    batch(() => {
-      setNewName('')
-      setNewFormat('commander')
-      setRenameName('')
-      setDeleteConfirm('')
-      setSelected(null)
-      setError(null)
-    })
+    setNewName('')
+    setNewFormat('commander')
+    setRenameName('')
+    setDeleteConfirm('')
+    setSelected(null)
+    setError(null)
   }
 
-  createEffect(() => {
-    category()
+  createEffect(category, () => {
     setView('list')
     resetForms()
     void fetchItems()
   })
 
-  onMount(() => {
+  onSettled(() => {
     void fetchConfig()
   })
 

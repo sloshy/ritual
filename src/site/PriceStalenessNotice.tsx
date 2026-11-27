@@ -22,7 +22,7 @@ export const PriceStalenessNotice: Component<PriceStalenessNoticeProps> = (props
         <button
           type="button"
           class="price-staleness-toggle"
-          aria-expanded={open()}
+          aria-expanded={open() ? 'true' : 'false'}
           onClick={() => setOpen((o) => !o)}
         >
           <span class="price-staleness-icon" aria-hidden="true">

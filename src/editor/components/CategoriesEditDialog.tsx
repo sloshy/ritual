@@ -1,4 +1,4 @@
-import { type Component, createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
+import { type Component, createEffect, createMemo, createSignal, For, Show } from 'solid-js'
 import { focusAndSelectOnOpen } from '../../ui/focus-on-open'
 import { swapNeighbour } from '../../util/array'
 import { Modal } from '../../ui/Modal'
@@ -41,11 +41,9 @@ export const CategoriesEditDialog: Component = () => {
   // Seed the draft from the request itself rather than from the modal's open
   // transition: a request that *replaces* one already open never re-opens the
   // modal, and the field must still show the new card's categories.
-  createEffect(
-    on(pendingCategoriesPrompt, (prompt) => {
-      if (prompt) setValue(formatCardCategories(prompt.current))
-    }),
-  )
+  createEffect(pendingCategoriesPrompt, (prompt) => {
+    if (prompt) setValue(formatCardCategories(prompt.current))
+  })
 
   const parsed = createMemo(() => parseCardCategoriesInput(value()))
   const canSave = () => parsed().ok
@@ -168,7 +166,7 @@ export const CategoriesEditDialog: Component = () => {
           value={value()}
           placeholder={t('ui.editor.categoriesPlaceholder')}
           autocomplete="off"
-          spellcheck={false}
+          spellcheck="false"
           aria-invalid={error() !== null ? 'true' : undefined}
           aria-describedby={
             error() !== null

@@ -66,20 +66,23 @@ export function useCardNavScroll(
   list: Accessor<CardNavListId | null>,
   ready: Accessor<boolean>,
 ): void {
-  createEffect(() => {
-    const pendingTarget = pending()
-    if (!cardNavMatchesList(pendingTarget, list()) || !ready()) return
-    // Fresh const so the narrowed type survives into the closure below.
-    const target = pendingTarget
-    setPending(null)
-    // The effect runs after render, but wait a frame so freshly-mounted tiles
-    // (e.g. right after the list's detail JSON resolves) are laid out first.
-    requestAnimationFrame(() => {
-      const el = findCardTile(target)
-      if (!el) return
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      el.classList.add('card-nav-highlight')
-      window.setTimeout(() => el.classList.remove('card-nav-highlight'), HIGHLIGHT_MS)
-    })
-  })
+  createEffect(
+    () => {
+      const target = pending()
+      return cardNavMatchesList(target, list()) && ready() ? target : null
+    },
+    (target) => {
+      if (!target) return
+      setPending(null)
+      // The effect runs after render, but wait a frame so freshly-mounted tiles
+      // (e.g. right after the list's detail JSON resolves) are laid out first.
+      requestAnimationFrame(() => {
+        const el = findCardTile(target)
+        if (!el) return
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        el.classList.add('card-nav-highlight')
+        window.setTimeout(() => el.classList.remove('card-nav-highlight'), HIGHLIGHT_MS)
+      })
+    },
+  )
 }

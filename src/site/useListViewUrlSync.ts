@@ -1,11 +1,13 @@
-import { createEffect, on } from 'solid-js'
+import { createEffect } from 'solid-js'
 import type { CardLabelSelection } from '../card/card-labels'
 import type { GroupBy, SortBy } from '../list-view/card-sorting'
 import { SELL_MODE_FILTER_KEYS, type CardFilters } from './card-filters'
+import type { BuyerId } from '../buylist'
+import type { PriceSource } from '../pricing/price-source'
 import type { CardFiltersControl } from './useCardFilters'
 import type { ListRefKey } from '../list-view/combined-list'
 import { activeStore, pricesEnabled, selectStore, storeIsExplicit } from '../list-view/price-view'
-import type { UseToolbarStateResult } from './useToolbarState'
+import type { UseToolbarStateResult, UseToolbarStateSeed } from './useToolbarState'
 import {
   type ListViewDefaults,
   type ListViewState,
@@ -14,11 +16,8 @@ import {
   writeListViewParams,
 } from './list-view-url'
 
-export type UseListViewUrlSyncConfig<G extends GroupBy> = {
-  toolbar: UseToolbarStateResult<G>
-  filters: CardFiltersControl
-  /** The page's effective default group/sort, so default values stay out of the URL. */
-  defaults: ListViewDefaults
+/** What a page offers, against which a shared URL's state is validated. */
+export type ListViewUrlSeedConfig<G extends GroupBy> = {
   /**
    * The group-by values this page actually offers. A URL group-by outside this set
    * (e.g. a deck link's `group=printing` pasted onto a collection) is ignored rather
@@ -32,8 +31,6 @@ export type UseListViewUrlSyncConfig<G extends GroupBy> = {
    * sync with what is selectable — the sort itself handles every field regardless.
    */
   sortByValues: readonly SortBy[]
-  /** When false, the hook is inert — used to limit URL sync to the public read view. */
-  enabled?: boolean
   /**
    * The label chips this page actually offers (`labelFiltersFor` / the combined
    * view's union). Incoming `labels=` values outside the set are dropped —
@@ -58,6 +55,32 @@ export type UseListViewUrlSyncConfig<G extends GroupBy> = {
    * which offers every list.
    */
   currentShareList?: ListRefKey
+}
+
+/**
+ * A shared URL's list-view state, validated against what the page offers. The
+ * toolbar and filter parts seed the page's own signals as they are created;
+ * the rest is session-wide state the page applies on mount.
+ */
+export type ListViewUrlSeed<G extends GroupBy> = {
+  toolbar: UseToolbarStateSeed<G>
+  filters?: Partial<CardFilters>
+  sellMode?: boolean
+  buyer?: BuyerId
+  priceSource?: PriceSource
+}
+
+export type UseListViewUrlSyncConfig<G extends GroupBy> = {
+  toolbar: UseToolbarStateResult<G>
+  filters: CardFiltersControl
+  /** The page's effective default group/sort, so default values stay out of the URL. */
+  defaults: ListViewDefaults
+  /** When false, the hook is inert — used to limit URL sync to the public read view. */
+  enabled?: boolean
+  /** Whether this page offers sell mode; only such a page writes `sell=` to its URL. */
+  supportsSellMode?: boolean
+  /** The URL's state as {@link readListViewUrlSeed} read it at setup, if any. */
+  seed: ListViewUrlSeed<G> | null
 }
 
 /**
@@ -125,70 +148,88 @@ function syncStateToUrl(state: ListViewState, defaults: ListViewDefaults): void 
 }
 
 /**
- * Two-way sync between a list view's toolbar/filter state and the URL query string.
- * On construction it applies any parameters present in the URL; thereafter it mirrors
- * state changes back into the URL via `history.replaceState` (no new history entries,
- * no route change), so the current view is always shareable by link.
+ * Read the list-view state a shared URL carries, validated against what the
+ * page offers, or `null` when the URL names none (or there is no window).
  *
- * `groupByValues`, `sortByValues`, `availableLabels` and `supportsSellMode` are
- * read **once, at setup** — the pages pass them as plain values, not accessors,
- * so a vocabulary that changes while the page is mounted is not picked up. Each
- * is derived from the page's *kind* (a deck page is always a deck), never from
- * data that arrives later, which is what lets the URL's filters apply on the
- * first pass rather than after a load. That is sound only
- * because one page is mounted at a time and every page re-runs this on mount:
- * `sellModeEnabled` in particular is now runtime-mutable (the admin's Settings
+ * The page reads this **once, at setup**, before creating its toolbar and
+ * filter state, and seeds them with it — so a shared link's view applies on
+ * the first render, with no write during setup. `groupByValues`,
+ * `sortByValues`, `availableLabels` and `supportsSellMode` are plain values for
+ * the same reason: each is derived from the page's *kind* (a deck page is
+ * always a deck), never from data that arrives later. That is sound only
+ * because one page is mounted at a time and every page re-reads this on mount:
+ * `sellModeEnabled` in particular is runtime-mutable (the admin's Settings
  * checkbox flips it mid-session), and it stays correct because the Settings page
  * and a list page are never mounted together. A sell-mode control added anywhere
  * that *can* coexist with a list page — a header switch, a dashboard card — has
- * to turn these three into accessors first, or the URL sync will keep validating
+ * to turn these into accessors first, or the URL sync will keep validating
  * against the old sell-mode vocabulary.
+ */
+export function readListViewUrlSeed<G extends GroupBy>(
+  config: ListViewUrlSeedConfig<G>,
+): ListViewUrlSeed<G> | null {
+  if (typeof window === 'undefined') return null
+  const initial = currentHashParams()
+  if (!hasListViewParams(initial)) return null
+  const o = parseListViewParams(initial)
+  const toolbar: UseToolbarStateSeed<G> = {}
+  if (o.viewMode) toolbar.viewMode = o.viewMode
+  if (o.cardSize) toolbar.cardSize = o.cardSize
+  if (o.groupBy && (config.groupByValues as readonly string[]).includes(o.groupBy)) {
+    toolbar.groupBy = o.groupBy as G
+  }
+  if (o.sortLayers) {
+    const offered = new Set<string>(config.sortByValues)
+    const layers = o.sortLayers.filter((l) => offered.has(l.sortBy))
+    if (layers.length > 0) toolbar.sortLayers = layers
+  }
+  if (o.reverseGroups) toolbar.reverseGroups = true
+  if (o.priceGroupStrategy) toolbar.priceGroupStrategy = o.priceGroupStrategy
+  const seed: ListViewUrlSeed<G> = { toolbar }
+  if (config.supportsSellMode === true) {
+    if (o.sellMode) seed.sellMode = true
+    if (o.buyer) seed.buyer = o.buyer
+  }
+  // A URL's store is an explicit choice — the viewer sees the link's store,
+  // and so its currency, over their default and sell mode's courtesy
+  // default. `activeStore` settles a store this deployment does not offer
+  // onto one it does, so applying it blind is safe.
+  if (o.priceSource) seed.priceSource = o.priceSource
+  if (o.filters) {
+    let filters = o.filters
+    if (filters.labels) {
+      const kept = offeredLabels(filters.labels, config.availableLabels)
+      if (kept === undefined) delete filters.labels
+      else filters.labels = kept
+    }
+    if (config.supportsSellMode !== true) {
+      for (const key of SELL_MODE_FILTER_KEYS) delete filters[key]
+    }
+    if (config.currentShareList !== undefined) {
+      filters = stripCurrentShareList(filters, config.currentShareList)
+    }
+    seed.filters = filters
+  }
+  return seed
+}
+
+/**
+ * Two-way sync between a list view's toolbar/filter state and the URL query string.
+ * The page seeds its own state from {@link readListViewUrlSeed}; this applies
+ * the seed's session-wide part (sell mode, buyer, price store) and thereafter
+ * mirrors state changes back into the URL via `history.replaceState` (no new
+ * history entries, no route change), so the current view is always shareable
+ * by link.
  */
 export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSyncConfig<G>): void {
   if (config.enabled === false || typeof window === 'undefined') return
-  const { toolbar, filters, defaults, groupByValues, sortByValues } = config
+  const { toolbar, filters, defaults, seed } = config
 
-  // Apply URL overrides once, at construction, before the first render.
-  const initial = currentHashParams()
-  if (hasListViewParams(initial)) {
-    const o = parseListViewParams(initial)
-    if (o.viewMode) toolbar.setViewMode(o.viewMode)
-    if (o.cardSize) toolbar.setCardSize(o.cardSize)
-    if (o.groupBy && (groupByValues as readonly string[]).includes(o.groupBy)) {
-      const groupBy = o.groupBy as G
-      toolbar.setGroupBy(() => groupBy)
-    }
-    if (o.sortLayers) {
-      const offered = new Set<string>(sortByValues)
-      const layers = o.sortLayers.filter((l) => offered.has(l.sortBy))
-      if (layers.length > 0) toolbar.setSortLayers(layers)
-    }
-    if (o.reverseGroups) toolbar.setReverseGroups(true)
-    if (o.priceGroupStrategy) toolbar.setPriceGroupStrategy(o.priceGroupStrategy)
-    if (config.supportsSellMode === true) {
-      if (o.sellMode) toolbar.setSellMode(true)
-      if (o.buyer) toolbar.setBuyer(o.buyer)
-    }
-    // A URL's store is an explicit choice — the viewer sees the link's store,
-    // and so its currency, over their default and sell mode's courtesy
-    // default. `activeStore` settles a store this deployment does not offer
-    // onto one it does, so applying it blind is safe.
-    if (o.priceSource) selectStore(o.priceSource)
-    if (o.filters) {
-      if (o.filters.labels) {
-        const kept = offeredLabels(o.filters.labels, config.availableLabels)
-        if (kept === undefined) delete o.filters.labels
-        else o.filters.labels = kept
-      }
-      if (config.supportsSellMode !== true) {
-        for (const key of SELL_MODE_FILTER_KEYS) delete o.filters[key]
-      }
-      if (config.currentShareList !== undefined) {
-        o.filters = stripCurrentShareList(o.filters, config.currentShareList)
-      }
-      filters.update(o.filters)
-    }
-  }
+  // Session-wide state, not the page's own: applied as the page mounts, before
+  // its first render (these signals take `ownedWrite` for exactly this).
+  if (seed?.sellMode) toolbar.setSellMode(true)
+  if (seed?.buyer) toolbar.setBuyer(seed.buyer)
+  if (seed?.priceSource) selectStore(seed.priceSource)
 
   // `priceSources: []` resolves from index.json *after* the URL overrides
   // above applied, so a shared link's price state must be unwound once the
@@ -196,29 +237,27 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
   // hide-unpriced toggle, and the price grouping/sort would otherwise keep
   // acting behind controls the toolbar no longer shows (with every price 0,
   // the filter empties the whole list). Mirrors useSellMode's exit cleanup.
-  createEffect(
-    on(pricesEnabled, (enabled) => {
-      if (enabled) return
-      const cleared: Partial<CardFilters> = {}
-      if (filters.filters.price !== null) cleared.price = null
-      if (filters.filters.hideUnpriced) cleared.hideUnpriced = false
-      if (Object.keys(cleared).length > 0) filters.update(cleared)
-      if (toolbar.groupBy() === 'price') toolbar.setGroupBy(() => defaults.groupBy as G)
-      const layers = toolbar.sortLayers().filter((l) => l.sortBy !== 'price')
-      if (layers.length !== toolbar.sortLayers().length) {
-        toolbar.setSortLayers(
-          layers.length > 0 ? layers : [{ sortBy: defaults.sortBy, reverse: false }],
-        )
-      }
-    }),
-  )
+  createEffect(pricesEnabled, (enabled) => {
+    if (enabled) return
+    const cleared: Partial<CardFilters> = {}
+    if (filters.filters.price !== null) cleared.price = null
+    if (filters.filters.hideUnpriced) cleared.hideUnpriced = false
+    if (Object.keys(cleared).length > 0) filters.update(cleared)
+    if (toolbar.groupBy() === 'price') toolbar.setGroupBy(() => defaults.groupBy as G)
+    const layers = toolbar.sortLayers().filter((l) => l.sortBy !== 'price')
+    if (layers.length !== toolbar.sortLayers().length) {
+      toolbar.setSortLayers(
+        layers.length > 0 ? layers : [{ sortBy: defaults.sortBy, reverse: false }],
+      )
+    }
+  })
 
   // Mirror subsequent state changes back into the URL.
-  createEffect(() => {
-    // Spreading the store proxy reads every filter field, so the effect subscribes
-    // to all of them and re-runs on any change — and new CardFilters fields are
-    // picked up automatically without editing this list.
-    const state: ListViewState = {
+  createEffect(
+    (): ListViewState => ({
+      // Spreading the store proxy reads every filter field, so the effect subscribes
+      // to all of them and re-runs on any change — and new CardFilters fields are
+      // picked up automatically without editing this list.
       viewMode: toolbar.viewMode(),
       cardSize: toolbar.cardSize(),
       groupBy: toolbar.groupBy(),
@@ -236,7 +275,9 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       // the source value itself did not change.
       ...(storeIsExplicit() ? { priceSource: activeStore() } : {}),
       filters: { ...filters.filters },
-    }
-    syncStateToUrl(state, defaults)
-  })
+    }),
+    (state) => {
+      syncStateToUrl(state, defaults)
+    },
+  )
 }

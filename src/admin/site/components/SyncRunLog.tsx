@@ -1,4 +1,5 @@
-import { type JSX, Index, Show } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { For, Show } from 'solid-js'
 import { useT } from '../../../ui/i18n'
 import type { SyncRunItem, SyncRunMessage, SyncRunStatus } from '../sync-run'
 import { useSyncText } from '../sync-text'
@@ -23,7 +24,7 @@ type SyncRunLogProps = {
 }
 
 /**
- * `<Index>` rather than `<For>` throughout: rows and lines only ever append, in
+ * Non-keyed `<For keyed={false}>` throughout: rows and lines only ever append, in
  * order, and a run starts from empty — while every event replaces the row it
  * touches with a new object. Keyed by position, a replaced row updates in place
  * instead of remounting with all its lines, which on a long run would re-render
@@ -36,33 +37,33 @@ export function SyncRunLog(props: SyncRunLogProps): JSX.Element {
     <Show when={props.items.length > 0 || props.notes.length > 0}>
       <h3 class="section-subheading">{t('admin.sync.progress')}</h3>
       <ul class="sync-run">
-        <Index each={props.notes}>
+        <For keyed={false} each={props.notes}>
           {(message) => (
             <li class="sync-run-note" data-level={message().level}>
               {sync(message().text)}
             </li>
           )}
-        </Index>
-        <Index each={props.items}>
+        </For>
+        <For keyed={false} each={props.items}>
           {(item) => (
             <li class="sync-run-item" data-status={item().status}>
               <span class="sync-run-icon">{RUN_ICONS[item().status]}</span>
               <div class="sync-run-body">
                 <span class="sync-run-name">{item().name}</span>
-                <Index each={item().messages}>
+                <For keyed={false} each={item().messages}>
                   {(message) => (
                     <span class="sync-run-message" data-level={message().level}>
                       {sync(message().text)}
                     </span>
                   )}
-                </Index>
+                </For>
               </div>
               <Show when={item().meta}>
                 {(meta) => <span class="sync-run-meta">{sync(meta())}</span>}
               </Show>
             </li>
           )}
-        </Index>
+        </For>
       </ul>
     </Show>
   )

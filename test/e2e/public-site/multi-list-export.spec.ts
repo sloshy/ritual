@@ -38,7 +38,12 @@ test.describe('Public editor multi-list export', () => {
     await page.locator('.edit-banner .btn-export').click()
     await expect(page.locator('.export-panel')).toBeVisible()
     await expect(page.locator('.export-panel-scope')).toHaveCount(0)
-    await expect(page.locator('.export-panel-count')).toContainText('Exporting 1 change')
+    await expect(page.locator('.export-panel-count')).toHaveText(/^Exporting 1 change\b(?! across)/)
+    const [onlyA] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('.export-panel button', { hasText: 'Download change list' }).click(),
+    ])
+    expect(onlyA.suggestedFilename()).toBe('MS_Deck_A-edits.json')
     await page.locator('.export-panel-close').click()
 
     // Navigate to deck B within the SPA — edit mode and deck A's session persist.
@@ -130,6 +135,18 @@ test.describe('Public editor multi-list export', () => {
     await panel.locator('.export-panel-scope-option', { hasText: 'This list' }).click()
     await expect(panel.locator('.export-panel-count')).toContainText('Exporting 0 changes')
     await expect(panel.locator('button', { hasText: 'Download change list' })).toBeDisabled()
+
+    // Once deck B has an edit of its own, reopening defaults to it.
+    await page.locator('.export-panel-close').click()
+    await removeFirstCard(page)
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+    await page.locator('.edit-banner .btn-export').click()
+    await expect(
+      panel.locator('.export-panel-scope-option', { hasText: 'This list' }),
+    ).toHaveAttribute('data-active', 'true')
+    await expect(panel.locator('.export-panel-count')).toHaveText(
+      /^Exporting 1 change\b(?! across)/,
+    )
   })
 
   test('exports off a list page: combined views offer a Current-lists scope, All is default', async ({

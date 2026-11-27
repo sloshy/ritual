@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
 import { compareDisplay } from '../i18n/collate'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from '../list/site-data'
@@ -68,17 +68,15 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
 
   // Reset the selection each time the modal is opened so it never carries stale picks.
   createEffect(
-    on(
-      () => props.open,
-      (isOpen) => {
-        if (isOpen) {
-          setSelected(new Set<string>())
-          setAll(false)
-          setSort('name')
-        }
-      },
-      { defer: true },
-    ),
+    () => props.open,
+    (isOpen) => {
+      if (isOpen) {
+        setSelected(new Set<string>())
+        setAll(false)
+        setSort('name')
+      }
+    },
+    { defer: true },
   )
 
   // Every list except the one currently in view (which is always part of the combination).
@@ -226,7 +224,7 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
         >
           <For each={sortedChoices()}>
             {(choice) => (
-              <label class="combine-modal-row" classList={{ 'is-disabled': all() }}>
+              <label class={['combine-modal-row', { 'is-disabled': all() }]}>
                 <input
                   type="checkbox"
                   checked={isChecked(choice.ref)}

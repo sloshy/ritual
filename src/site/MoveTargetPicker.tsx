@@ -43,8 +43,10 @@ export const MoveTargetPicker: Component<MoveTargetPickerProps> = (props) => {
           {(option) => (
             <button
               type="button"
-              class="move-picker-item"
-              classList={{ 'move-picker-item--create': option.variant === 'create' }}
+              class={[
+                'move-picker-item',
+                { 'move-picker-item--create': option.variant === 'create' },
+              ]}
               onClick={() => {
                 props.onClose()
                 option.onSelect()

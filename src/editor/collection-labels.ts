@@ -6,7 +6,6 @@
  * `handleSetLabelFor` in `DeckEditController.tsx`.
  */
 
-import { batch } from 'solid-js'
 import type { UseEditorResult } from './editor-config'
 import type { CollectionCardEntry } from '../list/site-data'
 import { overrideForChoice, type CardLabel, type CardLabelTarget } from '../card/card-labels'
@@ -29,22 +28,20 @@ export function setLabelsForCards(
   listDefault: readonly CardLabel[] | undefined,
 ): void {
   const labels = overrideForChoice(state, listDefault)
-  batch(() => {
-    for (const target of targets) {
-      for (const cardId of target.cardIds) {
-        const originalLabels = editor.getOriginal()?.find((e) => e.cardId === cardId)?.labels
-        editor.changes.setLabel(target.cardName, labels, originalLabels, cardId)
-        editor.setData((prev) =>
-          prev !== null
-            ? // Against the same default the controller's reducer applies with.
-              applyChangeToCollection(
-                prev,
-                { action: 'set-label', cardName: target.cardName, labels, cardId },
-                { listLabels: listDefault },
-              )
-            : prev,
-        )
-      }
+  for (const target of targets) {
+    for (const cardId of target.cardIds) {
+      const originalLabels = editor.getOriginal()?.find((e) => e.cardId === cardId)?.labels
+      editor.changes.setLabel(target.cardName, labels, originalLabels, cardId)
+      editor.setData((prev) =>
+        prev !== null
+          ? // Against the same default the controller's reducer applies with.
+            applyChangeToCollection(
+              prev,
+              { action: 'set-label', cardName: target.cardName, labels, cardId },
+              { listLabels: listDefault },
+            )
+          : prev,
+      )
     }
-  })
+  }
 }

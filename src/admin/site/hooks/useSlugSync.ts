@@ -1,4 +1,4 @@
-import { createEffect, on, type Accessor } from 'solid-js'
+import { createEffect, type Accessor } from 'solid-js'
 
 /** The list-selection props every admin list editor takes, so its page can track it in the URL. */
 export type EditorSlugProps = {
@@ -19,17 +19,14 @@ export type EditorSlugProps = {
 export function useSlugSync(slug: Accessor<string | null>, props: EditorSlugProps): void {
   let reported: string | null = props.initialSlug ?? null
   createEffect(
-    on(
-      slug,
-      (next) => {
-        // The deep-linked slug lands here when the list resolves; that is the
-        // URL we already have, so only a genuine change is worth reporting.
-        if (next === reported) return
-        reported = next
-        props.onSlugChange?.(next)
-      },
-      // Skips the editor's pre-selection `null`.
-      { defer: true },
-    ),
+    slug,
+    (next) => {
+      // The deep-linked slug lands here when the list resolves; that is the
+      // URL we already have, so only a genuine change is worth reporting.
+      if (next === reported) return
+      reported = next
+      props.onSlugChange?.(next)
+    },
+    { defer: true },
   )
 }

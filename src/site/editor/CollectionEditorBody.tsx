@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
 import type { CollectionCardEntry } from '../../list/site-data'
 import type { CardLabel } from '../../card/card-labels'
 import { CollectionPage } from '../CollectionPage'

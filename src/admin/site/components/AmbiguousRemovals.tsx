@@ -1,4 +1,5 @@
-import { type JSX, createMemo, For, Match, Show, Switch } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createMemo, For, Match, Show, Switch } from 'solid-js'
 import type { CollectionSyncList } from '../../api/collection-sync'
 import { describeAmbiguousRemoval, type AmbiguousRemoval } from '../../../collection-sync/describe'
 import { useT, useTSegments } from '../../../ui/i18n'

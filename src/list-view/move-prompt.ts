@@ -1,4 +1,5 @@
-import { createSignal, type Accessor } from 'solid-js'
+import { type Accessor } from 'solid-js'
+import { createLatestSignal } from '../ui/latest-signal'
 import type { ListRef } from '../changes/change-event'
 import { listRefDisplay } from '../changes/change-message'
 import { t } from '../i18n/t'
@@ -31,7 +32,7 @@ export interface MoveTargetPrompt {
   options: MoveTargetOption[]
 }
 
-const [pending, setPending] = createSignal<MoveTargetPrompt | null>(null)
+const [pending, setPending] = createLatestSignal<MoveTargetPrompt | null>(null)
 
 /** The move-target choice currently awaiting the user, or null. */
 export const pendingMovePrompt: Accessor<MoveTargetPrompt | null> = pending

@@ -1,4 +1,5 @@
-import { type JSX, For } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { For } from 'solid-js'
 import { useTKey } from '../../../ui/i18n'
 import { PAGE_DISPLAY, type Page } from '../routing'
 import { NavLink } from '../components/NavLink'

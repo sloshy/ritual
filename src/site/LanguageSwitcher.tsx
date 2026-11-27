@@ -11,7 +11,7 @@
 // Each locale is named in its own language ("Deutsch", not "German"), which is
 // the only naming a reader who cannot read the current language can act on.
 
-import { type Component, For, Show, createEffect, createMemo, on } from 'solid-js'
+import { type Component, For, Show, createEffect, createMemo } from 'solid-js'
 import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
 import type { LocaleTag } from '../i18n/types'
 import { useT } from '../ui/i18n'
@@ -70,12 +70,10 @@ export const LanguageSwitcher: Component<LanguageSwitcherProps> = (props) => {
   // switcher is left naming a language the page is not in. Solid will not do
   // this for us: the accessor's value did not change.
   createEffect(
-    on(
-      () => props.locale,
-      (tag) => {
-        if (select !== undefined && select.value !== tag) select.value = tag
-      },
-    ),
+    () => props.locale,
+    (tag) => {
+      if (select !== undefined && select.value !== tag) select.value = tag
+    },
   )
 
   return (

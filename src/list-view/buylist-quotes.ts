@@ -16,7 +16,8 @@
  *   see a fresher feed.
  */
 
-import { batch, createSignal, untrack, type Accessor } from 'solid-js'
+import { createSignal, untrack, type Accessor } from 'solid-js'
+import { createLatestSignal } from '../ui/latest-signal'
 import {
   DEFAULT_BUYER,
   buylistFeedIsStale,
@@ -141,10 +142,12 @@ export function setBuylistQuotesOnline(next: boolean): void {
 /** How fresh the loaded quotes are; null before any successful response. */
 export type BuylistFeedInfo = Omit<BuylistFeedStamp, 'productCount'>
 
-const [quotes, setQuotes] = createSignal<ReadonlyMap<string, BuylistQuote>>(new Map())
-const [feedInfo, setFeedInfo] = createSignal<BuylistFeedInfo | null>(null)
+// Latest-valued: a buyer switch resets the store and reads it straight back in
+// the same call, before a plain signal would show the reset.
+const [quotes, setQuotes] = createLatestSignal<ReadonlyMap<string, BuylistQuote>>(new Map())
+const [feedInfo, setFeedInfo] = createLatestSignal<BuylistFeedInfo | null>(null)
 const [loading, setLoading] = createSignal(false)
-const [error, setError] = createSignal<SyncMessageRef | null>(null)
+const [error, setError] = createLatestSignal<SyncMessageRef | null>(null)
 
 /** Outstanding requests. A bare boolean would be cleared by whichever of two
  * overlapping calls finished first, while the other was still running. */
@@ -326,6 +329,16 @@ export function buylistRequestFor(
   return buildBuylistRequest(card, finish, language)
 }
 
+/** `current` with `added` written over it, as a new map. */
+function withQuotes(
+  current: ReadonlyMap<string, BuylistQuote>,
+  added: readonly (readonly [string, BuylistQuote])[],
+): ReadonlyMap<string, BuylistQuote> {
+  const next = new Map(current)
+  for (const [key, quote] of added) next.set(key, quote)
+  return next
+}
+
 /** Drop every loaded quote — on a buyer switch, and in tests. */
 export function resetBuylistQuotes(): void {
   resolved = new Set()
@@ -401,13 +414,9 @@ function seed(baked: BakedBuylist, buyer: BuyerId): boolean {
   // Every baked key counts as answered for, including ones already present, so
   // the store never re-asks for a printing this list already settled.
   for (const key of Object.keys(seeded.quotes)) resolved.add(key)
-  const next = new Map(current)
-  for (const [key, quote] of added) next.set(key, quote)
-  batch(() => {
-    if (added.length > 0) setQuotes(next)
-    if (stampChanged) setFeedInfo(stamp)
-    setError(null)
-  })
+  if (added.length > 0) setQuotes((prev) => withQuotes(prev, added))
+  if (stampChanged) setFeedInfo(stamp)
+  setError(null)
   return true
 }
 
@@ -452,8 +461,10 @@ export async function requestBuylistQuotes(
   try {
     // Accumulated across batches and written once: each `setQuotes` invalidates
     // every card memo on the page, so writing per batch re-renders a large list
-    // once per 400 printings for no visible benefit.
-    const next = new Map(quotes())
+    // once per 400 printings for no visible benefit. Merged into the store's
+    // value at write time, not a copy taken now: a request that settles while
+    // this one awaits must keep its quotes.
+    const fetched: [string, BuylistQuote][] = []
     let stamp: BuylistFeedInfo | null = null
     for (let i = 0; i < pending.length; i += QUOTE_BATCH_SIZE) {
       const slice = pending.slice(i, i + QUOTE_BATCH_SIZE)
@@ -464,7 +475,7 @@ export async function requestBuylistQuotes(
       // feed would never be asked about them. Checked per batch — every write
       // below runs synchronously after this guard.
       if (myGeneration !== generation) return
-      for (const [key, quote] of Object.entries(data.quotes)) next.set(key, quote)
+      fetched.push(...Object.entries(data.quotes))
       for (const printing of slice) {
         resolved.add(quoteKey(printing.set, printing.collectorNumber, printing.finish))
       }
@@ -474,11 +485,9 @@ export async function requestBuylistQuotes(
         stale: data.stale,
       }
     }
-    batch(() => {
-      setQuotes(next)
-      if (stamp) setFeedInfo(stamp)
-      setError(null)
-    })
+    setQuotes((prev) => withQuotes(prev, fetched))
+    if (stamp) setFeedInfo(stamp)
+    setError(null)
   } catch (e) {
     // A straggler's failure must not stick a sticky error onto the store a
     // reset just gave a clean slate.

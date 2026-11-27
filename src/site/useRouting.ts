@@ -1,4 +1,4 @@
-import { createSignal, onMount, onCleanup } from 'solid-js'
+import { createSignal, onSettled, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type { ListType } from '../list/list-type'
 import type { CombinedListRef } from '../list-view/combined-list'
@@ -128,7 +128,7 @@ export function useRouting(): UseRoutingResult {
 
   const hashHandler = () => navigate(parseHash())
 
-  onMount(() => {
+  onSettled(() => {
     window.addEventListener('hashchange', hashHandler)
   })
 

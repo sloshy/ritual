@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
 import { createSignal, Show } from 'solid-js'
 import type { CardContextInfo } from '../list-view/card-context'
 import { CardContextMenu } from '../editor/components/CardContextMenu'

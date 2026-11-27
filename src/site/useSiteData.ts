@@ -1,5 +1,5 @@
 import { isSourceOffer, type SourceOffer } from '../config/source-offer'
-import { batch, createEffect, createSignal, onMount, onCleanup } from 'solid-js'
+import { createEffect, createSignal, onSettled } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type {
   DeckSummary,
@@ -111,29 +111,27 @@ export function useSiteData(): UseSiteDataResult {
     // Batched: this runs from async contexts (no auto-batching), and consumers
     // deriving from several of these signals must never observe a half-applied
     // index between the individual writes.
-    batch(() => {
-      setDeckList(data.decks)
-      setCollectionList(data.collections ?? [])
-      setWantedListList(data.wantedLists ?? [])
-      setUseScryfallImgUrls(data.useScryfallImgUrls)
-      if (data.pricesDate) setPricesDate(data.pricesDate)
-      if (typeof data.searchDebounceMs === 'number') setSearchDebounceMs(data.searchDebounceMs)
-      if (data.defaultLanguage) setDefaultLanguage(data.defaultLanguage)
-      // Absent on sites built before categories existed, which reads as "no
-      // configured suggestions" — never as the shipped default vocabulary.
-      if (data.defaultCategories) setDefaultCategories(data.defaultCategories)
-      // Absent on sites built before locales existed, which reads as English-only.
-      if (data.availableLocales && data.availableLocales.length > 0) {
-        setAvailableLocales(data.availableLocales)
-      }
-      // Absent on sites built before sell mode existed, which reads as off.
-      setSellModeConfigured(data.sellMode === true)
-      // Validated, since it lands in the footer's links.
-      setAbout(isSourceOffer(data.about) ? data.about : null)
-      // The stores and the one to open on; the currency in view follows the
-      // store (a pick outlives every refetch). An empty list hides all price UI.
-      seedPriceView({ stores: data.priceSources, defaultSource: data.defaultPriceSource })
-    })
+    setDeckList(data.decks)
+    setCollectionList(data.collections ?? [])
+    setWantedListList(data.wantedLists ?? [])
+    setUseScryfallImgUrls(data.useScryfallImgUrls)
+    if (data.pricesDate) setPricesDate(data.pricesDate)
+    if (typeof data.searchDebounceMs === 'number') setSearchDebounceMs(data.searchDebounceMs)
+    if (data.defaultLanguage) setDefaultLanguage(data.defaultLanguage)
+    // Absent on sites built before categories existed, which reads as "no
+    // configured suggestions" — never as the shipped default vocabulary.
+    if (data.defaultCategories) setDefaultCategories(data.defaultCategories)
+    // Absent on sites built before locales existed, which reads as English-only.
+    if (data.availableLocales && data.availableLocales.length > 0) {
+      setAvailableLocales(data.availableLocales)
+    }
+    // Absent on sites built before sell mode existed, which reads as off.
+    setSellModeConfigured(data.sellMode === true)
+    // Validated, since it lands in the footer's links.
+    setAbout(isSourceOffer(data.about) ? data.about : null)
+    // The stores and the one to open on; the currency in view follows the
+    // store (a pick outlives every refetch). An empty list hides all price UI.
+    seedPriceView({ stores: data.priceSources, defaultSource: data.defaultPriceSource })
   }
 
   /**
@@ -236,11 +234,12 @@ export function useSiteData(): UseSiteDataResult {
   // backend is in use. Derived rather than set once at boot, so a configured
   // backend that later proves unreachable takes the pickers back to the baked
   // quotes with it instead of firing requests at a static host.
-  createEffect(() => setBuylistQuotesOnline(apiActive()))
+  createEffect(apiActive, (online) => {
+    setBuylistQuotesOnline(online)
+  })
 
-  onMount(() => {
+  onSettled(() => {
     const controller = new AbortController()
-    onCleanup(() => controller.abort())
     void loadInitial(controller.signal)
 
     // Live mode: returning to a long-idle tab refreshes the summaries.
@@ -248,7 +247,10 @@ export function useSiteData(): UseSiteDataResult {
       if (document.visibilityState === 'visible') refetch()
     }
     document.addEventListener('visibilitychange', onVisibility)
-    onCleanup(() => document.removeEventListener('visibilitychange', onVisibility))
+    return () => {
+      controller.abort()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   })
 
   return {

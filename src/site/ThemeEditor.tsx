@@ -20,9 +20,7 @@ import {
   createMemo,
   createSignal,
   createEffect,
-  on,
-  onCleanup,
-  onMount,
+  onSettled,
   type Component,
 } from 'solid-js'
 import {
@@ -33,7 +31,7 @@ import {
   type CustomTheme,
 } from '../theme/themes'
 import { useTheme, readCssVar } from './useTheme'
-import { Dynamic } from 'solid-js/web'
+import { Dynamic } from '@solidjs/web'
 import {
   themeVarGroups,
   themeVarsByGroup,
@@ -173,18 +171,16 @@ export const ThemeEditor: Component = () => {
   // so the synchronous fire would be a no-op write that nobody observes, but
   // it would also misleadingly imply this effect reacts to first mount.
   createEffect(
-    on(
-      activeGroup,
-      () => {
-        setOpenVar(null)
-      },
-      { defer: true },
-    ),
+    activeGroup,
+    () => {
+      setOpenVar(null)
+    },
+    { defer: true },
   )
 
   // Click-outside / escape closes open picker.
-  createEffect(() => {
-    if (!openVar()) return
+  createEffect(openVar, (open) => {
+    if (!open) return
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       if (!target.closest('.theme-editor-picker') && !target.closest('.theme-editor-swatch-btn')) {
@@ -196,16 +192,16 @@ export const ThemeEditor: Component = () => {
     }
     document.addEventListener('mousedown', handler)
     document.addEventListener('keydown', keyHandler)
-    onCleanup(() => {
+    return () => {
       document.removeEventListener('mousedown', handler)
       document.removeEventListener('keydown', keyHandler)
-    })
+    }
   })
 
   const groupVars = createMemo(() => themeVarsByGroup[activeGroup()] ?? [])
 
   let editorRef: HTMLDivElement | undefined
-  onMount(() => {
+  onSettled(() => {
     if (!editorRef) return
     const el = editorRef
     const update = () => {
@@ -214,10 +210,10 @@ export const ThemeEditor: Component = () => {
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
-    onCleanup(() => {
+    return () => {
       ro.disconnect()
       document.documentElement.style.removeProperty('--theme-editor-h')
-    })
+    }
   })
 
   return (
@@ -297,11 +293,13 @@ export const ThemeEditor: Component = () => {
           {(group) => (
             <button
               type="button"
-              class="theme-editor-tab"
-              classList={{ 'theme-editor-tab-active': activeGroup() === group.id }}
+              class={[
+                'theme-editor-tab',
+                { 'theme-editor-tab-active': activeGroup() === group.id },
+              ]}
               onClick={() => setActiveGroup(group.id)}
               role="tab"
-              aria-selected={activeGroup() === group.id}
+              aria-selected={activeGroup() === group.id ? 'true' : 'false'}
               title={tKey(group.description)}
             >
               {tKey(group.label)}
@@ -388,29 +386,34 @@ const ThemeVarSwatch: Component<ThemeVarSwatchProps> = (props) => {
   // While the popover is open, keep its viewport position in sync with the
   // anchor swatch — the toolbar itself can scroll internally (overflow-y),
   // and the window can be resized.
-  createEffect(() => {
-    if (!props.isOpen) {
-      setPos(null)
-      return
-    }
-    updatePos()
-    const handler = () => updatePos()
-    window.addEventListener('resize', handler)
-    // Capture-phase so inner scroll containers (the toolbar itself) also fire.
-    window.addEventListener('scroll', handler, true)
-    onCleanup(() => {
-      window.removeEventListener('resize', handler)
-      window.removeEventListener('scroll', handler, true)
-    })
-  })
+  createEffect(
+    () => props.isOpen,
+    (isOpen) => {
+      if (!isOpen) {
+        setPos(null)
+        return
+      }
+      updatePos()
+      const handler = () => updatePos()
+      window.addEventListener('resize', handler)
+      // Capture-phase so inner scroll containers (the toolbar itself) also fire.
+      window.addEventListener('scroll', handler, true)
+      return () => {
+        window.removeEventListener('resize', handler)
+        window.removeEventListener('scroll', handler, true)
+      }
+    },
+  )
 
   return (
-    <div class="theme-editor-var" classList={{ 'theme-editor-var-open': props.isOpen }}>
+    <div class={['theme-editor-var', { 'theme-editor-var-open': props.isOpen }]}>
       <button
         ref={btnRef}
         type="button"
-        class="theme-editor-swatch-btn"
-        classList={{ 'theme-editor-swatch-overridden': props.isOverridden }}
+        class={[
+          'theme-editor-swatch-btn',
+          { 'theme-editor-swatch-overridden': props.isOverridden },
+        ]}
         onClick={props.onToggle}
         title={tKey(props.meta.description)}
       >

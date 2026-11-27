@@ -1,4 +1,5 @@
-import { type Accessor, type JSX, Show, batch, createMemo, createSignal } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { type Accessor, Show, createMemo, createSignal } from 'solid-js'
 import type { Finish, Condition } from '../card/finish-condition'
 import { DEFAULT_SECTION } from '../list/deck'
 import { type CardLabel, type LabelOverride } from '../card/card-labels'
@@ -261,36 +262,34 @@ export function useFlatListEditController<E extends FlatEntry>(
     printing: PrintingTuple,
     cardIds: number[],
   ) => {
-    batch(() => {
-      for (const id of cardIds) {
-        const entry = entryByCardId(id)
-        const language = entry?.language ?? printing.language
-        const copy: MovedCopyPayload = movedCopyFromLine(entry, params.listLabels())
-        editor.changes.moveCardToList(cardName, dest, {
-          ...printing,
-          language,
-          ...copy,
-          cardId: id,
-        })
-        editor.setData((prev) =>
-          prev
-            ? applyFlat(prev, {
-                action: 'move-from',
-                cardName,
-                ...printing,
-                language,
-                ...copy,
-                cardId: id,
-                to: dest,
-              })
-            : prev,
-        )
-        editor.pool.release(id)
-      }
-      if (!listHoldsCardName(editor.data() ?? [], cardName)) {
-        editor.changes.foldGoneCardCategories(cardName)
-      }
-    })
+    for (const id of cardIds) {
+      const entry = entryByCardId(id)
+      const language = entry?.language ?? printing.language
+      const copy: MovedCopyPayload = movedCopyFromLine(entry, params.listLabels())
+      editor.changes.moveCardToList(cardName, dest, {
+        ...printing,
+        language,
+        ...copy,
+        cardId: id,
+      })
+      editor.setData((prev) =>
+        prev
+          ? applyFlat(prev, {
+              action: 'move-from',
+              cardName,
+              ...printing,
+              language,
+              ...copy,
+              cardId: id,
+              to: dest,
+            })
+          : prev,
+      )
+      editor.pool.release(id)
+    }
+    if (!listHoldsCardName(editor.data() ?? [], cardName)) {
+      editor.changes.foldGoneCardCategories(cardName)
+    }
   }
 
   const handleMoveCardToList = (target: CardContextInfo, dest: ListRef) => {
@@ -374,11 +373,9 @@ export function useFlatListEditController<E extends FlatEntry>(
       )
     },
     setLanguage: (cards, language) => {
-      batch(() => {
-        for (const c of cards) {
-          for (const id of c.cardIds) editor.handleSetLanguageFor(c.name, language, id)
-        }
-      })
+      for (const c of cards) {
+        for (const id of c.cardIds) editor.handleSetLanguageFor(c.name, language, id)
+      }
     },
     addTags: (cards, onApplied) =>
       bulkAddTags({
@@ -514,12 +511,10 @@ export function FlatListContextMenu<E extends FlatEntry>(
                   // The baseline is re-read per copy at save time, not the
                   // snapshot the dialog was seeded from: the delta decides
                   // which events exist, so it must be each copy's own live set.
-                  batch(() => {
-                    for (const id of ids) {
-                      const live = props.ctrl.liveTagsOf(target.cardName, id)
-                      editor.handleSetTagsFor(target.cardName, tags, live, id)
-                    }
-                  })
+                  for (const id of ids) {
+                    const live = props.ctrl.liveTagsOf(target.cardName, id)
+                    editor.handleSetTagsFor(target.cardName, tags, live, id)
+                  }
                 },
               })
             }}
@@ -541,11 +536,9 @@ export function FlatListContextMenu<E extends FlatEntry>(
               )?.language
               props.ctrl.closeContextMenu()
               promptCardLanguage(current, (language) => {
-                batch(() => {
-                  for (const id of target.cardIds) {
-                    editor.handleSetLanguageFor(target.cardName, language, id)
-                  }
-                })
+                for (const id of target.cardIds) {
+                  editor.handleSetLanguageFor(target.cardName, language, id)
+                }
               })
             }}
             onUnsetCommander={props.ctrl.closeContextMenu}

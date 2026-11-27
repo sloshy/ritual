@@ -11,7 +11,7 @@
  * into its list detail, the admin editors let the store fetch them.
  */
 
-import { createEffect, createMemo, on, type Accessor } from 'solid-js'
+import { createEffect, createMemo, type Accessor } from 'solid-js'
 import { quoteKey, type BuyerId, type BuylistQuoteRequest } from '../buylist'
 import {
   buylistRequestFor,
@@ -139,6 +139,9 @@ function quoteRequests(cards: CardData[]): BuylistQuoteRequest[] {
   return [...requests.values()]
 }
 
+/** What the quote-loading effect hands its apply phase while quotes are wanted. */
+type SellModeLoad = { buyer: BuyerId; baked: BakedBuylist | undefined; cards: CardData[] }
+
 /** Why a baked page has no buylist prices: the build carried no buyer feed. */
 const NOT_BAKED = syncRef('site.sell.notBaked')
 
@@ -151,14 +154,14 @@ export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSe
   /**
    * Ensure the store holds this page's quotes.
    *
-   * The buyer and the baked payload are passed in rather than read here, so the
-   * caller decides whether those reads are tracked: the effect below takes them
-   * before its early return (making them dependencies), while the click handler
-   * takes them once, untracked. `cards` is read here instead, per branch: the
-   * live path must re-request when the card set changes, while the baked path
-   * looks at it only to tell an unpriced page from an empty one.
+   * The buyer, the baked payload and the cards are passed in rather than read
+   * here, so the caller decides whether those reads are tracked: the effect
+   * below takes them in its compute (making them dependencies — the live path
+   * must re-request when the card set changes, and the baked path must report
+   * a missing payload once cards arrive), while the click handler takes them
+   * once.
    */
-  const loadQuotes = (buyer: BuyerId, baked: BakedBuylist | undefined): void => {
+  const loadQuotes = (buyer: BuyerId, baked: BakedBuylist | undefined, cards: CardData[]): void => {
     if (input.quotes.kind === 'baked') {
       // `seedBuylistQuotes` reports whether the payload carried anything for
       // this buyer, so a detail quoted against a *different* buyer explains
@@ -168,10 +171,10 @@ export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSe
       // view whose details are still in flight has no cards yet, and announcing
       // missing prices for a page with nothing on it is noise, not an
       // explanation.
-      if (input.cards().length > 0) reportBuylistUnavailable(NOT_BAKED)
+      if (cards.length > 0) reportBuylistUnavailable(NOT_BAKED)
       return
     }
-    const requests = quoteRequests(input.cards())
+    const requests = quoteRequests(cards)
     if (requests.length === 0) return
     void requestBuylistQuotes(requests, buyer)
   }
@@ -203,7 +206,7 @@ export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSe
     // baked path this is free: `buylistFieldsFor` short-circuits while the mode
     // is off, so nothing on the page depends on the quote map yet and seeding
     // it now costs one rebuild instead of two.
-    loadQuotes(input.toolbar.buyer(), bakedQuotes())
+    loadQuotes(input.toolbar.buyer(), bakedQuotes(), input.cards())
   }
 
   const control = createMemo((): SellModeControl | undefined =>
@@ -227,46 +230,47 @@ export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSe
   // them), whether or not sell mode is on — so the effect also fires while
   // that source is selected. Deliberately not gated on `supported`: a site can
   // enable the `cardkingdom` price source with sell mode off.
-  createEffect(() => {
-    // Read the buyer first: after an early return it would be an untracked
-    // dependency, so switching buyers on a page with nothing to quote would
-    // neither reset the store nor re-run this.
-    const buyer = input.toolbar.buyer()
-    // Likewise for the baked payload, so a detail that arrives (or is refetched
-    // from a live backend) while sell mode is already on re-seeds the store.
-    const baked = bakedQuotes()
-    if (!active() && activeStore() !== 'cardkingdom') return
-    loadQuotes(buyer, baked)
-  })
+  createEffect(
+    // The buyer, the baked payload and the cards are dependencies while quotes
+    // are wanted, so switching buyers, a detail that arrives (or is refetched
+    // from a live backend), or a card added in an editor re-seeds the store.
+    (): SellModeLoad | null =>
+      active() || activeStore() === 'cardkingdom'
+        ? { buyer: input.toolbar.buyer(), baked: bakedQuotes(), cards: input.cards() }
+        : null,
+    (load) => {
+      if (load) loadQuotes(load.buyer, load.baked, load.cards)
+    },
+  )
 
   const summary = createSellSummary(active, input.selected)
 
   // Leaving sell mode must not strand the state its controls set. The buylist
   // chips, the buylist groupings and the buylist sort all disappear with the
   // toggle, so anything still selecting them would keep narrowing or reordering
-  // the list with no visible control to undo it.
-  createEffect(
-    on(active, (isActive, wasActive) => {
-      if (isActive || wasActive !== true) return
-      // Guarded per field, not written unconditionally: handing the store a
-      // fresh `[]` would count as a change and re-run every filter memo, the
-      // badge, and the URL sync on an exit that changed nothing.
-      const cleared: Partial<CardFilters> = {}
-      if (input.filters.filters.onBuylist.length > 0) cleared.onBuylist = []
-      if (input.filters.filters.buylistPrice !== null) cleared.buylistPrice = null
-      if (Object.keys(cleared).length > 0) input.filters.update(cleared)
-      if (isSellGroupBy(input.toolbar.groupBy())) {
-        input.toolbar.setGroupBy(() => input.defaults.groupBy)
-      }
-      const current = input.toolbar.sortLayers()
-      const layers = replaceSellSortLayers(current)
-      if (layers.length !== current.length || layers.some((l, i) => l !== current[i])) {
-        input.toolbar.setSortLayers(
-          layers.length > 0 ? layers : [{ sortBy: input.defaults.sortBy, reverse: false }],
-        )
-      }
-    }),
-  )
+  // the list with no visible control to undo it. The filter and toolbar reads
+  // below are deliberately in the apply phase: snapshots taken on the exit
+  // edge, not dependencies that should re-run it.
+  createEffect(active, (isActive, wasActive) => {
+    if (isActive || wasActive !== true) return
+    // Guarded per field, not written unconditionally: handing the store a
+    // fresh `[]` would count as a change and re-run every filter memo, the
+    // badge, and the URL sync on an exit that changed nothing.
+    const cleared: Partial<CardFilters> = {}
+    if (input.filters.filters.onBuylist.length > 0) cleared.onBuylist = []
+    if (input.filters.filters.buylistPrice !== null) cleared.buylistPrice = null
+    if (Object.keys(cleared).length > 0) input.filters.update(cleared)
+    if (isSellGroupBy(input.toolbar.groupBy())) {
+      input.toolbar.setGroupBy(() => input.defaults.groupBy)
+    }
+    const current = input.toolbar.sortLayers()
+    const layers = replaceSellSortLayers(current)
+    if (layers.length !== current.length || layers.some((l, i) => l !== current[i])) {
+      input.toolbar.setSortLayers(
+        layers.length > 0 ? layers : [{ sortBy: input.defaults.sortBy, reverse: false }],
+      )
+    }
+  })
 
   return { active, control, summary }
 }

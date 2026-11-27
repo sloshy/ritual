@@ -184,4 +184,6 @@ If git metadata is unavailable, the script falls back to a short commit SHA, the
 RITUAL_SOURCE_URL=https://github.com/you/ritual sh scripts/build-docker.sh
 ```
 
+Building the image needs network access beyond `bun install`: the builder stage cross-compiles the binary for the Alpine runtime, so `bun build --compile` downloads the musl Bun runtime for the image's architecture.
+
 To use your own image in the Compose examples above, replace the `image:` line with `build: .` (run from the checkout) or with your image's name.

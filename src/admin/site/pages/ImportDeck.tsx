@@ -1,4 +1,5 @@
-import { type JSX, For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { apiMessage } from '../../../api/result'
 import type { ImportDeckRequest } from '../../api/import-deck'
@@ -107,8 +108,8 @@ export function ImportDeck(): JSX.Element {
               <button
                 type="button"
                 class="segmented-option"
-                data-active={method() === m.id}
-                aria-pressed={method() === m.id}
+                data-active={method() === m.id ? 'true' : 'false'}
+                aria-pressed={method() === m.id ? 'true' : 'false'}
                 onClick={() => setMethod(m.id)}
               >
                 {tKey(m.labelKey)}

@@ -1,4 +1,5 @@
-import type { Component, JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import type { Component } from 'solid-js'
 import type { ScryfallCard } from '../scryfall/types'
 import type { PrimerHeading } from '../list/primer-parser'
 import { useT } from '../ui/i18n'
@@ -100,7 +101,7 @@ const InlineContent: Component<InlineProps> = (props) => {
           class={`primer-card-link ${cardKey ? 'primer-card-link--found' : 'primer-card-link--missing'}`}
           role="button"
           aria-label={t('site.primer.openCard', { name: cardName })}
-          tabIndex={0}
+          tabindex={0}
           onClick={() => props.onOpenModal(resolvedName)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {

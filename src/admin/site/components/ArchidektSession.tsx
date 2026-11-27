@@ -1,4 +1,5 @@
-import { type JSX, createSignal, Match, Switch } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createSignal, Match, Switch } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
 import { useT } from '../../../ui/i18n'
 import { apiMessage } from '../../../api/result'

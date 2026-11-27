@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
 import type { CardKingdomCards, WantedListCardEntry } from '../../list/site-data'
 import { WantedListPage } from '../WantedListPage'
 import { FlatEditorBody, type FlatEditorBodyCommonProps } from './FlatEditorBody'

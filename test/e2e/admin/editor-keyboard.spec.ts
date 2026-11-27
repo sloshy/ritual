@@ -381,6 +381,39 @@ test.describe('Admin Editor — keyboard navigation', () => {
     await expect(page.locator('.changes-badge')).toHaveText('1')
   })
 
+  test('Enter on a search result opens the printing step without committing', async ({ page }) => {
+    // The printings are held so the step is open before they land: the Enter
+    // that chose the result must not reach the printing step's own Enter
+    // handler (armed by that very keystroke) and commit "No specific printing".
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route('**/api/card-printings*', async (route) => {
+      await held
+      await route.fulfill({ json: { success: true, printings: BOLT_PRINTINGS } })
+    })
+    await page.keyboard.press('Control+Enter')
+    const searchInput = page.locator('.search-modal input[type="text"]')
+    await expect(searchInput).toBeVisible({ timeout: 5_000 })
+    await searchInput.fill('Lightning Bolt')
+    await expect(page.locator('.search-result-item', { hasText: 'Lightning Bolt' })).toBeVisible()
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Enter')
+
+    await expect(page.locator('.modal-heading-flex')).toContainText('Select a printing')
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
+
+    release()
+    await expect(page.locator('.printing-select-card')).toHaveCount(BOLT_PRINTINGS.length)
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
+    await expect(page.locator('.card-item')).toHaveCount(1)
+
+    // The positive control: a fresh Enter on the step does commit.
+    await page.keyboard.press('Enter')
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+  })
+
   test('Enter on the finish/condition step adds the card', async ({ page }) => {
     // Both finishes are available, so the flow stops for confirmation.
     await page.keyboard.press('Control+Enter')

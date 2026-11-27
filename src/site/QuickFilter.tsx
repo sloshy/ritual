@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { Show, createEffect, createSignal, on } from 'solid-js'
+import { Show, createEffect, createSignal, flush } from 'solid-js'
 import { useDebouncedInput } from './useDebouncedInput'
 import type { CardFiltersControl } from './useCardFilters'
 import { isKeyboardClaimed, isPlainTypingKey, useDocumentKeydown } from '../ui/useDocumentKeydown'
@@ -51,7 +51,7 @@ export const QuickFilter: Component<QuickFilterProps> = (props) => {
   // "Clear all" resets a store value this field may already have written its
   // own default into, so the field's external-sync effect can't see it. Drop
   // the pending commit here instead, or it would re-apply the cleared query.
-  createEffect(on(() => props.filters.resetEpoch(), input.reset, { defer: true }))
+  createEffect(() => props.filters.resetEpoch(), input.reset, { defer: true })
 
   // Put the tab away when the query is gone from both ends — the committed
   // store value and the not-yet-committed draft. That covers "Clear all" and a
@@ -60,9 +60,10 @@ export const QuickFilter: Component<QuickFilterProps> = (props) => {
   // `open` is deliberately untracked: were it a dependency, revealing the tab
   // before its first character was drafted would immediately close it again.
   createEffect(
-    on([name, input.draft], ([committed, draft]) => {
+    () => [name(), input.draft()] as const,
+    ([committed, draft]) => {
       if (committed === '' && draft === '') setOpen(false)
-    }),
+    },
   )
 
   const clear = (): void => {
@@ -98,10 +99,9 @@ export const QuickFilter: Component<QuickFilterProps> = (props) => {
     // restored from a shared URL) is continued rather than replaced — the two
     // are one value, and silently dropping the panel's query would be worse
     // than a tab that opens mid-word.
-    setOpen(true)
-    // Solid flushes the render synchronously, so the field is already mounted.
-    // Assigning its value leaves the caret at the end, which is where typing
-    // should continue from.
+    // Flushed now so the field is mounted (with the draft as its value) before
+    // it is focused; the caret then sits at the end, where typing continues.
+    flush(() => setOpen(true))
     inputEl?.focus()
   })
 

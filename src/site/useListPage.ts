@@ -6,8 +6,8 @@
  * Reactivity contract: every config field that is read repeatedly is an
  * accessor, and every accessor is read where the original page read it. In
  * particular `cards` stays a thunk — {@link useSellMode} takes it deferred — and
- * `useListViewUrlSync` is called at the same setup position it always was, since
- * it reads its vocabulary once and returns early when disabled.
+ * the URL's list-view state is read once, before the toolbar and filters are
+ * created, and seeds them (`readListViewUrlSeed`).
  *
  * One ordering constraint on callers: the memos behind `cards`, `filterSource`
  * and `valued` must be declared *above* the `useListPage` call. `createMemo`
@@ -19,8 +19,7 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  on,
-  onMount,
+  onSettled,
   type Accessor,
   type Setter,
 } from 'solid-js'
@@ -85,7 +84,7 @@ import {
   type SellValueSummary,
 } from './sell-value'
 import { useCardFilters, type CardFiltersControl } from './useCardFilters'
-import { useListViewUrlSync } from './useListViewUrlSync'
+import { readListViewUrlSeed, useListViewUrlSync } from './useListViewUrlSync'
 import { useReadCardMenu, type UseReadCardMenuResult } from './useReadCardMenu'
 import {
   createSellSummary,
@@ -194,7 +193,7 @@ export type ListPageConfig<G extends GroupBy, C extends CardData> = ListPageScop
    * absent) on a page with none; the combined view passes nothing.
    */
   categoryOrder?: Accessor<readonly CardCategory[]>
-  /** The onMount seed of the session card cache from this page's baked data. */
+  /** The on-settled seed of the session card cache from this page's baked data. */
   seed?: () => void
   currency: Accessor<PriceCurrency>
   /**
@@ -309,12 +308,6 @@ export function useListPage<G extends GroupBy, C extends CardData>(
     const bulk = config.bulkEdit?.()
     return bulk ? buildSelectionEditActions(bulk, selection) : undefined
   })
-  const toolbar = useToolbarState<G>({
-    groupBy: config.options.defaults.groupBy,
-    sortBy: config.options.defaults.sortBy,
-  })
-  const cardFilters = useCardFilters()
-  const shareContext = useShareFilterContext(cardFilters)
   // This page's own list, or null where it has no identity (the combined view).
   const listRef = (): CombinedListRef | null => {
     const identity = config.identity
@@ -328,27 +321,51 @@ export function useListPage<G extends GroupBy, C extends CardData>(
     const ref = listRef()
     return ref ? shareListsExcluding(config.shareLists(), ref) : undefined
   })
+  // A parameter, not a read of the live mode, for the same reason as the
+  // group-by options below.
+  const sortValuesFor = (sellMode: boolean): readonly SortBy[] =>
+    sortByValuesFor(config.options.sortBys, sellMode)
+  // A shared link's view, read once and seeded into the toolbar and filters as
+  // they are created, so it applies on the first render.
+  const urlSeed = config.enableUrlState()
+    ? readListViewUrlSeed<G>({
+        groupByValues: config.options
+          .groupByOptionsFor(config.enableSellMode())
+          .map((o) => o.value),
+        sortByValues: sortValuesFor(config.enableSellMode()),
+        // The same chips the toolbar draws, so a `labels=` param can only ask for
+        // something this page can also show and clear.
+        availableLabels: config.options.availableLabels(),
+        supportsSellMode: config.enableSellMode(),
+        // A shared URL's share-filter params naming this page itself are
+        // stripped — the page never offers its own list as an option.
+        currentShareList: shareRefs()?.selfKey,
+      })
+    : null
+  const toolbar = useToolbarState<G>(
+    {
+      groupBy: config.options.defaults.groupBy,
+      sortBy: config.options.defaults.sortBy,
+    },
+    urlSeed?.toolbar,
+  )
+  const cardFilters = useCardFilters(urlSeed?.filters)
+  const shareContext = useShareFilterContext(cardFilters)
   const otherShareLists = (): readonly NamedListRef[] =>
     shareRefs()?.others ?? config.shareLists() ?? []
   // Admin surfaces (the editors, Move Cards) keep this page mounted across slug
   // switches with URL state off, so `currentShareList` stripping never runs
   // there — a chip naming the newly opened list would survive and filter the
-  // list against itself. `on` has no equality check, so the prune itself bails
+  // list against itself. An effect has no equality check, so the prune itself bails
   // without a store write when no chip names this list.
   createEffect(
-    on(
-      () => config.identity?.slug(),
-      () => {
-        const refs = shareRefs()
-        if (refs) pruneOwnShareSelections(cardFilters, refs.selfKey)
-      },
-      { defer: true },
-    ),
+    () => config.identity?.slug(),
+    () => {
+      const refs = shareRefs()
+      if (refs) pruneOwnShareSelections(cardFilters, refs.selfKey)
+    },
+    { defer: true },
   )
-  // A parameter, not a read of the live mode, for the same reason as the
-  // group-by options above.
-  const sortValuesFor = (sellMode: boolean): readonly SortBy[] =>
-    sortByValuesFor(config.options.sortBys, sellMode)
   // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
   // declared below. Rebuilding a short array on read costs nothing.
   const groupByOptions = (): SelectOption[] =>
@@ -359,16 +376,9 @@ export function useListPage<G extends GroupBy, C extends CardData>(
     toolbar,
     filters: cardFilters,
     defaults: config.options.defaults,
-    groupByValues: config.options.groupByOptionsFor(config.enableSellMode()).map((o) => o.value),
-    sortByValues: sortValuesFor(config.enableSellMode()),
     enabled: config.enableUrlState(),
-    // The same chips the toolbar draws, so a `labels=` param can only ask for
-    // something this page can also show and clear.
-    availableLabels: config.options.availableLabels(),
     supportsSellMode: config.enableSellMode(),
-    // A shared URL's share-filter params naming this page itself are stripped
-    // — the page never offers its own list as an option.
-    currentShareList: shareRefs()?.selfKey,
+    seed: urlSeed,
   })
 
   // Declared once, at setup: a page handed a baked payload never calls the quote
@@ -394,7 +404,7 @@ export function useListPage<G extends GroupBy, C extends CardData>(
 
   // Seed the session cache so the card search and trade page reuse this list's
   // baked data instead of re-fetching from Scryfall.
-  onMount(() => config.seed?.())
+  onSettled(() => config.seed?.())
 
   // Wired for every render, shown only when the page opts in via
   // `enablePriceRefresh` (the public site, read-only or editing).

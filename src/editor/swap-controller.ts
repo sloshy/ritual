@@ -4,7 +4,7 @@
  * and applies the wizard's planned moves as change events.
  */
 
-import { type Accessor, batch, createSignal } from 'solid-js'
+import { type Accessor, createSignal } from 'solid-js'
 import type { ChangeInput } from '../changes/change-event'
 import type { EntryWithCardId } from '../card/card-id'
 import type { ListType } from '../list/list-type'
@@ -53,7 +53,7 @@ export type SwapController = {
   /** Open the wizard on every line, or on the lines a selection names (one = single-card entry). */
   openSwapPrintings: (scope: SwapScope) => void
   closeSwapPrintings: () => void
-  /** Record and apply the wizard's planned moves as change events, in one batch. */
+  /** Record and apply the wizard's planned moves as change events, in one flush. */
   applySwapMoves: (moves: SwapMove[]) => void
   /** The list being edited, as the wizard and the planner name it. */
   editedListRef: Accessor<NamedListRef>
@@ -120,22 +120,20 @@ export function createSwapController<TData, TCardEntry>(
     // the next is produced, so the merge probe reads the list as it stands
     // after the ops before it (a line an out op drained, or an in op created).
     let current: TData = initial
-    batch(() => {
-      const ops = swapMovesToChanges(moves, {
-        kind: deps.kind,
-        allocateId: editor.pool.allocate,
-        quantityOf: (cardId) => deps.quantityOf(current, cardId),
-        mergeLine: (move, copyIndex) => deps.mergeLine(current, move, copyIndex),
-        pinConvertsInPlace: (move, copyIndex, lineId) =>
-          deps.pinConvertsInPlace(current, move, copyIndex, lineId),
-      })
-      for (const op of ops) {
-        editor.changes.addChange(op.change)
-        current = deps.applyChange(current, op.change)
-        if (op.release !== undefined) editor.pool.release(op.release)
-      }
-      editor.setData(() => current)
+    const ops = swapMovesToChanges(moves, {
+      kind: deps.kind,
+      allocateId: editor.pool.allocate,
+      quantityOf: (cardId) => deps.quantityOf(current, cardId),
+      mergeLine: (move, copyIndex) => deps.mergeLine(current, move, copyIndex),
+      pinConvertsInPlace: (move, copyIndex, lineId) =>
+        deps.pinConvertsInPlace(current, move, copyIndex, lineId),
     })
+    for (const op of ops) {
+      editor.changes.addChange(op.change)
+      current = deps.applyChange(current, op.change)
+      if (op.release !== undefined) editor.pool.release(op.release)
+    }
+    editor.setData(() => current)
   }
 
   // Getters, not eager reads: the hosts hand this object to `EditorShell`,

@@ -1,9 +1,10 @@
+import type { JSX } from '@solidjs/web'
 import {
   isListIdentityKey,
   listIdentityKey,
   type ListIdentityKey,
 } from '../../../list/list-identity'
-import { type JSX, Show, For, createSignal, createMemo, onCleanup } from 'solid-js'
+import { Show, For, createSignal, createMemo, onCleanup } from 'solid-js'
 import { canCombineSets, isValidIso8601 } from '../../../changes/changelog-blocks'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { formatChangeTimestamp } from '../../../ui/format'
@@ -299,7 +300,7 @@ export function History(): JSX.Element {
                         <button
                           type="button"
                           class="history-set-main"
-                          aria-expanded={expanded().has(index())}
+                          aria-expanded={expanded().has(index()) ? 'true' : 'false'}
                           onClick={() => toggleExpanded(index())}
                         >
                           <span class="history-set-caret">

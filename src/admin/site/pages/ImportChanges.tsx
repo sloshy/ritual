@@ -1,4 +1,5 @@
-import { type JSX, For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { IMPORT_CONFLICT_REASON_KEY } from '../../../editor/import-changes'
 import { formatChange } from '../../../changes/change-message'
@@ -195,8 +196,8 @@ export function ImportChanges(): JSX.Element {
               <button
                 type="button"
                 class="segmented-option"
-                data-active={method() === m.id}
-                aria-pressed={method() === m.id}
+                data-active={method() === m.id ? 'true' : 'false'}
+                aria-pressed={method() === m.id ? 'true' : 'false'}
                 onClick={() => setMethod(m.id)}
               >
                 {tKey(m.labelKey)}

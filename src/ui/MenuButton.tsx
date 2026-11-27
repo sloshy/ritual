@@ -1,4 +1,5 @@
-import { type JSX, For } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { For } from 'solid-js'
 import { AdaptiveMenu } from './AdaptiveMenu'
 import { useAnchoredToggle } from './useAnchoredToggle'
 
@@ -43,7 +44,7 @@ export function MenuButton<A extends string>(props: MenuButtonProps<A>): JSX.Ele
         ref={toggle.setButtonRef}
         class={props.buttonClass}
         aria-haspopup="menu"
-        aria-expanded={toggle.open()}
+        aria-expanded={toggle.open() ? 'true' : 'false'}
         aria-label={props.ariaLabel}
         title={props.ariaLabel}
         onClick={toggle.toggleOpen}

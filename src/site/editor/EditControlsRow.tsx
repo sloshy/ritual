@@ -104,18 +104,22 @@ export const EditControlsRow: Component<EditControlsRowProps> = (props) => {
         <div class="edit-banner-toggle" role="group" aria-label={t('site.editor.viewToggle')}>
           <button
             type="button"
-            class="edit-banner-toggle-btn"
-            classList={{ 'edit-banner-toggle-btn--active': props.chrome.view() === 'original' }}
-            aria-pressed={props.chrome.view() === 'original'}
+            class={[
+              'edit-banner-toggle-btn',
+              { 'edit-banner-toggle-btn--active': props.chrome.view() === 'original' },
+            ]}
+            aria-pressed={props.chrome.view() === 'original' ? 'true' : 'false'}
             onClick={() => props.chrome.setView('original')}
           >
             {t('site.editor.viewOriginal')}
           </button>
           <button
             type="button"
-            class="edit-banner-toggle-btn"
-            classList={{ 'edit-banner-toggle-btn--active': props.chrome.view() === 'edited' }}
-            aria-pressed={props.chrome.view() === 'edited'}
+            class={[
+              'edit-banner-toggle-btn',
+              { 'edit-banner-toggle-btn--active': props.chrome.view() === 'edited' },
+            ]}
+            aria-pressed={props.chrome.view() === 'edited' ? 'true' : 'false'}
             onClick={() => props.chrome.setView('edited')}
           >
             {t('site.editor.viewEdited')}

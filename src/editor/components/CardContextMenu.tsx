@@ -141,7 +141,7 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
             // mouse events on a natively disabled control, which would hide the
             // `title` explaining why the row is dead — and keep it out of the
             // menu's tab order. The onClick guard above is what makes it inert.
-            aria-disabled={foilButtonDisabled()}
+            aria-disabled={foilButtonDisabled() ? 'true' : 'false'}
             title={foilDisabledReason()}
           >
             {foilButtonLabel()}

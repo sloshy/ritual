@@ -1,14 +1,6 @@
-import type { Component, JSX } from 'solid-js'
-import {
-  batch,
-  createEffect,
-  createMemo,
-  createSignal,
-  For,
-  on,
-  Show,
-  type Accessor,
-} from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import type { Component } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, Show, type Accessor } from 'solid-js'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { parseSetCodesInput, scanSetCodesInput } from '../card/set-codes'
@@ -112,13 +104,11 @@ function useNumericFilterInput(
   // An externally-cleared value leaves no error to show. `defer` skips the
   // initial run so a filter restored from a shared URL keeps its state.
   createEffect(
-    on(
-      current,
-      (value) => {
-        if (value === null) setError(null)
-      },
-      { defer: true },
-    ),
+    current,
+    (value) => {
+      if (value === null) setError(null)
+    },
+    { defer: true },
   )
 
   return {
@@ -167,8 +157,8 @@ function FilterModeToggle<M extends string>(props: FilterModeToggleProps<M>): JS
         {(option) => (
           <button
             type="button"
-            classList={{ active: props.value === option.value }}
-            aria-pressed={props.value === option.value}
+            class={{ active: props.value === option.value }}
+            aria-pressed={props.value === option.value ? 'true' : 'false'}
             title={option.title}
             onClick={() => props.onChange(option.value)}
           >
@@ -209,8 +199,8 @@ function ChipFilterRow<T extends string>(props: ChipFilterRowProps<T>): JSX.Elem
             {(opt) => (
               <button
                 type="button"
-                classList={{ active: props.selected.includes(opt.value) }}
-                aria-pressed={props.selected.includes(opt.value)}
+                class={{ active: props.selected.includes(opt.value) }}
+                aria-pressed={props.selected.includes(opt.value) ? 'true' : 'false'}
                 title={opt.title}
                 onClick={() => props.onToggle(opt.value)}
               >
@@ -648,8 +638,8 @@ const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
             {(opt) => (
               <button
                 type="button"
-                classList={{ active: props.op === opt.value }}
-                aria-pressed={props.op === opt.value}
+                class={{ active: props.op === opt.value }}
+                aria-pressed={props.op === opt.value ? 'true' : 'false'}
                 onClick={() => props.onOp(opt.value)}
               >
                 {opt.label}
@@ -665,7 +655,7 @@ const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
           step={props.step}
           inputmode={props.inputMode}
           placeholder={props.valuePlaceholder}
-          aria-invalid={props.error !== null}
+          aria-invalid={props.error !== null ? 'true' : 'false'}
           value={props.value}
           onInput={(e) => props.onValueInput(e.currentTarget.value)}
           onBlur={props.onValueBlur}
@@ -689,9 +679,8 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
       <button
         type="button"
         ref={toggle.setButtonRef}
-        class="toolbar-toggle"
-        classList={{ active: props.filters.activeCount() > 0 }}
-        aria-expanded={toggle.open()}
+        class={['toolbar-toggle', { active: props.filters.activeCount() > 0 }]}
+        aria-expanded={toggle.open() ? 'true' : 'false'}
         aria-haspopup="true"
         onClick={toggle.toggleOpen}
       >
@@ -834,14 +823,12 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
     // One reactive flush for the whole reset. Order matters: reset the store first so
     // each input's `reset()` re-seeds its draft from the new defaults, and abandons any
     // debounced value not yet committed so it can't re-apply after the reset.
-    batch(() => {
-      props.filters.reset()
-      nameInput.reset()
-      manaValueInput.reset()
-      priceInput.reset()
-      buylistPriceInput.reset()
-      copiesInput.reset()
-    })
+    props.filters.reset()
+    nameInput.reset()
+    manaValueInput.reset()
+    priceInput.reset()
+    buylistPriceInput.reset()
+    copiesInput.reset()
   }
 
   return (
@@ -849,9 +836,8 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
       <div class="filter-row filter-row-toggles">
         <button
           type="button"
-          class="toolbar-toggle"
-          classList={{ active: props.filters.filters.hideLands }}
-          aria-pressed={props.filters.filters.hideLands}
+          class={['toolbar-toggle', { active: props.filters.filters.hideLands }]}
+          aria-pressed={props.filters.filters.hideLands ? 'true' : 'false'}
           onClick={() => props.filters.update({ hideLands: !props.filters.filters.hideLands })}
         >
           {t('site.filter.hideLands')}
@@ -859,9 +845,8 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         <Show when={pricesEnabled()}>
           <button
             type="button"
-            class="toolbar-toggle"
-            classList={{ active: props.filters.filters.hideUnpriced }}
-            aria-pressed={props.filters.filters.hideUnpriced}
+            class={['toolbar-toggle', { active: props.filters.filters.hideUnpriced }]}
+            aria-pressed={props.filters.filters.hideUnpriced ? 'true' : 'false'}
             onClick={() =>
               props.filters.update({ hideUnpriced: !props.filters.filters.hideUnpriced })
             }
@@ -872,9 +857,8 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         <Show when={props.showHideExtras}>
           <button
             type="button"
-            class="toolbar-toggle"
-            classList={{ active: props.filters.filters.hideExtras }}
-            aria-pressed={props.filters.filters.hideExtras}
+            class={['toolbar-toggle', { active: props.filters.filters.hideExtras }]}
+            aria-pressed={props.filters.filters.hideExtras ? 'true' : 'false'}
             onClick={() => props.filters.update({ hideExtras: !props.filters.filters.hideExtras })}
           >
             {t('site.filter.hideExtras')}
@@ -920,9 +904,11 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
             {(color) => (
               <button
                 type="button"
-                class="filter-color-btn"
-                classList={{ active: props.filters.filters.colors.includes(color) }}
-                aria-pressed={props.filters.filters.colors.includes(color)}
+                class={[
+                  'filter-color-btn',
+                  { active: props.filters.filters.colors.includes(color) },
+                ]}
+                aria-pressed={props.filters.filters.colors.includes(color) ? 'true' : 'false'}
                 title={colorName([color])}
                 onClick={() =>
                   props.filters.update({
@@ -942,9 +928,8 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           {/* Colorless sits after the five colors, as it does in Scryfall's own filters. */}
           <button
             type="button"
-            class="filter-color-btn"
-            classList={{ active: props.filters.filters.colorless }}
-            aria-pressed={props.filters.filters.colorless}
+            class={['filter-color-btn', { active: props.filters.filters.colorless }]}
+            aria-pressed={props.filters.filters.colorless ? 'true' : 'false'}
             title={colorName([])}
             onClick={() => props.filters.update({ colorless: !props.filters.filters.colorless })}
           >

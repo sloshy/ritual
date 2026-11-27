@@ -27,7 +27,7 @@ export const TagFilterWarning: Component<TagFilterWarningProps> = (props) => {
         <button
           type="button"
           class="tag-filter-warning-toggle"
-          aria-expanded={open()}
+          aria-expanded={open() ? 'true' : 'false'}
           onClick={() => setOpen((o) => !o)}
         >
           <span class="tag-filter-warning-icon" aria-hidden="true">

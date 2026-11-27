@@ -81,7 +81,7 @@ export const ListScopePicker: Component<ListScopePickerProps> = (props) => {
                   <button
                     type="button"
                     class="find-scope-expand"
-                    aria-expanded={isOpen()}
+                    aria-expanded={isOpen() ? 'true' : 'false'}
                     aria-label={t('site.find.scopeExpandAria', { type: listTypeTitle(type) })}
                     onClick={toggleOpen}
                   >

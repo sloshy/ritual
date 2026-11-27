@@ -1,4 +1,5 @@
-import { type JSX, createSignal, onMount, Show } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createSignal, onSettled, Show } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
 import { formatDuration } from '../../../util/duration'
@@ -43,7 +44,7 @@ export function ArchidektLogin(): JSX.Element {
     }
   }
 
-  onMount(() => {
+  onSettled(() => {
     void loadStatus()
   })
 

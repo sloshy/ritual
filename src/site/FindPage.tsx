@@ -1,4 +1,5 @@
-import type { Component, Accessor, JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import type { Component, Accessor } from 'solid-js'
 import { createSignal, createMemo, createEffect, onCleanup, For, Show } from 'solid-js'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { TotalPrice } from './TotalPrice'
@@ -88,12 +89,13 @@ export const FindPage: Component<FindPageProps> = (props) => {
   // global toggle) reads the quote store, which this page must fill itself —
   // it loads its list details directly rather than through a list page's
   // sell-mode hook. Idempotent: `seedBuylistQuotes` skips what the store holds.
-  createEffect(() => {
-    if (activeStore() !== 'cardkingdom' && !sellModeActive()) return
-    const baked = mergeBakedBuylists(loaded())
-    // seedBuylistQuotes untracks its own writes.
-    if (baked) seedBuylistQuotes(baked)
-  })
+  createEffect(
+    () =>
+      activeStore() === 'cardkingdom' || sellModeActive() ? mergeBakedBuylists(loaded()) : null,
+    (baked) => {
+      if (baked) seedBuylistQuotes(baked)
+    },
+  )
 
   const symbolMap = createMemo(() => mergeSymbolMaps(loaded()))
 
@@ -322,7 +324,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
         autocomplete="off"
         autocorrect="off"
         autocapitalize="off"
-        spellcheck={false}
+        spellcheck="false"
       />
 
       <ListScopePicker
@@ -421,13 +423,15 @@ export const FindPage: Component<FindPageProps> = (props) => {
                     <div class="section-divider find-result-divider">
                       <button
                         type="button"
-                        class="card-select-checkbox card-select-checkbox--list"
-                        classList={{
-                          selected: state() === 'all',
-                          partial: state() === 'partial',
-                        }}
+                        class={[
+                          'card-select-checkbox card-select-checkbox--list',
+                          {
+                            selected: state() === 'all',
+                            partial: state() === 'partial',
+                          },
+                        ]}
                         aria-pressed={
-                          state() === 'all' ? true : state() === 'partial' ? 'mixed' : false
+                          state() === 'all' ? 'true' : state() === 'partial' ? 'mixed' : 'false'
                         }
                         aria-label={t('site.find.selectGroupAria', { name: group.name })}
                         onClick={() => toggleGroup(group)}

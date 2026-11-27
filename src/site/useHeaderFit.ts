@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { type Accessor, createEffect, createSignal, flush, onSettled } from 'solid-js'
 import { decideHeaderFold, isHeaderFold, type HeaderFitWidths, type HeaderFold } from './header-fit'
 
 /**
@@ -82,7 +82,15 @@ const renderedFold = (header: HTMLElement): HeaderFold | undefined => {
  * change, so it never reaches the screen.
  */
 export function useHeaderFit(options: HeaderFitOptions): Accessor<HeaderFold> {
-  const [fold, setFold] = createSignal<HeaderFold>('full')
+  const [fold, setFoldSignal] = createSignal<HeaderFold>('full')
+  /**
+   * Write the level and render it now: the measurement and focus repair that
+   * follow read the DOM. Only ever called from outside a reactive update (the
+   * observers, a microtask or a frame), where `flush` may run.
+   */
+  const setFold = (next: HeaderFold): void => {
+    flush(() => setFoldSignal(next))
+  }
   let utilities: number[] | undefined
   let stale = false
   let toggleWidth = TOGGLE_FALLBACK_WIDTH
@@ -183,9 +191,8 @@ export function useHeaderFit(options: HeaderFitOptions): Accessor<HeaderFold> {
     // nothing, and the probe follows once the ⚙ row closes.
     let widths = measure(header, options.probeBlocked())
     if (!widths) {
-      // Probe: render the utilities inline to measure them. Writing the signal
-      // outside a reactive update re-renders synchronously; inside one (never
-      // the case from the observers below) the measurement retries next frame.
+      // Probe: render the utilities inline to measure them (`setFold` renders
+      // synchronously outside a reactive update).
       setFold('full')
       widths = measure(header)
       if (!widths) {
@@ -229,12 +236,14 @@ export function useHeaderFit(options: HeaderFitOptions): Accessor<HeaderFold> {
     })
   }
 
-  onMount(() => {
+  onSettled(() => {
     const header = options.header()
     if (!header) return
     // First decision before the first paint, so a narrow window never shows
     // the unfolded row. (`fold` starts at 'full', so this never needs a probe.)
-    update()
+    // A microtask rather than now: a decision renders its level at once, which
+    // cannot happen inside this callback's own flush.
+    schedule()
 
     // Room changes: the zero-height measure strip spans the row's width at
     // every level, and the nav's width is the left side. Decided on the next
@@ -257,11 +266,6 @@ export function useHeaderFit(options: HeaderFitOptions): Accessor<HeaderFold> {
       if (records.some(counts)) schedule()
     })
     mutations.observe(header, { childList: true, characterData: true, subtree: true })
-    onCleanup(() => {
-      disposed = true
-      resize.disconnect()
-      mutations.disconnect()
-    })
 
     // Web fonts arriving after the first measurement change every width; when
     // they had already loaded, that measurement is fresh.
@@ -271,31 +275,33 @@ export function useHeaderFit(options: HeaderFitOptions): Accessor<HeaderFold> {
         schedule()
       })
     }
+
+    return () => {
+      disposed = true
+      resize.disconnect()
+      mutations.disconnect()
+    }
   })
 
   createEffect(
-    on(
-      () => [options.enabled(), options.invalidate()],
-      () => {
-        stale = true
-        // A frame, not a microtask: the theme editor invalidates on every
-        // slider step, and one re-measure per frame (still before its paint)
-        // is plenty.
-        scheduleFrame()
-      },
-      { defer: true },
-    ),
+    () => [options.enabled(), options.invalidate()],
+    () => {
+      stale = true
+      // A frame, not a microtask: the theme editor invalidates on every
+      // slider step, and one re-measure per frame (still before its paint)
+      // is plenty.
+      scheduleFrame()
+    },
+    { defer: true },
   )
 
   // The ⚙ row closing lets a waiting probe run.
   createEffect(
-    on(
-      options.probeBlocked,
-      (blocked) => {
-        if (!blocked && stale) scheduleFrame()
-      },
-      { defer: true },
-    ),
+    options.probeBlocked,
+    (blocked) => {
+      if (!blocked && stale) scheduleFrame()
+    },
+    { defer: true },
   )
 
   return fold

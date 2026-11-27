@@ -9,7 +9,7 @@
  * store (or none — `priceSources: []`) shows no dropdown.
  */
 
-import { For, Show, batch, createMemo, type Component } from 'solid-js'
+import { For, Show, createMemo, type Component } from 'solid-js'
 import { useT } from '../ui/i18n'
 import { PRICE_SOURCE_LABELS, isPriceSource, type PriceSource } from '../pricing/price-source'
 import { notifyCurrencyChanged } from './currency-epoch'
@@ -22,10 +22,8 @@ import { activeStore, offeredPriceSources, selectStore } from './price-view'
  * old figures clear in the same pass.
  */
 export function pickPriceStore(source: PriceSource): void {
-  batch(() => {
-    selectStore(source)
-    notifyCurrencyChanged()
-  })
+  selectStore(source)
+  notifyCurrencyChanged()
 }
 
 export const PriceStoreSelect: Component = () => {

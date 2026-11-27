@@ -1,5 +1,5 @@
-import { type Accessor, type JSX, Show, createEffect, createSignal, onCleanup } from 'solid-js'
-import { Portal } from 'solid-js/web'
+import { type Accessor, Show, createEffect, createSignal, onCleanup } from 'solid-js'
+import { Portal, type JSX } from '@solidjs/web'
 
 /** How long a message stays fully opaque before it starts fading out. */
 const VISIBLE_MS = 5000
@@ -58,8 +58,7 @@ function useFadingMessage<TMessage>(
     clearTimeout(dropTimer)
   }
 
-  createEffect(() => {
-    const value = source()
+  createEffect(source, (value) => {
     stopTimers()
     if (value === null) {
       setCurrent(null)
@@ -103,8 +102,7 @@ export function StatusToast<TMessage>(props: StatusToastProps<TMessage>): JSX.El
     <Show when={message()}>
       {(current) => (
         <div
-          class={TONE_CLASS[tone]}
-          classList={{ 'toast--leaving': current().leaving }}
+          class={[TONE_CLASS[tone], { 'toast--leaving': current().leaving }]}
           role={TONE_ROLE[tone]}
         >
           {props.render(current().value)}

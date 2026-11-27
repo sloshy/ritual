@@ -52,6 +52,41 @@ describe('requestBuylistQuotes', () => {
     expect(quoteFor('c21', '263', 'nonfoil')).toMatchObject({ priceBuy: 1.25 })
   })
 
+  test('two requests settling out of order both keep their quotes', async () => {
+    const BOLT: BuylistQuoteRequest = { set: 'lea', collectorNumber: '161', finish: 'nonfoil' }
+    // The first request is held until the second has settled: written from a
+    // copy of the store taken when it started, it would drop the second's quote.
+    let releaseFirst: () => void = () => {}
+    const firstHeld = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    setBuylistFetcher(async (buyer, printings) => {
+      if (printings.some((p) => p.set === SOL_RING.set)) await firstHeld
+      return {
+        success: true,
+        buyer,
+        quotes: Object.fromEntries(
+          printings.map((p) => [
+            quoteKey(p.set, p.collectorNumber, p.finish),
+            makeBuylistQuote({ name: 'Card', edition: 'Edition', priceBuy: 2 }),
+          ]),
+        ),
+        feedCreatedAt: STUB_BUYLIST_FEED_CREATED_AT,
+        feedRetrievedAt: Date.now(),
+        stale: false,
+        productCount: printings.length,
+      }
+    })
+
+    const first = requestBuylistQuotes([SOL_RING])
+    await requestBuylistQuotes([BOLT])
+    releaseFirst()
+    await first
+
+    expect(quoteFor('c21', '263', 'nonfoil')).toBeDefined()
+    expect(quoteFor('lea', '161', 'nonfoil')).toBeDefined()
+  })
+
   test('a failed request settles nothing, so the next one retries', async () => {
     fetcher.breakIt()
     await requestBuylistQuotes([SOL_RING])

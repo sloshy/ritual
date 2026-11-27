@@ -225,13 +225,15 @@ export function resetListShares(): void {
  * filtering memo is what makes the view update when a list's data arrives.
  */
 export function useShareFilterContext(filters: CardFiltersControl): () => CardFilterContext {
-  createEffect(() => {
+  createEffect(
     // Track the selections alone. The loads this kicks off write the share
-    // index, and reading it here — even transitively — would re-run the
-    // effect on every settled load anywhere in the app.
-    const keys = [...filters.filters.sharedWith, ...filters.filters.notSharedWith]
-    untrack(() => void ensureListShares(keys))
-  })
+    // index, and the untracked apply phase keeps those reads from re-running
+    // the effect on every settled load anywhere in the app.
+    () => [...filters.filters.sharedWith, ...filters.filters.notSharedWith],
+    (keys) => {
+      void ensureListShares(keys)
+    },
+  )
   return () => ({ shares: listShareIndex() })
 }
 

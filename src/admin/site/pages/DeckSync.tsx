@@ -1,4 +1,5 @@
-import { type JSX, batch, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createMemo, createSignal, For, onCleanup, onSettled, Show } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
 import type {
   DeckSyncDoneEvent,
@@ -111,14 +112,12 @@ export function DeckSync(): JSX.Element {
       const data = (await resp.json()) as DeckSyncStatusResponse
       const slugs = data.decks.map((deck) => deck.slug)
       // One logical update, so the list and its selection never render mismatched.
-      batch(() => {
-        setDecks(data.decks)
-        setArchidekt(data.archidekt)
-        setLoadFailed(false)
-        setSelected((current) =>
-          selectionSeeded ? current.filter((slug) => slugs.includes(slug)) : slugs,
-        )
-      })
+      setDecks(data.decks)
+      setArchidekt(data.archidekt)
+      setLoadFailed(false)
+      setSelected((current) =>
+        selectionSeeded ? current.filter((slug) => slugs.includes(slug)) : slugs,
+      )
       selectionSeeded = true
     } catch {
       setLoadFailed(true)
@@ -127,7 +126,7 @@ export function DeckSync(): JSX.Element {
     }
   }
 
-  onMount(() => {
+  onSettled(() => {
     void loadStatus()
   })
 
@@ -227,26 +226,24 @@ export function DeckSync(): JSX.Element {
         return
       }
       // One render for the whole report rather than one per deck.
-      batch(() => {
-        for (const result of data.report.decks) {
-          // The lines the stream logs for the deck, in its order — the count
-          // line, the per-card lines — rendered from the report, then its reason.
-          const lines = deckItemLines(
-            request.direction,
-            result.changes ?? [],
-            request.syncCategories === true,
-            replayDescribe(describeDeckCardChange),
-          )
-          updateDeck(result.name, (item) => ({
-            ...item,
-            status: result.status,
-            messages: [...item.messages, ...replayResultMessages(lines, reasonMessage(result))],
-          }))
-        }
-        // The report carries the unreadable decks too, so this path offers the
-        // same confirmation the streamed one does.
-        if (!request.ignoreUnreadableLines) setUnreadable(data.report.unreadable)
-      })
+      for (const result of data.report.decks) {
+        // The lines the stream logs for the deck, in its order — the count
+        // line, the per-card lines — rendered from the report, then its reason.
+        const lines = deckItemLines(
+          request.direction,
+          result.changes ?? [],
+          request.syncCategories === true,
+          replayDescribe(describeDeckCardChange),
+        )
+        updateDeck(result.name, (item) => ({
+          ...item,
+          status: result.status,
+          messages: [...item.messages, ...replayResultMessages(lines, reasonMessage(result))],
+        }))
+      }
+      // The report carries the unreadable decks too, so this path offers the
+      // same confirmation the streamed one does.
+      if (!request.ignoreUnreadableLines) setUnreadable(data.report.unreadable)
       finishRun(data.summary)
     } catch {
       failRun(apiMessage('admin.deckSync.failed'), false)
@@ -273,14 +270,12 @@ export function DeckSync(): JSX.Element {
    * without being shown first.
    */
   const handleSync = (ignoreUnreadableLines = false): void => {
-    batch(() => {
-      setPhase('running')
-      setRunDecks([])
-      setRunLog([])
-      setSummary(null)
-      setRunError(null)
-      setUnreadable([])
-    })
+    setPhase('running')
+    setRunDecks([])
+    setRunLog([])
+    setSummary(null)
+    setRunError(null)
+    setUnreadable([])
 
     // Snapshotted before the stream opens, so the JSON fallback re-issues the
     // same run even if the controls change while the stream is failing.

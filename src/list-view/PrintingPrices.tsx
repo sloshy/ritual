@@ -17,7 +17,7 @@
  * mounted tile without the host component doing anything.
  */
 
-import { Index, Show, createMemo, type Component } from 'solid-js'
+import { For, Show, createMemo, type Component } from 'solid-js'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { useT } from '../ui/i18n'
 import { pricesEnabled } from './price-view'
@@ -50,7 +50,7 @@ export const PrintingPrices: Component<PrintingPricesProps> = (props) => {
             printing, while the memo hands back freshly built objects on every
             source switch and every arriving quote — reference keying would tear
             down and rebuild every row for a text change. */}
-        <Index each={alternates()}>
+        <For keyed={false} each={alternates()}>
           {(entry) => (
             <span class="printing-price-alt">
               {t('site.printingPrice.alternate', {
@@ -59,7 +59,7 @@ export const PrintingPrices: Component<PrintingPricesProps> = (props) => {
               })}
             </span>
           )}
-        </Index>
+        </For>
       </span>
     </Show>
   )

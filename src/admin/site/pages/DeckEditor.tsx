@@ -1,4 +1,5 @@
-import { createMemo, createSignal, type JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createMemo, createSignal } from 'solid-js'
 import type { CardCategoriesJson } from '../../../list/card-categories-record'
 import type { DeckData } from '../../../list/deck'
 import type { ScryfallCard } from '../../../scryfall/types'

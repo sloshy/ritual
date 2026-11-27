@@ -1,4 +1,5 @@
-import { type JSX, createMemo, For, Show } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createMemo, For, Show } from 'solid-js'
 import {
   csvFailureCard,
   describeCsvFailure,

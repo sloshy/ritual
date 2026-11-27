@@ -1,4 +1,4 @@
-import { type Component, createEffect, createSignal, For, on, Show } from 'solid-js'
+import { type Component, createEffect, createSignal, For, Show } from 'solid-js'
 import { Modal } from '../../../ui/Modal'
 import { useT } from '../../../ui/i18n'
 import type { ListType } from '../../../list/list-type'
@@ -74,18 +74,16 @@ export const ListImageModal: Component<ListImageModalProps> = (props) => {
   // landing while the dialog is open would otherwise leave the previous list's
   // cover on screen. The handler is idempotent, so re-running it costs nothing.
   createEffect(
-    on(
-      () => [props.open, props.slug, props.image] as const,
-      () => {
-        const image = props.image
-        setMode(listImageMode(image))
-        setCardId(image !== undefined && 'card' in image ? image.card : null)
-        field.set(
-          image === undefined ? '' : 'file' in image ? image.file : 'url' in image ? image.url : '',
-        )
-        setError(null)
-      },
-    ),
+    () => [props.open, props.slug, props.image] as const,
+    () => {
+      const image = props.image
+      setMode(listImageMode(image))
+      setCardId(image !== undefined && 'card' in image ? image.card : null)
+      field.set(
+        image === undefined ? '' : 'file' in image ? image.file : 'url' in image ? image.url : '',
+      )
+      setError(null)
+    },
   )
 
   /** The card the picker is pointed at, for its preview. */

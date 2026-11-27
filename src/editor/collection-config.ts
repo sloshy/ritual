@@ -1,4 +1,3 @@
-import { batch } from 'solid-js'
 import type { CollectionCardEntry } from '../list/site-data'
 import { printingRetarget } from './printing-retarget'
 import type { ChangePrintingContext } from './editor-config'
@@ -34,24 +33,22 @@ export function applyCollectionChangePrinting(
   const { newPrinting, currentPrinting } = retarget
 
   const n = Math.min(Math.max(count, 1), target.cardIds.length)
-  batch(() => {
-    for (const cardId of target.cardIds.slice(0, n)) {
-      const origPrinting = findEntryPrintingById(original, cardId) ?? currentPrinting
-      tools.setPrinting(target.cardName, newPrinting, origPrinting, cardId)
-      setData((prev) =>
-        prev
-          ? ctx.applyChange(prev, {
-              action: 'set-printing',
-              cardName: target.cardName,
-              set: options.set,
-              collectorNumber: options.collectorNumber,
-              finish: options.finish,
-              condition: options.condition,
-              language: options.language,
-              cardId,
-            })
-          : prev,
-      )
-    }
-  })
+  for (const cardId of target.cardIds.slice(0, n)) {
+    const origPrinting = findEntryPrintingById(original, cardId) ?? currentPrinting
+    tools.setPrinting(target.cardName, newPrinting, origPrinting, cardId)
+    setData((prev) =>
+      prev
+        ? ctx.applyChange(prev, {
+            action: 'set-printing',
+            cardName: target.cardName,
+            set: options.set,
+            collectorNumber: options.collectorNumber,
+            finish: options.finish,
+            condition: options.condition,
+            language: options.language,
+            cardId,
+          })
+        : prev,
+    )
+  }
 }

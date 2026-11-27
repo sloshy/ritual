@@ -237,7 +237,7 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
                 autocomplete="off"
                 autocapitalize="off"
                 autocorrect="off"
-                spellcheck={false}
+                spellcheck="false"
               />
               <p id="setup-token-hint" class="form-hint">
                 {t('admin.auth.setupTokenHint', { command: commandLine(COMMAND.admin) })}
@@ -252,9 +252,9 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
               <input
                 id="auth-totp"
                 type="text"
-                inputMode="numeric"
+                inputmode="numeric"
                 pattern="[0-9]*"
-                maxLength={6}
+                maxlength={6}
                 class="form-input input-code"
                 value={totpCode()}
                 onInput={(e) => setTotpCode(e.currentTarget.value)}

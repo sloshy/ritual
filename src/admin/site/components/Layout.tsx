@@ -1,4 +1,5 @@
-import type { JSX, ParentComponent } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import type { ParentComponent } from 'solid-js'
 import { useApiText } from '../hooks/useApiAction'
 import type { ApiActionMessage } from '../../../api/result'
 import { readSyncMessage } from '../../../sync/message'

@@ -2,7 +2,7 @@ import { buylistFieldsFor } from '../list-view/buylist-quotes'
 import type { SellModeProps } from '../list-view/sell-mode'
 import { useListCategories } from './list-categories'
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, For, Index, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import {
   seedCards,
@@ -813,7 +813,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               </Show>
 
               {/* Dynamic sorted/grouped sections (mainboard only) */}
-              <Index each={page.cardGroups()}>
+              <For keyed={false} each={page.cardGroups()}>
                 {(group) => (
                   <CardSection
                     priceEstimated={page.priceEstimated}
@@ -824,7 +824,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                     renderCard={renderDeckCard(false)}
                   />
                 )}
-              </Index>
+              </For>
 
               {/* Sideboard always shown at bottom, ungrouped */}
               <Show when={page.filteredAlso().length > 0}>
@@ -855,7 +855,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           }
         >
           {/* Every board's categories, nested under it. */}
-          <Index each={nestedCategoryGroups()}>
+          <For keyed={false} each={nestedCategoryGroups()}>
             {(group) => (
               <CardSection
                 priceEstimated={page.priceEstimated}
@@ -867,7 +867,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 renderCard={renderDeckCard(group().hideCount)}
               />
             )}
-          </Index>
+          </For>
         </Show>
       }
       overlays={
@@ -932,15 +932,21 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
   const toc = createMemo(() => buildToc(props.primer))
 
   // Re-expand whenever the route navigates to the primer or a specific section
-  createEffect(() => {
-    if (props.primerOpen || props.sectionId) setExpanded(true)
-  })
+  createEffect(
+    () => Boolean(props.primerOpen || props.sectionId),
+    (open) => {
+      if (open) setExpanded(true)
+    },
+  )
 
   // Scroll to the target section after the primer is expanded
-  createEffect(() => {
-    if (!expanded() || !props.sectionId) return
-    document.getElementById(props.sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
+  createEffect(
+    () => (expanded() ? props.sectionId : undefined),
+    (sectionId) => {
+      if (!sectionId) return
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    },
+  )
 
   return (
     <div>
@@ -951,7 +957,7 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
             <p class="text-hint">{t('site.deck.hasPrimer')}</p>
             <button
               class="link-action"
-              aria-expanded={false}
+              aria-expanded="false"
               onClick={() => {
                 setExpanded(true)
                 history.replaceState(
@@ -992,7 +998,7 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
           </div>
           <button
             class="link-action link-action-block"
-            aria-expanded={true}
+            aria-expanded="true"
             onClick={() => {
               setExpanded(false)
               history.replaceState(

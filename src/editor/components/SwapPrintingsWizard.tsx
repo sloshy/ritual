@@ -1,15 +1,5 @@
-import {
-  batch,
-  createEffect,
-  createMemo,
-  createSignal,
-  on,
-  onCleanup,
-  Show,
-  Switch,
-  Match,
-  type JSX,
-} from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createEffect, createMemo, createSignal, onCleanup, Show, Switch, Match } from 'solid-js'
 import type { ScryfallCard } from '../../scryfall/types'
 import type { PriceCurrency } from '../../pricing/price-currency'
 import { displayLanguage, scryfallCardLanguage } from '../../card/card-language'
@@ -292,38 +282,37 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
     !planned().flags.includes('needs-displaced-destination')
 
   // ── Loading ───────────────────────────────────────────────────────────
-  const ensureLoaded = (): void => {
-    const refs = enabledRefs()
+  /**
+   * Load the candidates for `refs` (the enabled sources by default) unless that
+   * scope is already loaded or loading. A caller that has just written the
+   * exclusion passes the refs it computed: a read lags the write until the
+   * flush, so `enabledRefs()` would still name the old scope.
+   */
+  const ensureLoaded = (refs: NamedListRef[] = enabledRefs()): void => {
     const key = scopeKey(refs)
     if (key === loadedScope && (sources() !== null || loading())) return
     abortLoad()
     const controller = new AbortController()
     loadController = controller
     loadedScope = key
-    batch(() => {
-      setSources(null)
-      setFailedSources([])
-      setLoading(true)
-      setLoadFailed(false)
-      // Plans were built against the previous scope's candidates.
-      setPlans(new Map())
-    })
+    setSources(null)
+    setFailedSources([])
+    setLoading(true)
+    setLoadFailed(false)
+    // Plans were built against the previous scope's candidates.
+    setPlans(new Map())
     props.provider
       .load(refs, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return
-        batch(() => {
-          setSources(result.lists)
-          setFailedSources(result.failed)
-          setLoading(false)
-        })
+        setSources(result.lists)
+        setFailedSources(result.failed)
+        setLoading(false)
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted || isAbortError(error)) return
-        batch(() => {
-          setLoading(false)
-          setLoadFailed(true)
-        })
+        setLoading(false)
+        setLoadFailed(true)
       })
   }
 
@@ -336,54 +325,51 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
     const keys = request.targets.map(swapTargetKey)
     const preselected = request.preselected
     const active = preselected ? keys.filter((key) => preselected.has(key)) : keys
-    batch(() => {
-      setSources(null)
-      setFailedSources([])
-      setLoading(false)
-      setLoadFailed(false)
-      setChecked(new Set(active))
-      setExcluded(defaultSourceExclusion(props.provider.lists()))
-      setMode('manual')
-      setUnpriced('skip')
-      setFinish('any')
-      setDisplaced({ kind: 'swap' })
-      setPlans(new Map())
-      setPickQueue([])
-      setPickIndex(0)
-      setPickFromReview(false)
-      setPickFinish('any')
-      setQuery('')
-      setFallback(undefined)
-      setReplaceTaken(false)
-      setPicks(new Map())
-      if (request.singleCard) {
-        // The pick queue is always a subset of the checked cards.
-        setPickQueue(active)
-        setStep('pick')
-      } else {
-        setStep('cards')
-      }
-      setReady(true)
-    })
-    if (request.singleCard) ensureLoaded()
+    setSources(null)
+    setFailedSources([])
+    setLoading(false)
+    setLoadFailed(false)
+    setChecked(new Set(active))
+    const exclusion = defaultSourceExclusion(props.provider.lists())
+    setExcluded(exclusion)
+    setMode('manual')
+    setUnpriced('skip')
+    setFinish('any')
+    setDisplaced({ kind: 'swap' })
+    setPlans(new Map())
+    setPickQueue([])
+    setPickIndex(0)
+    setPickFromReview(false)
+    setPickFinish('any')
+    setQuery('')
+    setFallback(undefined)
+    setReplaceTaken(false)
+    setPicks(new Map())
+    if (request.singleCard) {
+      // The pick queue is always a subset of the checked cards.
+      setPickQueue(active)
+      setStep('pick')
+    } else {
+      setStep('cards')
+    }
+    setReady(true)
+    if (request.singleCard) ensureLoaded(enabledScopeRefs(exclusion, sourceLists()))
   }
   // `Modal.onOpen` resets on closed→open; this covers the rest: a request
   // replaced while the wizard is already open (reset for the new one), and a
   // close (abort the load, blank the panel until the next open seeds it).
   createEffect(
-    on(
-      () => props.request,
-      (request, previous) => {
-        if (!request) {
-          abortLoad()
-          setReady(false)
-        } else if (previous && previous !== request) {
-          // The same request re-read (the host rebuilt its props, e.g. on a
-          // currency change) is not a new run.
-          reset()
-        }
-      },
-    ),
+    () => props.request,
+    (request, previous) => {
+      if (!request) {
+        abortLoad()
+        setReady(false)
+      } else if (previous && previous !== request) {
+        // The same request re-read (the host rebuilt its props, e.g. on a
+        // currency change) is not a new run.
+        reset()
+      }
+    },
   )
 
   const close = (): void => props.onClose()
@@ -391,41 +377,42 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
   // ── Transitions ───────────────────────────────────────────────────────
   const startPlanning = (): void => {
     const keys = checkedKeys()
-    batch(() => {
-      setPickFromReview(false)
-      setPickIndex(0)
-      setPickFinish(finish())
-      setQuery('')
-      const current = mode()
-      if (current === 'manual') {
-        setPickQueue(keys)
-        setStep(keys.length > 0 ? 'pick' : afterPlanning(stepContext()))
-        return
-      }
-      const targetsToPlan = keys.flatMap((key) => {
-        const target = targetByKey().get(key)
-        return target ? [target] : []
-      })
-      const result = autoPlanAll(
-        targetsToPlan,
-        (target) => pricedCandidatesFor(swapTargetKey(target)),
-        swapTargetKey,
-        { mode: current, unpriced: unpriced(), finish: finish() },
-        priceOf,
+    setPickFromReview(false)
+    setPickIndex(0)
+    setPickFinish(finish())
+    setQuery('')
+    const current = mode()
+    if (current === 'manual') {
+      setPickQueue(keys)
+      // The context as just written: reads lag the writes above until the flush.
+      setStep(
+        keys.length > 0
+          ? 'pick'
+          : afterPlanning({ ...stepContext(), pickFromReview: false, hasPickQueue: false }),
       )
-      setPlans(result)
-      const manual = needsManualKeys(result)
-      setPickQueue(manual)
-      setStep(manual.length > 0 ? 'pick' : 'review')
+      return
+    }
+    const targetsToPlan = keys.flatMap((key) => {
+      const target = targetByKey().get(key)
+      return target ? [target] : []
     })
+    const result = autoPlanAll(
+      targetsToPlan,
+      (target) => pricedCandidatesFor(swapTargetKey(target)),
+      swapTargetKey,
+      { mode: current, unpriced: unpriced(), finish: finish() },
+      priceOf,
+    )
+    setPlans(result)
+    const manual = needsManualKeys(result)
+    setPickQueue(manual)
+    setStep(manual.length > 0 ? 'pick' : 'review')
   }
 
   const advancePick = (): void => {
     if (pickIndex() < pickQueue().length - 1) {
-      batch(() => {
-        setPickIndex((i) => i + 1)
-        setQuery('')
-      })
+      setPickIndex((i) => i + 1)
+      setQuery('')
       return
     }
     setStep(pickFromReview() || mode() !== 'manual' ? 'review' : afterPlanning(stepContext()))
@@ -468,20 +455,16 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
   const goBack = (): void => {
     const previous = previousStep(step(), stepContext())
     if (!previous) return
-    batch(() => {
-      if (previous === 'pick') setPickIndex(Math.max(0, pickQueue().length - 1))
-      setStep(previous)
-    })
+    if (previous === 'pick') setPickIndex(Math.max(0, pickQueue().length - 1))
+    setStep(previous)
   }
 
   const changeFromReview = (key: string): void => {
-    batch(() => {
-      setPickQueue([key])
-      setPickIndex(0)
-      setPickFromReview(true)
-      setQuery('')
-      setStep('pick')
-    })
+    setPickQueue([key])
+    setPickIndex(0)
+    setPickFromReview(true)
+    setQuery('')
+    setStep('pick')
   }
 
   const setPickCount = (
@@ -553,7 +536,13 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
   }
   // A row hovered when the step (or the whole run) changes under the cursor
   // never gets its mouseleave, so the preview is cleared on every transition.
-  createEffect(on([step, () => props.request], () => tip.setTooltip(null), { defer: true }))
+  createEffect(
+    () => [step(), props.request] as const,
+    () => {
+      tip.setTooltip(null)
+    },
+    { defer: true },
+  )
 
   return (
     <Modal
@@ -760,8 +749,7 @@ function LoadStatus(props: LoadStatusProps): JSX.Element {
     <>
       <Show when={props.loading || props.failed}>
         <p
-          class="swap-wizard-note"
-          classList={{ 'swap-wizard-note--warning': props.failed }}
+          class={['swap-wizard-note', { 'swap-wizard-note--warning': props.failed }]}
           role="status"
         >
           {props.failed ? t('ui.swap.sources.loadFailed') : t('ui.swap.sources.loading')}

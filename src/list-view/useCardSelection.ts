@@ -1,4 +1,5 @@
-import { createSignal, type Accessor } from 'solid-js'
+import { type Accessor } from 'solid-js'
+import { createLatestSignal } from '../ui/latest-signal'
 import type { Finish, Condition } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLabel } from '../card/card-labels'
@@ -195,7 +196,7 @@ export function groupSelectionsBySource(cards: SelectedCard[]): SelectionSourceG
 // `key` is namespaced by its list identity, so the same per-tile id on two
 // different lists never collides.
 
-const [selectedCards, setSelectedCards] = createSignal<SelectedCard[]>([])
+const [selectedCards, setSelectedCards] = createLatestSignal<SelectedCard[]>([])
 
 const listKeyPrefix = (list: SelectionListId): string => `${list.kind}\0${list.name}\0`
 

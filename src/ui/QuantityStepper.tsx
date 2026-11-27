@@ -59,8 +59,7 @@ export const QuantityStepper: Component<QuantityStepperProps> = (props) => {
   return (
     <div
       id={props.id}
-      class="qty-stepper"
-      classList={{ 'qty-stepper--focusable': props.focusable }}
+      class={['qty-stepper', { 'qty-stepper--focusable': props.focusable }]}
       // A single focus stop whose value changes with ←/→ is the spinbutton
       // pattern; without it the value change is announced to nobody.
       role={props.focusable ? 'spinbutton' : 'group'}

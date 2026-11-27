@@ -1,4 +1,5 @@
-import { type JSX, createMemo, createSignal, onMount, For, Show } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createMemo, createSignal, onSettled, For, Show } from 'solid-js'
 import type {
   AdminConfig,
   CacheSource,
@@ -117,7 +118,7 @@ export function Settings(): JSX.Element {
     } else setError(apiMessage('admin.settings.loadFailed'))
   }
 
-  onMount(() => {
+  onSettled(() => {
     void fetchConfig()
   })
 
@@ -366,10 +367,9 @@ export function Settings(): JSX.Element {
             <label class="form-label">{t('admin.settings.defaultCategories')}</label>
             <input
               type="text"
-              class="form-input"
-              classList={{ 'form-input--invalid': categoriesError() !== undefined }}
+              class={['form-input', { 'form-input--invalid': categoriesError() !== undefined }]}
               name="defaultCategories"
-              aria-invalid={categoriesError() !== undefined}
+              aria-invalid={categoriesError() !== undefined ? 'true' : 'false'}
               value={categoriesDraft() ?? formatCardCategories(config()!.defaultCategories)}
               onInput={(e) => {
                 setCategoriesDraft(e.currentTarget.value)

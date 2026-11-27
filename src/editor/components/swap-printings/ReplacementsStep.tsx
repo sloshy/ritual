@@ -1,4 +1,4 @@
-import { batch, createSignal, For, Show, type Accessor, type Component } from 'solid-js'
+import { createSignal, For, Show, type Accessor, type Component } from 'solid-js'
 import type { PriceCurrency } from '../../../pricing/price-currency'
 import type { CardPrintingsLookup } from '../../../card/card-printing'
 import { printingLabel } from '../../../card/card-line-tail'
@@ -70,8 +70,10 @@ export const ReplacementsStep: Component<ReplacementsStepProps> = (props) => {
                   const pick = (): ChosenPrinting | undefined => props.picks().get(row.key)
                   return (
                     <li
-                      class="swap-wizard-row swap-wizard-replacement-row"
-                      classList={{ 'swap-wizard-row--taken': pick() !== undefined }}
+                      class={[
+                        'swap-wizard-row swap-wizard-replacement-row',
+                        { 'swap-wizard-row--taken': pick() !== undefined },
+                      ]}
                     >
                       <span class="swap-wizard-row-main">
                         <CardThumb card={pick()?.card ?? row.move.card} name={row.move.cardName} />
@@ -123,12 +125,10 @@ export const ReplacementsStep: Component<ReplacementsStepProps> = (props) => {
                           <button
                             type="button"
                             class="btn btn-secondary btn-sm"
-                            onClick={() =>
-                              batch(() => {
-                                props.setQuery('')
-                                setGrid({ key: row.key, cardName: row.move.cardName })
-                              })
-                            }
+                            onClick={() => {
+                              props.setQuery('')
+                              setGrid({ key: row.key, cardName: row.move.cardName })
+                            }}
                           >
                             {pick()
                               ? t('ui.swap.pick.changePrinting')
@@ -170,12 +170,10 @@ export const ReplacementsStep: Component<ReplacementsStepProps> = (props) => {
               setQuery={props.setQuery}
               active={() => props.active() && grid() !== null}
               currency={props.currency}
-              onChoose={(card, finish) =>
-                batch(() => {
-                  props.onPick(target().key, chosenFromGrid(card, finish))
-                  setGrid(null)
-                })
-              }
+              onChoose={(card, finish) => {
+                props.onPick(target().key, chosenFromGrid(card, finish))
+                setGrid(null)
+              }}
             />
           </div>
         )}

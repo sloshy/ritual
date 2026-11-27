@@ -1,5 +1,6 @@
-import type { Component, JSX } from 'solid-js'
-import { createSignal, createMemo, Index, Show } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import type { Component } from 'solid-js'
+import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { cardPriceText, cardPricelessReason } from '../list-view/priceless'
@@ -310,7 +311,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         </>
       }
       sections={
-        <Index each={page.cardGroups()}>
+        <For keyed={false} each={page.cardGroups()}>
           {(group) => (
             <CardSection
               priceEstimated={page.priceEstimated}
@@ -321,7 +322,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
               renderCard={renderTile}
             />
           )}
-        </Index>
+        </For>
       }
       overlays={
         <CardModal

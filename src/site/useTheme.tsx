@@ -11,18 +11,10 @@
 // before the stylesheet resolves to prevent FOUC; this module rehydrates
 // the same state into Solid signals after the SPA mounts.
 
-import {
-  batch,
-  createContext,
-  createEffect,
-  createSignal,
-  on,
-  onCleanup,
-  useContext,
-} from 'solid-js'
-import type { JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createContext, createEffect, createSignal, onCleanup, useContext } from 'solid-js'
+
 import type { ThemeCssVars, ThemeName } from '../theme/themes'
-import { requireContext } from '../util/require-context'
 
 // Keep these key names in sync with `themeBootstrapScript` in `src/themes.ts`.
 const LS_THEME = 'ritual:theme'
@@ -163,34 +155,28 @@ export function createThemeStore() {
   }
 
   createEffect(
-    on(
-      theme,
-      (active) => {
-        writeString(LS_THEME, active === 'default' ? null : active)
-      },
-      { defer: true },
-    ),
+    theme,
+    (active) => {
+      writeString(LS_THEME, active === 'default' ? null : active)
+    },
+    { defer: true },
   )
 
   // The DOM style is applied synchronously inside the setters below (so any
   // observer that calls `getComputedStyle` after a customVars change sees the
   // up-to-date value). This effect just handles the localStorage write.
   createEffect(
-    on(
-      customVars,
-      (vars) => {
-        writeJson(LS_CUSTOM_VARS, Object.keys(vars).length > 0 ? vars : null)
-      },
-      { defer: true },
-    ),
+    customVars,
+    (vars) => {
+      writeJson(LS_CUSTOM_VARS, Object.keys(vars).length > 0 ? vars : null)
+    },
+    { defer: true },
   )
 
-  createEffect(
-    on(editorOpen, (open) => {
-      writeString(LS_EDITOR_OPEN, open ? '1' : null)
-      document.body.classList.toggle('theme-editor-active', open)
-    }),
-  )
+  createEffect(editorOpen, (open) => {
+    writeString(LS_EDITOR_OPEN, open ? '1' : null)
+    document.body.classList.toggle('theme-editor-active', open)
+  })
 
   // If the store is ever disposed, leave the body class clean.
   onCleanup(() => {
@@ -237,10 +223,8 @@ export function createThemeStore() {
   // mid-flight state where the new palette is active but the user's old
   // overrides are still layered on top of it.
   function switchBaseTheme(name: ActiveTheme): void {
-    batch(() => {
-      clearCustomVars()
-      setTheme(name)
-    })
+    clearCustomVars()
+    setTheme(name)
   }
 
   return {
@@ -263,7 +247,7 @@ export function createThemeStore() {
 // Context plumbing
 // ---------------------------------------------------------------------------
 
-const ThemeContext = createContext<ThemeStore | undefined>(undefined)
+const ThemeContext = createContext<ThemeStore>()
 
 type ThemeProviderProps = {
   store: ThemeStore
@@ -271,9 +255,9 @@ type ThemeProviderProps = {
 }
 
 export function ThemeProvider(props: ThemeProviderProps): JSX.Element {
-  return <ThemeContext.Provider value={props.store}>{props.children}</ThemeContext.Provider>
+  return <ThemeContext value={props.store}>{props.children}</ThemeContext>
 }
 
 export function useTheme(): ThemeStore {
-  return requireContext(useContext(ThemeContext), 'useTheme', 'ThemeProvider')
+  return useContext(ThemeContext)
 }

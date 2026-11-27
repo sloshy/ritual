@@ -21,7 +21,7 @@
  * finish would render N/A next to a foil the buyer is very much selling.
  */
 
-import { createEffect, untrack, type Accessor } from 'solid-js'
+import { createEffect, type Accessor } from 'solid-js'
 import { buylistQuotesOnline, buylistRequestFor, requestBuylistQuotes } from './buylist-quotes'
 import { printingFinishPairs } from '../card/card-printing'
 import { activeStore } from './price-view'
@@ -53,16 +53,16 @@ export function printingQuoteRequests(printings: readonly ScryfallCard[]): Buyli
  * the keys it has already answered for.
  */
 export function usePrintingQuotes(printings: Accessor<readonly ScryfallCard[]>): void {
-  createEffect(() => {
-    if (activeStore() !== 'cardkingdom' || !buylistQuotesOnline()) return
-    const requests = printingQuoteRequests(printings())
-    if (requests.length === 0) return
-    // Untracked: `requestBuylistQuotes` reads the quote map synchronously before
-    // its first await, which would otherwise make this effect a subscriber of
-    // every quote that arrives anywhere in the app. It converges either way (the
-    // re-run bails at the dedupe before reading anything), but the dependency is
-    // invisible from here and one early signal read in the callee would turn it
-    // into a loop.
-    untrack(() => void requestBuylistQuotes(requests))
-  })
+  createEffect(
+    (): BuylistQuoteRequest[] =>
+      activeStore() === 'cardkingdom' && buylistQuotesOnline()
+        ? printingQuoteRequests(printings())
+        : [],
+    // The apply phase is untracked: `requestBuylistQuotes` reads the quote map
+    // synchronously before its first await, and tracking that would make this
+    // effect a subscriber of every quote that arrives anywhere in the app.
+    (requests) => {
+      if (requests.length > 0) void requestBuylistQuotes(requests)
+    },
+  )
 }

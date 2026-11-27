@@ -1,4 +1,4 @@
-import { createSignal, createEffect, createMemo, onCleanup } from 'solid-js'
+import { createSignal, createEffect, createMemo } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import { reportDataFetchError } from './api-base'
 import { isAbortError } from '../util/errors'
@@ -26,8 +26,7 @@ export function useFetchJson<T>(url: Accessor<string | null>): UseFetchJsonResul
   // same relative path) — that must not abort and refetch an in-flight load.
   const resolvedUrl = createMemo(url)
 
-  createEffect(() => {
-    const currentUrl = resolvedUrl()
+  createEffect(resolvedUrl, (currentUrl) => {
     if (!currentUrl) {
       setData(null)
       setFailed(false)
@@ -55,7 +54,7 @@ export function useFetchJson<T>(url: Accessor<string | null>): UseFetchJsonResul
       }
     })()
 
-    onCleanup(() => controller.abort())
+    return () => controller.abort()
   })
 
   return { data, loading, failed }

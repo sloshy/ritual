@@ -1,5 +1,5 @@
 import type { Component, Accessor } from 'solid-js'
-import { createSignal, createMemo, createEffect, on, onMount, onCleanup, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, onSettled, For, Show } from 'solid-js'
 import type {
   DeckSummary,
   CollectionSummary,
@@ -357,39 +357,33 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
   })
 
   createEffect(
-    on(
-      () => props.open,
-      (isOpen) => {
-        if (!isOpen) return
-        setQuery('')
-        setActiveIndex(0)
-        queueMicrotask(() => inputEl?.focus())
-        if (!detailFetchStarted) {
-          const decks = props.decks()
-          const collections = props.collections()
-          const wantedLists = props.wantedLists()
-          if (decks !== null && collections !== null && wantedLists !== null) {
-            detailFetchStarted = true
-            void loadAllDetails(decks, collections, wantedLists)
-          }
+    () => props.open,
+    (isOpen) => {
+      if (!isOpen) return
+      setQuery('')
+      setActiveIndex(0)
+      queueMicrotask(() => inputEl?.focus())
+      if (!detailFetchStarted) {
+        const decks = props.decks()
+        const collections = props.collections()
+        const wantedLists = props.wantedLists()
+        if (decks !== null && collections !== null && wantedLists !== null) {
+          detailFetchStarted = true
+          void loadAllDetails(decks, collections, wantedLists)
         }
-      },
-    ),
+      }
+    },
   )
 
-  createEffect(
-    on(filtered, (results) => {
-      if (activeIndex() >= results.length) setActiveIndex(0)
-    }),
-  )
+  createEffect(filtered, (results) => {
+    if (activeIndex() >= results.length) setActiveIndex(0)
+  })
 
-  createEffect(
-    on(activeIndex, (idx) => {
-      if (!listEl) return
-      const child = listEl.children[idx]
-      if (child instanceof HTMLElement) child.scrollIntoView({ block: 'nearest' })
-    }),
-  )
+  createEffect(activeIndex, (idx) => {
+    if (!listEl) return
+    const child = listEl.children[idx]
+    if (child instanceof HTMLElement) child.scrollIntoView({ block: 'nearest' })
+  })
 
   const navigateToEntry = (entry: QuickSwitchEntry): void => {
     props.onClose()
@@ -446,7 +440,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
             autocomplete="off"
             autocorrect="off"
             autocapitalize="off"
-            spellcheck={false}
+            spellcheck="false"
           />
           <div class="quick-switch-results" ref={listEl}>
             <Show
@@ -458,8 +452,10 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
                   return (
                     <button
                       type="button"
-                      class="quick-switch-row"
-                      classList={{ 'quick-switch-row-active': activeIndex() === i() }}
+                      class={[
+                        'quick-switch-row',
+                        { 'quick-switch-row-active': activeIndex() === i() },
+                      ]}
                       onMouseEnter={() => setActiveIndex(i())}
                       onClick={() => navigateToEntry(entry)}
                     >
@@ -535,7 +531,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
 }
 
 export function useQuickSwitchShortcut(toggle: () => void): void {
-  onMount(() => {
+  onSettled(() => {
     const handler = (e: KeyboardEvent): void => {
       if (e.key !== 'k' && e.key !== 'K') return
       if (!e.ctrlKey) return
@@ -543,6 +539,6 @@ export function useQuickSwitchShortcut(toggle: () => void): void {
       toggle()
     }
     document.addEventListener('keydown', handler)
-    onCleanup(() => document.removeEventListener('keydown', handler))
+    return () => document.removeEventListener('keydown', handler)
   })
 }

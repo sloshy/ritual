@@ -1,5 +1,5 @@
 import { listIdentityKey, type ListIdentityKey, type ListInfo } from '../../../list/list-identity'
-import { type Accessor, batch, createMemo, createSignal, onMount } from 'solid-js'
+import { type Accessor, createMemo, createSignal, onSettled } from 'solid-js'
 import {
   changeSetFromEvents,
   cloneSets,
@@ -117,7 +117,7 @@ export function useHistorySession(): UseHistorySessionResult {
     }
   }
 
-  onMount(() => void reloadLists())
+  onSettled(() => void reloadLists())
 
   const loadDetail = async (list: ListInfo): Promise<void> => {
     setDetailLoading(true)
@@ -162,11 +162,9 @@ export function useHistorySession(): UseHistorySessionResult {
 
   /** Snapshot the current sets for undo, then apply `next` (re-sorted newest first). */
   const applyMutation = (next: ChangeSet[]): void => {
-    batch(() => {
-      setUndoStack((stack) => [...stack, cloneSets(sets())])
-      setSets(sortNewestFirst(next))
-      setStatus(null)
-    })
+    setUndoStack((stack) => [...stack, cloneSets(sets())])
+    setSets(sortNewestFirst(next))
+    setStatus(null)
   }
 
   const deleteSet = (index: number): void => applyMutation(deleteSetAt(sets(), index))
@@ -192,21 +190,15 @@ export function useHistorySession(): UseHistorySessionResult {
     const stack = undoStack()
     const previous = stack[stack.length - 1]
     if (!previous) return
-    batch(() => {
-      setUndoStack(stack.slice(0, -1))
-      setSets(sortNewestFirst(previous))
-      setStatus(null)
-    })
+    setUndoStack(stack.slice(0, -1))
+    setSets(sortNewestFirst(previous))
+    setStatus(null)
   }
 
   const discard = (): void => {
-    batch(() => {
-      setSets(
-        sortNewestFirst(parseChangeSets(originalSerialized(), selectedList()?.name ?? '').sets),
-      )
-      setUndoStack([])
-      setStatus(null)
-    })
+    setSets(sortNewestFirst(parseChangeSets(originalSerialized(), selectedList()?.name ?? '').sets))
+    setUndoStack([])
+    setStatus(null)
   }
 
   const save = async (): Promise<void> => {

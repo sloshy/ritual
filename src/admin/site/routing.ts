@@ -14,11 +14,10 @@
  *   returns to the page you arrived from instead of stepping backwards through
  *   list selections, and the mounted page keeps its state.
  */
-import { batch, createContext, createSignal, onCleanup, useContext } from 'solid-js'
+import { createContext, createSignal, onCleanup, useContext } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import { isListType, type ListType } from '../../list/list-type'
 import type { MessageKey } from '../../i18n/messages/en'
-import { requireContext } from '../../util/require-context'
 import type { NavigationAttempt } from '../../editor/navigation-guard'
 
 export type Page =
@@ -212,14 +211,12 @@ export function createRouting(attempt: NavigationAttempt): RoutingController {
   if (window.location.hash !== canonical) window.history.replaceState(null, '', canonical)
 
   const go = (next: Route): void => {
-    // One logical navigation: batched so the page mounts once. Written
-    // separately, the route write would mount the destination page and the key
-    // write would immediately dispose and rebuild it, running every mount-time
-    // fetch twice.
-    batch(() => {
-      setRoute(next)
-      setNavKey({})
-    })
+    // One logical navigation: both writes land in the same flush, so the page
+    // mounts once. Landed separately, the route write would mount the
+    // destination page and the key write would immediately dispose and rebuild
+    // it, running every mount-time fetch twice.
+    setRoute(next)
+    setNavKey({})
   }
 
   const navigate: NavigateFn = (page, options) => {
@@ -267,9 +264,12 @@ export function createRouting(attempt: NavigationAttempt): RoutingController {
 
 const RoutingContext = createContext<RoutingController>()
 
-export const RoutingProvider = RoutingContext.Provider
+export const RoutingProvider = RoutingContext
 
-/** The router, from any component mounted under the app's {@link RoutingProvider}. */
+/**
+ * The router, from any component mounted under the app's {@link RoutingProvider}.
+ * The context has no default, so a call outside the provider throws.
+ */
 export function useRouting(): RoutingController {
-  return requireContext(useContext(RoutingContext), 'useRouting', 'RoutingProvider')
+  return useContext(RoutingContext)
 }

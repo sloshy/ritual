@@ -31,6 +31,9 @@ test.describe('Quick filter', () => {
     // including the space that separates the two terms.
     await page.keyboard.press('g')
     await expect(page.locator(TAB)).toBeVisible()
+    // Focused by that first key, so the next one is typed into the field.
+    await expect(page.locator(FIELD)).toBeFocused()
+    await expect(page.locator(FIELD)).toHaveValue('g')
     await page.keyboard.type('reen elf')
     await expect(page.locator(FIELD)).toHaveValue('green elf')
     await expectVisibleCards(page, ['Green Elf'])

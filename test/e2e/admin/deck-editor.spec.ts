@@ -4,7 +4,14 @@ import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
-import { captureDeckSaves, mockDeckEditorLoad, type MockEditorDeck } from '../helpers/mock-admin'
+import type { BuylistQuoteRequest, BuylistQuotesResponse } from '../../../src/buylist'
+import type { BuylistQuoteBody } from '../../../src/api/buylist'
+import {
+  captureDeckSaves,
+  mockBuylistApi,
+  mockDeckEditorLoad,
+  type MockEditorDeck,
+} from '../helpers/mock-admin'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
 /**
@@ -332,6 +339,71 @@ test.describe('Deck Editor Page', () => {
     })
   })
 
+  test.describe('a list that fails to load', () => {
+    const BOLT = makeMockScryfallCard({
+      id: 'bolt-lea',
+      name: 'Lightning Bolt',
+      cmc: 1,
+      type_line: 'Instant',
+      set: 'lea',
+      set_name: 'Limited Edition Alpha',
+      collector_number: '161',
+    })
+
+    test('the previous list is neither shown nor saved as it', async ({ page }) => {
+      await mockDeckEditorLoad(page, {
+        slug: 'load-a',
+        name: 'Load A',
+        cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
+        printings: { 'Lightning Bolt': [BOLT] },
+        extra: { contentHash: 'hash-a' },
+      })
+      await fulfillJson(
+        page,
+        '**/api/decks',
+        {
+          decks: [
+            { slug: 'load-a', name: 'Load A' },
+            { slug: 'load-b', name: 'Load B' },
+          ],
+        },
+        { method: 'GET' },
+      )
+      await page.route('**/api/deck/load-b', (route) =>
+        route.fulfill({ status: 500, json: { success: false } }),
+      )
+      const savedToB = await captureDeckSaves(page, 'load-b')
+      const savedToA = await captureDeckSaves(page, 'load-a')
+      await fulfillJson(page, '**/api/autocomplete*', { success: true, names: ['Lightning Bolt'] })
+      await fulfillJson(page, '**/api/card-printings*', {
+        success: true,
+        printings: [BOLT],
+        complete: true,
+      })
+      await gotoAdminDashboard(page)
+      await openListEditor(page, 'deck')
+      await selectList(page, 'deck', 'load-a')
+      await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+
+      // Deck B's load fails: deck A's cards must not stay up as deck B's.
+      await page.locator('#deck-select').selectOption('load-b')
+      await expect(page.locator('.card-item')).toHaveCount(0)
+
+      // The add shortcut still opens the search; the add lands nowhere.
+      await page.keyboard.press('Control+Enter')
+      const searchInput = page.locator('.search-modal input[type="text"]')
+      await expect(searchInput).toBeVisible({ timeout: 5_000 })
+      await searchInput.fill('Lightning Bolt')
+      await expect(page.locator('.search-result-item', { hasText: 'Lightning Bolt' })).toBeVisible()
+      await page.keyboard.press('Enter')
+      await page.locator('.printing-select-card', { hasText: 'LEA #161' }).click()
+      await expect(page.locator('.changes-badge')).toHaveCount(0)
+      await expect(page.locator('.btn-save')).toHaveCount(0)
+      expect(savedToB()).toBeNull()
+      expect(savedToA()).toBeNull()
+    })
+  })
+
   test.describe('add card — a copy that merges onto a line', () => {
     const BOLT = makeMockScryfallCard({
       id: 'bolt-lea',
@@ -405,6 +477,74 @@ test.describe('Deck Editor Page', () => {
       await page.locator('.btn-save').click()
       await expect.poll(() => saved()?.length).toBe(1)
       expect(saved()![0]).toMatchObject({ action: 'add', cardName: 'Lightning Bolt', cardId: 1 })
+    })
+
+    test('undoing a new line hands its id back to the next add', async ({ page }) => {
+      const saved = await captureDeckSaves<SavedAdd>(page, 'merge-deck')
+
+      // A specific printing is a new line, which draws &3.
+      await searchBolt(page)
+      await page.locator('.printing-select-card', { hasText: 'LEA #161' }).click()
+      await expect(page.locator('.card-item')).toHaveCount(3)
+      // Undone in the same session: &3 goes back to the pool.
+      await page.locator('.btn-undo').click()
+      await expect(page.locator('.changes-badge')).toHaveCount(0)
+      await expect(page.locator('.card-item')).toHaveCount(2)
+
+      // The next new line takes &3 again, not a fresh &4.
+      await searchBolt(page)
+      await page.locator('.printing-select-card', { hasText: 'LEA #161' }).click()
+      await expect(page.locator('.changes-badge')).toHaveText('1')
+      await page.locator('.btn-save').click()
+      await expect.poll(() => saved()?.length).toBe(1)
+      expect(saved()![0]).toMatchObject({ action: 'add', cardName: 'Lightning Bolt', cardId: 3 })
+    })
+
+    test('in sell mode, an added printing is quoted', async ({ page }) => {
+      const BOLT_M10 = makeMockScryfallCard({
+        id: 'bolt-m10',
+        name: 'Lightning Bolt',
+        cmc: 1,
+        type_line: 'Instant',
+        set: 'm10',
+        set_name: 'Magic 2010',
+        collector_number: '146',
+      })
+      await fulfillJson(page, '**/api/card-printings*', {
+        success: true,
+        printings: [BOLT, BOLT_M10],
+        complete: true,
+      })
+      await mockBuylistApi(page)
+      const asked: BuylistQuoteRequest[] = []
+      await fulfillJson(
+        page,
+        '**/api/buylist/quotes',
+        (route): BuylistQuotesResponse => {
+          asked.push(...(route.request().postDataJSON() as BuylistQuoteBody).printings)
+          return {
+            success: true,
+            buyer: 'cardkingdom',
+            quotes: {},
+            feedCreatedAt: '2026-08-04 06:06:09',
+            feedRetrievedAt: 1785850800000,
+            stale: false,
+            productCount: 149978,
+          }
+        },
+        { method: 'POST' },
+      )
+      await page.locator('.toolbar-sell-toggle').click()
+      await expect(page.locator('#buylist-buyer')).toHaveCount(1)
+      await expect.poll(() => asked.length).toBeGreaterThan(0)
+
+      // A printing no line held: the card set changed, so it is asked about.
+      await searchBolt(page)
+      await page.locator('.printing-select-card', { hasText: 'M10 #146' }).click()
+      await expect(page.locator('.changes-badge')).toHaveText('1')
+      await expect
+        .poll(() => asked.some((p) => p.set === 'm10' && p.collectorNumber === '146'))
+        .toBe(true)
     })
 
     test('undoing a merged copy keeps the line’s id out of the pool', async ({ page }) => {

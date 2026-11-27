@@ -1,4 +1,5 @@
-import { type JSX, createSignal, onMount, Show, For } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createSignal, onSettled, Show, For } from 'solid-js'
 import type { AuditEntry } from '../../audit-log'
 import { useT, useTKey } from '../../../ui/i18n'
 import { auditReasonKey } from '../../audit-reasons'
@@ -52,7 +53,7 @@ export function AuditLog(): JSX.Element {
     }
   }
 
-  onMount(() => {
+  onSettled(() => {
     void fetchLog()
   })
 

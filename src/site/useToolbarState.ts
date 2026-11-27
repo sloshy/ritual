@@ -23,6 +23,16 @@ export type UseToolbarStateDefaults<G extends string> = {
   sortBy?: SortBy
 }
 
+/** Initial toolbar state that overrides the defaults (a shared URL's), each field only when given. */
+export type UseToolbarStateSeed<G extends string> = {
+  viewMode?: ViewMode
+  cardSize?: CardSize
+  groupBy?: G
+  sortLayers?: SortLayer[]
+  reverseGroups?: boolean
+  priceGroupStrategy?: PriceGroupStrategy
+}
+
 export type UseToolbarStateResult<G extends string> = {
   viewMode: Accessor<ViewMode>
   setViewMode: Setter<ViewMode>
@@ -59,8 +69,9 @@ export type UseToolbarStateResult<G extends string> = {
 /** Shared toolbar state for DeckPage and CollectionPage. */
 export function useToolbarState<G extends string>(
   defaults?: UseToolbarStateDefaults<G>,
+  seed?: UseToolbarStateSeed<G>,
 ): UseToolbarStateResult<G> {
-  const [rawViewMode, setViewMode] = createSignal<ViewMode>('binder')
+  const [rawViewMode, setViewMode] = createSignal<ViewMode>(seed?.viewMode ?? 'binder')
   const coarse = usePointerCoarse()
   // Overlap/stack reveal cards on hover, so touch devices degrade them to
   // binder — reachable there only via a shared URL's view= parameter, since the
@@ -69,13 +80,17 @@ export function useToolbarState<G extends string>(
     const mode = rawViewMode()
     return coarse() && (mode === 'overlap' || mode === 'stack') ? 'binder' : mode
   }
-  const [cardSize, setCardSize] = createSignal<CardSize>('large')
-  const [groupBy, setGroupBy] = createSignal<G>((defaults?.groupBy ?? 'type') as G)
-  const [sortLayers, setSortLayers] = createSignal<SortLayer[]>([
-    { sortBy: defaults?.sortBy ?? 'name', reverse: false },
-  ])
-  const [reverseGroups, setReverseGroups] = createSignal(false)
-  const [priceGroupStrategy, setPriceGroupStrategy] = createSignal<PriceGroupStrategy>('archidekt')
+  const [cardSize, setCardSize] = createSignal<CardSize>(seed?.cardSize ?? 'large')
+  const [groupBy, setGroupBy] = createSignal<G>(
+    (seed?.groupBy ?? defaults?.groupBy ?? 'type') as Exclude<G, Function>,
+  )
+  const [sortLayers, setSortLayers] = createSignal<SortLayer[]>(
+    seed?.sortLayers ?? [{ sortBy: defaults?.sortBy ?? 'name', reverse: false }],
+  )
+  const [reverseGroups, setReverseGroups] = createSignal(seed?.reverseGroups ?? false)
+  const [priceGroupStrategy, setPriceGroupStrategy] = createSignal<PriceGroupStrategy>(
+    seed?.priceGroupStrategy ?? 'archidekt',
+  )
 
   return {
     viewMode,

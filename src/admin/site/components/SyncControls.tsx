@@ -1,4 +1,5 @@
-import { type JSX, For } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { For } from 'solid-js'
 import { useT, useTKey } from '../../../ui/i18n'
 import type { SyncChangeFilter } from '../../../sync/common'
 import type { ParameterlessKey } from '../../../i18n/t'
@@ -90,7 +91,7 @@ export function ChoicePicker<T extends string>(props: ChoicePickerProps<T>): JSX
               type="button"
               class="segmented-option"
               data-active={props.value === option.id ? 'true' : undefined}
-              aria-pressed={props.value === option.id}
+              aria-pressed={props.value === option.id ? 'true' : 'false'}
               disabled={props.disabled}
               onClick={() => props.onSelect(option.id)}
             >

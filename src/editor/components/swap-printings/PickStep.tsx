@@ -1,4 +1,4 @@
-import { batch, createMemo, createSignal, For, Show, type Accessor, type Component } from 'solid-js'
+import { createMemo, createSignal, For, Show, type Accessor, type Component } from 'solid-js'
 import type { Finish } from '../../../card/finish-condition'
 import type { ScryfallCard } from '../../../scryfall/types'
 import type { PriceCurrency } from '../../../pricing/price-currency'
@@ -102,16 +102,12 @@ export const PickStep: Component<PickStepProps> = (props) => {
   // The candidate rows and the printing grid filter different things, so a
   // query typed for one never carries into the other.
   const enterGrid = (candidate: SwapCandidate, requested: number): void => {
-    batch(() => {
-      props.setQuery('')
-      setView({ kind: 'grid', candidate, requested })
-    })
+    props.setQuery('')
+    setView({ kind: 'grid', candidate, requested })
   }
   const backToRows = (): void => {
-    batch(() => {
-      props.setQuery('')
-      setView({ kind: 'rows' })
-    })
+    props.setQuery('')
+    setView({ kind: 'rows' })
   }
   const setCount = (candidate: SwapCandidate, requested: number): void => {
     const count = clampTakeCount(requested, boundsFor(candidate))
@@ -134,10 +130,8 @@ export const PickStep: Component<PickStepProps> = (props) => {
 
   const choosePrinting = (grid: GridView, card: ScryfallCard, finish: Finish): void => {
     const count = clampTakeCount(Math.max(1, grid.requested), boundsFor(grid.candidate))
-    batch(() => {
-      props.onSetCount(grid.candidate, count, chosenFromGrid(card, finish))
-      backToRows()
-    })
+    props.onSetCount(grid.candidate, count, chosenFromGrid(card, finish))
+    backToRows()
   }
 
   return (
@@ -203,11 +197,13 @@ export const PickStep: Component<PickStepProps> = (props) => {
           <For each={rows()}>
             {(candidate) => (
               <li
-                class="swap-wizard-row swap-wizard-candidate-row"
-                classList={{
-                  'swap-wizard-row--taken': countFor(candidate) > 0,
-                  'swap-wizard-row--exhausted': availableFor(candidate) === 0,
-                }}
+                class={[
+                  'swap-wizard-row swap-wizard-candidate-row',
+                  {
+                    'swap-wizard-row--taken': countFor(candidate) > 0,
+                    'swap-wizard-row--exhausted': availableFor(candidate) === 0,
+                  },
+                ]}
               >
                 <span class="swap-wizard-row-main">
                   <CardThumb
@@ -394,8 +390,14 @@ const TakeCount: Component<TakeCountProps> = (props) => {
         // row already held, no signal changes and the bound `value` would not
         // otherwise overwrite what was typed.
         onChange={(e) => {
-          props.onChange(e.currentTarget.valueAsNumber)
-          e.currentTarget.value = String(props.value)
+          // The clamp `clampTakeCount` applies (`max` is its ceiling), written
+          // from here: `props.value` shows the new count only after the flush.
+          const typed = e.currentTarget.valueAsNumber
+          const clamped = Number.isFinite(typed)
+            ? Math.min(props.max, Math.max(0, Math.floor(typed)))
+            : 0
+          props.onChange(clamped)
+          e.currentTarget.value = String(clamped)
         }}
       />
       <button

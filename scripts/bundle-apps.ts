@@ -1,5 +1,9 @@
 import path from 'node:path'
-import { SolidPlugin } from '@dschz/bun-plugin-solid'
+import { solidPlugin } from '../src/site-build/solid-plugin'
+import { registerCliMessages } from '../src/i18n/register/cli'
+
+// The plugin words a compile failure through the catalog.
+registerCliMessages()
 
 const srcDir = path.join(import.meta.dir, '..', 'src')
 
@@ -40,7 +44,8 @@ for (const target of targets) {
     define: {
       'process.env.NODE_ENV': '"production"',
     },
-    plugins: [SolidPlugin()],
+    plugins: [solidPlugin({ generate: 'dom' })],
+    throw: false,
   })
 
   if (!result.success) {

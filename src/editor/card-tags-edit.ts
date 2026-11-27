@@ -14,7 +14,7 @@
  * a pending opposite.
  */
 
-import { batch, type Setter } from 'solid-js'
+import { type Setter } from 'solid-js'
 import { tagEditChanges, type ChangeInput } from '../changes/change-event'
 import type { ApplyChange } from '../changes/apply-batch'
 import { normalizeCardTags, withCardTags, type CardTag } from '../card/card-tags'
@@ -54,7 +54,7 @@ export function tagEditInputs(edit: CardTagsEdit): ChangeInput[] {
 const NO_TAG_EDIT: TagEditResult = { addedChanges: [], cancelledChanges: [] }
 
 /**
- * Apply a tag edit to the live data and record its events, in one batch so the
+ * Apply a tag edit to the live data and record its events, in one flush so the
  * tile and the changes badge update together. The data is updated *first*, and
  * nothing is recorded when the engine refuses (`onMiss` — the line could not be
  * found): a change the file never took must not reach the changelog, the same
@@ -67,21 +67,19 @@ export function applyCardTagsEdit<TData, TCardEntry>(
 ): TagEditResult {
   const inputs = tagEditInputs(edit)
   if (inputs.length === 0) return NO_TAG_EDIT
-  return batch(() => {
-    let missed = false
-    session.setData((prev) => {
-      if (prev === null) return prev
-      let next: TData = prev
-      for (const input of inputs) {
-        next = session.applyChange(next, input, { onMiss: () => (missed = true) })
-      }
-      // Every input targets the same line, so a miss is all-or-nothing; keep
-      // the data exactly as it was rather than half an edit.
-      return missed ? prev : next
-    })
-    if (missed) return NO_TAG_EDIT
-    return session.changes.setTags(edit.cardName, edit.tags, edit.currentTags, edit.cardId)
+  let missed = false
+  session.setData((prev) => {
+    if (prev === null) return prev
+    let next: TData = prev
+    for (const input of inputs) {
+      next = session.applyChange(next, input, { onMiss: () => (missed = true) })
+    }
+    // Every input targets the same line, so a miss is all-or-nothing; keep
+    // the data exactly as it was rather than half an edit.
+    return missed ? prev : next
   })
+  if (missed) return NO_TAG_EDIT
+  return session.changes.setTags(edit.cardName, edit.tags, edit.currentTags, edit.cardId)
 }
 
 /** Anything that can carry a tag set — an entry of any list type. */
@@ -140,12 +138,10 @@ export function bulkAddTags(params: BulkAddTagsParams): void {
     current: undefined,
     suggestions: params.suggestions,
     onSave: (added) => {
-      batch(() => {
-        for (const target of params.targets) {
-          const live = params.liveTagsOf(target.cardName, target.cardId)
-          params.setTags(target.cardName, withCardTags(live, added), live, target.cardId)
-        }
-      })
+      for (const target of params.targets) {
+        const live = params.liveTagsOf(target.cardName, target.cardId)
+        params.setTags(target.cardName, withCardTags(live, added), live, target.cardId)
+      }
       params.onApplied()
     },
   })

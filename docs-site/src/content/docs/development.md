@@ -9,6 +9,7 @@ How to set up the project for local development and contribute to the codebase.
 
 - [Bun](https://bun.sh) 1.4.5, the version `.bun-version` pins for CI and the Docker build
 - Node.js 22.23.4 or newer, the minimum the docs site's Astro version accepts (CI uses Node 24)
+- A platform Solid's native JSX compiler (`@solidjs/compiler`) ships a binary for: macOS (x64 or arm64), Linux with glibc (x64 or arm64), or Windows on x64. Building the browser apps from source needs it, and its WebAssembly fallback does not run under Bun, so musl Linux (Alpine) and Windows on arm64 cannot build or run Ritual from source. The release binaries and the Docker image still run there.
 
 ## Setup
 
@@ -29,7 +30,7 @@ bun run index.ts --help
 bun run index.ts new deck "Test Deck"
 ```
 
-When run this way (via `bun` rather than the compiled `ritual` binary), [`admin`](/commands/admin/) and [`serve --build`](/commands/serve/) rebuild their browser code from `src/` on startup. No flag is needed. The compiled binary serves the pre-bundled assets baked into it.
+When run this way (via `bun` rather than the compiled `ritual` binary), [`admin`](/commands/admin/) and [`serve --build`](/commands/serve/) rebuild their browser code from `src/` on startup, through the Solid compiler (see [Prerequisites](#prerequisites)), in Solid's development mode, so the browser console shows Solid's diagnostics. No flag is needed. The compiled binary serves the pre-bundled assets baked into it.
 
 ## Dev Workflow
 
@@ -278,7 +279,7 @@ A release is published by pushing its tag; `.github/workflows/release.yml` does 
 
 The workflow refuses a tag that disagrees with `package.json`, and a stable release without a `CHANGELOG.md` section (a prerelease without one gets GitHub's generated notes). It then runs the CI gates and `.github/workflows/build-binaries.yml`, which builds the six binaries with the tag's version, packs each into its compressed archive (`scripts/archive-binary.sh`: `<asset>.tar.gz` holding `ritual`, or `<asset>.zip` holding `ritual.exe` for Windows), smoke-tests each binary on its own OS after unpacking its archive there, and writes the CycloneDX SBOM (`scripts/sbom.sh`, which runs the [syft](https://github.com/anchore/syft) that `scripts/tools.sh` pins over `bun.lock`). The release job then records a provenance attestation for every archive and the SBOM, and an SBOM attestation binding `ritual-sbom.cdx.json` to every archive, and attaches them, each archive with its `.sha256` (of the archive as published), to a **draft** release. Only once everything is attached is the release published, so the installers and `ritual self-update` never see a release without its archives. Once it is published, the workflow starts the [docs deploy](#docs-deploy).
 
-The Docker image is pushed last. Each architecture builds natively on a runner of its own (`ubuntu-latest` for `linux/amd64`, `ubuntu-24.04-arm` for `linux/arm64`; no QEMU) and is pushed by digest with an SBOM and full build provenance attached; a final job joins the two digests into one multi-arch image with `docker buildx imagetools create` and tags it: the version, plus `X.Y` and `X` for a stable release, and `latest` only for a stable release. The image compiles Ritual inside its Alpine builder stage rather than copying a release binary in, because the release binaries link against glibc and the image is musl-based.
+The Docker image is pushed last. Each architecture builds natively on a runner of its own (`ubuntu-latest` for `linux/amd64`, `ubuntu-24.04-arm` for `linux/arm64`; no QEMU) and is pushed by digest with an SBOM and full build provenance attached; a final job joins the two digests into one multi-arch image with `docker buildx imagetools create` and tags it: the version, plus `X.Y` and `X` for a stable release, and `latest` only for a stable release. The image compiles Ritual inside its own builder stage rather than copying a release binary in, because the release binaries link against glibc and the image is musl-based. The builder is Debian (`oven/bun:<version>-slim`), not Alpine: building the browser apps runs Solid's native JSX compiler, which publishes no musl binary, so the builder cross-compiles the binary for musl (`--target=bun-linux-<arch>-musl`, the arch taken from the image's `TARGETARCH`), and the runtime stage stays Alpine.
 
 A release publishes only the archives, never the bare binaries; `self-update`, both install scripts and the generated deploy workflow download the archive and refuse a release without one (anything before 0.1.0-rc4).
 

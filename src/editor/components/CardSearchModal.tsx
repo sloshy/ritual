@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { batch, createSignal, createEffect, createMemo, on, onCleanup, Show, For } from 'solid-js'
+import { createSignal, createEffect, createMemo, onCleanup, Show, For } from 'solid-js'
 import { Modal } from '../../ui/Modal'
 import {
   type Finish,
@@ -186,14 +186,12 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   // the first remaining cell. Deferred: the initial empty filter must not clobber
   // the page state `selectCardName` just set.
   createEffect(
-    on(
-      printingFilter,
-      () => {
-        setPrintingsPage(0)
-        setPrintingHighlightIndex(0)
-      },
-      { defer: true },
-    ),
+    printingFilter,
+    () => {
+      setPrintingsPage(0)
+      setPrintingHighlightIndex(0)
+    },
+    { defer: true },
   )
 
   /**
@@ -202,10 +200,8 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
    * on page 0 only) while Enter still committed that tile's choice.
    */
   const goToPage = (page: number): void => {
-    batch(() => {
-      setPrintingsPage(page)
-      setPrintingHighlightIndex(firstCellOfPage(page))
-    })
+    setPrintingsPage(page)
+    setPrintingHighlightIndex(firstCellOfPage(page))
   }
 
   // Step 3: Finish & condition
@@ -304,28 +300,28 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   // search). Reads of props.defaults / props.initialCardName inside use their
   // current values at open time.
   createEffect(
-    on(
-      () => props.open,
-      (open) => {
-        if (!open) return
-        resetToSearch()
-        // "Change printing" mode: jump straight to the printing step for the
-        // already-known card instead of showing the search step.
-        setChangePrintingMode(Boolean(props.initialCardName))
-        if (props.initialCardName) {
-          void selectCardName(props.initialCardName)
-        }
-      },
-    ),
+    () => props.open,
+    (open) => {
+      if (!open) return
+      resetToSearch()
+      // "Change printing" mode: jump straight to the printing step for the
+      // already-known card instead of showing the search step.
+      setChangePrintingMode(Boolean(props.initialCardName))
+      if (props.initialCardName) {
+        void selectCardName(props.initialCardName)
+      }
+    },
   )
 
   // Auto-focus search input when modal opens or returns to search step
-  createEffect(() => {
-    if (props.open && step() === 'search') {
+  createEffect(
+    () => props.open && step() === 'search',
+    (searching) => {
+      if (!searching) return
       const id = setTimeout(() => inputRef?.focus(), 50)
-      onCleanup(() => clearTimeout(id))
-    }
-  })
+      return () => clearTimeout(id)
+    },
+  )
 
   // Cleanup debounce timer on unmount
   onCleanup(() => {
@@ -635,10 +631,8 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     const moveHighlight = (delta: number) => {
       const newIdx = Math.min(Math.max(printingHighlightIndex() + delta, 0), totalItems - 1)
       const printingIdx = newIdx - offset
-      batch(() => {
-        setPrintingHighlightIndex(newIdx)
-        setPrintingsPage(printingIdx >= 0 ? pageOfPrinting(printingIdx, offset) : 0)
-      })
+      setPrintingHighlightIndex(newIdx)
+      setPrintingsPage(printingIdx >= 0 ? pageOfPrinting(printingIdx, offset) : 0)
     }
     if (e.key === 'ArrowRight') {
       e.preventDefault()
@@ -710,11 +704,14 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
 
   // Focus the finish/condition step's first group on entry, so the arrow keys
   // drive the radios immediately (native radio-group behavior) without a Tab.
-  createEffect(() => {
-    if (!props.open || step() !== 'finish-condition') return
-    const id = setTimeout(() => finishConditionGroups()[0]?.entry.focus(), 50)
-    onCleanup(() => clearTimeout(id))
-  })
+  createEffect(
+    () => props.open && step() === 'finish-condition',
+    (choosing) => {
+      if (!choosing) return
+      const id = setTimeout(() => finishConditionGroups()[0]?.entry.focus(), 50)
+      return () => clearTimeout(id)
+    },
+  )
 
   /**
    * The finish/condition step's groups in visual order. `container` answers

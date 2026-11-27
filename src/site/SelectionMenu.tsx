@@ -121,7 +121,7 @@ export const SelectionMenu: Component<SelectionMenuProps> = (props) => {
               type="button"
               ref={toggle.setButtonRef}
               class={`toolbar-toggle active ${props.buttonClass ?? 'selection-menu-btn'}`}
-              aria-expanded={toggle.open()}
+              aria-expanded={toggle.open() ? 'true' : 'false'}
               aria-haspopup="true"
               onClick={toggle.toggleOpen}
             >
@@ -140,7 +140,7 @@ export const SelectionMenu: Component<SelectionMenuProps> = (props) => {
             type="button"
             ref={toggle.setButtonRef}
             class="btn btn-primary selection-dock-actions"
-            aria-expanded={toggle.open()}
+            aria-expanded={toggle.open() ? 'true' : 'false'}
             aria-haspopup="true"
             onClick={toggle.toggleOpen}
           >
@@ -286,7 +286,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
               }}
               // See CardContextMenu: `aria-disabled` keeps the row focusable and
               // its `title` visible, where a native `disabled` would hide both.
-              aria-disabled={foilNeedsPrinting()}
+              aria-disabled={foilNeedsPrinting() ? 'true' : 'false'}
               title={foilNeedsPrinting() ? t('ui.cardMenu.foilNeedsPrinting') : undefined}
             >
               {t('site.selection.setFoil')}

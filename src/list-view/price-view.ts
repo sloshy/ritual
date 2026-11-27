@@ -12,7 +12,8 @@
  * currency in view is always derived ({@link activeCurrency}), never held.
  */
 
-import { batch, createSignal, type Accessor } from 'solid-js'
+import { type Accessor } from 'solid-js'
+import { createLatestSignal } from '../ui/latest-signal'
 import { displayFinish, type Finish } from '../card/finish-condition'
 import {
   getCardPriceForEntry,
@@ -37,10 +38,10 @@ import type { ScryfallCard } from '../scryfall/types'
 // Re-exported so the site modules keep one import home for the choice axis.
 export type { UsdPriceSource } from '../pricing/price-source'
 
-const [enabled, setEnabled] = createSignal<readonly PriceSource[]>([...DEFAULT_PRICE_SOURCES])
+const [enabled, setEnabled] = createLatestSignal<readonly PriceSource[]>([...DEFAULT_PRICE_SOURCES])
 
 /** The deployment's configured default store (`defaultPriceSource`). */
-const [defaultSource, setDefaultSource] = createSignal<PriceSource>(DEFAULT_PRICE_SOURCE)
+const [defaultSource, setDefaultSource] = createLatestSignal<PriceSource>(DEFAULT_PRICE_SOURCE)
 
 /**
  * The store the user (or a shared URL) picked on purpose this session; null
@@ -48,7 +49,13 @@ const [defaultSource, setDefaultSource] = createSignal<PriceSource>(DEFAULT_PRIC
  * picked" fact both SPAs read: a re-seed never overrides it, and sell mode's
  * courtesy default yields to it.
  */
-const [pickedStore, setPickedStore] = createSignal<PriceSource | null>(null)
+// `ownedWrite`: a page opened from a shared link picks the store while it sets
+// up (see `useListViewUrlSync`); what already rendered from the old value
+// updates in the same flush. Latest-valued, like the store's other signals:
+// a pick is read back (the active store, its currency) in the same handler.
+const [pickedStore, setPickedStore] = createLatestSignal<PriceSource | null>(null, {
+  ownedWrite: true,
+})
 
 /**
  * Whether the site displays prices at all. False when the `priceSources`
@@ -87,10 +94,8 @@ export type PriceViewSeed = {
  * moves the view when nothing was picked, and a pick survives it.
  */
 export function seedPriceView(seed: PriceViewSeed): void {
-  batch(() => {
-    setEnabledPriceSources(seed.stores)
-    setDefaultSource(seed.defaultSource)
-  })
+  setEnabledPriceSources(seed.stores)
+  setDefaultSource(seed.defaultSource)
 }
 
 /** The stores the header's picker offers: every enabled store, in picker order. */
@@ -277,9 +282,7 @@ function cardKingdomRetailFromQuotes(
 
 /** Reset to the default state. Intended for tests. */
 export function resetPriceView(): void {
-  batch(() => {
-    setEnabled([...DEFAULT_PRICE_SOURCES])
-    setDefaultSource(DEFAULT_PRICE_SOURCE)
-    setPickedStore(null)
-  })
+  setEnabled([...DEFAULT_PRICE_SOURCES])
+  setDefaultSource(DEFAULT_PRICE_SOURCE)
+  setPickedStore(null)
 }

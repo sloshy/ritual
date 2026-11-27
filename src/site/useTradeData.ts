@@ -358,28 +358,26 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
   }
 
   let loadStarted = false
-  createEffect(() => {
-    if (loadStarted) return
-    // All three site-index signals are populated together by useSiteData, but the writes are
-    // separate setSignal calls. Solid runs subscriber effects synchronously between each
-    // write, so gating on a single signal would let this effect fire after `setDeckList`
-    // but before `setCollectionList`/`setWantedListList`. `loadCollectionsAndWanted` reads
-    // those accessors synchronously, so a null signal becomes `[] ?? []` and the matching
-    // load function returns early without ever fetching its detail JSONs.
-    if (params.decks() === null) return
-    if (params.collections() === null) return
-    if (params.wantedLists() === null) return
-    loadStarted = true
-    void loadCollectionsAndWanted()
-  })
+  createEffect(
+    // Gated on all three site-index signals: `loadCollectionsAndWanted` reads
+    // each of them, and a null one would make its load return early without
+    // ever fetching its detail JSONs.
+    () => params.decks() !== null && params.collections() !== null && params.wantedLists() !== null,
+    (indexed) => {
+      if (loadStarted || !indexed) return
+      loadStarted = true
+      void loadCollectionsAndWanted()
+    },
+  )
 
   // Load decks when requested (triggered by "Include Decks" toggle).
   // Also re-evaluates when deckSlugs changes, so toggling before the index loads still works.
-  createEffect(() => {
-    if (deckStatus() === 'requested' && deckSlugs().length > 0) {
-      void loadDeckData()
-    }
-  })
+  createEffect(
+    () => deckStatus() === 'requested' && deckSlugs().length > 0,
+    (requested) => {
+      if (requested) void loadDeckData()
+    },
+  )
 
   const searchLeft = (query: string, includeDecks: boolean): TradeSearchEntry[] =>
     searchTradeEntries(

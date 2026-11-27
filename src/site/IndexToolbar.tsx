@@ -31,7 +31,7 @@ export const IndexToolbar: Component<IndexToolbarProps> = (props) => {
   return (
     <>
       <div ref={sentinelRef} aria-hidden="true" class="toolbar-sentinel" />
-      <div class="toolbar" classList={{ 'is-stuck': stuck() }}>
+      <div class={['toolbar', { 'is-stuck': stuck() }]}>
         <Show when={props.onGroupChange}>
           {(onGroupChange) => (
             <div class="toolbar-group">
@@ -65,9 +65,8 @@ export const IndexToolbar: Component<IndexToolbarProps> = (props) => {
         </div>
         <button
           type="button"
-          class="toolbar-toggle"
-          classList={{ active: props.reverse }}
-          aria-pressed={props.reverse}
+          class={['toolbar-toggle', { active: props.reverse }]}
+          aria-pressed={props.reverse ? 'true' : 'false'}
           onClick={props.onReverseToggle}
         >
           <span aria-hidden="true">↑↓</span> {t('site.toolbar.reverse')}

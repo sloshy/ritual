@@ -1,6 +1,7 @@
-import { batch, createMemo, createSignal, type Accessor } from 'solid-js'
+import { createMemo, createSignal, type Accessor } from 'solid-js'
 import type { CardArtRecord, CardArtRef } from '../../../list/card-art'
 import { cardArtRefsFrom, type CardArtRefs } from '../../../editor/card-art-view'
+import { createLatestSignal } from '../../../ui/latest-signal'
 import type { CardContextInfo } from '../../../list-view/card-context'
 import {
   applyArtWrites,
@@ -88,8 +89,12 @@ function heldMessageParam(message: ApiActionMessage): SyncText {
 export function useCardArt(type: ListType): UseCardArtResult {
   // The list as it is on disk, and the session's staged edits over it. Kept
   // apart so an undo can drop a staged edit and reveal what the file holds.
-  const [baseline, setBaseline] = createSignal<CardArtRefs>(new Map())
-  const [pending, setPending] = createSignal<ReadonlyMap<number, CardArtRef | null>>(new Map())
+  // Latest-valued: staging reads back what it just wrote (an add's undo record)
+  // within the same handler.
+  const [baseline, setBaseline] = createLatestSignal<CardArtRefs>(new Map())
+  const [pending, setPending] = createLatestSignal<ReadonlyMap<number, CardArtRef | null>>(
+    new Map(),
+  )
   const [slug, setSlug] = createSignal<string | null>(null)
   // Plain state, not a signal: nothing renders from it, and it is read inside
   // event handlers that must see the value the last save left.
@@ -118,14 +123,12 @@ export function useCardArt(type: ListType): UseCardArtResult {
     else next.set(cardId, ref)
     // The sidecar now holds what the user just chose: anything staged for the
     // line earlier (an add's art) must not overwrite it at the next flush.
-    batch(() => {
-      setBaseline(next)
-      if (pending().has(cardId)) {
-        const rest = new Map(pending())
-        rest.delete(cardId)
-        setPending(rest)
-      }
-    })
+    setBaseline(next)
+    if (pending().has(cardId)) {
+      const rest = new Map(pending())
+      rest.delete(cardId)
+      setPending(rest)
+    }
   }
 
   return {
@@ -193,18 +196,16 @@ export function useCardArt(type: ListType): UseCardArtResult {
       }
 
       if (writes.length > 0) {
-        batch(() => {
-          // Only the entries this save resolved are retired: art staged while
-          // the writes were in flight belongs to a card the *next* save will
-          // file, and clearing the table wholesale would lose it. A resolved
-          // entry goes either way — a failed write cannot be retried without a
-          // save to re-report the id it is aimed at, and leaving it staged would
-          // keep showing art the sidecar does not have.
-          const next = new Map(pending())
-          for (const write of writes) next.delete(write.stagedId)
-          setPending(next)
-          setBaseline(applyArtWrites(baseline(), landed))
-        })
+        // Only the entries this save resolved are retired: art staged while
+        // the writes were in flight belongs to a card the *next* save will
+        // file, and clearing the table wholesale would lose it. A resolved
+        // entry goes either way — a failed write cannot be retried without a
+        // save to re-report the id it is aimed at, and leaving it staged would
+        // keep showing art the sidecar does not have.
+        const next = new Map(pending())
+        for (const write of writes) next.delete(write.stagedId)
+        setPending(next)
+        setBaseline(applyArtWrites(baseline(), landed))
       }
 
       const first = failures[0]

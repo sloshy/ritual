@@ -1,4 +1,6 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Route } from '@playwright/test'
+import { fulfillJson } from '../helpers/fulfill'
+import { selectCard } from '../helpers/list-ui'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { mockMoveCardsApi } from '../helpers/mock-admin'
 import type { MoveCommitRequest } from '../../../src/admin/api/move'
@@ -63,6 +65,52 @@ test.describe('Move Cards page', () => {
 
     // After a successful commit the queue is cleared.
     await expect(page.locator('.changes-badge')).toHaveCount(0)
+  })
+
+  test('switching between two loaded lists files a selection under the list on screen', async ({
+    page,
+  }) => {
+    await mockMoveCardsApi(page, undefined, { secondBinder: true })
+    let removeBody: { removes?: { listType: string; listSlug: string }[] } | null = null
+    await fulfillJson(page, '**/api/remove/commit', (route: Route) => {
+      removeBody = JSON.parse(route.request().postData() ?? '{}')
+      return { success: true, removed: 1, requested: 1, skipped: 0, message: 'ok' }
+    })
+    await page.locator('.admin-nav-item:has-text("Move Cards")').click()
+    const select = page.locator('#move-list-select')
+    const moveButton = page.locator('.edit-btn-move')
+
+    // Both binders loaded, then the second shown again: the page on screen must
+    // be the second binder's, not a reused mount still keyed to the first.
+    await select.selectOption('collection:move-binder')
+    await expect(moveButton).toHaveCount(1)
+    await select.selectOption('collection:move-trade')
+    await expect(moveButton).toHaveCount(1)
+    await select.selectOption('collection:move-binder')
+    await expect(moveButton).toHaveCount(1)
+    await select.selectOption('collection:move-trade')
+    await expect(page.locator('.page-title')).toHaveText('Move Trade')
+
+    await selectCard(page, 0)
+    // The selection is filed under the binder on screen, by name as by slug.
+    await page.locator('.selection-menu-btn').first().click()
+    await page
+      .locator('.selection-menu-panel .selection-menu-item', { hasText: 'View selected cards' })
+      .click()
+    const modal = page.locator('.selection-modal')
+    await expect(modal).toContainText('Move Trade')
+    await expect(modal).not.toContainText('Move Binder')
+    await page.keyboard.press('Escape')
+
+    const navbar = page.locator('.selection-menu-btn--navbar')
+    await expect(navbar).toHaveText(/All Selected \(1\)/)
+    await navbar.click()
+    await page
+      .locator('.selection-menu-panel .selection-menu-item', { hasText: 'Remove all selected' })
+      .click()
+    await page.locator('.modal-shell[open] .confirm-dialog-actions .btn-danger').click()
+    await expect.poll(() => removeBody).not.toBeNull()
+    expect(removeBody!.removes?.map((r) => r.listSlug)).toEqual(['move-trade'])
   })
 
   test('leaving with moves still queued prompts before dropping them', async ({ page }) => {

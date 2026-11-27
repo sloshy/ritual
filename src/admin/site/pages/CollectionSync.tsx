@@ -1,4 +1,5 @@
-import { type JSX, batch, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createMemo, createSignal, For, onCleanup, onSettled, Show } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
 import type {
   CollectionSyncDoneEvent,
@@ -215,29 +216,27 @@ export function CollectionSync(): JSX.Element {
       const data = (await resp.json()) as CollectionSyncStatusResponse
       const slugs = data.lists.map((list) => list.slug)
       // One logical update, so the lists and the selection never render mismatched.
-      batch(() => {
-        setLists(data.lists)
-        setArchidekt(data.archidekt)
-        setLastSynced(data.lastSynced)
-        setPullTarget(data.pullTarget)
-        setCsvThreshold(data.csvThreshold)
-        setLoadFailed(false)
-        // A reload (after a run, or after signing in) keeps whatever the user
-        // picked, minus lists that have since gone away.
-        setSelected((current) => current.filter((slug) => slugs.includes(slug)))
-        // Same for the priority: a list that is gone can hand over no copies,
-        // and leaving it in would fail every later run on an unknown name.
-        setRemovalPriority((current) => current.filter((slug) => slugs.includes(slug)))
-        // The configured target seeds the picker, but never overrides a choice
-        // the user has already made — unless that choice is gone (a renamed or
-        // deleted list), which would otherwise leave the control showing one
-        // destination while the next run used another.
-        setInto((current) =>
-          current === '' || !offeredTarget(current, data.lists, data.pullTarget)
-            ? data.pullTarget
-            : current,
-        )
-      })
+      setLists(data.lists)
+      setArchidekt(data.archidekt)
+      setLastSynced(data.lastSynced)
+      setPullTarget(data.pullTarget)
+      setCsvThreshold(data.csvThreshold)
+      setLoadFailed(false)
+      // A reload (after a run, or after signing in) keeps whatever the user
+      // picked, minus lists that have since gone away.
+      setSelected((current) => current.filter((slug) => slugs.includes(slug)))
+      // Same for the priority: a list that is gone can hand over no copies,
+      // and leaving it in would fail every later run on an unknown name.
+      setRemovalPriority((current) => current.filter((slug) => slugs.includes(slug)))
+      // The configured target seeds the picker, but never overrides a choice
+      // the user has already made — unless that choice is gone (a renamed or
+      // deleted list), which would otherwise leave the control showing one
+      // destination while the next run used another.
+      setInto((current) =>
+        current === '' || !offeredTarget(current, data.lists, data.pullTarget)
+          ? data.pullTarget
+          : current,
+      )
     } catch {
       setLoadFailed(true)
     } finally {
@@ -245,7 +244,7 @@ export function CollectionSync(): JSX.Element {
     }
   }
 
-  onMount(() => {
+  onSettled(() => {
     void loadStatus()
   })
 
@@ -257,25 +256,19 @@ export function CollectionSync(): JSX.Element {
 
   const toggleList = (slug: string): void => {
     const deselecting = isSelected(slug)
-    batch(() => {
-      setSelected((current) =>
-        deselecting ? current.filter((s) => s !== slug) : [...current, slug],
-      )
-      // A list the run no longer compares can hold no ambiguous copies, so
-      // leaving it ranked would offer an answer that resolves nothing and fails
-      // the run instead.
-      if (deselecting) setRemovalPriority((current) => current.filter((s) => s !== slug))
-    })
+    setSelected((current) => (deselecting ? current.filter((s) => s !== slug) : [...current, slug]))
+    // A list the run no longer compares can hold no ambiguous copies, so
+    // leaving it ranked would offer an answer that resolves nothing and fails
+    // the run instead.
+    if (deselecting) setRemovalPriority((current) => current.filter((s) => s !== slug))
   }
 
   /** Narrowing the scope narrows the priority with it, for the same reason. */
   const chooseScope = (next: ScopeChoice): void => {
-    batch(() => {
-      setScope(next)
-      if (next === 'lists') {
-        setRemovalPriority((current) => current.filter((slug) => selected().includes(slug)))
-      }
-    })
+    setScope(next)
+    if (next === 'lists') {
+      setRemovalPriority((current) => current.filter((slug) => selected().includes(slug)))
+    }
   }
 
   /**
@@ -349,17 +342,15 @@ export function CollectionSync(): JSX.Element {
   const finishRun = (message: RunNotice, report?: CollectionSyncReport): void => {
     const failed =
       report !== undefined && (report.errors.length > 0 || report.csv?.status === 'failed')
-    batch(() => {
-      setPhase(failed ? 'error' : 'done')
-      if (failed) setRunError(message)
-      else setSummary(message)
-      // The engine's own verdict, not a guess from `errors`: the census is
-      // replayed only for the run that actually stopped on it.
-      if (report?.unresolvedAmbiguity) setAmbiguous(report.ambiguous)
-      // Whether the new cards were uploaded, previewed, or lost to a failed
-      // import is the one thing a push's per-list tallies cannot show.
-      setCsvOutcome(report?.csv ?? null)
-    })
+    setPhase(failed ? 'error' : 'done')
+    if (failed) setRunError(message)
+    else setSummary(message)
+    // The engine's own verdict, not a guess from `errors`: the census is
+    // replayed only for the run that actually stopped on it.
+    if (report?.unresolvedAmbiguity) setAmbiguous(report.ambiguous)
+    // Whether the new cards were uploaded, previewed, or lost to a failed
+    // import is the one thing a push's per-list tallies cannot show.
+    setCsvOutcome(report?.csv ?? null)
     // Refresh the status so "last synced" — and any list a pull created —
     // reflects the run.
     void loadStatus()
@@ -419,52 +410,50 @@ export function CollectionSync(): JSX.Element {
         return
       }
       // One render for the whole report rather than one per list.
-      batch(() => {
-        const report = data.report
-        const describe = replayDescribe(describeCollectionCardChange)
-        for (const result of report.lists) {
-          // The lines the stream logs for the list, in its order — the count
-          // line, the per-card lines (CSV cards are the run's) — rendered from
-          // the report, then its reason.
-          const lines = collectionListLines(
-            result.changes ?? [],
-            collectionChangePlace(report.direction, result.name),
-            describe,
-          )
-          updateList(result.name, (item) => ({
-            ...item,
-            status: result.status,
-            meta: resultMeta(result),
-            messages: [...item.messages, ...replayResultMessages(lines, reasonMessage(result))],
-          }))
-        }
-        // This path never saw the run's own log lines, so the two things it
-        // would otherwise silently drop are replayed from the report.
-        // `report.ambiguous` is a census of what the planner found, not a list
-        // of failures — a removal priority may well have placed them, and the
-        // engine's "Removing … (removal priority)" line has no equivalent here.
-        // So they are replayed only for the run that actually stopped on them,
-        // which is the same signal the panel below uses.
-        const unplaced = data.report.unresolvedAmbiguity ? data.report.ambiguous : []
-        // In the stream's order: a push's CSV cards and its removals of cards no
-        // list holds any more (a pull has neither), a pull's unplaced removals
-        // (a push has none), then the errors the run ended on.
-        setRunLog((current) => [
-          ...current,
-          ...replayResultMessages(
-            collectionRunLines(report.lists, report.unlisted ?? [], describe),
-            undefined,
-          ),
-          ...unplaced.map((entry): SyncRunMessage => ({
-            level: 'warn',
-            text: describeAmbiguousRemoval(entry),
-          })),
-          ...report.errorMessages.map((error): SyncRunMessage => ({ level: 'error', text: error })),
-        ])
-        // The report carries the unreadable lists too, so this path offers the
-        // same confirmation the streamed one does.
-        if (!ignoreUnreadableLines) setUnreadable(data.report.unreadable)
-      })
+      const report = data.report
+      const describe = replayDescribe(describeCollectionCardChange)
+      for (const result of report.lists) {
+        // The lines the stream logs for the list, in its order — the count
+        // line, the per-card lines (CSV cards are the run's) — rendered from
+        // the report, then its reason.
+        const lines = collectionListLines(
+          result.changes ?? [],
+          collectionChangePlace(report.direction, result.name),
+          describe,
+        )
+        updateList(result.name, (item) => ({
+          ...item,
+          status: result.status,
+          meta: resultMeta(result),
+          messages: [...item.messages, ...replayResultMessages(lines, reasonMessage(result))],
+        }))
+      }
+      // This path never saw the run's own log lines, so the two things it
+      // would otherwise silently drop are replayed from the report.
+      // `report.ambiguous` is a census of what the planner found, not a list
+      // of failures — a removal priority may well have placed them, and the
+      // engine's "Removing … (removal priority)" line has no equivalent here.
+      // So they are replayed only for the run that actually stopped on them,
+      // which is the same signal the panel below uses.
+      const unplaced = data.report.unresolvedAmbiguity ? data.report.ambiguous : []
+      // In the stream's order: a push's CSV cards and its removals of cards no
+      // list holds any more (a pull has neither), a pull's unplaced removals
+      // (a push has none), then the errors the run ended on.
+      setRunLog((current) => [
+        ...current,
+        ...replayResultMessages(
+          collectionRunLines(report.lists, report.unlisted ?? [], describe),
+          undefined,
+        ),
+        ...unplaced.map((entry): SyncRunMessage => ({
+          level: 'warn',
+          text: describeAmbiguousRemoval(entry),
+        })),
+        ...report.errorMessages.map((error): SyncRunMessage => ({ level: 'error', text: error })),
+      ])
+      // The report carries the unreadable lists too, so this path offers the
+      // same confirmation the streamed one does.
+      if (!ignoreUnreadableLines) setUnreadable(data.report.unreadable)
       finishRun(data.summary, data.report)
     } catch {
       failRun(apiMessage('admin.collectionSync.failed'), false)
@@ -495,16 +484,14 @@ export function CollectionSync(): JSX.Element {
    * read is never rewritten (nor treated as the truth) without being shown first.
    */
   const handleSync = (ignoreUnreadableLines = false): void => {
-    batch(() => {
-      setPhase('running')
-      setRunLists([])
-      setRunLog([])
-      setSummary(null)
-      setRunError(null)
-      setUnreadable([])
-      setAmbiguous([])
-      setCsvOutcome(null)
-    })
+    setPhase('running')
+    setRunLists([])
+    setRunLog([])
+    setSummary(null)
+    setRunError(null)
+    setUnreadable([])
+    setAmbiguous([])
+    setCsvOutcome(null)
 
     stream = openSyncStream<CollectionSyncEvent, CollectionSyncDoneEvent, CollectionSyncErrorEvent>(
       streamUrl(ignoreUnreadableLines),

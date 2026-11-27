@@ -1,4 +1,4 @@
-import { createStore } from 'solid-js/store'
+import { createStore } from 'solid-js'
 import { joinSentences, saveNoticeSentences, type SaveSuccessNotices } from './save-notices'
 import type { MessageKey } from '../i18n/messages/en'
 import { paramsOf, type MessageRef, type TranslateArgs, type TranslateDynamicFn } from '../i18n/t'
@@ -106,16 +106,44 @@ export function useEditorStatus(): [EditorStatus, EditorStatusActions] {
   const [state, setState] = createStore<EditorStatus>({ ...initialStatus })
 
   const actions: EditorStatusActions = {
-    loadStart: () => setState({ loading: true, error: null, saveStatus: null }),
-    loadSuccess: () => setState({ loading: false }),
-    loadError: (error) => setState({ loading: false, error }),
+    loadStart: () =>
+      setState((s) => {
+        s.loading = true
+        s.error = null
+        s.saveStatus = null
+      }),
+    loadSuccess: () =>
+      setState((s) => {
+        s.loading = false
+      }),
+    loadError: (error) =>
+      setState((s) => {
+        s.loading = false
+        s.error = error
+      }),
     // A new attempt invalidates the last one's error — including one raised
     // after a save landed (a failed custom-art write), which otherwise sits on
     // screen forever because nothing else clears `error`.
-    saveStart: () => setState({ saving: true, error: null, saveStatus: null }),
-    saveSuccess: (message) => setState({ saving: false, saveStatus: message }),
-    saveError: (error) => setState({ saving: false, error }),
-    setError: (error) => setState({ error }),
+    saveStart: () =>
+      setState((s) => {
+        s.saving = true
+        s.error = null
+        s.saveStatus = null
+      }),
+    saveSuccess: (message) =>
+      setState((s) => {
+        s.saving = false
+        s.saveStatus = message
+      }),
+    saveError: (error) =>
+      setState((s) => {
+        s.saving = false
+        s.error = error
+      }),
+    setError: (error) =>
+      setState((s) => {
+        s.error = error
+      }),
   }
 
   return [state, actions]

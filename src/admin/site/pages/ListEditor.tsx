@@ -1,4 +1,5 @@
-import { type JSX, batch, createSignal, untrack, Switch, Match, For } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createSignal, untrack, Switch, Match, For } from 'solid-js'
 import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../../list/list-type'
 import { useTKey } from '../../../ui/i18n'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
@@ -43,10 +44,8 @@ export function ListEditor(): JSX.Element {
     // Switching tabs unmounts the active editor; route through the guard so any
     // unsaved changes prompt for confirmation before they are dropped.
     navigationGuard.attempt(() => {
-      batch(() => {
-        setDeepLinkSlug(null)
-        setActiveType(type)
-      })
+      setDeepLinkSlug(null)
+      setActiveType(type)
       trackInUrl(type, null)
     })
   }

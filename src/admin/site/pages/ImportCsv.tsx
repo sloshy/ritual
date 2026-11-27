@@ -1,16 +1,14 @@
+import type { JSX } from '@solidjs/web'
 import {
-  type JSX,
   For,
-  Index,
   Match,
   Show,
   Switch,
-  batch,
   createEffect,
   createMemo,
-  createResource,
+  createDeferred,
+  isPending,
   createSignal,
-  on,
 } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../../../list/list-type'
@@ -179,34 +177,28 @@ export function ImportCsv(): JSX.Element {
   // is loaded; manual adjustments are kept until the content itself changes.
   // Deferred so the initial empty state doesn't count as a content change.
   createEffect(
-    on(
-      rows,
-      (currentRows) => {
-        if (currentRows.length === 0) return
-        const header = guessHasHeader(currentRows[0]!.cells, headerLocales())
-        setHasHeader(header)
-        setSelections(guessSelections(header ? currentRows[0]!.cells : null, headerLocales()))
-      },
-      { defer: true },
-    ),
+    rows,
+    (currentRows) => {
+      if (currentRows.length === 0) return
+      const header = guessHasHeader(currentRows[0]!.cells, headerLocales())
+      setHasHeader(header)
+      setSelections(guessSelections(header ? currentRows[0]!.cells : null, headerLocales()))
+    },
+    { defer: true },
   )
 
   // The outcome describes the CSV that was submitted, so new content retires it.
   // Otherwise a green "Imported 40 cards" (or a red failure list) stays on
   // screen above a file the user has just swapped in, describing the previous one.
   createEffect(
-    on(
-      content,
-      () => {
-        batch(() => {
-          setStatus(null)
-          setError(null)
-          setFailures([])
-          setWarnings([])
-        })
-      },
-      { defer: true },
-    ),
+    content,
+    () => {
+      setStatus(null)
+      setError(null)
+      setFailures([])
+      setWarnings([])
+    },
+    { defer: true },
   )
 
   const headerCells = createMemo((): string[] | null =>
@@ -247,9 +239,11 @@ export function ImportCsv(): JSX.Element {
     return validateMapping(partial as ColumnMapping, listType())
   })
 
-  const [existingLists] = createResource(
-    (): ListType | false => (mode() === 'append' ? listType() : false),
-    fetchLists,
+  // `undefined` until the first answer; a later switch of type keeps the last
+  // answer on screen until the new one lands rather than holding the page.
+  const existingLists = createDeferred<ListSummary[] | undefined>(
+    () => (mode() === 'append' ? fetchLists(listType()) : []),
+    { loadingValue: undefined },
   )
 
   const canSubmit = createMemo((): boolean => {
@@ -382,8 +376,8 @@ export function ImportCsv(): JSX.Element {
               <button
                 type="button"
                 class="segmented-option"
-                data-active={method() === m.id}
-                aria-pressed={method() === m.id}
+                data-active={method() === m.id ? 'true' : 'false'}
+                aria-pressed={method() === m.id ? 'true' : 'false'}
                 onClick={() => setMethod(m.id)}
               >
                 {tKey(m.labelKey)}
@@ -484,9 +478,9 @@ export function ImportCsv(): JSX.Element {
                           objects (their labels are worded), and recreating the
                           <option>s would reset the select's shown choice while
                           `value` — which did not change — never re-applies. */}
-                      <Index each={columnOptions()}>
+                      <For keyed={false} each={columnOptions()}>
                         {(option) => <option value={option().value}>{option().label}</option>}
-                      </Index>
+                      </For>
                     </select>
                   </>
                 )}
@@ -527,8 +521,8 @@ export function ImportCsv(): JSX.Element {
           <button
             type="button"
             class="segmented-option"
-            data-active={mode() === 'create'}
-            aria-pressed={mode() === 'create'}
+            data-active={mode() === 'create' ? 'true' : 'false'}
+            aria-pressed={mode() === 'create' ? 'true' : 'false'}
             onClick={() => setMode('create')}
           >
             {t('admin.importCsv.modeCreate')}
@@ -536,8 +530,8 @@ export function ImportCsv(): JSX.Element {
           <button
             type="button"
             class="segmented-option"
-            data-active={mode() === 'append'}
-            aria-pressed={mode() === 'append'}
+            data-active={mode() === 'append' ? 'true' : 'false'}
+            aria-pressed={mode() === 'append' ? 'true' : 'false'}
             onClick={() => setMode('append')}
           >
             {t('admin.importCsv.modeAppend')}
@@ -592,7 +586,13 @@ export function ImportCsv(): JSX.Element {
                   {(list) => <option value={list.slug}>{list.name}</option>}
                 </For>
               </select>
-              <Show when={!existingLists.loading && (existingLists() ?? []).length === 0}>
+              <Show
+                when={
+                  existingLists() !== undefined &&
+                  !isPending(() => existingLists()) &&
+                  existingLists()!.length === 0
+                }
+              >
                 <p class="form-hint form-hint-top">
                   {t('admin.importCsv.noLists', { listType: listType() })}
                 </p>

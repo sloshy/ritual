@@ -93,16 +93,17 @@ export const TagsInput: Component<TagsInputProps> = (props) => {
 
   // Reset the highlight whenever the suggestion set changes, so Enter defaults to
   // committing the typed text until the user arrows into the list.
-  createEffect(() => {
-    suggestions()
+  createEffect(suggestions, () => {
     setActiveIndex(-1)
   })
 
   // Keep the highlighted suggestion scrolled into view as it moves.
-  createEffect(() => {
-    const option = suggestions()[activeIndex()]
-    if (option !== undefined) itemRefs.get(option)?.scrollIntoView({ block: 'nearest' })
-  })
+  createEffect(
+    () => suggestions()[activeIndex()],
+    (option) => {
+      if (option !== undefined) itemRefs.get(option)?.scrollIntoView({ block: 'nearest' })
+    },
+  )
 
   const addValues = (values: string[]) => {
     if (values.length === 0) return
@@ -180,7 +181,7 @@ export const TagsInput: Component<TagsInputProps> = (props) => {
         type="text"
         role="combobox"
         aria-autocomplete="list"
-        aria-expanded={focused() && suggestions().length > 0}
+        aria-expanded={focused() && suggestions().length > 0 ? 'true' : 'false'}
         placeholder={props.selected.length === 0 ? props.placeholder : ''}
         value={draft()}
         onInput={(e) => handleInput(e.currentTarget.value)}
@@ -196,8 +197,8 @@ export const TagsInput: Component<TagsInputProps> = (props) => {
                 type="button"
                 role="option"
                 ref={(el) => itemRefs.set(option, el)}
-                aria-selected={activeIndex() === index()}
-                classList={{ active: activeIndex() === index() }}
+                aria-selected={activeIndex() === index() ? 'true' : 'false'}
+                class={{ active: activeIndex() === index() }}
                 onMouseEnter={() => setActiveIndex(index())}
                 // preventDefault keeps the text input focused so the list stays open
                 // for picking several values in a row.

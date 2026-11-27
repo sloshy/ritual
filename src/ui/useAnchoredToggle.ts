@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, onCleanup } from 'solid-js'
+import { type Accessor, createEffect, createSignal } from 'solid-js'
 
 export type AnchoredToggle = {
   /** Whether the popup is currently open. */
@@ -43,14 +43,14 @@ export function useAnchoredToggle(): AnchoredToggle {
     setOpen(true)
   }
 
-  createEffect(() => {
-    if (!open()) return
+  createEffect(open, (isOpen) => {
+    if (!isOpen) return
     window.addEventListener('scroll', captureAnchor, true)
     window.addEventListener('resize', captureAnchor)
-    onCleanup(() => {
+    return () => {
       window.removeEventListener('scroll', captureAnchor, true)
       window.removeEventListener('resize', captureAnchor)
-    })
+    }
   })
 
   return {

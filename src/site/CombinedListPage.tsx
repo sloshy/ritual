@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, on, onCleanup, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { seedCards, seedPrintings, sessionCacheVersion } from '../list-view/session-cache'
 import { apiBase } from '../list-view/api-base'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -57,7 +57,8 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
   // live backend reloads from the right source.
   const listsKey = createMemo(() => props.lists.map(listRefKey).join(','))
   createEffect(
-    on([listsKey, apiBase], () => {
+    () => [listsKey(), apiBase()] as const,
+    () => {
       const refs = props.lists
       setLoaded(null)
       setError(false)
@@ -66,7 +67,6 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
         return
       }
       const controller = new AbortController()
-      onCleanup(() => controller.abort())
       void (async () => {
         try {
           const result = await loadCombinedDetails(refs, controller.signal)
@@ -81,7 +81,8 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
           setLoaded([])
         }
       })()
-    }),
+      return () => controller.abort()
+    },
   )
 
   // The source lists as the reader's locale lists them, each name a link: the

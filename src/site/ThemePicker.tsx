@@ -10,16 +10,7 @@
 // switch, so the picker surfaces an inline confirm rather than wiping the
 // user's tweaks silently.
 
-import {
-  type Component,
-  For,
-  Show,
-  batch,
-  createEffect,
-  createSelector,
-  createSignal,
-  onCleanup,
-} from 'solid-js'
+import { type Component, For, Show, createEffect, createProjection, createSignal } from 'solid-js'
 import { paletteToVars, themeNames, themes, type ThemeName } from '../theme/themes'
 import { useI18n } from '../ui/i18n'
 import { useTheme } from './useTheme'
@@ -57,10 +48,17 @@ export const ThemePicker: Component<ThemePickerProps> = (props) => {
   // Holds the target theme until they confirm or cancel.
   const [pendingTheme, setPendingTheme] = createSignal<ThemeName | null>(null)
 
-  // `createSelector` re-runs the equality check per subscriber but only
-  // notifies the two items whose state actually flipped (old active, new
-  // active), instead of forcing every menu row to re-evaluate.
-  const isActive = createSelector(theme.theme)
+  // A projection keyed by theme name: a switch writes only the two keys whose
+  // state flipped (old active, new active), so only those two menu rows
+  // re-evaluate instead of every row.
+  let previousTheme: string | undefined
+  const activeThemes = createProjection<Partial<Record<string, true>>>((draft) => {
+    const current = theme.theme()
+    if (previousTheme !== undefined) delete draft[previousTheme]
+    draft[current] = true
+    previousTheme = current
+  }, {})
+  const isActive = (name: ThemeName): boolean => activeThemes[name] === true
 
   function pickTheme(name: ThemeName): void {
     if (name === theme.theme()) return
@@ -77,10 +75,8 @@ export const ThemePicker: Component<ThemePickerProps> = (props) => {
     // Fold the pending-clear into the same flush as the theme swap so the
     // confirm panel never renders one frame with the new palette already
     // applied beneath it.
-    batch(() => {
-      theme.switchBaseTheme(target)
-      setPendingTheme(null)
-    })
+    theme.switchBaseTheme(target)
+    setPendingTheme(null)
   }
 
   function cancelSwitch(): void {
@@ -97,19 +93,22 @@ export const ThemePicker: Component<ThemePickerProps> = (props) => {
 
   // Escape closes the confirm step first (if present), then the popover
   // itself — so the user is never one keypress away from losing context.
-  createEffect(() => {
-    if (!props.open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      if (pendingTheme()) {
-        setPendingTheme(null)
-      } else {
-        props.onClose()
+  createEffect(
+    () => props.open,
+    (open) => {
+      if (!open) return
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key !== 'Escape') return
+        if (pendingTheme()) {
+          setPendingTheme(null)
+        } else {
+          props.onClose()
+        }
       }
-    }
-    document.addEventListener('keydown', onKey)
-    onCleanup(() => document.removeEventListener('keydown', onKey))
-  })
+      document.addEventListener('keydown', onKey)
+      return () => document.removeEventListener('keydown', onKey)
+    },
+  )
 
   return (
     <Show when={props.open}>
@@ -124,9 +123,11 @@ export const ThemePicker: Component<ThemePickerProps> = (props) => {
                     <button
                       type="button"
                       role="option"
-                      aria-selected={isActive(s.name)}
-                      class="theme-picker-item"
-                      classList={{ 'theme-picker-item-active': isActive(s.name) }}
+                      aria-selected={isActive(s.name) ? 'true' : 'false'}
+                      class={[
+                        'theme-picker-item',
+                        { 'theme-picker-item-active': isActive(s.name) },
+                      ]}
                       onClick={() => pickTheme(s.name)}
                     >
                       <span class="theme-picker-swatch" aria-hidden="true">

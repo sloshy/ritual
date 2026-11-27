@@ -3,7 +3,11 @@
 ARG BUN_VERSION=1.4.5
 
 # Stage 1: Build
-FROM oven/bun:${BUN_VERSION}-alpine AS builder
+# A glibc (Debian) builder, though the runtime stage is Alpine: building the
+# SPAs runs Solid's native JSX compiler (@solidjs/compiler), which publishes no
+# musl binary, so the binary is cross-compiled for musl below instead. On the
+# build machine's own platform: the compile step targets the image's.
+FROM --platform=$BUILDPLATFORM oven/bun:${BUN_VERSION}-slim AS builder
 
 WORKDIR /app
 
@@ -31,8 +35,16 @@ ENV RITUAL_RELEASE=$RITUAL_RELEASE
 ARG RITUAL_SOURCE_URL=
 ENV RITUAL_SOURCE_URL=$RITUAL_SOURCE_URL
 
-# Build the ritual binary
-RUN bun run build
+# Build the ritual binary for the Alpine (musl) runtime stage, on the image's
+# own architecture (BuildKit's TARGETARCH, or the builder's when unset).
+ARG TARGETARCH
+RUN arch="${TARGETARCH:-$(uname -m)}" && \
+    case "$arch" in \
+      amd64 | x86_64) arch=x64 ;; \
+      arm64 | aarch64) arch=arm64 ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac && \
+    BUILD_TARGET="bun-linux-$arch-musl" bun run build
 
 # Stage 2: Runtime
 FROM alpine:3.24

@@ -178,7 +178,7 @@ export const AddCardOptions: Component<AddCardOptionsProps> = (props) => {
               // The field that blocks the commit announces itself: the buttons
               // it disables are far enough down the dialog that a screen reader
               // would otherwise meet a dead Add with no stated reason.
-              aria-invalid={artError() !== null}
+              aria-invalid={artError() !== null ? 'true' : 'false'}
               aria-describedby={ADD_CARD_ART_NOTE_ID}
               onInput={(e) => props.setArt(e.currentTarget.value)}
             />

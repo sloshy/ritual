@@ -6,7 +6,8 @@
  * Deliberately not generic: it reads {@link ListPageChrome}, which has the
  * page's group-by union already erased, so its slots need no render callback.
  */
-import { Show, type JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { Show } from 'solid-js'
 import type { ChangelogPage } from '../changes/changelog-parser'
 import type { ScryfallCard } from '../scryfall/types'
 import { useT } from '../ui/i18n'

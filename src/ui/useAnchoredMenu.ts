@@ -1,4 +1,5 @@
-import { type Accessor, type JSX, createSignal, createMemo, onMount, onCleanup } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { type Accessor, createSignal, createMemo, onSettled } from 'solid-js'
 
 const MENU_OFFSET = 4
 // Keep the menu this far from the viewport edges when it has to be clamped/scrolled.
@@ -49,11 +50,6 @@ export function anchoredMenuOpen(): boolean {
 
 export function useAnchoredMenu(opts: AnchoredMenuOptions): AnchoredMenu {
   let menuRef: HTMLDivElement | undefined
-  // The hook lives exactly as long as the open menu does — every consumer
-  // renders it under a `<Show>` on its own open state — so mount/cleanup is the
-  // menu's open/closed edge.
-  setOpenMenus((n) => n + 1)
-  onCleanup(() => setOpenMenus((n) => n - 1))
   // Measured after mount so positioning uses the menu's real height (it varies with content)
   // rather than a fixed estimate that could overflow the viewport.
   const [menuHeight, setMenuHeight] = createSignal(0)
@@ -95,7 +91,11 @@ export function useAnchoredMenu(opts: AnchoredMenuOptions): AnchoredMenu {
     return result
   })
 
-  onMount(() => {
+  onSettled(() => {
+    // The hook lives exactly as long as the open menu does — every consumer
+    // renders it under a `<Show>` on its own open state — so mount/cleanup is
+    // the menu's open/closed edge.
+    setOpenMenus((n) => n + 1)
     if (menuRef) setMenuHeight(menuRef.getBoundingClientRect().height)
 
     const handleClickOutside = (e: MouseEvent) => {
@@ -108,10 +108,11 @@ export function useAnchoredMenu(opts: AnchoredMenuOptions): AnchoredMenu {
     }
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)
-    onCleanup(() => {
+    return () => {
+      setOpenMenus((n) => n - 1)
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleEscape)
-    })
+    }
   })
 
   return {

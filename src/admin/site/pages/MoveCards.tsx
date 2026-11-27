@@ -1,10 +1,11 @@
+import type { JSX } from '@solidjs/web'
 import {
   findByListIdentity,
   isListIdentityKey,
   listIdentityKey,
   type ListInfo,
 } from '../../../list/list-identity'
-import { type JSX, Show, Switch, Match, For, createSignal, createMemo, onCleanup } from 'solid-js'
+import { Show, Switch, Match, For, createSignal, createMemo, onCleanup } from 'solid-js'
 import { useApiText } from '../hooks/useApiAction'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
 import { useT, useTKey } from '../../../ui/i18n'
@@ -275,7 +276,7 @@ export function MoveCards(): JSX.Element {
           <button
             type="button"
             class="btn-defaults"
-            aria-expanded={filtersOpen()}
+            aria-expanded={filtersOpen() ? 'true' : 'false'}
             onClick={() => setFiltersOpen((v) => !v)}
           >
             <span class="btn-defaults-caret">{filtersOpen() ? '▾' : '▴'}</span>
@@ -343,65 +344,83 @@ export function MoveCards(): JSX.Element {
           </Match>
           <Match when={deckView()}>
             {(view) => (
-              <DeckPage
-                enableSellMode={sellModeEnabled()}
-                deck={view().deck}
-                cards={session.cardData.cards}
-                printings={session.cardData.printings}
-                symbolMap={session.cardData.symbolMap}
-                slug={session.viewedList()?.slug ?? ''}
-                useScryfallImgUrls={true}
-                modalCardName={modalKey()}
-                onOpenModal={setModalKey}
-                onCloseModal={closeModal}
-                currency={priceCurrency()}
-                onCardMove={handleCardMove}
-                shareLists={shareLists()}
-              />
+              // Keyed on the viewed list: the page reads its list's name, key
+              // prefix and grouping once, so another list gets a fresh mount.
+              <Show when={session.viewedListId()} keyed>
+                {(_listId) => (
+                  <DeckPage
+                    enableSellMode={sellModeEnabled()}
+                    deck={view().deck}
+                    cards={session.cardData.cards}
+                    printings={session.cardData.printings}
+                    symbolMap={session.cardData.symbolMap}
+                    slug={session.viewedList()?.slug ?? ''}
+                    useScryfallImgUrls={true}
+                    modalCardName={modalKey()}
+                    onOpenModal={setModalKey}
+                    onCloseModal={closeModal}
+                    currency={priceCurrency()}
+                    onCardMove={handleCardMove}
+                    shareLists={shareLists()}
+                  />
+                )}
+              </Show>
             )}
           </Match>
           <Match when={collectionView()}>
             {(view) => (
-              <CollectionPage
-                enableSellMode={sellModeEnabled()}
-                name={view().name}
-                slug={session.viewedList()?.slug}
-                entries={view().entries}
-                sectionOrder={view().sectionOrder}
-                cards={session.cardData.cards}
-                printings={session.cardData.printings}
-                symbolMap={session.cardData.symbolMap}
-                useScryfallImgUrls={true}
-                totalPrice={0}
-                modalCardKey={modalKey()}
-                onOpenModal={setModalKey}
-                onCloseModal={closeModal}
-                currency={priceCurrency()}
-                onCardMove={handleCardMove}
-                shareLists={shareLists()}
-              />
+              // Keyed on the viewed list: the page reads its list's name, key
+              // prefix and grouping once, so another list gets a fresh mount.
+              <Show when={session.viewedListId()} keyed>
+                {(_listId) => (
+                  <CollectionPage
+                    enableSellMode={sellModeEnabled()}
+                    name={view().name}
+                    slug={session.viewedList()?.slug}
+                    entries={view().entries}
+                    sectionOrder={view().sectionOrder}
+                    cards={session.cardData.cards}
+                    printings={session.cardData.printings}
+                    symbolMap={session.cardData.symbolMap}
+                    useScryfallImgUrls={true}
+                    totalPrice={0}
+                    modalCardKey={modalKey()}
+                    onOpenModal={setModalKey}
+                    onCloseModal={closeModal}
+                    currency={priceCurrency()}
+                    onCardMove={handleCardMove}
+                    shareLists={shareLists()}
+                  />
+                )}
+              </Show>
             )}
           </Match>
           <Match when={wantedView()}>
             {(view) => (
-              <WantedListPage
-                enableSellMode={sellModeEnabled()}
-                name={view().name}
-                slug={session.viewedList()?.slug}
-                entries={view().entries}
-                sectionOrder={view().sectionOrder}
-                cards={session.cardData.cards}
-                printings={session.cardData.printings}
-                symbolMap={session.cardData.symbolMap}
-                useScryfallImgUrls={true}
-                totalPrice={0}
-                modalCardKey={modalKey()}
-                onOpenModal={setModalKey}
-                onCloseModal={closeModal}
-                currency={priceCurrency()}
-                onCardMove={handleCardMove}
-                shareLists={shareLists()}
-              />
+              // Keyed on the viewed list: the page reads its list's name, key
+              // prefix and grouping once, so another list gets a fresh mount.
+              <Show when={session.viewedListId()} keyed>
+                {(_listId) => (
+                  <WantedListPage
+                    enableSellMode={sellModeEnabled()}
+                    name={view().name}
+                    slug={session.viewedList()?.slug}
+                    entries={view().entries}
+                    sectionOrder={view().sectionOrder}
+                    cards={session.cardData.cards}
+                    printings={session.cardData.printings}
+                    symbolMap={session.cardData.symbolMap}
+                    useScryfallImgUrls={true}
+                    totalPrice={0}
+                    modalCardKey={modalKey()}
+                    onOpenModal={setModalKey}
+                    onCloseModal={closeModal}
+                    currency={priceCurrency()}
+                    onCardMove={handleCardMove}
+                    shareLists={shareLists()}
+                  />
+                )}
+              </Show>
             )}
           </Match>
         </Switch>

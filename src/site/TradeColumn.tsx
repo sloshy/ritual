@@ -229,7 +229,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
   }
 
   return (
-    <section class="trade-col" classList={{ 'is-hidden': props.hidden }} data-side={props.side}>
+    <section class={['trade-col', { 'is-hidden': props.hidden }]} data-side={props.side}>
       <div class="trade-col-head">
         <div class="trade-col-title-row">
           <h2 class="trade-col-title">{title()}</h2>
@@ -345,21 +345,20 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
         <span class="col-toolbar-label">{t('site.tradeColumn.sort')}</span>
         <div class="view-toggle">
           <button
-            classList={{ active: props.sort.by === 'name' }}
+            class={{ active: props.sort.by === 'name' }}
             onClick={() => props.onSortChange('name')}
           >
             {t('site.tradeColumn.sortName')}
           </button>
           <button
-            classList={{ active: props.sort.by === 'price' }}
+            class={{ active: props.sort.by === 'price' }}
             onClick={() => props.onSortChange('price')}
           >
             {t('site.tradeColumn.sortPrice')}
           </button>
         </div>
         <button
-          class="toolbar-toggle"
-          classList={{ active: props.sort.reverse }}
+          class={['toolbar-toggle', { active: props.sort.reverse }]}
           onClick={props.onReverseToggle}
         >
           {props.sort.reverse ? t('site.tradeColumn.reversed') : t('site.tradeColumn.reverse')}

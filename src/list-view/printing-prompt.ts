@@ -1,4 +1,5 @@
-import { createSignal, type Accessor } from 'solid-js'
+import { type Accessor } from 'solid-js'
+import { createLatestSignal } from '../ui/latest-signal'
 import type { Finish } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import type { ListRef, PrintingTuple } from '../changes/change-event'
@@ -22,7 +23,7 @@ export interface SelectionPrintingPrompt {
   onSkip: () => void
 }
 
-const [pendingPrompt, setPendingPrompt] = createSignal<SelectionPrintingPrompt | null>(null)
+const [pendingPrompt, setPendingPrompt] = createLatestSignal<SelectionPrintingPrompt | null>(null)
 
 /** The card currently awaiting a printing choice, or null. */
 export const pendingPrintingPrompt: Accessor<SelectionPrintingPrompt | null> = pendingPrompt

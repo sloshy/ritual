@@ -1,5 +1,5 @@
 import type { Accessor, Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, For, Show, onCleanup } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show, onSettled } from 'solid-js'
 import { Modal } from '../ui/Modal'
 import type {
   CardSelectionControl,
@@ -52,8 +52,10 @@ const [pageSelection, setPageSelection] = createSignal<CardSelectionControl | nu
  * as the calling component is mounted. Call from the page's setup.
  */
 export function registerPageSelection(selection: CardSelectionControl): void {
-  setPageSelection(() => selection)
-  onCleanup(() => setPageSelection((prev) => (prev === selection ? null : prev)))
+  onSettled(() => {
+    setPageSelection(() => selection)
+    return () => setPageSelection((prev) => (prev === selection ? null : prev))
+  })
 }
 
 type GroupMode = 'order' | 'source'
@@ -139,8 +141,8 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
   // rows are torn down by the <Show>, so the tooltip signal could otherwise stick.
   // The last cart copy's warnings go too: the modal stays mounted, and reopened
   // later they would describe a copy the reader no longer has in mind.
-  createEffect(() => {
-    if (open()) return
+  createEffect(open, (isOpen) => {
+    if (isOpen) return
     hidePreview()
     copy.clearCartWarnings()
   })
@@ -148,9 +150,12 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
   // Close once the whole selection empties (e.g. after removing the last card or
   // Clear). An empty `current` scope stays open: the other lists may still hold
   // cards, one toggle away.
-  createEffect(() => {
-    if (open() && props.selection.count() === 0) close()
-  })
+  createEffect(
+    () => open() && props.selection.count() === 0,
+    (empty) => {
+      if (empty) close()
+    },
+  )
 
   return (
     <Modal
@@ -203,16 +208,16 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
               <div class="view-toggle selection-modal-scope">
                 <button
                   type="button"
-                  classList={{ active: scope() === 'current' }}
-                  aria-pressed={scope() === 'current'}
+                  class={{ active: scope() === 'current' }}
+                  aria-pressed={scope() === 'current' ? 'true' : 'false'}
                   onClick={() => setViewScope('current')}
                 >
                   {t('site.selection.scopeCurrent', { count: current().count() })}
                 </button>
                 <button
                   type="button"
-                  classList={{ active: scope() === 'all' }}
-                  aria-pressed={scope() === 'all'}
+                  class={{ active: scope() === 'all' }}
+                  aria-pressed={scope() === 'all' ? 'true' : 'false'}
                   onClick={() => setViewScope('all')}
                 >
                   {t('site.selection.scopeAll', { count: props.selection.count() })}
@@ -225,16 +230,16 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
         <div class="view-toggle">
           <button
             type="button"
-            classList={{ active: groupMode() === 'order' }}
-            aria-pressed={groupMode() === 'order'}
+            class={{ active: groupMode() === 'order' }}
+            aria-pressed={groupMode() === 'order' ? 'true' : 'false'}
             onClick={() => setGroupMode('order')}
           >
             {t('site.selection.groupOrder')}
           </button>
           <button
             type="button"
-            classList={{ active: groupMode() === 'source' }}
-            aria-pressed={groupMode() === 'source'}
+            class={{ active: groupMode() === 'source' }}
+            aria-pressed={groupMode() === 'source' ? 'true' : 'false'}
             onClick={() => setGroupMode('source')}
           >
             {t('site.selection.groupSource')}

@@ -1,12 +1,10 @@
-import { Dynamic, render } from 'solid-js/web'
+import { Dynamic, render } from '@solidjs/web'
 import {
   type Component,
-  batch,
   createEffect,
   createMemo,
   createSignal,
-  onMount,
-  onCleanup,
+  onSettled,
   Show,
   Switch,
   Match,
@@ -88,7 +86,9 @@ function App() {
   // `useAdminLocale` owns resolution and dictionary loading (plain module state,
   // which Solid cannot observe); mirroring what it applied into the i18n store is
   // what makes every `t()` in the tree re-render on a switch.
-  createEffect(() => publishLocale(uiLocale()))
+  createEffect(uiLocale, (locale) => {
+    publishLocale(locale)
+  })
 
   const [setupRequired, setSetupRequired] = createSignal<boolean | null>(null)
   const [totpEnabled, setTotpEnabled] = createSignal(false)
@@ -116,14 +116,12 @@ function App() {
     // Batched: the login form mounts as soon as `setupRequired` flips, and it
     // seeds its TOTP field from `totpEnabled` at mount, so the two must land
     // together or a TOTP-enabled server shows the form without the code field.
-    batch(() => {
-      setSetupRequired(data.setupRequired)
-      setTotpEnabled(data.totpEnabled)
-      // Whether this server offers sell mode at all; its sell/buylist routes
-      // 404 otherwise, so every sell surface in the UI hides itself on this.
-      setSellModeEnabled(data.sellMode)
-      setAbout(data.about)
-    })
+    setSetupRequired(data.setupRequired)
+    setTotpEnabled(data.totpEnabled)
+    // Whether this server offers sell mode at all; its sell/buylist routes
+    // 404 otherwise, so every sell surface in the UI hides itself on this.
+    setSellModeEnabled(data.sellMode)
+    setAbout(data.about)
 
     // Check if we have an active session by probing an authenticated endpoint.
     // A probe that cannot reach the server means "no session", not "no account":
@@ -136,7 +134,7 @@ function App() {
     }
   }
 
-  onMount(() => {
+  onSettled(() => {
     void checkStatus()
 
     // Warn before a full-page reload or tab close while an editor has unsaved
@@ -148,7 +146,7 @@ function App() {
       e.returnValue = ''
     }
     window.addEventListener('beforeunload', warnOnUnload)
-    onCleanup(() => window.removeEventListener('beforeunload', warnOnUnload))
+    return () => window.removeEventListener('beforeunload', warnOnUnload)
   })
 
   const onSetupComplete = () => {

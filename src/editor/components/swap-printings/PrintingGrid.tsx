@@ -1,4 +1,12 @@
-import { createMemo, createResource, For, Show, type Accessor, type Component } from 'solid-js'
+import {
+  createDeferred,
+  createMemo,
+  For,
+  isPending,
+  Show,
+  type Accessor,
+  type Component,
+} from 'solid-js'
 import {
   type Finish,
   defaultPrintingFinish,
@@ -32,6 +40,9 @@ export type PrintingGridProps = {
   onChoose: (card: ScryfallCard, finish: Finish) => void
 }
 
+/** One card's printing load: what arrived, and whether the fetch failed. */
+type PrintingsLoad = { printings: ScryfallCard[]; failed: boolean }
+
 /**
  * The full printing grid the wizard chooses arbitrary printings from — for a
  * printing-less candidate (which printing is it?) and for a source list's
@@ -41,14 +52,21 @@ export type PrintingGridProps = {
  */
 export const PrintingGrid: Component<PrintingGridProps> = (props) => {
   const t = useT()
-  const [allPrintings] = createResource<ScryfallCard[], string>(props.cardName, async (name) =>
-    dedupePrintingsByKey(await props.printings(name)),
+  // Deferred with an `undefined` loading value: nothing suspends, a new card
+  // keeps the last grid on screen until its printings land (`isPending` shows
+  // the wait), and a failed load is an answer of its own rather than a throw.
+  const allPrintings = createDeferred<PrintingsLoad | undefined>(
+    async () => {
+      const name = props.cardName()
+      try {
+        return { printings: dedupePrintingsByKey(await props.printings(name)), failed: false }
+      } catch {
+        return { printings: [], failed: true }
+      }
+    },
+    { loadingValue: undefined },
   )
-  // `latest` throws once the load has failed, so the error is checked first —
-  // once, for both readers.
-  const loaded = createMemo<ScryfallCard[]>(() =>
-    allPrintings.error ? [] : (allPrintings.latest ?? []),
-  )
+  const loaded = createMemo<ScryfallCard[]>(() => allPrintings()?.printings ?? [])
   const gridPrintings = createMemo<ScryfallCard[]>(() =>
     filterPrintingsByQuery(props.query(), loaded()),
   )
@@ -60,16 +78,16 @@ export const PrintingGrid: Component<PrintingGridProps> = (props) => {
   return (
     <>
       <PrintingFilter value={props.query()} onChange={props.setQuery} active={props.active()} />
-      <Show when={allPrintings.error}>
+      <Show when={allPrintings()?.failed}>
         <p class="swap-wizard-note swap-wizard-note--warning" role="status">
           {t('ui.swap.pick.printingsFailed')}
         </p>
       </Show>
       <Show
-        when={!allPrintings.loading}
+        when={allPrintings() !== undefined && !isPending(() => allPrintings())}
         fallback={<div class="empty-state">{t('ui.addCard.loadingPrintings')}</div>}
       >
-        <Show when={!allPrintings.error && gridPrintings().length === 0}>
+        <Show when={!allPrintings()?.failed && gridPrintings().length === 0}>
           <div class="empty-state">{t('ui.printingFilter.noMatches')}</div>
         </Show>
         <div class="printing-select-grid">

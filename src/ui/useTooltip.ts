@@ -1,4 +1,4 @@
-import { createSignal, onMount, onCleanup } from 'solid-js'
+import { createSignal, onSettled, onCleanup } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 
 /**
@@ -42,7 +42,7 @@ export function useTooltip(): UseTooltipResult {
     setTooltipPos({ left, top })
   }
 
-  onMount(() => {
+  onSettled(() => {
     document.addEventListener('mousemove', handleMouseMove)
   })
 

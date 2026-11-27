@@ -8,7 +8,8 @@
  * the same accessor/open/close trio.
  */
 
-import { createSignal, type Accessor } from 'solid-js'
+import { type Accessor } from 'solid-js'
+import { createLatestSignal } from './latest-signal'
 
 /** The three functions a prompt module re-exports under its own names. */
 export type PromptSingleton<T> = {
@@ -21,7 +22,7 @@ export type PromptSingleton<T> = {
 }
 
 export function createPromptSingleton<T>(): PromptSingleton<T> {
-  const [pending, setPending] = createSignal<T | null>(null)
+  const [pending, setPending] = createLatestSignal<T | null>(null)
   return {
     pending,
     open: (prompt) => setPending(() => prompt),

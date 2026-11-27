@@ -1001,6 +1001,10 @@ export const cliInfraMeta = {
     description:
       'A custom theme file parsed but is not a valid theme. {reason} explains why. {source} is where the path came from: the `--theme-file` flag or the `site.themeFiles` config key. It is typed or matched exactly by the user, so never translate it.',
   },
+  'cli.buildSite.jsxCompileFailed': {
+    description:
+      "Build failure: Solid's JSX compiler rejected one of Ritual's own web-app source files while building the site or admin app from source. {file} is the source file's path and {reason} the compiler's own message (both verbatim, untranslated).",
+  },
   'cli.buildSite.spaBuildFailed': {
     description:
       'Build failure: bundling the public site\'s web app failed. The bundler\'s own diagnostics are printed above it. "SPA" is the single-page web app; {ext} is the file extension being built (".js" or ".css"), kept verbatim.',

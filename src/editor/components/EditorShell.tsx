@@ -1,4 +1,5 @@
-import { type Accessor, type JSX, Show, For, createMemo, createSignal } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { type Accessor, Show, For, createMemo, createSignal } from 'solid-js'
 import type { ScryfallCard } from '../../scryfall/types'
 import type { UseEditorResult, ListItem } from '../editor-config'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
@@ -144,7 +145,13 @@ export function EditorShell<TData, TCardEntry>(
               — {t('ui.editor.selectorPlaceholder', { listType: listType() })} —
             </option>
             <For each={editor.list()}>
-              {(item: ListItem) => <option value={item.slug}>{item.name}</option>}
+              {(item: ListItem) => (
+                // `selected` as well as the select's value: options rendered in
+                // the same update as the value must still come up chosen.
+                <option value={item.slug} selected={item.slug === editor.slug()}>
+                  {item.name}
+                </option>
+              )}
             </For>
           </select>
         </div>
@@ -239,7 +246,7 @@ export function EditorShell<TData, TCardEntry>(
 
       {/* Batch "Swap Printings" wizard (deck and collection editors). The
           host's props object carries getters (see `createSwapController`), and
-          a component spread is reactive — `mergeProps` reads its keys lazily —
+          a component spread is reactive — `merge` reads its keys lazily —
           so `request` keeps updating while the wizard is mounted. */}
       <Show when={props.swap}>{(swap) => <SwapPrintingsWizard {...swap()} />}</Show>
 

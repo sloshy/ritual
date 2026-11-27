@@ -13,7 +13,8 @@
  * {@link findPrintingsAvailable}, which the modal registers while mounted.
  */
 
-import { createSignal, type Accessor } from 'solid-js'
+import { type Accessor } from 'solid-js'
+import { createLatestSignal } from '../ui/latest-signal'
 import type { ListType } from '../list/list-type'
 import { listRefKey, type CombinedCardData, type CombinedListRef } from './combined-list'
 import { cardMatchKey, findMatchKey } from '../card/find-search'
@@ -22,7 +23,7 @@ export interface FindPrintingsRequest {
   cardName: string
 }
 
-const [request, setRequest] = createSignal<FindPrintingsRequest | null>(null)
+const [request, setRequest] = createLatestSignal<FindPrintingsRequest | null>(null)
 
 /** The card currently being looked up across lists, or null when closed. */
 export const findPrintingsRequest: Accessor<FindPrintingsRequest | null> = request
@@ -35,7 +36,7 @@ export function closeFindPrintings(): void {
   setRequest(null)
 }
 
-const [available, setAvailable] = createSignal(false)
+const [available, setAvailable] = createLatestSignal(false)
 
 /**
  * Whether a mounted FindPrintingsModal will answer {@link openFindPrintings}.

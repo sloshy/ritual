@@ -1,4 +1,5 @@
-import { batch, createSignal, type Accessor } from 'solid-js'
+import { type Accessor } from 'solid-js'
+import { createLatestSignal } from '../ui/latest-signal'
 import { DEFAULT_BUYER, supportsCartCsv, type BuyerId } from '../buylist'
 import type { BakedBuylist } from '../list/site-data'
 
@@ -17,9 +18,13 @@ import type { BakedBuylist } from '../list/site-data'
  * not offer sell mode never acts on this even when it is on.
  */
 
-const [active, setActive] = createSignal(false)
-const [buyer, setBuyer] = createSignal<BuyerId>(DEFAULT_BUYER)
-const [engaging, setEngaging] = createSignal(false)
+// Latest-valued: the toolbar reads the mode right after a click writes it.
+// `ownedWrite`: a page opened from a shared link turns the mode on and picks
+// the buyer while it sets up (see `useListViewUrlSync`); what already rendered
+// from the old value updates in the same flush.
+const [active, setActive] = createLatestSignal(false, { ownedWrite: true })
+const [buyer, setBuyer] = createLatestSignal<BuyerId>(DEFAULT_BUYER, { ownedWrite: true })
+const [engaging, setEngaging] = createLatestSignal(false, { ownedWrite: true })
 
 /**
  * Sell mode's toolbar controls. Passed only by pages that offer sell mode
@@ -111,13 +116,11 @@ export const sellModeBuyer: Accessor<BuyerId> = buyer
  */
 export function setSellModeActive(next: boolean): void {
   cancelEngage()
-  batch(() => {
-    // Batched so the button never renders un-pressed between the two writes —
-    // that intermediate frame would land exactly as the rebuild begins, which
-    // is the worst moment for the control to look like it lost the click.
-    setEngaging(false)
-    setActive(next)
-  })
+  // Both writes land in one flush, so the button never renders un-pressed
+  // between them — that intermediate frame would land exactly as the rebuild
+  // begins, the worst moment for the control to look like it lost the click.
+  setEngaging(false)
+  setActive(next)
 }
 
 /** The pending engage's scheduler handles, so an explicit set can cancel it. */
@@ -150,10 +153,8 @@ export function engageSellMode(): void {
     pendingFrame = null
     pendingFlip = setTimeout(() => {
       pendingFlip = null
-      batch(() => {
-        setEngaging(false)
-        setActive(true)
-      })
+      setEngaging(false)
+      setActive(true)
     }, 0)
   })
 }
@@ -167,9 +168,7 @@ export function resetSellMode(): void {
   // Drops a pending engage as well as the flag it set — otherwise the reset
   // leaves both a spinning toggle and a timer that turns the mode back on.
   cancelEngage()
-  batch(() => {
-    setActive(false)
-    setBuyer(DEFAULT_BUYER)
-    setEngaging(false)
-  })
+  setActive(false)
+  setBuyer(DEFAULT_BUYER)
+  setEngaging(false)
 }

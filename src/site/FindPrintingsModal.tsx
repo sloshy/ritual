@@ -1,14 +1,5 @@
 import type { Accessor, Component } from 'solid-js'
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  onCleanup,
-  onMount,
-  untrack,
-  For,
-  Show,
-} from 'solid-js'
+import { createEffect, createMemo, createSignal, onCleanup, onSettled, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
 import { useT } from '../ui/i18n'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -67,8 +58,10 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
   const [loaded, setLoaded] = createSignal<LoadedListDetail[] | null>(null)
   const [loading, setLoading] = createSignal(false)
 
-  onMount(() => setFindPrintingsAvailable(true))
-  onCleanup(() => setFindPrintingsAvailable(false))
+  onSettled(() => {
+    setFindPrintingsAvailable(true)
+    return () => setFindPrintingsAvailable(false)
+  })
 
   // Lazily load every list's detail JSON on the first lookup, then keep it for
   // the session (the component outlives page navigation). Waits until the site
@@ -76,27 +69,28 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
   let loadController: AbortController | null = null
   onCleanup(() => loadController?.abort())
 
-  createEffect(() => {
-    // `loading` is untracked: the effect only guards on it, and tracking it
-    // would schedule a pointless re-run when setLoading(true) fires below.
-    if (!findPrintingsRequest() || loaded() || untrack(loading)) return
-    const refs = props.lists()
-    if (refs.length === 0) return
-    setLoading(true)
-    loadController = new AbortController()
-    loadCombinedDetails(refs, loadController.signal)
-      .then((result) => {
-        loadController = null
-        seedCards(mergeCardMaps(result))
-        seedPrintings(mergePrintingMaps(result))
-        setLoaded(result)
-        setLoading(false)
-      })
-      .catch((e) => {
-        setLoading(false)
-        if ((e as Error).name !== 'AbortError') throw e
-      })
-  })
+  createEffect(
+    (): NamedListRef[] => (findPrintingsRequest() && !loaded() ? props.lists() : []),
+    (refs) => {
+      // `loading` is read in the untracked apply phase: the effect only guards
+      // on it, and tracking it would re-run the load when it starts.
+      if (refs.length === 0 || loading()) return
+      setLoading(true)
+      loadController = new AbortController()
+      loadCombinedDetails(refs, loadController.signal)
+        .then((result) => {
+          loadController = null
+          seedCards(mergeCardMaps(result))
+          seedPrintings(mergePrintingMaps(result))
+          setLoaded(result)
+          setLoading(false)
+        })
+        .catch((e) => {
+          setLoading(false)
+          if ((e as Error).name !== 'AbortError') throw e
+        })
+    },
+  )
 
   const symbolMap = createMemo(() => mergeSymbolMaps(loaded() ?? []))
 
@@ -120,8 +114,8 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
   // Hover preview for the list view, rendered in the Modal's overlay slot so it
   // escapes the panel's overflow clipping (same pattern as SelectionModal).
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
-  createEffect(() => {
-    if (!findPrintingsRequest()) setTooltip(null)
+  createEffect(findPrintingsRequest, (request) => {
+    if (!request) setTooltip(null)
   })
 
   const handlePick = (group: FindPrintingsGroup, copy: FindPrintingsCopy): void => {
@@ -182,14 +176,14 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
         <div class="view-toggle">
           <button
             type="button"
-            classList={{ active: viewMode() === 'binder' }}
+            class={{ active: viewMode() === 'binder' }}
             onClick={() => setViewMode('binder')}
           >
             {t('site.findPrintings.viewBinder')}
           </button>
           <button
             type="button"
-            classList={{ active: viewMode() === 'list' }}
+            class={{ active: viewMode() === 'list' }}
             onClick={() => setViewMode('list')}
           >
             {t('site.findPrintings.viewList')}

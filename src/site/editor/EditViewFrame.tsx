@@ -1,4 +1,5 @@
-import { type JSX, Show, batch, createEffect, createSignal, onMount, onCleanup } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { Show, createEffect, createSignal, onSettled, untrack } from 'solid-js'
 import type { ChangeEvent } from '../../changes/change-event'
 import { ConfirmDialog } from '../../ui/ConfirmDialog'
 import { useT } from '../../ui/i18n'
@@ -83,6 +84,9 @@ type EditViewFrameProps = {
  * and clears them on unmount. The editor's state lives here (in the caller's
  * controller), so toggling to Original and back preserves pending edits.
  */
+/** The list an {@link EditViewFrame} edits, fixed when it mounts. */
+type MountedList = { kind: ListType; slug: string; listName: string }
+
 export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
   const [view, setView] = createSignal<EditView>('edited')
   const [exportOpen, setExportOpen] = createSignal(false)
@@ -107,10 +111,23 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
     else props.onExit()
   }
 
+  /**
+   * The list this frame was mounted for. A navigation to another list remounts
+   * the frame, but this frame's props already name the new list in the update
+   * that unmounts it, so the mirror below writes under the identity it was
+   * mounted with rather than the props' current one. A deliberate snapshot,
+   * not a reactive read: this frame's list is fixed.
+   */
+  const mounted: MountedList = untrack(() => ({
+    kind: props.kind,
+    slug: props.slug,
+    listName: props.listName,
+  }))
+
   // Publish the edit controls to the navbar while this editor is mounted. Register
   // the chrome and active session first, then decide what (if anything) to restore —
   // so the frame is fully wired before any restore could apply.
-  onMount(() => {
+  onSettled(() => {
     editChrome.setCurrent({
       changeCount: () => props.changeCount,
       view,
@@ -141,36 +158,37 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
       if (saved && saved.changes.length > 0) setRestorable(saved)
     }
 
-    onCleanup(() => {
+    return () => {
       editChrome.setCurrent(null)
       setActiveEditSession(null)
-    })
+    }
   })
 
   // Apply remembered edits once the editor has loaded (so the change list can be
   // replayed against the baseline). The load itself discards pending changes, so
   // this must wait for readiness rather than fire during mount. The restore and the
-  // pending-flag clear are batched so the mirror effect below re-runs only once,
-  // after the restored changes are in place.
-  createEffect(() => {
-    const remembered = pendingImport()
-    if (remembered && props.ready()) {
-      batch(() => {
-        props.onRestore(remembered)
-        setPendingImport(null)
-      })
-    }
-  })
+  // pending-flag clear land in one flush, so the mirror effect below re-runs only
+  // once, after the restored changes are in place.
+  createEffect(
+    () => (props.ready() ? pendingImport() : null),
+    (remembered) => {
+      if (!remembered) return
+      props.onRestore(remembered)
+      setPendingImport(null)
+    },
+  )
 
   // Mirror the live edits into the in-memory session so they survive navigating to
   // another list and back. Held off until the editor is ready and any remembered
   // edits have been restored, so an unloaded editor never overwrites a list's saved
   // session with an empty change list. Unmounting (navigation) leaves the last value
   // in place; exiting edit mode clears every session (see app's exitEditMode).
-  createEffect(() => {
-    if (!props.ready() || pendingImport()) return
-    rememberEditSession(props.kind, props.slug, props.listName, props.changes())
-  })
+  createEffect(
+    () => (props.ready() && !pendingImport() ? props.changes() : null),
+    (changes) => {
+      if (changes) rememberEditSession(mounted.kind, mounted.slug, mounted.listName, changes)
+    },
+  )
 
   /** The open list's live pending edits, always fresher than its mirrored session. */
   const currentGroup = (): ExportListGroup => ({

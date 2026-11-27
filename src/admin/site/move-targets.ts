@@ -1,4 +1,4 @@
-import { createResource, type Resource } from 'solid-js'
+import { createMemo, type Accessor } from 'solid-js'
 import type { ListRef } from '../../changes/change-event'
 import type { NamedListRef } from '../../list-view/combined-list'
 import type { ListType } from '../../list/list-type'
@@ -9,16 +9,19 @@ import { fetchAdminJson } from './editor-backend'
 /**
  * Fetch every list across all three types once (GET `/api/lists`). Used to build
  * the "Move to list" destination menus in the admin editors and the cross-list
- * navbar move. Returns the raw resource so callers derive their own {@link ListRef}
- * views (excluding the current list, or all of them).
+ * navbar move. Returns the lists accessor so callers derive their own
+ * {@link ListRef} views (excluding the current list, or all of them). It reads
+ * `undefined` until the lists arrive, so nothing waits on the fetch.
  */
-export function useAdminLists(): Resource<ListInfo[]> {
-  const [lists] = createResource(async () => {
-    // Partial: a failure envelope carries no `lists`.
-    const r = (await fetchAdminJson('/api/lists')) as Partial<ListsResponse>
-    return r.lists ?? []
-  })
-  return lists
+export function useAdminLists(): Accessor<ListInfo[] | undefined> {
+  return createMemo<ListInfo[] | undefined>(
+    async () => {
+      // Partial: a failure envelope carries no `lists`.
+      const r = (await fetchAdminJson('/api/lists')) as Partial<ListsResponse>
+      return r.lists ?? []
+    },
+    { loadingValue: undefined },
+  )
 }
 
 /** All lists as {@link ListRef}s, dropping the one matching `type` + `slug` (the current list). */

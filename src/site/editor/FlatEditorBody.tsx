@@ -1,4 +1,5 @@
-import { createMemo, type Accessor, type JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createMemo, type Accessor } from 'solid-js'
 import { withEntryArt, type CardArtRefs } from '../../editor/card-art-view'
 import {
   FlatListEditorShell,

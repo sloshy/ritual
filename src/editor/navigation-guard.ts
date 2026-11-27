@@ -1,4 +1,4 @@
-import { createContext, createSignal, useContext } from 'solid-js'
+import { createContext, useContext } from 'solid-js'
 
 /**
  * A guard the active editor installs so navigation can confirm discarding unsaved
@@ -41,24 +41,31 @@ const passthrough: NavigationGuardController = {
 
 const NavigationGuardContext = createContext<NavigationGuardController>(passthrough)
 
-export const NavigationGuardProvider = NavigationGuardContext.Provider
+export const NavigationGuardProvider = NavigationGuardContext
 
 export const useNavigationGuard = (): NavigationGuardController =>
   useContext(NavigationGuardContext)
 
-/** Create the shared controller; one instance lives at the app root. */
+/**
+ * Create the shared controller; one instance lives at the app root.
+ *
+ * The installed entry is a plain variable, not a signal: it is only ever read
+ * imperatively (a navigation attempt, the unload prompt), and an editor
+ * installs it while it mounts, where a reactive write is not allowed.
+ */
 export function createNavigationGuard(): NavigationGuardController {
-  const [entry, setEntry] = createSignal<NavigationGuardEntry | null>(null)
+  let entry: NavigationGuardEntry | null = null
   return {
     attempt: (proceed, onCancel) => {
-      const active = entry()
-      if (active) active.attempt(proceed, onCancel)
+      if (entry) entry.attempt(proceed, onCancel)
       else proceed()
     },
-    isDirty: () => entry()?.isDirty() ?? false,
+    isDirty: () => entry?.isDirty() ?? false,
     register: (e) => {
-      setEntry(e)
-      return () => setEntry((cur) => (cur === e ? null : cur))
+      entry = e
+      return () => {
+        if (entry === e) entry = null
+      }
     },
   }
 }

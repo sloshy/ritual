@@ -311,6 +311,10 @@ test.describe('Cross-list multi-select', () => {
     })
     await expect(page.locator('.page-title')).toHaveText('MS Deck B')
     await expect(page.locator('.edit-banner')).toBeVisible()
+    // Deck A's edit stays with deck A: B opens with none of its own.
+    await expect(page.locator('.card-item').first()).toBeVisible()
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
+    await expect(page.locator('.card-item .qty-badge', { hasText: '2x' })).toHaveCount(0)
 
     // Back to deck A: the pending edit was held in memory and is restored.
     await page.evaluate(() => {
@@ -319,6 +323,19 @@ test.describe('Cross-list multi-select', () => {
     await expect(page.locator('.page-title')).toHaveText('MS Deck A')
     await expect(page.locator('.changes-badge')).toHaveText('1')
     await expect(page.locator('.card-item .qty-badge', { hasText: '2x' })).toHaveCount(1)
+
+    // And a second hop to B still finds it untouched.
+    await page.evaluate(() => {
+      window.location.hash = '#/deck/ms-b'
+    })
+    await expect(page.locator('.page-title')).toHaveText('MS Deck B')
+    await expect(page.locator('.card-item').first()).toBeVisible()
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
+    await expect(page.locator('.card-item .qty-badge', { hasText: '2x' })).toHaveCount(0)
+    await page.evaluate(() => {
+      window.location.hash = '#/deck/ms-a'
+    })
+    await expect(page.locator('.changes-badge')).toHaveText('1')
 
     // Exiting edit mode ends the session and discards the in-memory edits. The
     // discard is confirmed through the in-app dialog, not `window.confirm`.

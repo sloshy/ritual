@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
 import { compareData, compareDisplay } from '../i18n/collate'
 import type { ScryfallCard } from '../scryfall/types'
@@ -87,20 +87,18 @@ export const CardModal: Component<CardModalProps> = (props) => {
   // very grid the source selector lives in.
   //
   // A *memo* over a string key, not the bare tuple accessor this used to be.
-  // `on` re-runs whenever its input re-evaluates — it performs no equality check
+  // An effect re-runs whenever its compute re-evaluates — it performs no equality check
   // of its own — and `open` is a page memo over the displayed card object, which
   // re-evaluates when the price source swaps the printing. Only a memo's `===`
   // gate stops that from reading as "a different card was opened" and throwing
   // the user out of the very grid the source selector lives in.
   const viewKey = createMemo(() => `${props.open}|${props.cardName ?? ''}`)
-  createEffect(
-    on(viewKey, () => {
-      setShowingBack(false)
-      setShowPrintings(false)
-      setShowTags(false)
-      setPrintingsPage(0)
-    }),
-  )
+  createEffect(viewKey, () => {
+    setShowingBack(false)
+    setShowPrintings(false)
+    setShowTags(false)
+    setPrintingsPage(0)
+  })
 
   const isDfc = createMemo(() => (props.card ? isDoubleFacedCard(props.card) : false))
   const imgSources = createMemo(() =>
@@ -357,7 +355,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
                   </Show>
                 }
               >
-                <div class="card-modal-flip" classList={{ flipped: showingBack() }}>
+                <div class={['card-modal-flip', { flipped: showingBack() }]}>
                   <img src={imgSources()?.frontImage ?? ''} alt={props.cardName || ''} />
                   <img
                     class="card-modal-flip-back"
@@ -460,7 +458,10 @@ export const CardModal: Component<CardModalProps> = (props) => {
                   )}
                 </Show>
                 <Show when={props.card}>
-                  <button aria-expanded={showTags()} onClick={() => setShowTags((prev) => !prev)}>
+                  <button
+                    aria-expanded={showTags() ? 'true' : 'false'}
+                    onClick={() => setShowTags((prev) => !prev)}
+                  >
                     {t('site.cardModal.tags')} {showTags() ? '▾' : '▸'}
                   </button>
                 </Show>

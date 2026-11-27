@@ -1,6 +1,5 @@
-import { batch, createEffect, createMemo, createSignal, on } from 'solid-js'
+import { createEffect, createMemo, createSignal, createStore } from 'solid-js'
 import type { Accessor } from 'solid-js'
-import { createStore } from 'solid-js/store'
 import {
   type CardFilters,
   countActiveFilters,
@@ -31,9 +30,15 @@ export type CardFiltersControl = {
   narrowingCount: Accessor<number>
 }
 
-/** Shared toolbar filter state for the deck, collection, and wanted list pages. */
-export function useCardFilters(): CardFiltersControl {
-  const [filters, setFilters] = createStore<CardFilters>(createDefaultCardFilters())
+/**
+ * Shared toolbar filter state for the deck, collection, and wanted list pages.
+ * `seed` overrides the defaults it starts from (a shared URL's filters).
+ */
+export function useCardFilters(seed?: Partial<CardFilters>): CardFiltersControl {
+  const [filters, setFilters] = createStore<CardFilters>({
+    ...createDefaultCardFilters(),
+    ...seed,
+  })
   const [resetEpoch, setResetEpoch] = createSignal(0)
   const activeCount = createMemo(() => countActiveFilters(filters))
   const narrowingCount = createMemo(() => countNarrowingFilters(filters))
@@ -46,23 +51,25 @@ export function useCardFilters(): CardFiltersControl {
   // USD whatever the page displays, so switching currency leaves that threshold
   // meaning exactly what it did before.
   createEffect(
-    on(
-      currencyEpoch,
-      () => {
-        if (filters.price !== null) setFilters({ price: null })
-      },
-      { defer: true },
-    ),
+    currencyEpoch,
+    () => {
+      setFilters((draft) => {
+        draft.price = null
+      })
+    },
+    { defer: true },
   )
 
   return {
     filters,
-    update: (patch) => setFilters(patch),
-    reset: () =>
-      batch(() => {
-        setFilters(createDefaultCardFilters())
-        setResetEpoch((n) => n + 1)
+    update: (patch) =>
+      setFilters((draft) => {
+        Object.assign(draft, patch)
       }),
+    reset: () => {
+      setFilters(() => createDefaultCardFilters())
+      setResetEpoch((n) => n + 1)
+    },
     resetEpoch,
     activeCount,
     narrowingCount,

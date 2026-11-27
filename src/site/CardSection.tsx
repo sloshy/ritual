@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
 import { Show, For } from 'solid-js'
 import type { CardData, GroupHeading, GroupKey } from '../list-view/card-sorting'
 import type { PriceCurrency } from '../pricing/price-currency'

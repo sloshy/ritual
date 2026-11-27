@@ -1,4 +1,5 @@
-import { type JSX, batch, createEffect, createSignal, onCleanup, Show, For } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createEffect, createSignal, onCleanup, Show, For } from 'solid-js'
 import { useT } from '../../../ui/i18n'
 import { apiMessage } from '../../../api/result'
 import type { ApiMessage } from '../../../api/result'
@@ -68,8 +69,7 @@ export function BuildSite(): JSX.Element {
 
   // The log follows its tail: the newest lines are what a live view is for.
   let logEl: HTMLPreElement | undefined
-  createEffect(() => {
-    const lines = output()
+  createEffect(output, (lines) => {
     if (lines.length === 0 || !logEl) return
     logEl.scrollTop = logEl.scrollHeight
   })
@@ -77,21 +77,17 @@ export function BuildSite(): JSX.Element {
   const running = (): boolean => loading() || streaming()
 
   const finish = (message: ApiMessage | null): void => {
-    batch(() => {
-      setStreaming(false)
-      setStep((current) => (current ? { ...current, progress: current.total } : current))
-      setStatus(message ?? apiMessage('admin.api.buildSite.built'))
-    })
+    setStreaming(false)
+    setStep((current) => (current ? { ...current, progress: current.total } : current))
+    setStatus(message ?? apiMessage('admin.api.buildSite.built'))
   }
 
   // A refusal or failure; an error the build raised may carry nested params.
   const fail = (message: SyncMessage | string | null): void => {
-    batch(() => {
-      setStreaming(false)
-      // The alert carries the news; a bar frozen part way would read as "still going".
-      setStep(null)
-      setError(message ?? apiMessage('admin.buildSite.failed'))
-    })
+    setStreaming(false)
+    // The alert carries the news; a bar frozen part way would read as "still going".
+    setStep(null)
+    setError(message ?? apiMessage('admin.buildSite.failed'))
   }
 
   // Exhaustive on `kind`, so a frame this bundle does not recognize is ignored
@@ -109,23 +105,19 @@ export function BuildSite(): JSX.Element {
 
   /** The build without a stream: one blocking request, no steps or output. */
   const buildWithoutStream = async (): Promise<void> => {
-    batch(() => {
-      setStreaming(false)
-      setStep(null)
-    })
+    setStreaming(false)
+    setStep(null)
     await run('/api/build-site', { method: 'POST' }, apiMessage('admin.buildSite.failed'))
   }
 
   const handleBuild = (): void => {
     stream?.close()
     stream = null
-    batch(() => {
-      setStreaming(true)
-      setStep({ progress: 0, total: STEP_NAMES.length - 1 })
-      setOutput([])
-      setStatus(null)
-      setError(null)
-    })
+    setStreaming(true)
+    setStep({ progress: 0, total: STEP_NAMES.length - 1 })
+    setOutput([])
+    setStatus(null)
+    setError(null)
     stream = openSyncStream<BuildSiteStreamEvent, BuildSiteDoneEvent, SyncMessage>(
       '/api/build-site/stream',
       {

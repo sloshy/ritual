@@ -1,16 +1,13 @@
-import { render } from 'solid-js/web'
+import { render, type JSX } from '@solidjs/web'
 import {
   createSignal,
   createEffect,
   createMemo,
   For,
-  on,
-  onCleanup,
-  onMount,
+  onSettled,
   Show,
   Switch,
   Match,
-  type JSX,
 } from 'solid-js'
 import type { DeckDetail, CollectionDetail, WantedListDetail } from '../list/site-data'
 import { formatDateTime } from '../ui/format'
@@ -138,7 +135,9 @@ function App() {
   // cannot observe. Mirroring what it applied into the i18n store is what makes
   // every `t()` in the tree re-render, for the boot resolution and for a
   // runtime switch alike.
-  createEffect(() => publishLocale(uiLocale()))
+  createEffect(uiLocale, (locale) => {
+    publishLocale(locale)
+  })
 
   // Site-wide edit mode: a single toggle that persists across navigation. While
   // on, the list in view (if any) is shown in its editor, and moving to another
@@ -197,24 +196,22 @@ function App() {
   //
   // Keyed on a `routeIdentity` **memo**, not on the route object and not on a
   // bare accessor. `useRouting` writes a fresh `Route` object on every parse,
-  // and `on` runs its callback whenever its input re-evaluates — it performs no
+  // and an effect runs its apply phase whenever its compute re-evaluates — it performs no
   // equality check of its own — so only a memo's `===` gate stops navigation
   // *within* one view (a deck primer anchor, a toolbar control mirroring itself
   // into the hash) from closing a dialog the user is working in. Edit mode is
   // intentionally left alone here so it persists across lists (see editMode).
   const viewIdentity = createMemo(() => routeIdentity(route()))
   createEffect(
-    on(
-      viewIdentity,
-      () => {
-        setModalCard(null)
-        setQuickSwitchOpen(false)
-        setCombineOpen(false)
-        setOffListExportOpen(false)
-        closeFindPrintings()
-      },
-      { defer: true },
-    ),
+    viewIdentity,
+    () => {
+      setModalCard(null)
+      setQuickSwitchOpen(false)
+      setCombineOpen(false)
+      setOffListExportOpen(false)
+      closeFindPrintings()
+    },
+    { defer: true },
   )
 
   // With a live backend, moving to a different page refreshes the index
@@ -226,7 +223,13 @@ function App() {
       ? `${r.page}:${r.slug}`
       : r.page
   })
-  createEffect(on(routePageKey, () => refetchSiteData(), { defer: true }))
+  createEffect(
+    routePageKey,
+    () => {
+      refetchSiteData()
+    },
+    { defer: true },
+  )
 
   // Every list known to the site index, as named refs — backs the combine modal
   // and the combined-view resolution of `all` / individual refs.
@@ -239,7 +242,9 @@ function App() {
     return out
   })
   // Register the roster so change-bundle exports can stamp slugs onto moves.
-  createEffect(() => setKnownLists(allNamedLists()))
+  createEffect(allNamedLists, (lists) => {
+    setKnownLists(lists)
+  })
 
   // Every list as a move destination (all are offered; per-card self-moves are skipped).
   const moveAllTargets = (): NamedListRef[] => allNamedLists()
@@ -439,13 +444,13 @@ function App() {
 
   let headerRef: HTMLElement | undefined
   const [headerHeight, setHeaderHeight] = createSignal(0)
-  onMount(() => {
+  onSettled(() => {
     if (!headerRef) return
     const el = headerRef
     setHeaderHeight(el.offsetHeight)
     const ro = new ResizeObserver(() => setHeaderHeight(el.offsetHeight))
     ro.observe(el)
-    onCleanup(() => ro.disconnect())
+    return () => ro.disconnect()
   })
   // Phones hide the header on scroll-down and bring it back on scroll-up, so it
   // never eats the small viewport while reading. An open popover anchored to a
@@ -477,10 +482,12 @@ function App() {
   const utilitiesFolded = () => mobileLayout() || headerFold() !== 'full'
   // The sticky toolbar, its stuck sentinel, and the toast stack all sit under
   // the header via this var, so a hidden header hands them its space.
-  createEffect(() => {
-    const height = headerHidden() ? 0 : headerHeight()
-    document.documentElement.style.setProperty('--site-header-h', `${height}px`)
-  })
+  createEffect(
+    () => (headerHidden() ? 0 : headerHeight()),
+    (height) => {
+      document.documentElement.style.setProperty('--site-header-h', `${height}px`)
+    },
+  )
 
   // The editor's control row. Desktop keeps it in the sticky header; the phone
   // layout renders it in the page flow instead, so it scrolls away and only the
@@ -521,11 +528,10 @@ function App() {
   )
 
   return (
-    <div class="site-app app-padding" classList={{ 'has-tabbar': showTabBar() }}>
+    <div class={['site-app app-padding', { 'has-tabbar': showTabBar() }]}>
       <header
         ref={headerRef}
-        class="site-header"
-        classList={{ 'site-header--hidden': headerHidden() }}
+        class={['site-header', { 'site-header--hidden': headerHidden() }]}
         data-fold={mobileLayout() ? undefined : headerFold()}
       >
         <div class="site-header-main">
@@ -536,8 +542,7 @@ function App() {
           </a>
           <Show when={apiActive() || apiDegraded()}>
             <span
-              class="site-live-badge"
-              classList={{ 'site-live-badge--offline': apiDegraded() }}
+              class={['site-live-badge', { 'site-live-badge--offline': apiDegraded() }]}
               title={apiDegraded() ? t('site.app.offlineTitle') : t('site.app.liveTitle')}
             >
               {apiDegraded() ? t('site.app.offline') : t('site.app.live')}
@@ -605,14 +610,16 @@ function App() {
           <Show when={utilitiesFolded()}>
             <button
               type="button"
-              class="header-utility-toggle"
-              classList={{ 'header-utility-toggle--open': headerUtilityOpen() }}
+              class={[
+                'header-utility-toggle',
+                { 'header-utility-toggle--open': headerUtilityOpen() },
+              ]}
               aria-label={
                 headerUtilityOpen()
                   ? t('site.app.hideDisplayOptions')
                   : t('site.app.showDisplayOptions')
               }
-              aria-expanded={headerUtilityOpen()}
+              aria-expanded={headerUtilityOpen() ? 'true' : 'false'}
               title={t('site.app.displayOptions')}
               onClick={() => setHeaderUtilityOpen((v) => !v)}
             >
@@ -661,10 +668,7 @@ function App() {
       </Show>
 
       <main class="site-main">
-        <div
-          class="page-transition"
-          classList={{ 'page-visible': visible(), 'page-hidden': !visible() }}
-        >
+        <div class={['page-transition', { 'page-visible': visible(), 'page-hidden': !visible() }]}>
           <Switch>
             <Match when={route().page === 'index'}>
               <Show when={deckList()} fallback={<LoadingSpinner />}>
@@ -1042,11 +1046,13 @@ function NavLink(props: NavLinkProps) {
   return (
     <a
       href={props.href}
-      class="site-nav-link"
-      classList={{
-        'site-nav-link-active': props.active,
-        'site-nav-link-inactive': !props.active,
-      }}
+      class={[
+        'site-nav-link',
+        {
+          'site-nav-link-active': props.active,
+          'site-nav-link-inactive': !props.active,
+        },
+      ]}
     >
       {props.children}
     </a>

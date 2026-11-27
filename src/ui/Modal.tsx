@@ -1,4 +1,5 @@
-import { type Component, type JSX, Show } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { type Component, Show } from 'solid-js'
 import { useDialogModal } from './useDialogModal'
 
 /** Fade/scale-out duration; matches the `.modal-shell` / `.modal-panel` transitions in modal.css. */
@@ -59,8 +60,7 @@ export const Modal: Component<ModalProps> = (props) => {
   return (
     <dialog
       ref={dialog.setDialog}
-      class={`modal-shell modal-shell--${placement()}`}
-      classList={{ 'is-closing': dialog.exiting() }}
+      class={[`modal-shell modal-shell--${placement()}`, { 'is-closing': dialog.exiting() }]}
       aria-label={props['aria-label']}
       onCancel={(e) => {
         // Escape would close the element outright, skipping the exit animation —

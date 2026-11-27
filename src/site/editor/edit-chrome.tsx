@@ -6,7 +6,6 @@ import {
   type Setter,
   type ParentComponent,
 } from 'solid-js'
-import { requireContext } from '../../util/require-context'
 
 /** Which version of the list the visitor is currently looking at. */
 export type EditView = 'edited' | 'original'
@@ -46,13 +45,9 @@ const EditChromeContext = createContext<EditChromeStore>()
 /** Holds the active editor's chrome so the navbar and the editor body stay in sync. */
 export const EditChromeProvider: ParentComponent = (props) => {
   const [current, setCurrent] = createSignal<EditChrome | null>(null)
-  return (
-    <EditChromeContext.Provider value={{ current, setCurrent }}>
-      {props.children}
-    </EditChromeContext.Provider>
-  )
+  return <EditChromeContext value={{ current, setCurrent }}>{props.children}</EditChromeContext>
 }
 
 export function useEditChrome(): EditChromeStore {
-  return requireContext(useContext(EditChromeContext), 'useEditChrome', 'EditChromeProvider')
+  return useContext(EditChromeContext)
 }

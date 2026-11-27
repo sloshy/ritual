@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { createSignal, Match, onMount, Show, Switch } from 'solid-js'
+import { createSignal, Match, onSettled, Show, Switch } from 'solid-js'
 import { useT } from '../../../ui/i18n'
 import { apiMessage } from '../../../api/result'
 import { useApiText } from '../hooks/useApiAction'
@@ -30,7 +30,7 @@ export const TotpSettings: Component = () => {
   const [error, setError] = createSignal<ApiActionMessage | null>(null)
   const heldText = useApiText()
 
-  onMount(() => {
+  onSettled(() => {
     fetch('/api/totp/status', { credentials: 'same-origin' })
       .then((r) => r.json())
       .then((data: TotpStatusResponse) => setTotpEnabled(data.enabled))
@@ -147,9 +147,9 @@ export const TotpSettings: Component = () => {
                 <div class="totp-verify-row">
                   <input
                     type="text"
-                    inputMode="numeric"
+                    inputmode="numeric"
                     pattern="[0-9]*"
-                    maxLength={6}
+                    maxlength={6}
                     class="form-input input-code-wide"
                     value={totpCode()}
                     onInput={(e) => setTotpCode(e.currentTarget.value)}

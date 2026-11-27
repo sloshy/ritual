@@ -20,8 +20,7 @@ export const MobileTabBar: Component<MobileTabBarProps> = (props) => {
         {(tab) => (
           <a
             href={tab.href}
-            class="mobile-tab"
-            classList={{ active: props.active[tab.key] }}
+            class={['mobile-tab', { active: props.active[tab.key] }]}
             aria-current={props.active[tab.key] ? 'page' : undefined}
           >
             <span class="mobile-tab-icon" aria-hidden="true">

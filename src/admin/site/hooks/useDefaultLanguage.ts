@@ -1,4 +1,4 @@
-import { batch, createSignal, onMount, type Accessor } from 'solid-js'
+import { createSignal, onSettled, type Accessor } from 'solid-js'
 import { DEFAULT_CARD_LANGUAGE, type CardLanguage } from '../../../card/card-language'
 import { setDefaultLanguage as setRuntimeDefaultLanguage } from '../../../editor/default-language'
 import { fetchRitualConfig } from '../config-api'
@@ -18,10 +18,8 @@ let started = false
  * already-mounted editor page sees a change without a reload.
  */
 export function applyDefaultLanguage(language: CardLanguage): void {
-  batch(() => {
-    setDefaultLanguage(language)
-    setRuntimeDefaultLanguage(language)
-  })
+  setDefaultLanguage(language)
+  setRuntimeDefaultLanguage(language)
 }
 
 /**
@@ -36,7 +34,7 @@ export function applyDefaultLanguage(language: CardLanguage): void {
  * the fetch fails.
  */
 export function useDefaultLanguage(): Accessor<CardLanguage> {
-  onMount(() => {
+  onSettled(() => {
     if (started) return
     started = true
     void fetchRitualConfig().then((config) => {

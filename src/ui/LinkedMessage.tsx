@@ -1,5 +1,5 @@
-import type { JSX } from 'solid-js'
-import { For } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { For, Show } from 'solid-js'
 import type { MessageSegment } from '../i18n/types'
 
 type LinkedMessageProps = {
@@ -20,16 +20,18 @@ type LinkedMessageProps = {
 export function LinkedMessage(props: LinkedMessageProps): JSX.Element {
   return (
     <For each={props.segments}>
-      {(segment) => {
-        const href = segment.kind === 'param' ? props.hrefs[segment.name] : undefined
-        return href === undefined ? (
-          segment.value
-        ) : (
-          <a href={href} target="_blank" rel="noopener noreferrer">
-            {segment.value}
-          </a>
-        )
-      }}
+      {(segment) => (
+        <Show
+          when={segment.kind === 'param' ? props.hrefs[segment.name] : undefined}
+          fallback={segment.value}
+        >
+          {(href) => (
+            <a href={href()} target="_blank" rel="noopener noreferrer">
+              {segment.value}
+            </a>
+          )}
+        </Show>
+      )}
     </For>
   )
 }

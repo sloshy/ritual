@@ -1,5 +1,6 @@
-import type { Component, JSX } from 'solid-js'
-import { Show, For, Index, createMemo, createSignal } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import type { Component } from 'solid-js'
+import { Show, For, createMemo, createSignal } from 'solid-js'
 import type {
   ViewMode,
   CardSize,
@@ -148,7 +149,7 @@ type ToolbarSelectProps<T extends string> = {
  * matching option `selected` ties the displayed choice to the value however the
  * list is rebuilt.
  *
- * `<Index>` rather than `<For>` for the same reason the sort layers use it: the
+ * Non-keyed `<For keyed={false}>` for the same reason the sort layers use it: the
  * options are a positional list rebuilt on every read, so reference keying would
  * tear down and recreate every `<option>` on any change.
  */
@@ -165,13 +166,13 @@ function ToolbarSelect<T extends string>(props: ToolbarSelectProps<T>): JSX.Elem
       value={props.value}
       onChange={(e) => select(e.currentTarget.value)}
     >
-      <Index each={props.options}>
+      <For keyed={false} each={props.options}>
         {(opt) => (
           <option value={opt().value} selected={opt().value === props.value}>
             {opt().label}
           </option>
         )}
-      </Index>
+      </For>
     </select>
   )
 }
@@ -238,9 +239,8 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
     <Show when={coarse()}>
       <button
         type="button"
-        class="toolbar-toggle"
-        classList={{ active: selectionModeActive() }}
-        aria-pressed={selectionModeActive()}
+        class={['toolbar-toggle', { active: selectionModeActive() }]}
+        aria-pressed={selectionModeActive() ? 'true' : 'false'}
         title={t('site.toolbar.selectModeTitle')}
         onClick={toggleSelectionMode}
       >
@@ -297,13 +297,12 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           <>
             <button
               type="button"
-              class="toolbar-toggle toolbar-sell-toggle"
-              classList={{ active: pressed() }}
-              aria-pressed={pressed()}
+              class={['toolbar-toggle toolbar-sell-toggle', { active: pressed() }]}
+              aria-pressed={pressed() ? 'true' : 'false'}
               // Marks the control's own state as in-flux for assistive tech —
               // it suppresses interim announcements rather than making one. The
               // announcement is the live region below.
-              aria-busy={busy()}
+              aria-busy={busy() ? 'true' : 'false'}
               title={busy() ? t('site.toolbar.sellModeBusyTitle') : t('site.toolbar.sellModeTitle')}
               onClick={() => sell().onToggle()}
             >
@@ -393,10 +392,10 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
 
   const sortControls = () => (
     <div class="toolbar-sort-layers">
-      {/* <Index> (index-keyed) not <For> (reference-keyed): layers are a positional
+      {/* Non-keyed (index-keyed) <For>, not the reference-keyed default: layers are a positional
           list whose values change in place, and every edit rebuilds the array, so
           reference keying would needlessly recreate each row's <select> on any change. */}
-      <Index each={props.sortLayers}>
+      <For keyed={false} each={props.sortLayers}>
         {(layer, index) => (
           <div class="toolbar-sort-layer">
             <ToolbarSelect
@@ -406,9 +405,8 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
             />
             <button
               type="button"
-              class="toolbar-toggle toolbar-sort-reverse"
-              classList={{ active: layer().reverse }}
-              aria-pressed={layer().reverse}
+              class={['toolbar-toggle toolbar-sort-reverse', { active: layer().reverse }]}
+              aria-pressed={layer().reverse ? 'true' : 'false'}
               title={
                 layer().reverse ? t('site.toolbar.sortDescending') : t('site.toolbar.sortAscending')
               }
@@ -430,7 +428,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
             </Show>
           </div>
         )}
-      </Index>
+      </For>
       <Show when={canAddLayer()}>
         <button
           type="button"
@@ -449,9 +447,8 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
     <Show when={props.groupBy !== 'none'}>
       <button
         type="button"
-        class="toolbar-toggle"
-        classList={{ active: props.reverseGroups }}
-        aria-pressed={props.reverseGroups}
+        class={['toolbar-toggle', { active: props.reverseGroups }]}
+        aria-pressed={props.reverseGroups ? 'true' : 'false'}
         onClick={props.onReverseGroupsChange}
       >
         <span aria-hidden="true">↑↓</span> {t('site.toolbar.reverseSections')}
@@ -465,17 +462,16 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
   const extraToggleButtons = () => (
     <Show when={props.extraToggles}>
       {(toggles) => (
-        <Index each={toggles()}>
+        <For keyed={false} each={toggles()}>
           {(toggle) => (
             <button
               type="button"
-              class="toolbar-toggle"
-              classList={{ active: toggle().checked }}
-              aria-pressed={toggle().checked}
+              class={['toolbar-toggle', { active: toggle().checked }]}
+              aria-pressed={toggle().checked ? 'true' : 'false'}
               // aria-disabled, not the native attribute: a `disabled` button takes
               // no pointer or focus events, so its `title` never surfaces and the
               // reason it is locked becomes undiscoverable.
-              aria-disabled={Boolean(toggle().locked)}
+              aria-disabled={toggle().locked ? 'true' : 'false'}
               title={toggle().locked?.reason}
               onClick={() => {
                 if (!toggle().locked) toggle().onChange()
@@ -484,7 +480,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
               {toggle().label}
             </button>
           )}
-        </Index>
+        </For>
       )}
     </Show>
   )
@@ -492,7 +488,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
   return (
     <>
       <div ref={sentinelRef} aria-hidden="true" class="toolbar-sentinel" />
-      <div class="toolbar" classList={{ 'is-stuck': stuck() }}>
+      <div class={['toolbar', { 'is-stuck': stuck() }]}>
         <Show
           when={!mobile()}
           fallback={
@@ -502,7 +498,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
                 type="button"
                 class="toolbar-toggle toolbar-sort-sheet-btn"
                 aria-haspopup="dialog"
-                aria-expanded={sortSheetOpen()}
+                aria-expanded={sortSheetOpen() ? 'true' : 'false'}
                 onClick={() => setSortSheetOpen(true)}
               >
                 {t('site.toolbar.sortSheet')} <span aria-hidden="true">▾</span>

@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
 import type { ScryfallCard } from '../scryfall/types'
 import { type Finish, isFinish } from '../card/finish-condition'
@@ -64,13 +64,15 @@ const PickerItem: Component<PickerItemProps> = (props) => {
 
   return (
     <div
-      class="trade-picker-item"
-      classList={{
-        'trade-picker-item-selected': isSelected(),
-        'trade-picker-item-desired': props.desired,
-      }}
+      class={[
+        'trade-picker-item',
+        {
+          'trade-picker-item-selected': isSelected(),
+          'trade-picker-item-desired': props.desired,
+        },
+      ]}
       role="button"
-      tabIndex={0}
+      tabindex={0}
       onClick={() => props.onSelectPrinting(props.printing)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') props.onSelectPrinting(props.printing)
@@ -102,8 +104,10 @@ const PickerItem: Component<PickerItemProps> = (props) => {
         <For each={finishes}>
           {(finish) => (
             <button
-              class="trade-picker-finish-btn"
-              classList={{ active: isSelected() && props.selectedFinish === finish }}
+              class={[
+                'trade-picker-finish-btn',
+                { active: isSelected() && props.selectedFinish === finish },
+              ]}
               onClick={(e) => {
                 e.stopPropagation()
                 props.onSelectFinish(props.printing, finish)
@@ -165,20 +169,18 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
   })
 
   createEffect(
-    on(
-      () => [props.printings, props.desiredPrintings, filterText()],
-      () => setPage(0),
-    ),
+    () => [props.printings, props.desiredPrintings, filterText()],
+    () => {
+      setPage(0)
+    },
   )
 
   // Explicitly keyed on the selection: picking a different printing resets the
   // finish default and dismisses any pending language notice.
-  createEffect(
-    on(selectedPrinting, (p) => {
-      if (p) setSelectedFinish(defaultFinishForCard(p))
-      setLanguageNotice(null)
-    }),
-  )
+  createEffect(selectedPrinting, (p) => {
+    if (p) setSelectedFinish(defaultFinishForCard(p))
+    setLanguageNotice(null)
+  })
 
   const handleConfirm = () => {
     const p = selectedPrinting()

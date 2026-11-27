@@ -20,7 +20,7 @@ export type SiteSpaAssets = {
 }
 
 export async function buildSiteSpaFromSource(): Promise<SiteSpaAssets> {
-  const { SolidPlugin } = await import('@dschz/bun-plugin-solid')
+  const { solidPlugin } = await import('./solid-plugin')
   // A filesystem coupling to the SPA's sources, not an import: neither the type
   // checker nor eslint's layering rule sees it, so `src/site` moving means
   // editing this.
@@ -35,9 +35,11 @@ export async function buildSiteSpaFromSource(): Promise<SiteSpaAssets> {
         ? {
             format: 'esm',
             define: { 'process.env.NODE_ENV': '"development"' },
-            plugins: [SolidPlugin()],
+            plugins: [solidPlugin({ generate: 'dom', dev: true })],
           }
         : { minify: false }),
+      // Failures come back as logs, worded by the message below.
+      throw: false,
     })
     if (!result.success) {
       for (const log of result.logs) console.error(log)

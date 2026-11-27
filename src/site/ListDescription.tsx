@@ -9,7 +9,8 @@
  * a deck-only field the deck page still renders beside this.
  */
 
-import { createSignal, Show, type JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createSignal, Show } from 'solid-js'
 import { useT } from '../ui/i18n'
 import { SymbolText } from '../list-view/symbols'
 
@@ -102,7 +103,7 @@ function ExpandableText(props: ExpandableTextProps): JSX.Element {
       <button
         type="button"
         class="link-action"
-        aria-expanded={expanded()}
+        aria-expanded={expanded() ? 'true' : 'false'}
         onClick={() => setExpanded((prev) => !prev)}
       >
         {expanded() ? t('site.list.showLess') : t('site.list.readMore')}

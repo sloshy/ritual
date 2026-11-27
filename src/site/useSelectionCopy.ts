@@ -1,4 +1,4 @@
-import { createEffect, createSignal, on, onCleanup, type Accessor } from 'solid-js'
+import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js'
 import type { SelectedCard } from '../list-view/useCardSelection'
 import { selectionToText, selectionToCsv } from '../list-view/selection-export'
 import { selectionToCartCsv } from './sell-value'
@@ -74,7 +74,13 @@ export function useSelectionCopy(getCards: () => SelectedCard[]): SelectionCopy 
   // The warnings describe the cart the buyer was last named for; a different
   // buyer (or none, sell mode off) makes them about a file this surface no
   // longer offers.
-  createEffect(on(cartBuyer, () => setCartWarnings([]), { defer: true }))
+  createEffect(
+    cartBuyer,
+    () => {
+      setCartWarnings([])
+    },
+    { defer: true },
+  )
 
   /** Write `text` to the clipboard and flash the outcome on its button; whether it landed. */
   const write = async (kind: SelectionCopyKind, text: string): Promise<boolean> => {

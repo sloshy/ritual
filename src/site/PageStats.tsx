@@ -1,4 +1,5 @@
-import type { Component, JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import type { Component } from 'solid-js'
 import { Show } from 'solid-js'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { formatPrice } from '../pricing/price-currency'

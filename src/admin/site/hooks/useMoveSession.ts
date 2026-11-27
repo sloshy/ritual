@@ -5,8 +5,16 @@ import {
   type ListIdentityKey,
   type ListInfo,
 } from '../../../list/list-identity'
-import { type Accessor, batch, createSignal, createMemo, createEffect, on, onMount } from 'solid-js'
-import { createStore, type SetStoreFunction, type Store } from 'solid-js/store'
+import {
+  type Accessor,
+  type Store,
+  type StoreSetter,
+  createSignal,
+  createMemo,
+  createEffect,
+  createStore,
+  onSettled,
+} from 'solid-js'
 import type { DeckData } from '../../../list/deck'
 import type { ScryfallCard } from '../../../scryfall/types'
 import { compareData, compareDisplay } from '../../../i18n/collate'
@@ -186,10 +194,9 @@ function errorMessage(err: unknown): string {
 function indexPrintings(
   name: string,
   printings: ScryfallCard[],
-  set: SetStoreFunction<MoveCardData>,
+  set: StoreSetter<MoveCardData>,
 ): void {
   if (printings.length === 0) return
-  set('printings', name, printings)
   // Key by lowercased `set:collector_number` (matching how the entries look up),
   // with foreign-language objects under `set:cn@lang` and the plain slot holding
   // the default-language object — the same dual keying as the load endpoints.
@@ -197,13 +204,14 @@ function indexPrintings(
   for (const p of printings) {
     indexPrintingCard(keyed, p)
   }
-  for (const [key, card] of Object.entries(keyed)) {
-    set('cards', key, card)
-  }
   const newest = [...printings].sort((a, b) =>
     compareData(b.released_at ?? '', a.released_at ?? ''),
   )[0]!
-  set('cards', name, newest)
+  set((draft) => {
+    draft.printings[name] = printings
+    Object.assign(draft.cards, keyed)
+    draft.cards[name] = newest
+  })
 }
 
 export function useMoveSession(): UseMoveSessionResult {
@@ -240,13 +248,13 @@ export function useMoveSession(): UseMoveSessionResult {
   // Names already fetched via the per-card printings endpoint, so re-views don't refetch.
   const fetchedCardNames = new Set<string>()
 
-  // Merge with per-key writes (in one batch) so only the changed card/printing/symbol
-  // slots notify — readers of a specific `cards[key]` don't re-run on unrelated loads.
+  // Merge with per-key writes so only the changed card/printing/symbol slots
+  // notify — readers of a specific `cards[key]` don't re-run on unrelated loads.
   const mergeCardData = (incoming: Partial<MoveCardData>) => {
-    batch(() => {
-      for (const [k, v] of Object.entries(incoming.cards ?? {})) setCardData('cards', k, v)
-      for (const [k, v] of Object.entries(incoming.printings ?? {})) setCardData('printings', k, v)
-      for (const [k, v] of Object.entries(incoming.symbolMap ?? {})) setCardData('symbolMap', k, v)
+    setCardData((draft) => {
+      Object.assign(draft.cards, incoming.cards)
+      Object.assign(draft.printings, incoming.printings)
+      Object.assign(draft.symbolMap, incoming.symbolMap)
     })
   }
 
@@ -266,7 +274,7 @@ export function useMoveSession(): UseMoveSessionResult {
     }
   }
 
-  onMount(() => void reloadBulk())
+  onSettled(() => void reloadBulk())
 
   const findList = (id: ListIdentityKey): ListInfo | undefined =>
     lists().find((l) => listIdentityKey(l) === id)
@@ -345,7 +353,8 @@ export function useMoveSession(): UseMoveSessionResult {
   // post-commit refresh, or a lists reload) changes. `lists` is a dependency so a
   // post-commit `reloadBulk` re-fetches the viewed list even when its id is unchanged.
   createEffect(
-    on([viewedListId, refreshKey, lists], ([id]) => {
+    () => [viewedListId(), refreshKey(), lists()] as const,
+    ([id]) => {
       if (!id) return
       const list = findList(id)
       if (!list) return
@@ -354,7 +363,7 @@ export function useMoveSession(): UseMoveSessionResult {
         const incoming = pending().filter((m) => listIdentityKey(m.to) === id)
         await ensureCardData(incoming.map((m) => m.source.name))
       })()
-    }),
+    },
   )
 
   const viewedData = createMemo<ViewedListData | null>(() => {
@@ -405,12 +414,10 @@ export function useMoveSession(): UseMoveSessionResult {
   })
 
   // Prefetch Scryfall data for the current search matches so their hover previews are ready.
-  createEffect(
-    on(searchResults, (results) => {
-      if (results.length === 0) return
-      void ensureCardData([...new Set(results.map((g) => g.name))])
-    }),
-  )
+  createEffect(searchResults, (results) => {
+    if (results.length === 0) return
+    void ensureCardData([...new Set(results.map((g) => g.name))])
+  })
 
   // ── Filters ────────────────────────────────────────────────────────────────
   const sourceEnabled = (id: ListIdentityKey) => !disabledSources().has(id)

@@ -198,6 +198,13 @@ release changes a file format or a generated file, it ships the change as a
   screen is priced only when you open it, so a list file that cannot be read is left out with a
   warning rather than stopping the browser. **Refresh prices** also refreshes the Card Kingdom
   feed when Card Kingdom is the store.
+- The public and admin sites now run on Solid 2.0, compiled by Solid's native JSX compiler
+  (`@solidjs/compiler`) instead of Babel. Nothing should look or behave differently. Running or
+  building Ritual from source needs a fresh `bun install`, on a platform the compiler ships a
+  binary for (macOS on x64 or arm64, Linux with glibc on x64 or arm64, or Windows on x64), so
+  contributors on Alpine or Windows on arm64 can no longer build from source there (the release
+  binaries and Docker image still run on them). The Docker image now builds on a Debian base and
+  still runs on Alpine; building it downloads the musl Bun runtime.
 
 ### Fixed
 

@@ -1,4 +1,5 @@
-import { type JSX, For } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { For } from 'solid-js'
 import { useT } from '../../../ui/i18n'
 import type { UnreadableSource } from '../../../sync/common'
 import { renderSyncMessage } from '../../../sync/message'

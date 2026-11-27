@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, on, onCleanup } from 'solid-js'
+import { type Accessor, createEffect, createSignal, onCleanup } from 'solid-js'
 
 export type DialogModalControls = {
   /** Ref setter for the native `<dialog>` element. */
@@ -89,15 +89,21 @@ export function useDialogModal(
   let panel: HTMLElement | undefined
   let openSize: PanelSize | undefined
 
+  // One observer for the hook's lifetime, created with the first panel (a ref
+  // callback cannot register a cleanup of its own): each new panel element
+  // replaces the one being watched.
+  let observer: ResizeObserver | undefined
+  onCleanup(() => observer?.disconnect())
+
   const setPanel = (el: HTMLElement): void => {
     panel = el
-    const observer = new ResizeObserver(() => {
+    observer ??= new ResizeObserver((entries) => {
       if (!open()) return
-      const rect = el.getBoundingClientRect()
-      if (rect.height > 0) openSize = { width: rect.width, height: rect.height }
+      const rect = entries[0]?.target.getBoundingClientRect()
+      if (rect && rect.height > 0) openSize = { width: rect.width, height: rect.height }
     })
+    observer.disconnect()
     observer.observe(el)
-    onCleanup(() => observer.disconnect())
   }
 
   const freezePanel = (frozen: boolean): void => {
@@ -111,34 +117,32 @@ export function useDialogModal(
     }
   }
 
-  createEffect(
-    on(open, (isOpen, wasOpen) => {
-      if (!dialog) return
-      if (isOpen) {
-        // Reopening mid-exit just cancels the exit — the element never closed.
-        setExiting(false)
-        freezePanel(false)
-        if (!dialog.open) dialog.showModal()
-        // Fire once per closed→open transition, including a reopen mid-exit where
-        // the element never actually closed but the new open still needs its
-        // content seeded and its input focused. Gate on the previous `open` value
-        // rather than on `dialog.open`: `on` re-runs whenever the owner's `open`
-        // expression re-evaluates, so keying off the element would both miss the
-        // mid-exit reopen and re-seed an already-open dialog on an unrelated update.
-        if (!wasOpen) options.onOpen?.()
-        return
-      }
-      if (!dialog.open) return
-      setExiting(true)
-      freezePanel(true)
-      const timer = setTimeout(() => {
-        dialog?.close()
-        setExiting(false)
-        freezePanel(false)
-      }, options.exitMs)
-      onCleanup(() => clearTimeout(timer))
-    }),
-  )
+  createEffect(open, (isOpen, wasOpen) => {
+    if (!dialog) return
+    if (isOpen) {
+      // Reopening mid-exit just cancels the exit — the element never closed.
+      setExiting(false)
+      freezePanel(false)
+      if (!dialog.open) dialog.showModal()
+      // Fire once per closed→open transition, including a reopen mid-exit where
+      // the element never actually closed but the new open still needs its
+      // content seeded and its input focused. Gate on the previous `open` value
+      // rather than on `dialog.open`: the effect re-runs whenever the owner's `open`
+      // expression re-evaluates, so keying off the element would both miss the
+      // mid-exit reopen and re-seed an already-open dialog on an unrelated update.
+      if (!wasOpen) options.onOpen?.()
+      return
+    }
+    if (!dialog.open) return
+    setExiting(true)
+    freezePanel(true)
+    const timer = setTimeout(() => {
+      dialog?.close()
+      setExiting(false)
+      freezePanel(false)
+    }, options.exitMs)
+    return () => clearTimeout(timer)
+  })
 
   return {
     exiting,

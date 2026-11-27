@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, createSignal, onCleanup } from 'solid-js'
+import { type Accessor, createEffect, createSignal } from 'solid-js'
 
 /** Scroll distance (px) in one direction before the header changes state, so jitter never flickers it. */
 const SCROLL_SLACK = 8
@@ -38,8 +38,8 @@ export type HideOnScrollOptions = {
 /** Hide-on-scroll-down, show-on-scroll-up for a sticky header. */
 export function useHideOnScroll(options: HideOnScrollOptions): Accessor<boolean> {
   const [hidden, setHidden] = createSignal(false)
-  createEffect(() => {
-    if (!options.enabled()) {
+  createEffect(options.enabled, (enabled) => {
+    if (!enabled) {
       setHidden(false)
       return
     }
@@ -53,7 +53,7 @@ export function useHideOnScroll(options: HideOnScrollOptions): Accessor<boolean>
       setHidden(state.hidden)
     }
     window.addEventListener('scroll', onScroll, { passive: true })
-    onCleanup(() => window.removeEventListener('scroll', onScroll))
+    return () => window.removeEventListener('scroll', onScroll)
   })
   return hidden
 }

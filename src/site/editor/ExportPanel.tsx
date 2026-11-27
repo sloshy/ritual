@@ -7,7 +7,6 @@ import {
   createEffect,
   createMemo,
   createSignal,
-  on,
   onCleanup,
 } from 'solid-js'
 import type { ChangeEvent } from '../../changes/change-event'
@@ -96,6 +95,12 @@ type ExportSnapshot = {
   combined: ExportListGroup[] | null
 }
 
+/** Whether a list other than the open one has edits in `snapshot`. */
+function hasOtherLists(snapshot: ExportSnapshot): boolean {
+  const c = snapshot.current
+  return snapshot.all.some((g) => !(c && g.kind === c.kind && g.slug === c.slug))
+}
+
 /**
  * The public editor's "commit" surface. Instead of saving to a server, it lets the
  * visitor download or copy their edits: a change-list JSON (which can be imported
@@ -131,8 +136,8 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
 
   /** Whether any list other than the open one has edits (drives the scope picker). */
   const otherListsExist = (): boolean => {
-    const c = currentGroup()
-    return snapshotAllGroups().some((g) => !(c && g.kind === c.kind && g.slug === c.slug))
+    const taken = snapshot()
+    return taken !== null && hasOtherLists(taken)
   }
 
   const currentCount = (): number => currentGroup()?.changes.length ?? 0
@@ -178,36 +183,40 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
   // only useful action — start on the all-lists scope so the visitor isn't staring
   // at "0 changes".
   createEffect(
-    on(
-      () => props.open,
-      (open) => {
-        if (!open) return
-        setCopied(null)
-        setSaved(false)
-        setReviewOpen(false)
-        setSnapshot({
-          current: props.current,
-          all: props.allGroups(),
-          combined: props.combinedGroups?.() ?? null,
-        })
-        // Off a list page there is no "this list" to export, so default to the
-        // broadest scope; on a list, default to it unless it has no edits of its own.
-        setScope(
-          !hasCurrent() ? 'all' : currentCount() === 0 && otherListsExist() ? 'all' : 'current',
-        )
-      },
-    ),
+    () => props.open,
+    (open) => {
+      if (!open) return
+      setCopied(null)
+      setSaved(false)
+      setReviewOpen(false)
+      const taken: ExportSnapshot = {
+        current: props.current,
+        all: props.allGroups(),
+        combined: props.combinedGroups?.() ?? null,
+      }
+      setSnapshot(taken)
+      // Off a list page there is no "this list" to export, so default to the
+      // broadest scope; on a list, default to it unless it has no edits of its own.
+      // Decided from `taken`: the snapshot signal shows it only after the flush.
+      const current = taken.current
+      setScope(
+        !current ? 'all' : current.changes.length === 0 && hasOtherLists(taken) ? 'all' : 'current',
+      )
+    },
   )
 
   // Close on Escape, matching the site's other dialogs.
-  createEffect(() => {
-    if (!props.open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    onCleanup(() => document.removeEventListener('keydown', onKey))
-  })
+  createEffect(
+    () => props.open,
+    (open) => {
+      if (!open) return
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') props.onClose()
+      }
+      document.addEventListener('keydown', onKey)
+      return () => document.removeEventListener('keydown', onKey)
+    },
+  )
 
   const downloadJson = () => {
     const filename =
@@ -264,8 +273,8 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
               <button
                 type="button"
                 class="export-panel-scope-option"
-                data-active={activeScope() === 'current'}
-                aria-pressed={activeScope() === 'current'}
+                data-active={activeScope() === 'current' ? 'true' : 'false'}
+                aria-pressed={activeScope() === 'current' ? 'true' : 'false'}
                 disabled={!hasCurrent()}
                 title={hasCurrent() ? undefined : t('site.editor.scopeThisListHint')}
                 onClick={() => setScope('current')}
@@ -276,8 +285,8 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
                 <button
                   type="button"
                   class="export-panel-scope-option"
-                  data-active={activeScope() === 'combined'}
-                  aria-pressed={activeScope() === 'combined'}
+                  data-active={activeScope() === 'combined' ? 'true' : 'false'}
+                  aria-pressed={activeScope() === 'combined' ? 'true' : 'false'}
                   onClick={() => setScope('combined')}
                 >
                   {t('site.editor.scopeCurrentLists', { count: combinedCount() })}
@@ -286,8 +295,8 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
               <button
                 type="button"
                 class="export-panel-scope-option"
-                data-active={activeScope() === 'all'}
-                aria-pressed={activeScope() === 'all'}
+                data-active={activeScope() === 'all' ? 'true' : 'false'}
+                aria-pressed={activeScope() === 'all' ? 'true' : 'false'}
                 onClick={() => setScope('all')}
               >
                 {t('site.editor.scopeAllLists', { count: allCount() })}
@@ -320,7 +329,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
             <button
               type="button"
               class="btn btn-secondary export-panel-review-toggle"
-              aria-expanded={reviewOpen()}
+              aria-expanded={reviewOpen() ? 'true' : 'false'}
               onClick={() => setReviewOpen(!reviewOpen())}
             >
               {reviewOpen() ? t('site.editor.reviewHide') : t('site.editor.reviewShow')}

@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, onMount, type Accessor } from 'solid-js'
+import { createSignal, onSettled, type Accessor } from 'solid-js'
 
 type StuckHandle = {
   stuck: Accessor<boolean>
@@ -25,14 +25,14 @@ export function useStuck(): StuckHandle {
     sentinelEl = el
   }
 
-  onMount(() => {
+  onSettled(() => {
     if (!sentinelEl) return
     observer = new IntersectionObserver(([entry]) => {
       if (!entry) return
       setStuck(!entry.isIntersecting && entry.boundingClientRect.top < 0)
     })
     observer.observe(sentinelEl)
-    onCleanup(() => observer?.disconnect())
+    return () => observer?.disconnect()
   })
 
   return { stuck, sentinelRef }

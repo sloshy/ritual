@@ -1,4 +1,5 @@
-import { type Component, type JSX, For, Show, createSignal, createMemo, onCleanup } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { type Component, For, Show, createSignal, createMemo, onCleanup } from 'solid-js'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
 import { swapNeighbour } from '../../util/array'
 import type { ManagerRow, SectionInfo } from '../editor-config'
@@ -208,6 +209,8 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
     buttons[(index + delta) % buttons.length]?.focus()
   }
 
+  onCleanup(() => props.barRef?.(undefined))
+
   return (
     <div class="editor-action-dock">
       <Show when={defaultsOpen()}>
@@ -215,14 +218,7 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
           <EditorDefaultsForm defaults={props.defaults} showCondition={showCondition()} />
         </div>
       </Show>
-      <div
-        class="editor-action-bar"
-        ref={(el) => {
-          props.barRef?.(el)
-          onCleanup(() => props.barRef?.(undefined))
-        }}
-        onKeyDown={handleBarKeyDown}
-      >
+      <div class="editor-action-bar" ref={(el) => props.barRef?.(el)} onKeyDown={handleBarKeyDown}>
         <button
           type="button"
           class="btn-add"
@@ -235,7 +231,7 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
           <button
             type="button"
             class="btn-defaults"
-            aria-expanded={defaultsOpen()}
+            aria-expanded={defaultsOpen() ? 'true' : 'false'}
             onClick={toggleDefaults}
           >
             {defaultsLabel(true)}

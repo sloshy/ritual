@@ -5,7 +5,8 @@
  * the card-preview context every step hovers through.
  */
 
-import { createContext, onCleanup, useContext, For, Show, type Component, type JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createContext, onCleanup, useContext, For, Show, type Component } from 'solid-js'
 import { type Finish, displayFinish } from '../../../card/finish-condition'
 import type { ScryfallCard } from '../../../scryfall/types'
 import type { CardLanguage } from '../../../card/card-language'
@@ -33,7 +34,7 @@ const NO_PREVIEW: CardPreviewControl = { show: () => {}, hide: () => {} }
 const CardPreviewContext = createContext<CardPreviewControl>(NO_PREVIEW)
 
 /** Wraps the wizard's steps so every card row can raise the shared preview. */
-export const CardPreviewProvider = CardPreviewContext.Provider
+export const CardPreviewProvider = CardPreviewContext
 
 /** The wizard's preview control, for a step that raises or clears it directly. */
 export function useCardPreview(): CardPreviewControl {
@@ -127,7 +128,7 @@ export type PriceTextProps = {
 export const PriceText: Component<PriceTextProps> = (props) => {
   const t = useT()
   return (
-    <span class="swap-wizard-price" classList={{ 'swap-wizard-price--none': props.price === null }}>
+    <span class={['swap-wizard-price', { 'swap-wizard-price--none': props.price === null }]}>
       {props.price === null
         ? t('ui.swap.noPrice')
         : printingPriceText(t, props.price, props.currency)}
@@ -177,8 +178,7 @@ export function StepIndicator<S extends string>(props: StepIndicatorProps<S>): J
       <For each={props.steps}>
         {(step) => (
           <li
-            class="swap-wizard-step"
-            classList={{ 'swap-wizard-step--current': step === props.current }}
+            class={['swap-wizard-step', { 'swap-wizard-step--current': step === props.current }]}
             aria-current={step === props.current ? 'step' : undefined}
           >
             {props.label(step)}

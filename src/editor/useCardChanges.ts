@@ -1,4 +1,5 @@
-import { type Accessor, batch, createSignal, createMemo } from 'solid-js'
+import type { Accessor } from 'solid-js'
+import { createLatestSignal } from '../ui/latest-signal'
 import type { ArtRestore } from './pending-art'
 import type { Finish } from '../card/finish-condition'
 import type { ChangeInput } from '../changes/change-event'
@@ -221,10 +222,11 @@ export type UseCardChangesResult<T = unknown> = {
 }
 
 export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
-  const [changes, setChanges] = createSignal<ChangeEvent[]>([])
-  const [undoStack, setUndoStack] = createSignal<UndoEntry<T>[]>([])
-  let changesRef: ChangeEvent[] = []
-  let undoStackRef: UndoEntry<T>[] = []
+  // Latest-valued: callers record several changes in one synchronous frame and
+  // read the list straight back (a save's replay-and-drop, an undo's pool
+  // reconciliation), before a plain signal would show the writes.
+  const [changes, setChanges] = createLatestSignal<ChangeEvent[]>([])
+  const [undoStack, setUndoStack] = createLatestSignal<UndoEntry<T>[]>([])
 
   /**
    * Record one change, cancelling a pending opposite instead when there is one,
@@ -242,26 +244,18 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     let addedChange: ChangeEvent | null = newEvent
     let cancelledChange: ChangeEvent | null = null
 
-    const oppositeIndex = changesRef.findIndex((existing) => areOppositeChanges(existing, newEvent))
+    const oppositeIndex = changes().findIndex((existing) => areOppositeChanges(existing, newEvent))
 
     if (oppositeIndex !== -1) {
-      cancelledChange = changesRef[oppositeIndex] ?? null
+      cancelledChange = changes()[oppositeIndex] ?? null
       addedChange = null
-      changesRef = changesRef.filter((_, i) => i !== oppositeIndex)
+      setChanges(changes().filter((_, i) => i !== oppositeIndex))
     } else {
-      changesRef = [...changesRef, newEvent]
+      setChanges([...changes(), newEvent])
     }
 
     const entry: UndoEntry<T> = { addedChange, cancelledChange, removedCardData }
-    undoStackRef = [...undoStackRef, entry]
-
-    // One update cycle rather than two: the card list and the undo button both
-    // repaint from this, and every caller outside the add flow's own `batch`
-    // would otherwise pay for a second pass.
-    batch(() => {
-      setChanges([...changesRef])
-      setUndoStack([...undoStackRef])
-    })
+    setUndoStack([...undoStack(), entry])
 
     return entry
   }
@@ -273,58 +267,50 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
   function loadChanges(loaded: ChangeEvent[]) {
     // Imported changes arrive as a curated event log; replace the stack wholesale
     // (no auto-cancel) and reset undo history, since the prior pending edits are gone.
-    changesRef = [...loaded]
-    undoStackRef = []
-    setChanges([...changesRef])
+    setChanges([...loaded])
     setUndoStack([])
   }
 
   function dropChanges(changeIds: ReadonlySet<string>) {
     if (changeIds.size === 0) return
-    changesRef = changesRef.filter((change) => !changeIds.has(change.id))
+    setChanges(changes().filter((change) => !changeIds.has(change.id)))
     // Both sides: undoing an entry re-adds its `cancelledChange`, so an entry
     // naming a dropped change on either side would resurrect one the engine
     // refused.
-    undoStackRef = undoStackRef
-      .filter(
-        (entry) =>
-          (entry.addedChange === null || !changeIds.has(entry.addedChange.id)) &&
-          (entry.cancelledChange === null || !changeIds.has(entry.cancelledChange.id)),
-      )
-      // A folded `set-categories` sits outside those two slots, so it would slip
-      // past the filter and be re-added by `undo()`. An entry is never dropped
-      // for its displaced half — the removal it belongs to is still undoable.
-      .map((entry) => {
-        if (entry.displacedChanges === undefined) return entry
-        const kept = entry.displacedChanges.filter((change) => !changeIds.has(change.id))
-        if (kept.length === entry.displacedChanges.length) return entry
-        // An entry whose displaced events were all refused keeps no empty array:
-        // "absent means none" is the shape every reader assumes.
-        const { displacedChanges: _dropped, ...rest } = entry
-        return kept.length > 0 ? { ...rest, displacedChanges: kept } : rest
-      })
-    // One update cycle, for the reason `recordChange` gives: the change list and
-    // the undo button both repaint from this.
-    batch(() => {
-      setChanges([...changesRef])
-      setUndoStack([...undoStackRef])
-    })
+    setUndoStack(
+      undoStack()
+        .filter(
+          (entry) =>
+            (entry.addedChange === null || !changeIds.has(entry.addedChange.id)) &&
+            (entry.cancelledChange === null || !changeIds.has(entry.cancelledChange.id)),
+        )
+        // A folded `set-categories` sits outside those two slots, so it would slip
+        // past the filter and be re-added by `undo()`. An entry is never dropped
+        // for its displaced half — the removal it belongs to is still undoable.
+        .map((entry) => {
+          if (entry.displacedChanges === undefined) return entry
+          const kept = entry.displacedChanges.filter((change) => !changeIds.has(change.id))
+          if (kept.length === entry.displacedChanges.length) return entry
+          // An entry whose displaced events were all refused keeps no empty array:
+          // "absent means none" is the shape every reader assumes.
+          const { displacedChanges: _dropped, ...rest } = entry
+          return kept.length > 0 ? { ...rest, displacedChanges: kept } : rest
+        }),
+    )
   }
 
   function discardAll() {
-    changesRef = []
-    undoStackRef = []
     setChanges([])
     setUndoStack([])
   }
 
   function undo(): UndoResult<T> | null {
-    if (undoStackRef.length === 0) return null
+    if (undoStack().length === 0) return null
 
-    const entry = undoStackRef[undoStackRef.length - 1]!
-    undoStackRef = undoStackRef.slice(0, -1)
+    const entry = undoStack()[undoStack().length - 1]!
+    setUndoStack(undoStack().slice(0, -1))
 
-    let next = changesRef
+    let next = changes()
     if (entry.addedChange) {
       next = next.filter((c) => c.id !== entry.addedChange!.id)
     }
@@ -334,15 +320,9 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     if (entry.displacedChanges) {
       next = [...next, ...entry.displacedChanges]
     }
-    changesRef = next
+    setChanges(next)
 
-    // One update cycle, for the reason `recordChange` gives.
-    batch(() => {
-      setUndoStack([...undoStackRef])
-      setChanges([...changesRef])
-    })
-
-    return { entry, remainingChanges: changesRef }
+    return { entry, remainingChanges: changes() }
   }
 
   function decrementCard(
@@ -398,17 +378,12 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
   function commit(result: ConsolidateResult): void {
     const { changes: newChanges, addedChange, cancelledChange } = result
     if (addedChange === null && cancelledChange === null) return
-    changesRef = newChanges
-    undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
-    // One update cycle, for the reason `recordChange` gives.
-    batch(() => {
-      setChanges([...changesRef])
-      setUndoStack([...undoStackRef])
-    })
+    setChanges(newChanges)
+    setUndoStack([...undoStack(), { addedChange, cancelledChange }])
   }
 
   function setFinish(cardName: string, finish: Finish, originalFinish: Finish, cardId?: number) {
-    commit(consolidateSetFinish(changesRef, cardName, finish, originalFinish, cardId))
+    commit(consolidateSetFinish(changes(), cardName, finish, originalFinish, cardId))
   }
 
   function setPrinting(
@@ -417,11 +392,11 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     original: PrintingTuple,
     cardId?: number,
   ) {
-    commit(consolidateSetPrinting(changesRef, cardName, target, original, cardId))
+    commit(consolidateSetPrinting(changes(), cardName, target, original, cardId))
   }
 
   function setSection(cardName: string, section: string, originalSection: string, cardId?: number) {
-    commit(consolidateSetSection(changesRef, cardName, section, originalSection, cardId))
+    commit(consolidateSetSection(changes(), cardName, section, originalSection, cardId))
   }
 
   function setLanguage(
@@ -430,7 +405,7 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     originalLanguage: CardLanguage | undefined,
     cardId?: number,
   ) {
-    commit(consolidateSetLanguage(changesRef, cardName, language, originalLanguage, cardId))
+    commit(consolidateSetLanguage(changes(), cardName, language, originalLanguage, cardId))
   }
 
   function setLabel(
@@ -439,7 +414,7 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     originalLabels: readonly SignedCardLabel[] | undefined,
     cardId?: number,
   ) {
-    commit(consolidateSetLabel(changesRef, cardName, labels, originalLabels, cardId))
+    commit(consolidateSetLabel(changes(), cardName, labels, originalLabels, cardId))
   }
 
   function setCategories(
@@ -447,14 +422,14 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     categories: CardCategory[],
     originalCategories: readonly CardCategory[] | undefined,
   ) {
-    commit(consolidateSetCategories(changesRef, cardName, categories, originalCategories))
+    commit(consolidateSetCategories(changes(), cardName, categories, originalCategories))
   }
 
   function foldGoneCardCategories(cardName: string) {
     const key = foldCategoryCardName(cardName)
     const displaced: ChangeEvent[] = []
     const kept: ChangeEvent[] = []
-    for (const change of changesRef) {
+    for (const change of changes()) {
       if (isSetCategoriesFor(change, key)) {
         displaced.push(change)
       } else {
@@ -462,23 +437,20 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
       }
     }
     if (displaced.length === 0) return
-    const last = undoStackRef[undoStackRef.length - 1]
-    changesRef = kept
+    const last = undoStack()[undoStack().length - 1]
+    setChanges(kept)
     // Nothing to attach to: the events still leave the session (the card is
     // gone), they simply cannot be restored by an undo that does not exist.
-    undoStackRef =
+    setUndoStack(
       last === undefined
-        ? undoStackRef
+        ? undoStack()
         : [
-            ...undoStackRef.slice(0, -1),
+            ...undoStack().slice(0, -1),
             // Merged, not replaced: an entry restores everything folded onto it,
             // so a gesture that takes the last line of two names keeps both.
             { ...last, displacedChanges: [...(last.displacedChanges ?? []), ...displaced] },
-          ]
-    batch(() => {
-      setChanges([...changesRef])
-      setUndoStack([...undoStackRef])
-    })
+          ],
+    )
   }
 
   function setTags(
@@ -491,7 +463,7 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
       changes: newChanges,
       addedChanges,
       cancelledChanges,
-    } = consolidateTagEdits(changesRef, cardName, tags, currentTags, cardId)
+    } = consolidateTagEdits(changes(), cardName, tags, currentTags, cardId)
     if (addedChanges.length === 0 && cancelledChanges.length === 0) {
       return { addedChanges, cancelledChanges }
     }
@@ -505,17 +477,15 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
       ...addedChanges.map((addedChange) => ({ addedChange, cancelledChange: null })),
       ...cancelledChanges.map((cancelledChange) => ({ addedChange: null, cancelledChange })),
     ]
-    changesRef = newChanges
-    undoStackRef = [...undoStackRef, ...entries]
-    batch(() => {
-      setChanges([...changesRef])
-      setUndoStack([...undoStackRef])
-    })
+    setChanges(newChanges)
+    setUndoStack([...undoStack(), ...entries])
     return { addedChanges, cancelledChanges }
   }
 
-  const changeCount = createMemo(() => changes().length)
-  const canUndo = createMemo(() => undoStack().length > 0)
+  // Plain accessors over the latest-valued lists, so a handler that just
+  // recorded a change (and then asks whether the editor is dirty) sees it.
+  const changeCount = (): number => changes().length
+  const canUndo = (): boolean => undoStack().length > 0
 
   return {
     changes,

@@ -1,4 +1,5 @@
-import type { Component, JSX } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import type { Component } from 'solid-js'
 import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -122,7 +123,7 @@ const CollectionViewAllMenu: Component = () => {
         ref={toggle.setButtonRef}
         class="btn btn-secondary"
         aria-haspopup="true"
-        aria-expanded={toggle.open()}
+        aria-expanded={toggle.open() ? 'true' : 'false'}
         onClick={toggle.toggleOpen}
       >
         {t('site.index.viewAllMenu')}

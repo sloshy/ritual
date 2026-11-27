@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, Show } from 'solid-js'
 import type { ScryfallCard } from '../scryfall/types'
 import {
   baseLabel,
@@ -146,9 +146,11 @@ const SelectCheckbox: Component<SelectCheckboxProps> = (props) => {
   return (
     <button
       type="button"
-      class={`card-select-checkbox card-select-checkbox--${props.variant}`}
-      classList={{ selected: selected(), partial: partial() }}
-      aria-pressed={selected() ? true : partial() ? 'mixed' : false}
+      class={[
+        `card-select-checkbox card-select-checkbox--${props.variant}`,
+        { selected: selected(), partial: partial() },
+      ]}
+      aria-pressed={selected() ? 'true' : partial() ? 'mixed' : 'false'}
       aria-label={props.state === 'all' ? t('site.card.deselect') : t('site.card.select')}
       onClick={(e) => {
         e.stopPropagation()
@@ -182,7 +184,7 @@ const CardFace: Component<CardFaceProps> = (props) => {
       when={props.backImage}
       fallback={<img src={props.frontImage} alt={props.alt} loading="lazy" />}
     >
-      <div class="card-flip" classList={{ flipped: props.flipped }}>
+      <div class={['card-flip', { flipped: props.flipped }]}>
         <img class="card-flip-front" src={props.frontImage} alt={props.alt} loading="lazy" />
         <img
           class="card-flip-back"
@@ -211,8 +213,7 @@ const FlipButton: Component<FlipButtonProps> = (props) => {
   return (
     <button
       type="button"
-      class="card-flip-btn"
-      classList={{ flipped: props.flipped }}
+      class={['card-flip-btn', { flipped: props.flipped }]}
       onClick={stopPropAnd(props.onFlip)}
       title={label()}
       aria-label={label()}
@@ -250,11 +251,11 @@ export const CardItem: Component<CardItemProps> = (props) => {
   // Reset to the front face whenever this tile is reused for a different card
   // (e.g. a keyed list slot swaps cards), so a new card never appears flipped.
   createEffect(
-    on(
-      () => props.card?.id,
-      () => setFlipped(false),
-      { defer: true },
-    ),
+    () => props.card?.id,
+    () => {
+      setFlipped(false)
+    },
+    { defer: true },
   )
   return (
     <Show
@@ -262,7 +263,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
       fallback={
         <div class="card-item" data-name={props.name.toLowerCase()} data-card-id={props.cardId}>
           <Show when={props.viewMode === 'binder'}>
-            <div class="card-binder" classList={{ 'card-binder--empty': !props.customArt }}>
+            <div class={['card-binder', { 'card-binder--empty': !props.customArt }]}>
               <EmptyCardFace name={props.name} customArt={props.customArt} />
             </div>
           </Show>
@@ -281,7 +282,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
             </div>
           </Show>
           <Show when={props.viewMode === 'overlap' || props.viewMode === 'stack'}>
-            <div class="card-overlap" classList={{ 'card-overlap--empty': !props.customArt }}>
+            <div class={['card-overlap', { 'card-overlap--empty': !props.customArt }]}>
               <EmptyCardFace name={props.name} customArt={props.customArt} />
             </div>
           </Show>
@@ -468,12 +469,14 @@ export const CardItem: Component<CardItemProps> = (props) => {
 
         return (
           <div
-            class="card-item"
-            classList={{
-              'is-selectable': props.selectable,
-              'is-selected': props.selectState === 'all' || props.selectState === 'partial',
-              'select-mode': props.selectable && selectionModeActive(),
-            }}
+            class={[
+              'card-item',
+              {
+                'is-selectable': props.selectable,
+                'is-selected': props.selectState === 'all' || props.selectState === 'partial',
+                'select-mode': props.selectable && selectionModeActive(),
+              },
+            ]}
             {...dataAttrs()}
           >
             {/* Binder view */}

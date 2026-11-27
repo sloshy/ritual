@@ -1,4 +1,5 @@
-import { type JSX, createSignal, onMount, For, Match, Show, Switch } from 'solid-js'
+import type { JSX } from '@solidjs/web'
+import { createSignal, onSettled, For, Match, Show, Switch } from 'solid-js'
 import type { BuylistStatusResponse } from '../../../buylist'
 import type { ApiErrorResponse } from '../../../api/http'
 import type { SellRefreshResponse } from '../../api/sell'
@@ -75,7 +76,7 @@ export function BuylistRefreshCard(): JSX.Element {
     }
   }
 
-  onMount(() => {
+  onSettled(() => {
     void loadStatus()
   })
 

@@ -1,14 +1,4 @@
-import {
-  type Accessor,
-  type Setter,
-  batch,
-  createSignal,
-  createEffect,
-  createMemo,
-  on,
-  onMount,
-  onCleanup,
-} from 'solid-js'
+import { createEffect, createMemo, onSettled, onCleanup } from 'solid-js'
 import { replaySectionOrder } from '../changes/change-event'
 import { hasCardCategory, withoutCardCategory, type CardCategory } from '../card/card-categories'
 import {
@@ -54,8 +44,10 @@ import {
 } from './pending-art'
 import { useNavigationGuard } from './navigation-guard'
 import { clampQuantity } from '../ui/quantity'
+import { createLatestSignal } from '../ui/latest-signal'
 import type {
   AddCardExtras,
+  ChangePrintingFlow,
   ChangePrintingTools,
   EditorConfig,
   ImportResult,
@@ -87,27 +79,32 @@ type PendingNavigation = { run: () => void; cancel?: () => void }
 /** Upper bound on copies a single add-from-search may commit. */
 const MAX_ADD_COPIES = 999
 
+/** Whether two section orders name the same sections in the same order. */
+function sameStrings(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((value, i) => value === b[i])
+}
+
 export function useEditor<TData, TCardEntry = unknown>(
   config: EditorConfig<TData>,
   initialSlug?: string | null,
 ): UseEditorResult<TData, TCardEntry> {
-  const [slug, setSlug] = createSignal<string | null>(null)
-  const [list, setList] = createSignal<ListItem[]>([])
-  const [data, setData] = createSignal<TData | null>(null) as [
-    Accessor<TData | null>,
-    Setter<TData | null>,
-  ]
-  const [contentHash, setContentHash] = createSignal<string>('')
+  const [slug, setSlug] = createLatestSignal<string | null>(null)
+  const [list, setList] = createLatestSignal<ListItem[]>([])
+  // Every signal here is latest-valued: the editor's handlers write and then
+  // read back in the same synchronous frame (did that removal take the last
+  // line of a name? which flow step comes next?), and must see their writes.
+  const [data, setData] = createLatestSignal<TData | null>(null as Exclude<TData | null, Function>)
+  const [contentHash, setContentHash] = createLatestSignal<string>('')
   // True once this editing session has saved at least once. Subsequent saves
   // fold into the same changelog entry; reloading the list starts a new session.
-  const [hasSavedThisSession, setHasSavedThisSession] = createSignal(false)
-  const [contextMenuCard, setContextMenuCard] = createSignal<ContextMenuState | null>(null)
+  const [hasSavedThisSession, setHasSavedThisSession] = createLatestSignal(false)
+  const [contextMenuCard, setContextMenuCard] = createLatestSignal<ContextMenuState | null>(null)
   // The change-printing flow on screen plus its bulk-run queue, as one value so
   // a transition that touches both (see `change-printing-flow.ts`) is one write.
-  const [printingFlow, setPrintingFlow] = createSignal<PrintingFlowState>(IDLE_PRINTING_FLOW)
-  const changePrinting = createMemo(() => printingFlow().flow)
-  const [refreshKey, setRefreshKey] = createSignal(0)
-  const [pendingNav, setPendingNav] = createSignal<PendingNavigation | null>(null)
+  const [printingFlow, setPrintingFlow] = createLatestSignal<PrintingFlowState>(IDLE_PRINTING_FLOW)
+  const changePrinting = (): ChangePrintingFlow | null => printingFlow().flow
+  const [refreshKey, setRefreshKey] = createLatestSignal(0)
+  const [pendingNav, setPendingNav] = createLatestSignal<PendingNavigation | null>(null)
 
   const [status, statusActions] = useEditorStatus()
   const t = useT()
@@ -121,35 +118,39 @@ export function useEditor<TData, TCardEntry = unknown>(
   let original: TData | null = null
   // Section order as loaded from disk. The live order is this replayed against the
   // section-structural changes (see `sectionOrder`), so it stays correct across undo.
-  // A signal (not a plain variable) so the `sectionOrder` memo recomputes when a new
-  // list loads, independent of the `changes` signal write that happens alongside it.
-  const [originalSectionOrder, setOriginalSectionOrder] = createSignal<string[]>([])
+  // A signal (not a plain variable) so `sectionOrder` re-renders when a new list
+  // loads, independent of the `changes` write that happens alongside it.
+  const [originalSectionOrder, setOriginalSectionOrder] = createLatestSignal<string[]>([])
   // The categories sidecar as loaded from disk. The live record is this replayed
   // against the session's category events (see `categoriesRecord`). A signal for
   // the same reason `originalSectionOrder` is one.
-  const [originalCategories, setOriginalCategories] = createSignal<CardCategoriesRecord>(
+  const [originalCategories, setOriginalCategories] = createLatestSignal<CardCategoriesRecord>(
     emptyCardCategoriesRecord(),
   )
 
+  // The list `data`, `original` and `contentHash` belong to: set beside them
+  // when a load lands. `slug` moves the moment another list is picked, so
+  // until that list's load lands (or when it fails) the data on screen is still
+  // the previous list's — and nothing may edit it or save it as the new one.
+  const [loadedSlug, setLoadedSlug] = createLatestSignal<string | null>(null)
+  const editsLoaded = (): boolean => loadedSlug() !== null && loadedSlug() === slug()
+
   const isDataReady = createMemo(() => {
     const d = data()
-    return d !== null && config.hasData(d) && slug() !== null && !status.loading
+    return d !== null && config.hasData(d) && editsLoaded() && !status.loading
   })
 
   // Fetch list on mount
-  onMount(() => {
+  onSettled(() => {
     config
       .fetchList()
       .then((response: unknown) => {
         const items = config.extractListItems(response)
         if (items) setList(items)
-        // Apply a deep-linked selection only after its <option> exists, so the
-        // <select> reflects it; the data-fetch effect below then loads it.
-        // These two writes must stay separate (do NOT wrap in `batch`): the
-        // un-batched sequence flushes the <For> options first, then the slug,
-        // so the value binding re-applies with the matching <option> present.
-        // Batching would run the value binding before the options render and
-        // the selection would silently fail to stick.
+        // A deep-linked selection; the data-fetch effect below then loads it.
+        // The two writes land in one flush, so the <select> marks its option
+        // `selected` itself (see EditorShell) rather than relying on its value
+        // binding running after the options render.
         if (initialSlug) setSlug(initialSlug)
       })
       .catch(() =>
@@ -159,7 +160,8 @@ export function useEditor<TData, TCardEntry = unknown>(
 
   // Fetch data when slug changes
   createEffect(
-    on([slug, refreshKey], ([s]) => {
+    () => [slug(), refreshKey()] as const,
+    ([s]) => {
       if (!s) return
       const controller = new AbortController()
       statusActions.loadStart()
@@ -172,6 +174,7 @@ export function useEditor<TData, TCardEntry = unknown>(
           if (result) {
             setData(() => result.data)
             original = result.data
+            setLoadedSlug(s)
             const loadedOrder = result.extra.sectionOrder
             setOriginalSectionOrder(
               Array.isArray(loadedOrder)
@@ -202,8 +205,8 @@ export function useEditor<TData, TCardEntry = unknown>(
           statusActions.loadError(statusMessage('ui.editor.loadFailed', { listType: listType() }))
         })
 
-      onCleanup(() => controller.abort())
-    }),
+      return () => controller.abort()
+    },
   )
 
   /**
@@ -344,6 +347,9 @@ export function useEditor<TData, TCardEntry = unknown>(
     quantity = 1,
     extras?: AddCardExtras,
   ) => {
+    // The search dialog opens from a keyboard shortcut even while another list
+    // is loading: an add then would land on the previous list's data.
+    if (!editsLoaded()) return
     // Normalize the set code to lowercase at this single boundary so every
     // downstream consumer (change events and in-memory entries) stores it
     // lowercase, per the set-code normalization rule.
@@ -355,81 +361,79 @@ export function useEditor<TData, TCardEntry = unknown>(
     const copies = clampQuantity(quantity, 1, MAX_ADD_COPIES)
     const labels = extras?.labels
     const art = extras?.art ?? null
-    // Batched so the view repaints once rather than per copy.
-    batch(() => {
-      // Resolved against the data as it stands *before* the first copy is
-      // applied: afterwards the new line exists and every further copy merges
-      // into it.
-      const currentData = data()
-      const mergeTarget =
-        currentData !== null
-          ? (config.mergeLine?.(
-              currentData,
-              {
-                action: 'add',
-                cardName,
-                set: normalized.set,
-                collectorNumber: normalized.collectorNumber,
-                finish: normalized.finish,
-                condition: normalized.condition,
-                language: normalized.language,
-                labels,
-              },
-              undefined,
-            ) ?? null)
-          : null
-      // One `add` event per copy — the change format has no quantity field.
-      // Decks fold the copies into one entry, so they all share a card ID — the
-      // line's own when the copies merge onto one the deck already has, so no id
-      // is drawn for a line that never exists; flat lists store one entry per
-      // copy and each needs its own.
-      const shares = config.copyModel === 'quantity'
-      // A merge onto a line with no id yet draws none either.
-      const sharedId = !shares ? undefined : mergeTarget ? mergeTarget.cardId : pool.allocate()
-      const outcomes: AddedCopyOutcome[] = []
-      const entries: UndoEntry[] = []
-      for (let i = 0; i < copies; i++) {
-        const cardId = shares ? sharedId : pool.allocate()
-        const result = changes.addCard(cardName, { ...normalized, cardId, labels })
-        setData((prev) =>
-          prev !== null
-            ? config.applyChange(prev, {
-                action: 'add',
-                cardName,
-                set: normalized.set,
-                collectorNumber: normalized.collectorNumber,
-                finish: normalized.finish,
-                condition: normalized.condition,
-                language: normalized.language,
-                labels,
-                cardId,
-              })
-            : prev,
-        )
-        entries.push(result.entry)
-        outcomes.push(
-          result.kind === 'cancelled'
-            ? { kind: 'cancelled', cardId, survivorId: result.cancelled?.cardId }
-            : { kind: 'recorded', cardId },
-        )
+    // The copies' writes land in one flush, so the view repaints once.
+    // Resolved against the data as it stands *before* the first copy is
+    // applied: afterwards the new line exists and every further copy merges
+    // into it.
+    const currentData = data()
+    const mergeTarget =
+      currentData !== null
+        ? (config.mergeLine?.(
+            currentData,
+            {
+              action: 'add',
+              cardName,
+              set: normalized.set,
+              collectorNumber: normalized.collectorNumber,
+              finish: normalized.finish,
+              condition: normalized.condition,
+              language: normalized.language,
+              labels,
+            },
+            undefined,
+          ) ?? null)
+        : null
+    // One `add` event per copy — the change format has no quantity field.
+    // Decks fold the copies into one entry, so they all share a card ID — the
+    // line's own when the copies merge onto one the deck already has, so no id
+    // is drawn for a line that never exists; flat lists store one entry per
+    // copy and each needs its own.
+    const shares = config.copyModel === 'quantity'
+    // A merge onto a line with no id yet draws none either.
+    const sharedId = !shares ? undefined : mergeTarget ? mergeTarget.cardId : pool.allocate()
+    const outcomes: AddedCopyOutcome[] = []
+    const entries: UndoEntry[] = []
+    for (let i = 0; i < copies; i++) {
+      const cardId = shares ? sharedId : pool.allocate()
+      const result = changes.addCard(cardName, { ...normalized, cardId, labels })
+      setData((prev) =>
+        prev !== null
+          ? config.applyChange(prev, {
+              action: 'add',
+              cardName,
+              set: normalized.set,
+              collectorNumber: normalized.collectorNumber,
+              finish: normalized.finish,
+              condition: normalized.condition,
+              language: normalized.language,
+              labels,
+              cardId,
+            })
+          : prev,
+      )
+      entries.push(result.entry)
+      outcomes.push(
+        result.kind === 'cancelled'
+          ? { kind: 'cancelled', cardId, survivorId: result.cancelled?.cardId }
+          : { kind: 'recorded', cardId },
+      )
+    }
+    // Where the art belongs, planned over every copy at once: a copy that
+    // cancelled a removal brings its line back, and the copies after it join
+    // that line rather than staging a clear over its art. Each copy's undo
+    // entry keeps what its edits replaced, so undoing the copy puts back
+    // exactly that. (Filed on the entry itself — written after the copy was
+    // recorded, since the plan needs every copy's outcome — so the copies the
+    // stack makes of an entry carry it along.)
+    const staging = config.art
+    if (staging) {
+      const plan = addCardArtPlan({ mergeTarget, art, copies: outcomes })
+      for (const [index, actions] of plan.entries()) {
+        const entry = entries[index]
+        const restores = applyArtActions(actions, staging)
+        if (entry && restores.length > 0) entry.artRestores = restores
       }
-      // Where the art belongs, planned over every copy at once: a copy that
-      // cancelled a removal brings its line back, and the copies after it join
-      // that line rather than staging a clear over its art. Each copy's undo
-      // entry keeps what its edits replaced, so undoing the copy puts back
-      // exactly that. (Filed on the entry itself — written after the copy was
-      // recorded, since the plan needs every copy's outcome — so the copies the
-      // stack makes of an entry carry it along.)
-      const staging = config.art
-      if (staging) {
-        const plan = addCardArtPlan({ mergeTarget, art, copies: outcomes })
-        for (const [index, actions] of plan.entries()) {
-          const entry = entries[index]
-          const restores = applyArtActions(actions, staging)
-          if (entry && restores.length > 0) entry.artRestores = restores
-        }
-      }
-    })
+    }
     config.addCardData(cardName, scryfallCard, allPrintings)
 
     try {
@@ -503,11 +507,15 @@ export function useEditor<TData, TCardEntry = unknown>(
 
   // Sections live in the data for decks (`sectionsOf`) and in a separate order list for flat
   // lists, where the live order is the loaded order replayed against the section changes.
-  const sectionOrder = createMemo<string[]>(() => {
+  // Two readings of each: the handlers read the `…Now` functions over the
+  // latest-valued data and changes (a memo would answer from before a write
+  // they just made, until the flush), and rendering reads the memos.
+  const sectionOrderNow = (): string[] => {
     const d = data()
     if (config.sectionsOf && d) return config.sectionsOf(d)
     return replaySectionOrder(originalSectionOrder(), changes.changes())
-  })
+  }
+  const sectionOrder = createMemo(sectionOrderNow, { equals: sameStrings })
 
   const sectionInfo = createMemo<SectionInfo[]>(() => {
     const d = data()
@@ -515,9 +523,9 @@ export function useEditor<TData, TCardEntry = unknown>(
     return sectionInfoFrom(sectionOrder(), counts)
   })
 
-  const categoriesRecord = createMemo<CardCategoriesRecord>(() =>
-    applyCategoryChangesToRecord(originalCategories(), changes.changes()),
-  )
+  const categoriesRecordNow = (): CardCategoriesRecord =>
+    applyCategoryChangesToRecord(originalCategories(), changes.changes())
+  const categoriesRecord = createMemo(categoriesRecordNow)
 
   // One derivation of the JSON shape the read pages take, so the three editor
   // bodies neither repeat it nor hand the page a fresh object every render.
@@ -536,7 +544,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     // Validated against the *resolved* order — the same list the Manage modal
     // shows — so a rename onto a category cards use but `order` never named is
     // refused instead of silently merging two categories.
-    if (categoryRenameError(categoryManagerOrder(categoriesRecord()), to, from) !== null) return
+    if (categoryRenameError(categoryManagerOrder(categoriesRecordNow()), to, from) !== null) return
     changes.addChange({ action: 'rename-category', category: from, newCategory: to })
   }
 
@@ -545,26 +553,24 @@ export function useEditor<TData, TCardEntry = unknown>(
   }
 
   const handleRemoveCategory = (category: CardCategory) => {
-    const record = categoriesRecord()
+    const record = categoriesRecordNow()
     // One flush for the whole removal: each `set-categories` writes both the
     // changes and the undo signals, so an unbatched loop re-runs every memo that
     // reads them once per affected card.
-    batch(() => {
-      for (const entry of orderedCategoryEntries(record)) {
-        if (!hasCardCategory(entry.categories, category)) continue
-        handleSetCategoriesFor(entry.name, withoutCardCategory(entry.categories, category))
-      }
-      // The order comes from the pure helper; the events remain the source of truth.
-      handleSetCategoryOrder(removeCategoryFromRecord(record, category).order)
-    })
+    for (const entry of orderedCategoryEntries(record)) {
+      if (!hasCardCategory(entry.categories, category)) continue
+      handleSetCategoriesFor(entry.name, withoutCardCategory(entry.categories, category))
+    }
+    // The order comes from the pure helper; the events remain the source of truth.
+    handleSetCategoryOrder(removeCategoryFromRecord(record, category).order)
   }
 
   const canonicalSection = (name: string): string | undefined =>
-    canonicalSectionIn(sectionOrder(), name)
+    canonicalSectionIn(sectionOrderNow(), name)
 
   const handleAddSection = (name: string) => {
-    if (sectionNameError(sectionOrder(), name) !== null) return
-    const trimmed = typedSectionHeading(sectionOrder(), name)
+    if (sectionNameError(sectionOrderNow(), name) !== null) return
+    const trimmed = typedSectionHeading(sectionOrderNow(), name)
     changes.addChange({ action: 'add-section', section: trimmed })
     setData((prev) =>
       prev !== null ? config.applyChange(prev, { action: 'add-section', section: trimmed }) : prev,
@@ -572,8 +578,8 @@ export function useEditor<TData, TCardEntry = unknown>(
   }
 
   const handleRenameSection = (oldName: string, newName: string) => {
-    if (sectionNameError(sectionOrder(), newName, oldName) !== null) return
-    const trimmed = typedSectionHeading(sectionOrder(), newName)
+    if (sectionNameError(sectionOrderNow(), newName, oldName) !== null) return
+    const trimmed = typedSectionHeading(sectionOrderNow(), newName)
     if (trimmed === oldName) return
     changes.addChange({ action: 'rename-section', section: oldName, newSection: trimmed })
     setData((prev) =>
@@ -609,7 +615,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     // Resolve to an existing section's canonical casing when one matches case-insensitively;
     // otherwise create the new section first so it persists even if no other card lands there.
     const existing = canonicalSection(raw)
-    const trimmed = existing ?? typedSectionHeading(sectionOrder(), raw)
+    const trimmed = existing ?? typedSectionHeading(sectionOrderNow(), raw)
     if (!existing) handleAddSection(trimmed)
     for (const target of targets) {
       const cardId = target.cardIds[0]
@@ -633,12 +639,12 @@ export function useEditor<TData, TCardEntry = unknown>(
     setContextMenuCard(null)
   }
 
-  const [textPrompt, setTextPrompt] = createSignal<TextPromptState | null>(null)
+  const [textPrompt, setTextPrompt] = createLatestSignal<TextPromptState | null>(null)
   const closeTextPrompt = () => setTextPrompt(null)
 
   // Validation shared by the new-section and rename prompts, worded for the dialog.
   const sectionNameMessage = (value: string, allowExisting?: string): string | null => {
-    const error = sectionNameError(sectionOrder(), value, allowExisting)
+    const error = sectionNameError(sectionOrderNow(), value, allowExisting)
     if (error === null) return null
     return error.kind === 'required'
       ? t('ui.editor.sectionNameRequired')
@@ -685,7 +691,7 @@ export function useEditor<TData, TCardEntry = unknown>(
       confirmLabel: t('ui.editor.rename'),
       placeholder: t('ui.editor.newCategoryName'),
       validate: (v) =>
-        categoryRenameError(categoryManagerOrder(categoriesRecord()), v.trim(), oldName),
+        categoryRenameError(categoryManagerOrder(categoriesRecordNow()), v.trim(), oldName),
       onConfirm: (v) => {
         handleRenameCategory(oldName, v.trim())
         closeTextPrompt()
@@ -715,10 +721,8 @@ export function useEditor<TData, TCardEntry = unknown>(
   ): ReplayResult<TData, ChangeEvent> => {
     const replayed = replayChanges(baseline, list, config.applyChange)
     // One update: memos never see the drop without the data it belongs to.
-    batch(() => {
-      dropRefusedChanges(replayed.refused)
-      setData(() => replayed.data)
-    })
+    dropRefusedChanges(replayed.refused)
+    setData(() => replayed.data)
     return replayed
   }
 
@@ -728,34 +732,35 @@ export function useEditor<TData, TCardEntry = unknown>(
     // these changes, and the staged art its flush is about to write.
     const origData = original
     if (!origData || status.saving) return
-    batch(() => {
-      const result = changes.undo()
-      if (!result) return
-      const { entry, remainingChanges } = result
-      // A change the replay could not take is no longer a pending edit: keeping
-      // it would put an edit in the changelog that the saved file does not
-      // contain.
-      const replayed = replayAndDrop(origData, remainingChanges)
-      // Replayed first, so an undone copy whose line is still there (an
-      // increment, or an add that merged onto a line) keeps that line's id out
-      // of the pool — and judged against the changes that survived the replay,
-      // so a refused add does not hold its id.
-      const liveIds = new Set(config.getOriginalCardNames(replayed.data).keys())
-      const pending = changes.changes()
-      reconcileIdPoolForUndo(pool.release, pool.claim, entry, pending, liveIds)
-      // The art the undone action staged goes back to what it replaced — and
-      // only that, and only where nothing staged since has replaced it.
-      const staging = config.art
-      if (staging && entry.artRestores) {
-        applyArtActions(artUndoActions(entry.artRestores, staging.staged), staging)
-      }
-    })
+    const result = changes.undo()
+    if (!result) return
+    const { entry, remainingChanges } = result
+    // A change the replay could not take is no longer a pending edit: keeping
+    // it would put an edit in the changelog that the saved file does not
+    // contain.
+    const replayed = replayAndDrop(origData, remainingChanges)
+    // Replayed first, so an undone copy whose line is still there (an
+    // increment, or an add that merged onto a line) keeps that line's id out
+    // of the pool — and judged against the changes that survived the replay,
+    // so a refused add does not hold its id.
+    const liveIds = new Set(config.getOriginalCardNames(replayed.data).keys())
+    const pending = changes.changes()
+    reconcileIdPoolForUndo(pool.release, pool.claim, entry, pending, liveIds)
+    // The art the undone action staged goes back to what it replaced — and
+    // only that, and only where nothing staged since has replaced it.
+    const staging = config.art
+    if (staging && entry.artRestores) {
+      applyArtActions(artUndoActions(entry.artRestores, staging.staged), staging)
+    }
   }
 
   const handleSave = async () => {
-    const s = slug()
+    // Saved to the list the data was loaded from, and only while that is the
+    // list selected.
+    const s = loadedSlug()
     const d = data()
-    if (!s || !d || !config.hasData(d) || changes.changes().length === 0 || !original) return
+    if (!s || !editsLoaded() || !d || !config.hasData(d)) return
+    if (changes.changes().length === 0 || !original) return
     // The route replays these events over the file rather than writing what is
     // on screen, so the two must agree: replay them over the baseline first,
     // drop any the engine refuses, and show exactly what will be written.
@@ -771,7 +776,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     // Snapshot before committing: `categoriesRecord` is the loaded record
     // replayed over the pending changes — without adopting the saved state it
     // would snap back to the pre-save vocabulary once they are cleared.
-    const savedCategories = categoriesRecord()
+    const savedCategories = categoriesRecordNow()
     const result = await config.commit({
       slug: s,
       changes: sent,
@@ -787,29 +792,27 @@ export function useEditor<TData, TCardEntry = unknown>(
     const sentIds = new Set(sent.map((change) => change.id))
     const touchedInFlight = changes.changes() !== sent
     const remaining = changes.changes().filter((change) => !sentIds.has(change.id))
-    batch(() => {
-      setContentHash(result.contentHash!)
-      setHasSavedThisSession(true)
-      // The saved events are now part of the file, so they move from the pending
-      // list into the baseline the next undo replays from — otherwise undoing a
-      // later edit would replay onto the load-time list and lose this save.
-      original = checked.data
-      setOriginalSectionOrder(replaySectionOrder(originalSectionOrder(), sent))
-      // A save is an undo boundary. Edits made while the request was in flight
-      // stay pending, replayed over the new baseline so the screen shows the
-      // file plus exactly those — including the case where one of them undid
-      // or cancelled a change that had already been sent, which is now on disk.
-      if (touchedInFlight) {
-        changes.loadChanges(remaining)
-        replayAndDrop(original, remaining)
-      } else {
-        changes.discardAll()
-      }
-      // What is on disk now is the new baseline for the next edit's "restore the
-      // original ⇒ record nothing" test. The server's word wins on pruning: names
-      // it dropped are gone from the file.
-      setOriginalCategories(recordWithoutCardNames(savedCategories, result.prunedCategories ?? []))
-    })
+    setContentHash(result.contentHash)
+    setHasSavedThisSession(true)
+    // The saved events are now part of the file, so they move from the pending
+    // list into the baseline the next undo replays from — otherwise undoing a
+    // later edit would replay onto the load-time list and lose this save.
+    original = checked.data
+    setOriginalSectionOrder(replaySectionOrder(originalSectionOrder(), sent))
+    // A save is an undo boundary. Edits made while the request was in flight
+    // stay pending, replayed over the new baseline so the screen shows the
+    // file plus exactly those — including the case where one of them undid
+    // or cancelled a change that had already been sent, which is now on disk.
+    if (touchedInFlight) {
+      changes.loadChanges(remaining)
+      replayAndDrop(original, remaining)
+    } else {
+      changes.discardAll()
+    }
+    // What is on disk now is the new baseline for the next edit's "restore the
+    // original ⇒ record nothing" test. The server's word wins on pruning: names
+    // it dropped are gone from the file.
+    setOriginalCategories(recordWithoutCardNames(savedCategories, result.prunedCategories ?? []))
     const effects = result.effects ?? []
     // Every id the file now holds is spoken for, including ones the server gave
     // lines this editor never numbered (a hand-added line without an `&N`):
@@ -833,7 +836,7 @@ export function useEditor<TData, TCardEntry = unknown>(
   const importChanges = (imported: ChangeEvent[]): ImportResult => {
     const orig = original
     const d = data()
-    if (!orig || !d) return { loaded: 0, conflicts: [] }
+    if (!orig || !d || !editsLoaded()) return { loaded: 0, conflicts: [] }
     // Re-target against the on-disk baseline, then give each new line its id
     // in apply order — a line the import removes first releases its id for a
     // later add, and a deck copy that merges onto a line takes that line's id.
@@ -851,13 +854,11 @@ export function useEditor<TData, TCardEntry = unknown>(
       },
     })
     const retargeted = importResult.applied
-    batch(() => {
-      // Seeded from the lines the import leaves: an id an imported removal
-      // freed is free again, as it would be had the edits been made here.
-      pool.resetPool([...config.getOriginalCardNames(importResult.data).keys()])
-      changes.loadChanges(retargeted)
-      setData(() => importResult.data)
-    })
+    // Seeded from the lines the import leaves: an id an imported removal
+    // freed is free again, as it would be had the edits been made here.
+    pool.resetPool([...config.getOriginalCardNames(importResult.data).keys()])
+    changes.loadChanges(retargeted)
+    setData(() => importResult.data)
 
     // Load display data (image + price) for cards added by the import that the
     // list did not already contain. Reuses the same per-list hook as adding a card
@@ -878,14 +879,12 @@ export function useEditor<TData, TCardEntry = unknown>(
    */
   const restoreChanges = (restored: ChangeEvent[]): void => {
     const orig = original
-    if (!orig || restored.length === 0) return
-    batch(() => {
-      changes.loadChanges(restored)
-      const replayed = replayAndDrop(orig, restored)
-      // Seeded from the lines the resumed session holds, as an import is: an id
-      // a restored removal freed is free again, as it was in the session.
-      pool.resetPool([...config.getOriginalCardNames(replayed.data).keys()])
-    })
+    if (!orig || restored.length === 0 || !editsLoaded()) return
+    changes.loadChanges(restored)
+    const replayed = replayAndDrop(orig, restored)
+    // Seeded from the lines the resumed session holds, as an import is: an id
+    // a restored removal freed is free again, as it was in the session.
+    pool.resetPool([...config.getOriginalCardNames(replayed.data).keys()])
   }
 
   /**

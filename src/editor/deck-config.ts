@@ -1,4 +1,3 @@
-import { batch } from 'solid-js'
 import type { Card } from '../card/card'
 import type { DeckData } from '../list/deck'
 import type { Finish } from '../card/finish-condition'
@@ -139,7 +138,8 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
   }
 
   // Decrement the original entry by n, then add n copies of the new printing
-  // under a fresh card ID. Batched so the deck view repaints once, not 2n times.
+  // under a fresh card ID. The writes land in one flush, so the deck view repaints
+  // once, not 2n times.
   // The split-off copies are the same cards in a new printing: they keep the
   // line's label override and tags (labels and tags are deck merge identity, so
   // a proxy split never lands as a real card, nor folds into one).
@@ -147,37 +147,33 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
   const tags = findDeckCardTags(ctx.data, target.cardName, cardId)
   // And in the line's own section: a Sideboard split stays in the Sideboard.
   const section = ctx.data.sections.find((s) => s.cards.some((c) => c.cardId === cardId))?.name
-  batch(() => {
-    for (let i = 0; i < n; i++) {
-      tools.decrementCard(target.cardName, cardId, labels, tags)
-      setData((prev) =>
-        prev
-          ? ctx.applyChange(prev, { action: 'remove', cardName: target.cardName, cardId })
-          : prev,
-      )
-    }
-    const newId = tools.allocateId()
-    for (let i = 0; i < n; i++) {
-      tools.addCard(target.cardName, { ...options, labels, tags, section, cardId: newId })
-      setData((prev) =>
-        prev
-          ? ctx.applyChange(prev, {
-              action: 'add',
-              cardName: target.cardName,
-              set: options.set,
-              collectorNumber: options.collectorNumber,
-              finish: options.finish,
-              condition: options.condition,
-              language: options.language,
-              labels,
-              tags,
-              section,
-              cardId: newId,
-            })
-          : prev,
-      )
-    }
-  })
+  for (let i = 0; i < n; i++) {
+    tools.decrementCard(target.cardName, cardId, labels, tags)
+    setData((prev) =>
+      prev ? ctx.applyChange(prev, { action: 'remove', cardName: target.cardName, cardId }) : prev,
+    )
+  }
+  const newId = tools.allocateId()
+  for (let i = 0; i < n; i++) {
+    tools.addCard(target.cardName, { ...options, labels, tags, section, cardId: newId })
+    setData((prev) =>
+      prev
+        ? ctx.applyChange(prev, {
+            action: 'add',
+            cardName: target.cardName,
+            set: options.set,
+            collectorNumber: options.collectorNumber,
+            finish: options.finish,
+            condition: options.condition,
+            language: options.language,
+            labels,
+            tags,
+            section,
+            cardId: newId,
+          })
+        : prev,
+    )
+  }
 }
 
 /** Find a card's ID from deck sections by name. */
