@@ -32,3 +32,5 @@ tage = "tage"
 titel = "titel"
 # A case-blind substring search for "Command"/"command" in cli-tokens.test.ts.
 ommand = "ommand"
+# "Café" (Café written as an escape) in the NFC title tests.
+caf = "caf"
