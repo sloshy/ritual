@@ -43,6 +43,7 @@ import {
 } from '../sync/message'
 import type { NotAMessage } from '../api/result'
 import type { ListType } from '../list/list-type'
+import type { ListInfo } from '../list/list-identity'
 import { VALID_PRICE_SOURCES, type PriceSource } from '../pricing/price-source'
 import { listTypeFromFlags, type ListTypeFlags } from '../list/resolve-list'
 import { fail } from './action'
@@ -324,10 +325,12 @@ export function readSyncPrintingsFlag(
   return command.getOptionValueSource('syncPrintings') === 'cli' ? options.syncPrintings : undefined
 }
 
-/** Fields every one-shot card command's JSON success payload shares. */
-export type CardCommandResultBase = {
-  type: ListType
-  list: string
+/**
+ * Fields every one-shot card command's JSON success payload shares: the list
+ * as a {@link ListInfo} (`listType`, `slug`, display `name`) — the identity
+ * every single-list command's result names its list by — plus the card.
+ */
+export type CardCommandResultBase = ListInfo & {
   cardName: string
   cardId: number | undefined
 }

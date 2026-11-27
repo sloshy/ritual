@@ -8,18 +8,14 @@ import { loadExportEntries } from '../export/entries'
 import { exportWarningMessage } from '../export-wording/message'
 import type { ListLocation } from '../list/resolve-list'
 import type { SyncMessage } from '../sync/message'
-import {
-  diffLists,
-  loadDiffListRef,
-  type DiffBy,
-  type DiffListRef,
-  type ListDiffResult,
-} from './list-diff'
+import { loadListInfo } from '../list/list-info'
+import type { ListInfo } from '../list/list-identity'
+import { diffLists, type DiffBy, type ListDiffResult } from './list-diff'
 
 /** The two sides, their comparison, and both lists' parse warnings. */
 export type DiffReport = ListDiffResult & {
-  a: DiffListRef
-  b: DiffListRef
+  a: ListInfo
+  b: ListInfo
   /** Both lists' parse warnings: English plus the key, each naming its list. */
   warnings: SyncMessage[]
 }
@@ -31,8 +27,8 @@ export async function buildDiffReport(
   by: DiffBy,
 ): Promise<DiffReport> {
   const [a, b, sideA, sideB] = await Promise.all([
-    loadDiffListRef(locationA),
-    loadDiffListRef(locationB),
+    loadListInfo(locationA),
+    loadListInfo(locationB),
     loadExportEntries([locationA]),
     loadExportEntries([locationB]),
   ])

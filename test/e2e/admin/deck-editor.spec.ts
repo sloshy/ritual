@@ -1,3 +1,4 @@
+import type { ListsResponse } from '../../../src/admin/api/lists'
 import { test, expect, type Page } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
@@ -227,10 +228,10 @@ test.describe('Deck Editor Page', () => {
       await fulfillJson(page, '**/api/lists', {
         success: true,
         lists: [
-          { type: 'deck', slug: 'lang-move-deck', name: 'Lang Move Deck' },
-          { type: 'collection', slug: 'binder', name: 'Binder' },
+          { listType: 'deck', slug: 'lang-move-deck', name: 'Lang Move Deck' },
+          { listType: 'collection', slug: 'binder', name: 'Binder' },
         ],
-      })
+      } satisfies ListsResponse)
       // A name-only line: moving it into a collection must pick a printing.
       await openMockedDeck(page, {
         slug: 'lang-move-deck',
@@ -283,10 +284,10 @@ test.describe('Deck Editor Page', () => {
       await fulfillJson(page, '**/api/lists', {
         success: true,
         lists: [
-          { type: 'deck', slug: 'proxy-move-deck', name: 'Proxy Move Deck' },
-          { type: 'collection', slug: 'binder', name: 'Binder' },
+          { listType: 'deck', slug: 'proxy-move-deck', name: 'Proxy Move Deck' },
+          { listType: 'collection', slug: 'binder', name: 'Binder' },
         ],
-      })
+      } satisfies ListsResponse)
       await openMockedDeck(page, {
         slug: 'proxy-move-deck',
         name: 'Proxy Move Deck',

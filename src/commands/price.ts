@@ -16,8 +16,6 @@ import {
   type PriceListDetailPayload,
   type PriceSortField,
   type PriceWarning,
-  entriesOfList,
-  findListRow,
 } from '../pricing/price-report'
 import {
   loadAndBuildPriceReport,
@@ -25,7 +23,9 @@ import {
   type LoadedPriceReport,
 } from '../pricing/price-runtime'
 import { isResolveListError, resolveList, type ListLocation } from '../list/resolve-list'
-import { listIdentityOf, type ListIdentity } from '../list/list-info'
+import { listIdentityOf } from '../list/list-info'
+import { entriesOfList, findByListIdentity, type ListIdentity } from '../list/list-identity'
+import { listsOfEntries } from '../cli/list-row-name'
 import { listDisplayName } from '../list/list-lifecycle'
 import { getDefaultPriceSource } from '../config/ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
@@ -120,7 +120,7 @@ function emitListDetail(
 ): void {
   // Keyed by type + slug, never by name: a deck and a collection may share a
   // name, and the slug is what identifies the file.
-  const summary = findListRow(built.report, list)
+  const summary = findByListIdentity(built.report.lists, list)
   // The run priced exactly this list, so its row is there unless the file
   // vanished mid-run — a failure, as the admin route's 404 is, never an
   // empty report.
@@ -131,7 +131,7 @@ function emitListDetail(
     })
     return
   }
-  const entries = sortedEntries(entriesOfList(built.report, list), sort, descending)
+  const entries = sortedEntries(entriesOfList(built.report.entries, list), sort, descending)
 
   if (scriptingOptions.output === 'json') {
     const payload: PriceListDetailPayload = {
@@ -151,7 +151,7 @@ function emitListDetail(
 
   emitOutput(`[${summary.name}]`, scriptingOptions)
   for (const entry of entries) {
-    emitOutput(`  ${formatEntryChoiceTitle(entry, currency, false)}`, scriptingOptions)
+    emitOutput(`  ${formatEntryChoiceTitle(entry, currency)}`, scriptingOptions)
   }
   emitOutput('', scriptingOptions)
   emitOutput(
@@ -212,8 +212,9 @@ function emitCardSearch(
     return
   }
 
+  const sources = listsOfEntries(matches)
   for (const entry of matches) {
-    emitOutput(formatEntryChoiceTitle(entry, currency, true), scriptingOptions)
+    emitOutput(formatEntryChoiceTitle(entry, currency, sources), scriptingOptions)
   }
   emitOutput('', scriptingOptions)
   emitOutput(

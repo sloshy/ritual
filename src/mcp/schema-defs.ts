@@ -19,7 +19,7 @@ import {
 } from '../pricing/price-report'
 import type { ListCounts, ListSectionCount } from '../list/list-counts'
 import { DECK_FORMAT_KEYS } from '../list/deck-format'
-import type { ListIdentity } from '../list/list-info'
+import type { ListIdentity, ListInfo } from '../list/list-identity'
 import type { ListsSummaryRow, ListsSummaryTotals, ListsSummaryTypeTotals } from '../summary/lists'
 import type { ListImportResult } from '../admin/api/import-changes'
 import type { CsvRowFailure as CsvRowFailureType } from '../importers/csv'
@@ -107,7 +107,7 @@ export function openObject(description: string): JsonSchemaType {
 
 /** Every fragment a tool schema may `$ref`. */
 export type SharedDefName =
-  | 'ListRef'
+  | 'ListInfo'
   | 'PrintingIdentity'
   | 'PrintingListing'
   | 'PrintingSummary'
@@ -319,11 +319,21 @@ const PRICED_ENTRY_PROPS = {
   fileOrder: int('Position of the entry in its list file.'),
 } as const satisfies Properties & Record<keyof PricedEntry, unknown>
 
+/** A list named by its identity, `listType` + slug — never by its display name. */
+export const LIST_IDENTITY_PROPS = {
+  listType: LIST_TYPE,
+  slug: str('The list’s slug; with listType, the key that identifies the list.'),
+} as const satisfies Properties & Record<keyof ListIdentity, unknown>
+
+/** A list's identity plus its display name: the shape every list reference takes. */
+export const LIST_INFO_PROPS = {
+  ...LIST_IDENTITY_PROPS,
+  name: str('The list’s display name: its "# Title", else its slug.'),
+} as const satisfies Properties & Record<keyof ListInfo, unknown>
+
 const LIST_PRICE_SUMMARY_PROPS = {
   ...PRICE_TOTALS_PROPS,
-  type: LIST_TYPE,
-  name: str('The list’s display name.'),
-  slug: str('The list’s slug; with type, the key that identifies the list.'),
+  ...LIST_INFO_PROPS,
 } as const satisfies Properties & Record<keyof ListPriceSummary, unknown>
 
 const PRICE_TOTALS_REQUIRED = [
@@ -334,16 +344,9 @@ const PRICE_TOTALS_REQUIRED = [
   'estimatedCount',
 ] as const satisfies readonly (keyof typeof PRICE_TOTALS_PROPS)[]
 
-/** A list named by its identity, `listType` + slug — never by its display name. */
-export const LIST_IDENTITY_PROPS = {
-  listType: LIST_TYPE,
-  slug: str('The list’s slug; with listType, the key that identifies the list.'),
-} as const satisfies Properties & Record<keyof ListIdentity, unknown>
-
 /** One `summarize_lists` row. */
 const LISTS_SUMMARY_ROW_PROPS = {
-  ...LIST_IDENTITY_PROPS,
-  name: str('The list’s display name: its "# Title", else its slug.'),
+  ...LIST_INFO_PROPS,
   counts: ref('ListCounts'),
   labels: arr(CARD_LABEL, 'The list’s front-matter default card labels, when it declares any.'),
   description: str('The list’s front-matter description.'),
@@ -426,7 +429,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
   // that way while `find_cards`' roster and `diff_lists`' two sides spelled the
   // same three fields `type` + `slug` + `name`, so an agent was invited to feed
   // one straight into the other and hand a tool an undefined listType.
-  ListRef: obj({ listType: LIST_TYPE, slug: str(), name: str() }, ['listType', 'slug', 'name']),
+  ListInfo: obj(LIST_INFO_PROPS, ['listType', 'slug', 'name']),
 
   PrintingIdentity: obj(PRINTING_IDENTITY_PROPS, PRINTING_IDENTITY_REQUIRED),
   // `get_card_printings` returns identity alone unless `includePrices` was set,
@@ -578,7 +581,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
   ),
   ListImportResult: obj(
     {
-      kind: LIST_TYPE,
+      listType: LIST_TYPE,
       slug: str(
         "The bundle's slug for the list, or the file basename it resolved to when the bundle " +
           'named it only as a move destination; empty when the list could not be resolved.',
@@ -602,7 +605,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
         'What `errorKey` interpolates; a param may itself be a message (`messageKey`, `messageParams`) or a list (`list`, `join`).',
       ),
     } satisfies Record<keyof ListImportResult, JsonSchemaType>,
-    ['kind', 'slug', 'name', 'applied', 'conflicts', 'droppedNotes'],
+    ['listType', 'slug', 'name', 'applied', 'conflicts', 'droppedNotes'],
   ),
 
   DiffPrinting: obj(
@@ -647,7 +650,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
   ]),
   ListPriceSummary: obj(LIST_PRICE_SUMMARY_PROPS, [
     ...PRICE_TOTALS_REQUIRED,
-    'type',
+    'listType',
     'name',
     'slug',
   ]),

@@ -108,7 +108,7 @@ export type CleanupOptions = {
 
 /** What cleanup did (or, under dry-run, would do) to one list file. */
 export type CleanupResult = {
-  type: ListType
+  listType: ListType
   /** The file's path when cleanup found it (before any rename). */
   filePath: string
   /** New file basename when the file was renamed to match the list's name. */
@@ -343,7 +343,7 @@ export async function cleanupList(
   options: CleanupOptions = {},
 ): Promise<CleanupResult> {
   const result: CleanupResult = {
-    type: location.type,
+    listType: location.type,
     filePath: location.filePath,
     rewritten: false,
     warnings: [],

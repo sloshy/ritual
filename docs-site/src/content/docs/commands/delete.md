@@ -55,7 +55,7 @@ Delete a collection and capture the result as JSON:
 ritual delete --collection main --confirm "Trade Binder" --output json
 ```
 
-The JSON output is `{ type, slug, deleted: true, deletedFiles, trashDir }`, where `deletedFiles` lists every path removed (the list plus whichever companion files it had) and `trashDir` is the trash folder they moved into. Both are absolute paths.
+The JSON output is `{ listType, slug, name, deleted: true, deletedFiles, trashDir }`, where `deletedFiles` lists every path removed (the list plus whichever companion files it had) and `trashDir` is the trash folder they moved into. Both are absolute paths.
 
 ## Behavior
 

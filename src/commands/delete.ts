@@ -1,5 +1,6 @@
 import { Command } from 'commander'
-import path from 'node:path'
+import type { ListInfo } from '../list/list-identity'
+import { listSlug } from '../list/list-file-name'
 import {
   deleteList,
   isListLifecycleError,
@@ -28,11 +29,10 @@ import { FLAG, flagValue } from '../util/cli-tokens'
 type DeleteOptions = ListTypeFlags & { confirm?: string } & Partial<ScriptingOptions>
 
 /** What `--output json` reports: the list, plus where its files went. */
-type DeleteResult = DeleteListSuccess & {
-  type: ListType
-  slug: string
-  deleted: true
-}
+type DeleteResult = DeleteListSuccess &
+  ListInfo & {
+    deleted: true
+  }
 
 export function registerDeleteCommand(program: Command): void {
   addScriptingOptions(
@@ -62,7 +62,7 @@ export async function runDelete(
   scripting: ScriptingOptions,
 ): Promise<void> {
   const resolved = await resolveListSelection(listArg, type)
-  const slug = path.basename(resolved.filePath, '.md')
+  const slug = listSlug(resolved.filePath)
   const displayName = await listDisplayName(resolved.type, resolved.filePath)
 
   let confirmed = confirm
@@ -100,8 +100,9 @@ export async function runDelete(
   }
 
   const payload: DeleteResult = {
-    type: resolved.type,
+    listType: resolved.type,
     slug,
+    name: displayName,
     deleted: true,
     deletedFiles: result.deletedFiles,
     trashDir: result.trashDir,

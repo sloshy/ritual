@@ -27,9 +27,6 @@
 
 import { displayLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
 import type { ExportEntry } from '../export/entries'
-import { listDisplayName } from '../list/list-lifecycle'
-import type { ListType } from '../list/list-type'
-import type { ListLocation } from '../list/resolve-list'
 import { normalizeCardName } from '../card/term-match'
 import type { Finish } from '../card/finish-condition'
 
@@ -194,45 +191,4 @@ export function isListDiffEmpty(result: ListDiffResult): boolean {
     result.onlyInB.length === 0 &&
     result.matches.every((m) => m.a.quantity === m.b.quantity)
   )
-}
-
-/**
- * The identity of one side of a diff as surfaced in CLI JSON output and the
- * admin `GET /api/diff` body: the addressable slug (file basename, matching
- * the load endpoints) plus the human-facing display name.
- */
-export type DiffListRef = {
-  /**
-   * Spelled `listType` rather than `type` on purpose: it is the same vocabulary
-   * every list-addressing surface uses (`list_lists`, the MCP tools' arguments,
-   * `find_cards`' roster), so one side of a diff can be handed straight back to
-   * whatever names a list.
-   */
-  listType: ListType
-  slug: string
-  name: string
-}
-
-/**
- * Build the {@link DiffListRef} for a resolved list, reading its display name
- * (a deck's front-matter `name` or a flat list's `# Title`) and falling back
- * to the file basename when neither parses.
- */
-export async function loadDiffListRef(location: ListLocation): Promise<DiffListRef> {
-  return {
-    listType: location.type,
-    slug: location.name,
-    name: await loadListDisplayName(location),
-  }
-}
-
-async function loadListDisplayName(location: ListLocation): Promise<string> {
-  // Error-tolerant wrapper around the shared display-name rule: an unreadable
-  // file or an empty name falls back to the addressable slug.
-  try {
-    const name = await listDisplayName(location.type, location.filePath)
-    return name.length > 0 ? name : location.name
-  } catch {
-    return location.name
-  }
 }

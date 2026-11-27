@@ -273,6 +273,19 @@ describe('list-lifecycle engine', () => {
       expect(content.startsWith('# Binder\n')).toBe(true)
     })
 
+    test('a name with a line break is folded to one line, and that name is reported', async () => {
+      const filePath = path.join(collectionsDir, 'A.md')
+      await fs.writeFile(filePath, '# A\n\n')
+
+      const result = unwrap<RenameListSuccess>(
+        await renameList('collection', filePath, '  Trade\nBinder '),
+      )
+      // The reported name is the title written, not the request as sent.
+      expect(result.newName).toBe('Trade Binder')
+      expect(result.newSlug).toBe('Trade Binder')
+      expect(await fs.readFile(result.newFilePath, 'utf-8')).toStartWith('# Trade Binder\n')
+    })
+
     test('refuses a rename onto an existing slug', async () => {
       await fs.writeFile(path.join(collectionsDir, 'A.md'), '# A\n\n')
       await fs.writeFile(path.join(collectionsDir, 'B.md'), '# B\n\n')

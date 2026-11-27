@@ -45,7 +45,7 @@ import { syncMessage, syncRef } from '../../../src/sync/message'
 import { exportWarningMessage } from '../../../src/export-wording/message'
 import type { DiffResult, ExportResult, SellCartResult } from '../../../src/mcp/tools/read-tools'
 import { cartWarningMessage } from '../../../src/buylist/cart-message'
-import type { DiffListRef } from '../../../src/changes/list-diff'
+import type { ListInfo } from '../../../src/list/list-identity'
 import { VALID_FINISHES } from '../../../src/card/finish-condition'
 import { CARD_LANGUAGES } from '../../../src/card/card-language'
 import { BY_RULE_UNPRICED_REASONS, UNPRICED_REASONS } from '../../../src/pricing/price-report'
@@ -425,6 +425,18 @@ describe('MCP output schemas, as authored', () => {
     // get_sell_report shares the loader, and so the same warning shape.
     const sellReport = GET_SELL_REPORT_OUTPUT as unknown as SchemaNode
     expect(sellReport.properties?.warnings?.items?.required).toEqual(['message', 'list'])
+    // Both reports name a list by display title and identify it by type + slug,
+    // on its row and on every entry.
+    const priceRow = defsFor('ListPriceSummary')['ListPriceSummary'] as unknown as SchemaNode
+    for (const field of ['listType', 'slug', 'name']) expect(priceRow.required).toContain(field)
+    expect(priceRow.properties?.type).toBeUndefined()
+    const sellRow = sellReport.properties?.lists?.items
+    for (const field of ['listType', 'slug', 'name']) expect(sellRow?.required).toContain(field)
+    expect(sellRow?.properties?.type).toBeUndefined()
+    const sellLine = sellReport.properties?.entries?.items
+    for (const field of ['listType', 'listSlug', 'listName']) {
+      expect(sellLine?.required).toContain(field)
+    }
 
     // summarize_lists: the priced fields, `typeTotals` and the cache age are all
     // conditional, so only the rows, the totals and the warnings are required.
@@ -855,7 +867,7 @@ describe('MCP output schemas, as authored', () => {
       ).toBe(false)
       // The format is the export enum, not free text.
       expect(await validates(EXPORT_CARDS_OUTPUT, { ...exported, format: 'xml' })).toBe(false)
-      const ref: DiffListRef = { listType: 'deck', slug: 'burn', name: 'Burn' }
+      const ref: ListInfo = { listType: 'deck', slug: 'burn', name: 'Burn' }
       const diff: DiffResult = {
         a: ref,
         b: ref,
@@ -899,7 +911,7 @@ describe('MCP output schemas, as authored', () => {
         failedCount: 1,
         lists: [
           {
-            kind: 'collection',
+            listType: 'collection',
             // What a bundle naming a list that is gone gets back: the list
             // resolver's own refusal, keyed.
             slug: '',
@@ -921,6 +933,25 @@ describe('MCP output schemas, as authored', () => {
       for (const field of ['error', 'errorKey', 'errorParams']) expect(listFields).toContain(field)
       expect(item.required ?? []).not.toContain('errorKey')
       expect(item.required ?? []).not.toContain('errorParams')
+      // The report names the list's type as every result does; the bundle
+      // file's own `kind` stays on the input.
+      expect(item.required).toContain('listType')
+      expect(listFields).not.toContain('kind')
+    })
+
+    test('rename_list reports the renamed list as a list reference plus its old slug', () => {
+      const node = RENAME_LIST_OUTPUT as unknown as SchemaNode
+      for (const field of ['listType', 'slug', 'name', 'oldSlug', 'newFilePath', 'oldFilePath']) {
+        expect(node.required).toContain(field)
+      }
+      expect(Object.keys(node.properties ?? {})).not.toContain('newSlug')
+    })
+
+    test('delete_list reports the deleted list as a list reference', () => {
+      const node = DELETE_LIST_OUTPUT as unknown as SchemaNode
+      for (const field of ['listType', 'slug', 'name', 'deletedFiles', 'trashDir']) {
+        expect(node.required).toContain(field)
+      }
     })
 
     test('the sync tools accept a representative report', async () => {

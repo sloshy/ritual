@@ -1,8 +1,13 @@
+import {
+  isListIdentityKey,
+  listIdentityKey,
+  type ListIdentityKey,
+} from '../../../list/list-identity'
 import { type JSX, Show, For, createSignal, createMemo, onCleanup } from 'solid-js'
 import { canCombineSets, isValidIso8601 } from '../../../changes/changelog-blocks'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { formatChangeTimestamp } from '../../../ui/format'
-import { groupListsByType, listInfoId, type ListId } from '../list-grouping'
+import { groupListsByType } from '../list-grouping'
 import { useHistorySession } from '../hooks/useHistorySession'
 import { useApiText } from '../hooks/useApiAction'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
@@ -83,7 +88,7 @@ export function History(): JSX.Element {
 
   const onSelectChange = (e: Event) => {
     const target = e.currentTarget as HTMLSelectElement
-    const id: ListId | null = target.value || null
+    const id: ListIdentityKey | null = isListIdentityKey(target.value) ? target.value : null
     if (id === session.selectedId()) return
     guardedNavigate(() => {
       collapseAll()
@@ -188,7 +193,7 @@ export function History(): JSX.Element {
               {(group) => (
                 <optgroup label={tKey(group.labelKey)}>
                   <For each={group.lists}>
-                    {(list) => <option value={listInfoId(list)}>{list.name}</option>}
+                    {(list) => <option value={listIdentityKey(list)}>{list.name}</option>}
                   </For>
                 </optgroup>
               )}

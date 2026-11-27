@@ -3,16 +3,13 @@ import {
   getCardKingdomFeed,
   missingFeedApiAdvice,
 } from '../../cardkingdom'
-import {
-  findListRow,
-  type PriceListDetailPayload,
-  type ReportPricing,
-} from '../../pricing/price-report'
+import { type PriceListDetailPayload, type ReportPricing } from '../../pricing/price-report'
 import { VALID_PRICE_SOURCES, type PriceSource } from '../../pricing/price-source'
 import { loadAndBuildPriceReport, pricesRefreshedAt } from '../../pricing/price-runtime'
 import { getDefaultPriceSource } from '../../config/ritual-config'
 import { listLocationForSlug } from './list-info'
 import { listIdentityOf } from '../../list/list-info'
+import { findByListIdentity } from '../../list/list-identity'
 import { parseListTarget } from './target'
 import { apiError, badRequest, errorResponse, nestedRefusal } from '../../api/http'
 import { apiMessage, enumQueryParam, isApiMessage, type ApiMessage } from '../../api/result'
@@ -79,10 +76,10 @@ export async function handlePriceList(req: Request): Promise<Response> {
     const pricing = await parsePricingParam(new URL(req.url))
     if (pricing instanceof Response) return pricing
 
-    const location = await listLocationForSlug(target.type, target.slug)
+    const location = await listLocationForSlug(target.listType, target.slug)
     if (!location) {
       return apiError(
-        apiMessage('admin.api.list.notFound', { listType: target.type, slug: target.slug }),
+        apiMessage('admin.api.list.notFound', { listType: target.listType, slug: target.slug }),
         404,
       )
     }
@@ -91,15 +88,20 @@ export async function handlePriceList(req: Request): Promise<Response> {
     if (unavailable) return unavailable
 
     const lastRefreshedAt = await pricesRefreshedAt(pricing)
-    const { built, warnings } = await loadAndBuildPriceReport(target.type, [location], pricing, {
-      refresh: 'never',
-    })
+    const { built, warnings } = await loadAndBuildPriceReport(
+      target.listType,
+      [location],
+      pricing,
+      {
+        refresh: 'never',
+      },
+    )
     // By type + slug, the list's identity — never by position or display name.
-    const list = findListRow(built.report, listIdentityOf(location))
+    const list = findByListIdentity(built.report.lists, listIdentityOf(location))
     // Only a file gone between the lookup and the read leaves no row.
     if (!list) {
       return apiError(
-        apiMessage('admin.api.list.notFound', { listType: target.type, slug: target.slug }),
+        apiMessage('admin.api.list.notFound', { listType: target.listType, slug: target.slug }),
         404,
       )
     }

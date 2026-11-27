@@ -1,4 +1,5 @@
 import { getBaseDir } from '../../config/base-dir'
+import type { ListEntryOrigin } from '../../list/list-identity'
 import type { Finish, Condition } from '../../card/finish-condition'
 import { isCardLanguage, storedLanguage, type CardLanguage } from '../../card/card-language'
 import type { ListType } from '../../list/list-type'
@@ -39,14 +40,14 @@ export function toSectionDeckOnlyMessage(): ApiMessage {
 }
 
 /** True when a move item carries a `toSection` but its destination is not a deck. */
-export function isToSectionInvalid(toSection: unknown, toType: unknown): boolean {
-  return toSection !== undefined && toType !== 'deck'
+export function isToSectionInvalid(toSection: unknown, toListType: unknown): boolean {
+  return toSection !== undefined && toListType !== 'deck'
 }
 
 /** A single queued move, identified by the source card's session key and a destination list. */
 export type MoveCommitItem = {
   cardKey: string
-  toType: ListType
+  toListType: ListType
   toSlug: string
   /** Destination deck section (deck destinations only; exact name, created when missing). */
   toSection?: string
@@ -155,8 +156,8 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
       const item = m as Record<string, unknown>
       if (
         typeof item.cardKey !== 'string' ||
-        typeof item.toType !== 'string' ||
-        !isListType(item.toType) ||
+        typeof item.toListType !== 'string' ||
+        !isListType(item.toListType) ||
         typeof item.toSlug !== 'string' ||
         (item.toSection !== undefined &&
           (typeof item.toSection !== 'string' || item.toSection.trim() === '')) ||
@@ -164,7 +165,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
       ) {
         return badRequest(apiMessage('admin.api.move.invalidMove'))
       }
-      if (isToSectionInvalid(item.toSection, item.toType)) {
+      if (isToSectionInvalid(item.toSection, item.toListType)) {
         return badRequest(toSectionDeckOnlyMessage())
       }
     }
@@ -187,7 +188,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
     let skipped = 0
     for (const m of body.moves) {
       const internalKey = internalByClient.get(m.cardKey)
-      const dest = findDest(m.toType, m.toSlug)
+      const dest = findDest(m.toListType, m.toSlug)
       if (!internalKey || !dest) {
         skipped++
         continue
@@ -240,9 +241,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
  * physical-card key scheme: deck copies are distinguished by `copyIndex` (0..qty-1),
  * while collection/wanted entries use their `cardId` with `copyIndex` 0.
  */
-export type RemoveCommitItem = {
-  listType: ListType
-  listSlug: string
+export type RemoveCommitItem = ListEntryOrigin & {
   name: string
   cardId?: number
   copyIndex?: number
@@ -364,13 +363,11 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
  * cross-list "Move all selected" navbar action, which moves each selected card
  * from its own list into one destination.
  */
-export type SelectedMoveItem = {
-  listType: ListType
-  listSlug: string
+export type SelectedMoveItem = ListEntryOrigin & {
   name: string
   cardId?: number
   copyIndex?: number
-  toType: ListType
+  toListType: ListType
   toSlug: string
   /** Destination deck section (deck destinations only; exact name, created when missing). */
   toSection?: string
@@ -417,8 +414,8 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
         !isListType(item.listType) ||
         typeof item.listSlug !== 'string' ||
         typeof item.name !== 'string' ||
-        typeof item.toType !== 'string' ||
-        !isListType(item.toType) ||
+        typeof item.toListType !== 'string' ||
+        !isListType(item.toListType) ||
         typeof item.toSlug !== 'string' ||
         (item.toSection !== undefined &&
           (typeof item.toSection !== 'string' || item.toSection.trim() === '')) ||
@@ -428,7 +425,7 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
       ) {
         return badRequest(apiMessage('admin.api.move.invalidMove'))
       }
-      if (isToSectionInvalid(item.toSection, item.toType)) {
+      if (isToSectionInvalid(item.toSection, item.toListType)) {
         return badRequest(toSectionDeckOnlyMessage())
       }
     }
@@ -457,7 +454,7 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
       const internalKey = internalByClient.get(
         moveCardKey(m.listType, m.listSlug, m.cardId, m.name, m.copyIndex),
       )
-      const dest = findDest(m.toType, m.toSlug)
+      const dest = findDest(m.toListType, m.toSlug)
       const vc = internalKey ? state.get(internalKey) : undefined
       if (!internalKey || !dest || !vc) {
         skipped++

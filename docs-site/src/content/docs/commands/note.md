@@ -90,8 +90,9 @@ Setting a note replaces any existing note, with no confirmation. The previous te
 
 ```json
 {
-  "type": "deck",
-  "list": "my-deck",
+  "listType": "deck",
+  "slug": "my-deck",
+  "name": "My Deck",
   "cardName": "Sol Ring",
   "cardId": 17,
   "note": "second",
@@ -107,8 +108,9 @@ When a note is removed, the response includes the removed text:
 
 ```json
 {
-  "type": "deck",
-  "list": "my-deck",
+  "listType": "deck",
+  "slug": "my-deck",
+  "name": "My Deck",
   "cardName": "Sol Ring",
   "cardId": 17,
   "cleared": true,

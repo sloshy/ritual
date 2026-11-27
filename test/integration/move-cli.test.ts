@@ -56,8 +56,8 @@ type MoveErrorPayload = {
 type MoveSuccessPayload = {
   moved: number
   card: { name: string; set?: string; collectorNumber?: string; cardId?: number }
-  from: { type: string; name: string }
-  to: { type: string; name: string }
+  from: { listType: string; slug: string; name: string }
+  to: { listType: string; slug: string; name: string }
   droppedNotes: { cardName: string; cardId?: number; note: string }[]
 }
 
@@ -109,8 +109,8 @@ describe('move CLI headless mode (Integration)', () => {
     expect(json.moved).toBe(1)
     expect(json.card.name).toBe('Lightning Bolt')
     expect(json.card.set).toBe('lea')
-    expect(json.from).toEqual({ type: 'deck', name: 'Source Deck' })
-    expect(json.to).toEqual({ type: 'deck', name: 'Target Deck' })
+    expect(json.from).toEqual({ listType: 'deck', slug: 'source', name: 'Source Deck' })
+    expect(json.to).toEqual({ listType: 'deck', slug: 'target', name: 'Target Deck' })
 
     const source = await fs.readFile(path.join(dir, 'decks', 'source.md'), 'utf-8')
     expect(source).toContain('1 Lightning Bolt (LEA:161) &1')

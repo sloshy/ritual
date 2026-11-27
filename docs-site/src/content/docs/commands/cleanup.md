@@ -85,7 +85,7 @@ With `--output json` (or `ndjson`), the text report is replaced by a single JSON
 {
   "files": [
     {
-      "type": "collection",
+      "listType": "collection",
       "filePath": "/path/to/collections/Bad.md",
       "rewritten": false,
       "rewriteBlocked": true,

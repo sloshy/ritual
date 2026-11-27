@@ -144,7 +144,7 @@ With `--output json` (or `ndjson`), the preview and glyph lines are replaced by 
   "failedCount": 0,
   "lists": [
     {
-      "kind": "deck",
+      "listType": "deck",
       "slug": "test-deck",
       "name": "Test Deck",
       "applied": 2,
@@ -174,7 +174,7 @@ With `--output json` (or `ndjson`), the preview and glyph lines are replaced by 
 
 `message` is English; `messageKey` and `messageParams` carry the same sentence unrendered, its counts nested as messages of their own (see [the message triple](/admin/api/#the-message-triple)).
 
-- `lists` has one entry per list the bundle touched: the bundle's own entries plus any list named only as a move destination (whose `slug` is the file basename it resolved to). Moves count toward `applied` on their destination list.
+- `lists` has one entry per list the bundle touched: the bundle's own entries plus any list named only as a move destination (whose `slug` is the file basename it resolved to), named by `listType`, `slug` and `name`. The report spells the type `listType`, as every Ritual result does; the bundle file itself keeps `kind`. Moves count toward `applied` on their destination list.
 - `droppedNotes` lists the notes the list's saves discarded, as `{ cardName, cardId?, note }` (`cardId` is the source line's): a moved card that merged onto a deck line already holding a different note keeps the line's note. Empty when none. Text mode prints each one as a warning, even with `--quiet`.
 - A list that failed to resolve, load, or save carries an `error` string (English) and is counted in `failedCount`; `errorKey` and `errorParams` accompany it when the failure has a catalog entry. Text mode prints that reason in the CLI's language. Its later batches are skipped; anything already applied is still counted.
 - `success` stays `true` even then. It is the envelope flag and means the run was processed; `failedCount` and each list's `error` report the failures. The exit code is `1`, as in text mode.

@@ -34,8 +34,8 @@ describe('cross-type list resolution (Integration)', () => {
         dir,
       )
       expect(result.exitCode).toBe(0)
-      const json = JSON.parse(result.stdout) as { type: string; note: string }
-      expect(json.type).toBe('deck')
+      const json = JSON.parse(result.stdout) as { listType: string; note: string }
+      expect(json.listType).toBe('deck')
       expect(json.note).toBe('ramp')
     })
   })
@@ -65,8 +65,8 @@ describe('cross-type list resolution (Integration)', () => {
         dir,
       )
       expect(result.exitCode).toBe(0)
-      const json = JSON.parse(result.stdout) as { type: string }
-      expect(json.type).toBe('collection')
+      const json = JSON.parse(result.stdout) as { listType: string }
+      expect(json.listType).toBe('collection')
     })
   })
 

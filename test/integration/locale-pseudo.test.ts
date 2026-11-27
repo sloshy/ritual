@@ -981,7 +981,9 @@ describe('pseudo-locale (Integration)', () => {
       expect(text.exitCode).toBe(0)
       expect(text.stdout).toContain(await pseudoBranch('domain.listType.noun', 'wanted'))
       const json = await runCli(['lists', '--output', 'json'], dir, PSEUDO_ENV)
-      expect(JSON.parse(json.stdout)).toEqual([{ type: 'wanted', slug: 'needs', name: 'needs' }])
+      expect(JSON.parse(json.stdout)).toEqual([
+        { listType: 'wanted', slug: 'needs', name: 'needs' },
+      ])
     })
   })
 

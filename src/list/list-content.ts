@@ -12,31 +12,28 @@ import { SyncMessageError } from '../sync/message'
 import { hasErrorCode } from '../util/errno'
 import { parseCollectionFile, type CollectionParseResult } from './collection-file'
 import { deckFrontMatterFromText, type DeckFrontMatter } from './deck-file'
-import type { ListInfo } from './list-info'
+import type { ListInfo } from './list-identity'
 import { listDisplayNameFromContent } from './list-display-name'
 import { listSlug } from './list-file-name'
 import type { ListType } from './list-type'
 import { parseWantedListFile, type WantedListParseResult } from './wanted-file'
 
-/** Who a parsed list is: its slug and display name (its type is on each arm). */
-type ParsedListIdentity = Omit<ListInfo, 'type'>
-
 /** A deck's parse, plus its validated front matter (which the deck body does not carry). */
-export type ParsedDeckContent = ParsedListIdentity & {
-  type: 'deck'
+export type ParsedDeckContent = ListInfo & {
+  listType: 'deck'
   parse: DeckParseResult
   frontMatter: DeckFrontMatter
 }
 
 /** A collection's parse. */
-export type ParsedCollectionContent = ParsedListIdentity & {
-  type: 'collection'
+export type ParsedCollectionContent = ListInfo & {
+  listType: 'collection'
   parse: CollectionParseResult
 }
 
 /** A wanted list's parse. */
-export type ParsedWantedContent = ParsedListIdentity & {
-  type: 'wanted'
+export type ParsedWantedContent = ListInfo & {
+  listType: 'wanted'
   parse: WantedListParseResult
 }
 
@@ -53,7 +50,7 @@ export function parseListContent(
   content: string,
   filePath: string,
 ): ParsedListContent {
-  const identity: ParsedListIdentity = {
+  const identity: Omit<ListInfo, 'listType'> = {
     slug: listSlug(filePath),
     name: listDisplayNameFromContent(content, filePath),
   }
@@ -61,17 +58,22 @@ export function parseListContent(
     case 'deck':
       return {
         ...identity,
-        type,
+        listType: type,
         parse: parseDeckText(content, identity.slug),
         // The deck body carries no front matter; the block is read the way the
         // deck load route reads it, for the labels, cover and format it validates.
         frontMatter: deckFrontMatterFromText(content),
       }
     case 'collection':
-      return { ...identity, type, parse: parseCollectionFile(content) }
+      return { ...identity, listType: type, parse: parseCollectionFile(content) }
     case 'wanted':
-      return { ...identity, type, parse: parseWantedListFile(content) }
+      return { ...identity, listType: type, parse: parseWantedListFile(content) }
   }
+}
+
+/** A parsed list's {@link ListInfo}, without its parse. */
+export function parsedListInfo({ listType, slug, name }: ParsedListContent): ListInfo {
+  return { listType, slug, name }
 }
 
 /**

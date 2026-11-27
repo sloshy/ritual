@@ -2,10 +2,9 @@ import { createResource, type Resource } from 'solid-js'
 import type { ListRef } from '../../changes/change-event'
 import type { NamedListRef } from '../../list-view/combined-list'
 import type { ListType } from '../../list/list-type'
-import type { ListInfo } from '../../list/list-info'
+import type { ListInfo } from '../../list/list-identity'
+import type { ListsResponse } from '../api/lists'
 import { fetchAdminJson } from './editor-backend'
-
-type ListsResponse = { lists?: ListInfo[] }
 
 /**
  * Fetch every list across all three types once (GET `/api/lists`). Used to build
@@ -15,7 +14,8 @@ type ListsResponse = { lists?: ListInfo[] }
  */
 export function useAdminLists(): Resource<ListInfo[]> {
   const [lists] = createResource(async () => {
-    const r = (await fetchAdminJson('/api/lists')) as ListsResponse
+    // Partial: a failure envelope carries no `lists`.
+    const r = (await fetchAdminJson('/api/lists')) as Partial<ListsResponse>
     return r.lists ?? []
   })
   return lists
@@ -28,11 +28,11 @@ export function moveTargetsExcluding(
   slug: string | null,
 ): ListRef[] {
   return (lists ?? [])
-    .filter((l) => !(l.type === type && l.slug === slug))
-    .map((l) => ({ type: l.type, name: l.name }))
+    .filter((l) => !(l.listType === type && l.slug === slug))
+    .map((l) => ({ type: l.listType, name: l.name }))
 }
 
 /** Every list as a slug-bearing {@link NamedListRef} (no exclusion) — for the cross-list navbar move. */
 export function listInfosToNamedRefs(lists: ListInfo[] | undefined): NamedListRef[] {
-  return (lists ?? []).map((l) => ({ type: l.type, slug: l.slug, name: l.name }))
+  return (lists ?? []).map((l) => ({ type: l.listType, slug: l.slug, name: l.name }))
 }

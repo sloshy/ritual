@@ -87,7 +87,10 @@ every deck, collection, and wanted list as a headed table of type and name, plus
 file column (the slug) only when some list's file name differs from its name (the
 text type column is worded in the UI language, e.g. \`wanted list\`). Filter with
 \`--deck\`/\`--collection\`/\`--wanted\`, and pass \`--output json\` for machine-readable
-\`{type, slug, name}\` objects whose \`type\` is always \`deck\`/\`collection\`/\`wanted\`. Prefer it over globbing the workspace folders.
+\`{listType, slug, name}\` objects whose \`listType\` is always \`deck\`/\`collection\`/\`wanted\`. Every
+CLI JSON payload names a list as \`listType\` + \`slug\` (+ display \`name\`), as the MCP
+tools do: a single-list result's list, a \`move\`'s \`from\`/\`to\`, every report row. Prefer it over
+globbing the workspace folders.
 
 **Counting and valuing many lists:** \`ritual lists --summary\` reads every list once
 and reports each one's entries (lines) and cards (copies), plus totals across them;

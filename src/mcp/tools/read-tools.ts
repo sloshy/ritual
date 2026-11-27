@@ -38,7 +38,6 @@ import type {
   ListsSummaryQueryKey,
   ListsSummaryResponse,
 } from '../../admin/api/lists'
-import { formatListRefParam } from '../../admin/api/list-refs'
 import { LISTS_SUMMARY_SORTS } from '../../summary/lists'
 import type { SellCartResponse, SellReportResponse } from '../../admin/api/sell'
 import type {
@@ -57,7 +56,7 @@ import { CARD_LABELS } from '../../card/card-labels'
 import { BUYERS, type BuylistQuotesResponse } from '../../buylist'
 import { MAX_BUYLIST_PRINTINGS } from '../../api/buylist'
 import { DIFF_BY_MODES } from '../../changes/list-diff'
-import type { ListIdentity, ListInfo } from '../../list/list-info'
+import { listIdentityKey, type ListInfo } from '../../list/list-identity'
 import type {
   CacheStatusResult,
   CardDetails,
@@ -73,25 +72,10 @@ import {
   summarizePrintingOrNull,
 } from '../../api/card-summary'
 
-/**
- * How every tool names a list: `listType` + `slug`, exactly the pair the tools
- * take as arguments, plus the display name. One vocabulary across `list_lists`,
- * `find_cards`' roster, and both sides of `diff_lists`, so a list named by one
- * can be handed straight to another. The engine-side `ListInfo` still spells the
- * first field `type`; this is where that is normalized for the tool surface.
- */
-export interface ListRefResult extends ListIdentity {
-  name: string
-}
-
-/** Project the engine's list summary into the tool vocabulary. */
-function toListRef(list: ListInfo): ListRefResult {
-  return { listType: list.type, slug: list.slug, name: list.name }
-}
-
 /** `list_lists` result: every (optionally type-filtered) list as a summary. */
 export interface ListListsResult {
-  lists: ListRefResult[]
+  /** Each list as `{ listType, slug, name }`, the pair every tool takes plus the display name. */
+  lists: ListInfo[]
 }
 
 /**
@@ -152,7 +136,7 @@ export interface SyncStatusResult {
 export interface FindCardsResult {
   cards: MovePhysicalCard[]
   /** Every list, unfiltered — only present when `includeLists` was set. */
-  lists?: ListRefResult[]
+  lists?: ListInfo[]
   /** Read/parse problems hit while building the index; empty when every list read cleanly. */
   warnings: string[]
 }
@@ -254,7 +238,7 @@ export function summarizeListsQuery(input: SummarizeListsInput): string {
   const params = new URLSearchParams()
   if (input.listType !== undefined) params.set('listType', input.listType)
   if (input.nameContains !== undefined) params.set('nameContains', input.nameContains)
-  for (const ref of input.lists ?? []) params.append('list', formatListRefParam(ref))
+  for (const ref of input.lists ?? []) params.append('list', listIdentityKey(ref))
   if (input.label !== undefined) params.set('label', input.label)
   if (input.includeEmpty !== undefined) params.set('includeEmpty', String(input.includeEmpty))
   if (input.format !== undefined) params.set('format', input.format)
@@ -324,9 +308,9 @@ type SellScopeInput = z.infer<typeof sellScopeSchema>
 function sellScopeQuery(scope: SellScopeInput): string {
   const params = new URLSearchParams()
   if (scope.lists !== undefined && scope.lists.length > 0) {
-    for (const ref of scope.lists) params.append('list', formatListRefParam(ref))
+    for (const ref of scope.lists) params.append('list', listIdentityKey(ref))
   } else if (scope.listType !== undefined) {
-    params.set('type', scope.listType)
+    params.set('listType', scope.listType)
   }
   if (scope.tags !== undefined) params.set('tags', formatCardTags(scope.tags))
   if (scope.sets !== undefined && scope.sets.length > 0) params.set('sets', scope.sets.join(','))
@@ -392,8 +376,7 @@ export function registerReadTools(server: McpServer): void {
     async ({ listType }) =>
       runTool(async (): Promise<ListListsResult> => {
         const data = (await callApi('GET', '/api/lists')) as ListsResponse
-        const lists = listType ? data.lists.filter((l) => l.type === listType) : data.lists
-        return { lists: lists.map(toListRef) }
+        return { lists: listType ? data.lists.filter((l) => l.listType === listType) : data.lists }
       }),
   )
 
@@ -615,7 +598,7 @@ export function registerReadTools(server: McpServer): void {
         const query = params.size > 0 ? `?${params}` : ''
         const data = (await callApi('GET', `/api/card-index${query}`)) as CardIndexResponse
         const result: FindCardsResult = { cards: data.cards, warnings: data.warnings }
-        if (includeLists === true) result.lists = data.lists.map(toListRef)
+        if (includeLists === true) result.lists = data.lists
         return result
       }),
   )
@@ -1130,12 +1113,8 @@ export function registerReadTools(server: McpServer): void {
     },
     async ({ lists, ...rest }) =>
       runTool(async (): Promise<ExportResult> => {
-        const body: ExportRequestBody = {
-          ...rest,
-          lists: lists?.map((l) => ({ type: l.listType, name: l.name })),
-        }
-        const response = await callApiData<ExportResponseBody>('POST', '/api/export', body)
-        return response
+        const body: ExportRequestBody = { ...rest, lists }
+        return callApiData<ExportResponseBody>('POST', '/api/export', body)
       }),
   )
 }

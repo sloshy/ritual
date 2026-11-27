@@ -1,3 +1,4 @@
+import { listIdentityKey, type ListIdentityKey, type ListInfo } from '../../../list/list-identity'
 import { type Accessor, batch, createMemo, createSignal, onMount } from 'solid-js'
 import {
   changeSetFromEvents,
@@ -10,7 +11,6 @@ import {
   sortNewestFirst,
   type ChangeSet,
 } from '../../../changes/changelog-blocks'
-import type { ListInfo } from '../../../list/list-info'
 import type { ChangeEvent } from '../../../changes/change-event'
 import type { HistoryLoadResponse, HistorySaveResponse } from '../../api/history'
 import type { ApiErrorResponse } from '../../../api/http'
@@ -18,7 +18,6 @@ import type { ListsResponse } from '../../api/lists'
 import { apiMessage } from '../../../api/result'
 import type { ApiActionMessage } from '../../../api/result'
 import { readSyncMessage } from '../../../sync/message'
-import { type ListId, listInfoId } from '../list-grouping'
 
 export type UseHistorySessionResult = {
   loaded: Accessor<boolean>
@@ -29,10 +28,10 @@ export type UseHistorySessionResult = {
   saving: Accessor<boolean>
 
   lists: Accessor<ListInfo[]>
-  selectedId: Accessor<ListId | null>
+  selectedId: Accessor<ListIdentityKey | null>
   selectedList: Accessor<ListInfo | null>
   /** Load (or clear) the list whose change history is being edited. */
-  selectList: (id: ListId | null) => void
+  selectList: (id: ListIdentityKey | null) => void
   detailLoading: Accessor<boolean>
 
   /** Current change sets in display order (newest first). */
@@ -67,7 +66,7 @@ export function useHistorySession(): UseHistorySessionResult {
   const [saving, setSaving] = createSignal(false)
 
   const [lists, setLists] = createSignal<ListInfo[]>([])
-  const [selectedId, setSelectedId] = createSignal<ListId | null>(null)
+  const [selectedId, setSelectedId] = createSignal<ListIdentityKey | null>(null)
   const [detailLoading, setDetailLoading] = createSignal(false)
 
   const [header, setHeader] = createSignal('')
@@ -78,7 +77,7 @@ export function useHistorySession(): UseHistorySessionResult {
 
   const selectedList = createMemo(() => {
     const id = selectedId()
-    return id ? (lists().find((l) => listInfoId(l) === id) ?? null) : null
+    return id ? (lists().find((l) => listIdentityKey(l) === id) ?? null) : null
   })
 
   // The list name is only used as a fallback header when the serialized form has
@@ -126,7 +125,7 @@ export function useHistorySession(): UseHistorySessionResult {
     setStatus(null)
     try {
       const resp = await fetch(
-        `/api/history/${encodeURIComponent(list.type)}/${encodeURIComponent(list.slug)}`,
+        `/api/history/${encodeURIComponent(list.listType)}/${encodeURIComponent(list.slug)}`,
         { credentials: 'same-origin' },
       )
       const data = (await resp.json()) as HistoryLoadResponse | ApiErrorResponse
@@ -149,7 +148,7 @@ export function useHistorySession(): UseHistorySessionResult {
     }
   }
 
-  const selectList = (id: ListId | null): void => {
+  const selectList = (id: ListIdentityKey | null): void => {
     setSelectedId(id)
     if (!id) {
       setSets([])
@@ -157,7 +156,7 @@ export function useHistorySession(): UseHistorySessionResult {
       setUndoStack([])
       return
     }
-    const list = lists().find((l) => listInfoId(l) === id)
+    const list = lists().find((l) => listIdentityKey(l) === id)
     if (list) void loadDetail(list)
   }
 
@@ -218,7 +217,7 @@ export function useHistorySession(): UseHistorySessionResult {
     setStatus(null)
     try {
       const resp = await fetch(
-        `/api/history/${encodeURIComponent(list.type)}/${encodeURIComponent(list.slug)}/save`,
+        `/api/history/${encodeURIComponent(list.listType)}/${encodeURIComponent(list.slug)}/save`,
         {
           method: 'POST',
           credentials: 'same-origin',

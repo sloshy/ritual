@@ -42,7 +42,7 @@ import { isSyncMessage, type SyncMessage } from '../../sync/message'
 import { exportProblemMessage, exportWarningMessage } from '../../export-wording/message'
 
 /** One list selection in the request body. */
-export type ExportRequestListRef = { type?: string; name: string }
+export type ExportRequestListRef = { listType?: string; name: string }
 
 /** The request body's filter block (validated into {@link ExportFilters}). */
 type ExportRequestFilters = {
@@ -256,7 +256,7 @@ export async function handleExport(req: Request): Promise<Response> {
 
     if (body.lists !== undefined && !Array.isArray(body.lists)) {
       // i18n-exempt: a JSON shape, wire vocabulary spliced into the sentence (catalog text cannot hold braces)
-      const shape = '{ type?, name }'
+      const shape = '{ listType?, name }'
       return badRequest(apiMessage('admin.api.export.listsNotArray', { shape }))
     }
     const listRefs = body.lists ?? []
@@ -265,13 +265,16 @@ export async function handleExport(req: Request): Promise<Response> {
       if (typeof list?.name !== 'string') {
         return badRequest(apiMessage('admin.api.export.listNameMissing'))
       }
-      if (list.type !== undefined && (typeof list.type !== 'string' || !isListType(list.type))) {
+      if (
+        list.listType !== undefined &&
+        (typeof list.listType !== 'string' || !isListType(list.listType))
+      ) {
         return badRequest(
-          apiMessage('admin.api.export.listTypeInvalid', { type: String(list.type) }),
+          apiMessage('admin.api.export.listTypeInvalid', { value: String(list.listType) }),
         )
       }
-      const resolved = await resolveList(list.name, list.type)
-      // Each ref carries its own optional `type`, so that field — not a longer
+      const resolved = await resolveList(list.name, list.listType)
+      // Each ref carries its own optional `listType`, so that field — not a longer
       // name — is what resolves a cross-type ambiguity here.
       if (isResolveListError(resolved))
         return nestedRefusal(resolveListErrorMessage(resolved, 'type-field'))

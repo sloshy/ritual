@@ -67,7 +67,7 @@ function entriesOf<I extends PriceListInput | SellListInput>(
 describe('loadPriceListInputs label resolution', () => {
   test('each input is named by its title and identified by its slug', async () => {
     const { inputs } = await loadPriceListInputs(undefined, locations)
-    expect(inputs.map((input) => [input.type, input.name, input.slug])).toEqual([
+    expect(inputs.map((input) => [input.listType, input.name, input.slug])).toEqual([
       ['deck', 'Burn', 'burn'],
       // The collection fixture's title defaults to its file name.
       ['collection', 'binder', 'binder'],

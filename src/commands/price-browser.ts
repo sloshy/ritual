@@ -26,7 +26,6 @@ import {
 import { UNRANKED_EDHREC } from '../card/card-printing'
 import {
   comparePricedEntries,
-  entriesOfList,
   filterPricedEntries,
   isByRuleUnpricedReason,
   isPriceSortField,
@@ -43,9 +42,15 @@ import {
 import { comparePrintings } from '../scryfall'
 import { errorMessage, renderSyncMessage } from '../sync/message'
 import { isExpectedListReadFailure } from '../list/list-content'
-import type { ListIdentity } from '../list/list-info'
 import {
-  findSummaryRow,
+  entriesOfList,
+  findByListIdentity,
+  listInfoOfEntry,
+  type ListIdentity,
+  type ListInfo,
+} from '../list/list-identity'
+import { listRowName, listsOfEntries } from '../cli/list-row-name'
+import {
   groupRowsByType,
   type ListsSummary,
   type ListsSummaryRow,
@@ -233,18 +238,6 @@ export function formatListChoiceTitle(
   })
 }
 
-/**
- * A list's name as a menu row shows it: its title, with its slug added when
- * another list of the same type shares that title — two rows that read the
- * same would otherwise be told apart only by their position.
- */
-export function listRowName(row: ListsSummaryRow, rows: readonly ListsSummaryRow[]): string {
-  const shared = rows.some(
-    (other) => other !== row && other.listType === row.listType && other.name === row.name,
-  )
-  return shared ? t('cli.price.listNameWithSlug', { name: row.name, slug: row.slug }) : row.name
-}
-
 /** The main screen menu: every list (grouped by type), then the global actions. */
 export function buildMainMenuChoices(summary: ListsSummary, currency: PriceCurrency): Choice[] {
   const listChoices = groupRowsByType(summary.lists).flatMap((group) =>
@@ -272,7 +265,7 @@ export function buildMainMenuChoices(summary: ListsSummary, currency: PriceCurre
 export function formatEntryChoiceTitle(
   entry: PricedEntry,
   currency: PriceCurrency,
-  showSource: boolean,
+  sources?: readonly ListInfo[],
 ): string {
   const printing =
     entry.set && entry.collectorNumber
@@ -283,7 +276,11 @@ export function formatEntryChoiceTitle(
   const lowest = hasLowerPrinting(entry)
     ? ` · ${t('cli.price.rowLowest', { price: formatPrice(entry.lowest * entry.quantity, currency) })}`
     : ''
-  const source = showSource ? ` · ${LIST_TYPE_DISPLAY[entry.listType].icon} ${entry.listName}` : ''
+  // `sources`: the lists the shown rows come from, so a title two of them
+  // share gains its slug. Absent hides the column (a one-list view).
+  const source = sources
+    ? ` · ${LIST_TYPE_DISPLAY[entry.listType].icon} ${listRowName(listInfoOfEntry(entry), sources)}`
+    : ''
   const item = `${entry.name}${printing}${finish} — ${price}${lowest}${source}`
   return quantityRow(entry.quantity, item)
 }
@@ -345,7 +342,9 @@ export function buildCardBrowserChoices(
   if (options.withTypeFilter) {
     controls.push({
       title: t('cli.price.controlTypeFilter', {
-        value: state.filters.type ? listTypeTitle(state.filters.type) : t('cli.price.filterAll'),
+        value: state.filters.listType
+          ? listTypeTitle(state.filters.listType)
+          : t('cli.price.filterAll'),
       }),
       value: { kind: 'filter-type' } satisfies CardBrowserSelection,
     })
@@ -354,10 +353,11 @@ export function buildCardBrowserChoices(
     title: t('cli.price.menuBack'),
     value: { kind: 'back' } satisfies CardBrowserSelection,
   })
+  const sources = options.showSource ? listsOfEntries(visible) : undefined
   return [
     ...controls,
     ...visible.map((entry): Choice => ({
-      title: formatEntryChoiceTitle(entry, currency, options.showSource),
+      title: formatEntryChoiceTitle(entry, currency, sources),
       value: { kind: 'entry', entry } satisfies CardBrowserSelection,
     })),
   ]
@@ -618,7 +618,7 @@ async function runCardBrowser(
         )
         break
       case 'filter-type':
-        state.filters.type = await promptTypeFilter(state.filters.type)
+        state.filters.listType = await promptTypeFilter(state.filters.listType)
         break
     }
   }
@@ -687,11 +687,11 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
   const openList = async (list: ListIdentity): Promise<void> => {
     const built = await fullReport()
     if (!built) return
-    const row = findSummaryRow(summary.lists, list)
+    const row = findByListIdentity(summary.lists, list)
     const icon = LIST_TYPE_DISPLAY[list.listType].icon
     await runCardBrowser(
       `${icon} ${row ? listRowName(row, summary.lists) : list.slug}`,
-      entriesOfList(built.report, list),
+      entriesOfList(built.report.entries, list),
       built.report.currency,
       built.printingsByName,
       {

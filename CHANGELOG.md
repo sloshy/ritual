@@ -62,13 +62,56 @@ release changes a file format or a generated file, it ships the change as a
   a `404`. A ref naming no list is a `404` keyed `admin.api.list.notFound` with `listType` and
   `slug` params (was `admin.api.listNotFound` with `list`). The MCP sell tools' `lists` input is
   unchanged.
-- The sell routes' `type=` is matched case-insensitively and an unknown value is refused with
-  `errors.enum.invalid`, like every other enum parameter, instead of `admin.api.listTypeInvalid`.
+- The sell routes' list-type parameter is now `listType=` (was `type=`), as on
+  `GET /api/lists/summary`: `GET /api/sell/report?listType=wanted`. It is matched
+  case-insensitively and an unknown value is refused with `errors.enum.invalid`, like every
+  other enum parameter, instead of `admin.api.listTypeInvalid`. A `type=` is now ignored, so
+  the scope falls back to every collection; rename it in any script or bookmark.
   The message keys `admin.api.listTypeInvalid` and `admin.api.listNotFound` no longer exist; a
   client matching on them must switch to `errors.enum.invalid` and `admin.api.list.notFound`.
 - `GET /api/price/:type/:slug` answers `404` (`admin.api.list.notFound`) when the list's file
   disappears between the lookup and the read, rather than `200` with no `list`;
   `ritual price <list>` exits `1` in that case.
+- Every `--output json` / `ndjson` payload names a list the same way the MCP tools do:
+  `{ listType, slug, name }` (type, file slug, display title). Update any script that reads:
+  - The list's type is `listType`, not `type`: `ritual lists` (each row), `price <list>`
+    (`list.type`), `sell` (`lists[].type`), `cleanup` (`files[].type`) and the top-level
+    `type` of every single-list result below. `import-changes` reports each list's type as
+    `lists[].listType` (was `lists[].kind`; the change bundle file itself still says `kind`).
+    `price`'s card search reports its list-type filter as `filters.listType`.
+  - Every single-list result carries the list as `listType`, `slug` and `name` (its display
+    title). `add-card`, `remove-card`, `set-card`, `note`, `categories list|rename|order|remove`,
+    `metadata set|unset|list` and `set-list-image` replace `list` (the file name) with `slug`
+    and add `name`; `delete` adds `name`; `rename` reports the new slug as `slug` (was
+    `newSlug`) beside `oldSlug`; `move` reports `from` and `to` as `{ listType, slug, name }`
+    (was `{ type, name }`, with no slug).
+  - The admin API changes with them. `GET /api/lists` and `GET /api/card-index` answer
+    `lists[].listType`, `GET /api/price/:type/:slug` answers `list.listType`, and
+    `GET /api/sell/report` and `POST /api/import-changes` answer `lists[].listType`. Request
+    bodies follow: a `POST /api/export` list ref is `{ "listType": "deck", "name": … }` (was
+    `type`), and each `POST /api/move/commit` and `POST /api/move/selected` item names its
+    destination's type as `toListType` (was `toType`). The rename routes
+    (`POST /api/{deck,collection,wanted}/:slug/rename`) answer the renamed list as `listType`,
+    `slug` and `name` plus `oldSlug`, in place of `newSlug`, and the delete routes add the
+    deleted list's `listType`, `slug` and `name`. An export ref with an unknown type is
+    refused with `admin.api.export.listTypeInvalid` and the value sent as
+    `messageParams.value` (was `type`).
+  - Over MCP, `get_list_prices`' `list.type`, `get_sell_report`'s `lists[].type` and
+    `import_change_bundle`'s `lists[].kind` are now `listType`, `rename_list` answers
+    `listType`, `slug`, `name` and `oldSlug` in place of `newSlug`, and `delete_list` adds the
+    deleted list's `listType`, `slug` and `name`. The shared schema fragment
+    `ListRef` is now named `ListInfo`; its shape is unchanged. `list_lists`, `find_cards` and
+    `diff_lists` already said `listType`.
+- Sell reports name each list by its display title (its `# Title`), not its file name, and
+  identify it by slug, the same as price reports: `lists[].name` and `entries[].listName` are
+  the title, and the new `lists[].slug` and `entries[].listSlug` (with `listType`) are the key
+  to match on. Two lists sharing a title now keep separate rows instead of merging into one.
+  This covers `ritual sell --output json` (and `ndjson`), `GET /api/sell/report` and the MCP
+  `get_sell_report` tool. `ritual sell`'s text report heads each list with its title too, and
+  adds the slug when two reported lists of a type share a title, as `ritual price`'s card
+  search does in its source column. A script that matched sell rows or entries by file name
+  must switch to the slug. The sell cart (`GET /api/sell/cart`, `get_sell_cart`,
+  `sell --output csv`) names no lists and is unchanged.
 
 ### Added
 

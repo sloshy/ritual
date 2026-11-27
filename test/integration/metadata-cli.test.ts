@@ -129,8 +129,9 @@ describe('metadata CLI (Integration)', () => {
     )
     expect(add.exitCode).toBe(0)
     expect(JSON.parse(add.stdout)).toEqual({
-      type: 'deck',
-      list: 'burn',
+      listType: 'deck',
+      slug: 'burn',
+      name: 'Burn',
       property: 'tags',
       value: ['aggro', 'budget'],
     })
@@ -242,11 +243,11 @@ describe('metadata CLI (Integration)', () => {
 
     const json = await runCli(['metadata', 'list', 'burn', '--output', 'json'], dir)
     const payload = JSON.parse(json.stdout) as {
-      type: string
+      listType: string
       list: string
       frontMatter: Record<string, unknown>
     }
-    expect(payload.type).toBe('deck')
+    expect(payload.listType).toBe('deck')
     expect(payload.frontMatter).toMatchObject({ format: 'modern', owner: 'me' })
   })
 

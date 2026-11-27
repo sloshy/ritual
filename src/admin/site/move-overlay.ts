@@ -1,3 +1,10 @@
+import {
+  listIdentityKey,
+  entryListKey,
+  type ListIdentityKey,
+  type ListInfo,
+  type ListEntryOrigin,
+} from '../../list/list-identity'
 import type { ListType } from '../../list/list-type'
 import type { Finish, Condition } from '../../card/finish-condition'
 import type { DeckData } from '../../list/deck'
@@ -7,9 +14,7 @@ import { isSamePrinting } from '../../changes/change-event'
 import { applyChangeToDeck } from '../../changes/deck-changes'
 import { applyChangeToCollection } from '../../changes/collection-changes'
 import { applyChangeToWantedList } from '../../changes/wanted-changes'
-import type { ListInfo } from '../../list/list-info'
 import type { MovePhysicalCard } from '../../card/card-index-types'
-import { type ListId, listId, listInfoId } from './list-grouping'
 
 /** Identity of the card a pending move acts on (its printing at the source). */
 export type MoveCard = {
@@ -69,13 +74,13 @@ export function addChangeFor(move: PendingMove): ChangeInput {
 }
 
 /** Pending moves leaving a given list (its overlay removes them). */
-export function movesFrom(pending: PendingMove[], id: ListId): PendingMove[] {
-  return pending.filter((m) => listInfoId(m.from) === id)
+export function movesFrom(pending: PendingMove[], id: ListIdentityKey): PendingMove[] {
+  return pending.filter((m) => listIdentityKey(m.from) === id)
 }
 
 /** Pending moves arriving at a given list (its overlay adds them). */
-export function movesTo(pending: PendingMove[], id: ListId): PendingMove[] {
-  return pending.filter((m) => listInfoId(m.to) === id)
+export function movesTo(pending: PendingMove[], id: ListIdentityKey): PendingMove[] {
+  return pending.filter((m) => listIdentityKey(m.to) === id)
 }
 
 /**
@@ -86,7 +91,7 @@ export function movesTo(pending: PendingMove[], id: ListId): PendingMove[] {
 function applyOverlay<T>(
   base: T,
   pending: PendingMove[],
-  id: ListId,
+  id: ListIdentityKey,
   applyChange: (data: T, change: ChangeInput) => T,
 ): T {
   let data = base
@@ -95,7 +100,7 @@ function applyOverlay<T>(
   return data
 }
 
-export function overlayDeck(base: DeckData, pending: PendingMove[], id: ListId): DeckData {
+export function overlayDeck(base: DeckData, pending: PendingMove[], id: ListIdentityKey): DeckData {
   // A display-only preview of pending moves whose adds carry no labels; the
   // loaded deck's default is not kept here, so the preview merges as if the
   // deck had none. The real landing happens in the save, against the file.
@@ -107,7 +112,7 @@ export function overlayDeck(base: DeckData, pending: PendingMove[], id: ListId):
 export function overlayCollection(
   base: CollectionCardEntry[],
   pending: PendingMove[],
-  id: ListId,
+  id: ListIdentityKey,
 ): CollectionCardEntry[] {
   return applyOverlay(base, pending, id, applyChangeToCollection)
 }
@@ -115,7 +120,7 @@ export function overlayCollection(
 export function overlayWanted(
   base: WantedListCardEntry[],
   pending: PendingMove[],
-  id: ListId,
+  id: ListIdentityKey,
 ): WantedListCardEntry[] {
   return applyOverlay(base, pending, id, applyChangeToWantedList)
 }
@@ -182,19 +187,16 @@ export type ReconcileMoveParams = {
  */
 export function reconcilePendingMoves(params: ReconcileMoveParams): PendingMove[] {
   const { pending, allCards, sourceList, target, count, dest, override, newId } = params
-  const sourceId = listInfoId(sourceList)
-  const destId = listInfoId(dest)
+  const sourceId = listIdentityKey(sourceList)
+  const destId = listIdentityKey(dest)
   if (destId === sourceId) return pending
 
   const pendingKeys = new Set(pending.map((m) => m.cardKey))
   const nativeCards = allCards.filter(
-    (c) =>
-      listId(c.listType, c.listSlug) === sourceId &&
-      matchesTile(c, target) &&
-      !pendingKeys.has(c.key),
+    (c) => entryListKey(c) === sourceId && matchesTile(c, target) && !pendingKeys.has(c.key),
   )
   const chainMoves = pending.filter(
-    (m) => listInfoId(m.to) === sourceId && pendingMatchesTile(m, target),
+    (m) => listIdentityKey(m.to) === sourceId && pendingMatchesTile(m, target),
   )
 
   let remaining = Math.max(1, count)
@@ -211,7 +213,7 @@ export function reconcilePendingMoves(params: ReconcileMoveParams): PendingMove[
     if (remaining <= 0) break
     const idx = next.findIndex((p) => p.id === m.id)
     if (idx === -1) continue
-    if (destId === listInfoId(m.from)) {
+    if (destId === listIdentityKey(m.from)) {
       next.splice(idx, 1)
     } else {
       next[idx] = { ...m, to: dest, dest: destPrinting }
@@ -245,9 +247,7 @@ export function reconcilePendingMoves(params: ReconcileMoveParams): PendingMove[
 }
 
 /** A group of identical physical cards within one list — one row/tile in the search view. */
-export type CardGroup = {
-  listType: ListType
-  listSlug: string
+export type CardGroup = ListEntryOrigin & {
   name: string
   set?: string
   collectorNumber?: string

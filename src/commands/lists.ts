@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { compareData } from '../i18n/collate'
-import { listIdentityOf, loadListInfos, type ListInfo } from '../list/list-info'
+import { listIdentityOf, loadListInfos } from '../list/list-info'
+import type { ListInfo } from '../list/list-identity'
 import { LIST_TYPES, listTypeNoun, listTypeTitle, type ListType } from '../list/list-type'
 import {
   isListArgumentsFailure,
@@ -180,7 +181,7 @@ export function registerListsCommand(program: Command): void {
       }
 
       const rows = sortListInfos(
-        (await loadListInfos()).filter((row) => type === undefined || row.type === type),
+        (await loadListInfos()).filter((row) => type === undefined || row.listType === type),
       )
 
       if (scripting.output === 'text') {
@@ -319,7 +320,7 @@ export function formatListsTable(rows: readonly ListInfo[]): string[] {
         t('cli.lists.columnName'),
         ...(showFile ? [t('cli.lists.columnFile')] : []),
       ],
-      ...rows.map((row) => [listTypeNoun(row.type), row.name, ...(showFile ? [row.slug] : [])]),
+      ...rows.map((row) => [listTypeNoun(row.listType), row.name, ...(showFile ? [row.slug] : [])]),
     ],
     new Set(),
   )
@@ -391,6 +392,7 @@ function totalsLine(
 function sortListInfos(rows: ListInfo[]): ListInfo[] {
   return rows.toSorted(
     (a, b) =>
-      LIST_TYPES.indexOf(a.type) - LIST_TYPES.indexOf(b.type) || compareData(a.slug, b.slug),
+      LIST_TYPES.indexOf(a.listType) - LIST_TYPES.indexOf(b.listType) ||
+      compareData(a.slug, b.slug),
   )
 }

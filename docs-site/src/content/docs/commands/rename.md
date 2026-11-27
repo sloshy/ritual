@@ -46,7 +46,7 @@ Rename a collection and capture the result as JSON:
 ritual rename --collection main "Trade Binder" --output json
 ```
 
-The JSON output is `{ type, oldSlug, newSlug, name, newFilePath, oldFilePath }`, the same paths the text output prints.
+The JSON output is `{ listType, slug, name, oldSlug, newFilePath, oldFilePath }`, the same paths the text output prints.
 
 ## Behavior
 

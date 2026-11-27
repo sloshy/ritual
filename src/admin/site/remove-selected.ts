@@ -8,13 +8,15 @@ import type {
   RemoveCommitResponse,
   SelectedMoveItem,
   SelectedMoveResponse,
+  RemoveCommitRequest,
+  SelectedMoveRequest,
 } from '../api/move'
 import type { ApiErrorResponse } from '../../api/http'
 
 /** Destination + resolved printing shared by every per-copy {@link SelectedMoveItem} of one card. */
 type MoveDestination = Pick<
   SelectedMoveItem,
-  'toType' | 'toSlug' | 'set' | 'collectorNumber' | 'finish' | 'condition'
+  'toListType' | 'toSlug' | 'set' | 'collectorNumber' | 'finish' | 'condition'
 >
 
 /** Full response from POST /api/remove/commit. */
@@ -59,7 +61,7 @@ export async function removeSelectedAdmin(cards: SelectedCard[]): Promise<Remove
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ removes: selectionToRemoveItems(cards) }),
+    body: JSON.stringify({ removes: selectionToRemoveItems(cards) } satisfies RemoveCommitRequest),
   })
   return (await resp.json()) as RemoveCommitResult
 }
@@ -91,7 +93,7 @@ async function selectionToMoveItems(
       }
     }
 
-    const base: MoveDestination = { toType: dest.type, toSlug: dest.slug, ...printing }
+    const base: MoveDestination = { toListType: dest.type, toSlug: dest.slug, ...printing }
     if (c.sourceKind === 'deck') {
       const cardId = c.cardIds[0]
       for (let copyIndex = 0; copyIndex < c.groupSize; copyIndex++) {
@@ -141,7 +143,7 @@ export async function moveSelectedAdmin(
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ moves }),
+    body: JSON.stringify({ moves } satisfies SelectedMoveRequest),
   })
   return (await resp.json()) as SelectedMoveResult
 }

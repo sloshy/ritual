@@ -1,5 +1,6 @@
 import { Command } from 'commander'
-import path from 'node:path'
+import type { ListInfo } from '../list/list-identity'
+import { listSlug } from '../list/list-file-name'
 import { isListLifecycleError, renameList } from '../list/list-lifecycle'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
@@ -11,11 +12,9 @@ import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '..
 
 type RenameOptions = ListTypeFlags & Partial<ScriptingOptions>
 
-type RenameResult = {
-  type: ListType
+/** The renamed list as it is now (its new slug and title), plus where it came from. */
+type RenameResult = ListInfo & {
   oldSlug: string
-  newSlug: string
-  name: string
   /** Where the list lives now — the path the text output prints. */
   newFilePath: string
   /** Where it lived before, so a script can follow the move without rebuilding it. */
@@ -49,7 +48,7 @@ async function runRename(
   scripting: ScriptingOptions,
 ): Promise<void> {
   const resolved = await resolveListSelection(listArg, type)
-  const oldSlug = path.basename(resolved.filePath, '.md')
+  const oldSlug = listSlug(resolved.filePath)
 
   const result = await renameList(resolved.type, resolved.filePath, newName)
   if (isListLifecycleError(result)) throw lifecycleErrorToCommandError(result)
@@ -60,7 +59,7 @@ async function runRename(
         t('cli.rename.renamed', {
           type: resolved.type,
           oldName: result.oldName,
-          name: newName,
+          name: result.newName,
           file: result.newFilePath,
         }),
         scripting,
@@ -70,10 +69,10 @@ async function runRename(
   }
 
   const payload: RenameResult = {
-    type: resolved.type,
+    listType: resolved.type,
+    slug: result.newSlug,
+    name: result.newName,
     oldSlug,
-    newSlug: result.newSlug,
-    name: newName,
     newFilePath: result.newFilePath,
     oldFilePath: result.oldFilePath,
   }

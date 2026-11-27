@@ -536,14 +536,14 @@ export const adminApiMeta = {
   },
   'admin.api.export.listsNotArray': {
     description:
-      'Refusal of an export request whose lists field is not a list. {shape} is the untranslated JSON shape each entry must have, e.g. "{ type?, name }".',
+      'Refusal of an export request whose lists field is not a list. {shape} is the untranslated JSON shape each entry must have, e.g. "{ listType?, name }".',
   },
   'admin.api.export.listNameMissing': {
     description: 'Refusal of an export request with a list entry that has no name.',
   },
   'admin.api.export.listTypeInvalid': {
     description:
-      'Refusal of an export request with a list entry whose type is not deck, collection or wanted. {type} is the value sent.',
+      'Refusal of an export request with a list entry whose listType is not deck, collection or wanted. {value} is the value sent.',
   },
 
   // ── Change history ────────────────────────────────────────────────────

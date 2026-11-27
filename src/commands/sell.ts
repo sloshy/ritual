@@ -36,6 +36,8 @@ import {
 } from '../pricing/sell-report'
 import { renderCartWarning } from '../buylist'
 import { loadAndBuildSellReport } from '../pricing/sell-runtime'
+import { entriesOfList, type ListInfo } from '../list/list-identity'
+import { listRowName } from '../cli/list-row-name'
 import { parseSetCodesInput } from '../card/set-codes'
 import { formatCardTags, parseTagFilterInput, type CardTag } from '../card/card-tags'
 import { formatDuration } from '../util/duration'
@@ -161,12 +163,16 @@ export function formatUnsoldEntryLine(entry: SellReportEntry): string {
 }
 
 /** The one-line summary of a list's totals, shared by the block header and tests. */
-export function formatSellListTitle(summary: SellListSummary): string {
+export function formatSellListTitle(
+  summary: SellListSummary,
+  lists: readonly ListInfo[] = [summary],
+): string {
   const skipped = summary.notBuyingCount + summary.noMatchCount
   const tail = skipped > 0 ? t('cli.sell.listTitleSkipped', { count: skipped }) : ''
   return t('cli.sell.listTitle', {
-    type: summary.type,
-    name: summary.name,
+    type: summary.listType,
+    // A title two reported lists share gains its slug, so the blocks differ.
+    name: listRowName(summary, lists),
     sellable: summary.sellableCount,
     total: summary.cardCount,
     value: formatPrice(summary.totalValue, 'usd'),
@@ -211,15 +217,13 @@ export type SellTextOptions = {
 export function renderSellReportText(view: SellReportView, options: SellTextOptions): string {
   const lines: string[] = [...options.header]
   for (const summary of view.lists) {
-    const listEntries = view.entries.filter(
-      (entry) => entry.listType === summary.type && entry.listName === summary.name,
-    )
+    const listEntries = entriesOfList(view.entries, summary)
     const buying = listEntries
       .filter(isBuyingEntry)
       .sort((a, b) => b.value - a.value || compareData(a.name, b.name))
     const unsold = listEntries.filter((entry) => entry.status !== 'buying')
 
-    lines.push('', formatSellListTitle(summary))
+    lines.push('', formatSellListTitle(summary, view.lists))
     for (const entry of buying) lines.push(`  ${formatBuyingEntryLine(entry)}`)
     if (options.all) {
       for (const entry of unsold) lines.push(`  ${formatUnsoldEntryLine(entry)}`)

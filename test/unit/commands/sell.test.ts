@@ -24,6 +24,7 @@ function entry(overrides: EntryOverrides = {}, market: SellMarketFields = {}): B
   return {
     listType: 'collection',
     listName: 'Binder',
+    listSlug: 'binder',
     section: 'Main',
     name: 'Arahbo',
     quantity: 1,
@@ -53,7 +54,8 @@ function entry(overrides: EntryOverrides = {}, market: SellMarketFields = {}): B
 }
 
 const summary: SellListSummary = {
-  type: 'collection',
+  listType: 'collection',
+  slug: 'binder',
   name: 'Binder',
   cardCount: 5,
   sellableCount: 2,
@@ -121,6 +123,7 @@ describe('sell text formatting', () => {
     const unmatched: SellReportEntry = {
       listType: 'collection',
       listName: 'Binder',
+      listSlug: 'binder',
       section: 'Main',
       name: 'Arahbo',
       quantity: 1,
@@ -178,6 +181,26 @@ describe('sell text formatting', () => {
     expect(verbose).toContain('Paused')
     expect(verbose).not.toContain('rerun with --all')
     expect(verbose).toContain(sellDisclaimer())
+  })
+
+  test('two lists sharing a title get their own block, told apart by slug', () => {
+    const a: SellListSummary = { ...summary, slug: 'a' }
+    const b: SellListSummary = { ...summary, slug: 'b' }
+    const entries: SellReportEntry[] = [
+      entry({ name: 'From A', listSlug: 'a' }),
+      entry({ name: 'From B', listSlug: 'b' }),
+    ]
+    const text = renderSellReportText(
+      { lists: [a, b], entries, totals: { ...totals, listCount: 2 } },
+      { header: [], all: false, quiet: true },
+    )
+    const blocks = text.split('\n\n')
+    const blockA = blocks.find((block) => block.includes('[collection] Binder (a)'))
+    const blockB = blocks.find((block) => block.includes('[collection] Binder (b)'))
+    expect(blockA).toContain('From A')
+    expect(blockA).not.toContain('From B')
+    expect(blockB).toContain('From B')
+    expect(blockB).not.toContain('From A')
   })
 
   test('--quiet drops only the disclaimer', () => {

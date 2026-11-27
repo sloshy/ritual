@@ -1,3 +1,10 @@
+import {
+  listIdentityKey,
+  entryListKey,
+  isListIdentityKey,
+  type ListIdentityKey,
+  type ListInfo,
+} from '../../../list/list-identity'
 import { type Accessor, batch, createSignal, createMemo, createEffect, on, onMount } from 'solid-js'
 import { createStore, type SetStoreFunction, type Store } from 'solid-js/store'
 import type { DeckData } from '../../../list/deck'
@@ -11,11 +18,10 @@ import { t } from '../../../i18n/t'
 import { apiMessage } from '../../../api/result'
 import type { ApiActionMessage } from '../../../api/result'
 import { readSyncMessage } from '../../../sync/message'
-import type { MoveCommitResponse } from '../../api/move'
+import type { MoveCommitItem, MoveCommitRequest, MoveCommitResponse } from '../../api/move'
 import type { MovePhysicalCard } from '../../../card/card-index-types'
 import type { CardIndexResponse } from '../../api/card-index'
 import type { ApiErrorResponse } from '../../../api/http'
-import type { ListInfo } from '../../../list/list-info'
 import {
   type PendingMove,
   type MoveDestPrinting,
@@ -29,7 +35,6 @@ import {
   reconcilePendingMoves,
   groupCards,
 } from '../move-overlay'
-import { type ListId, listId, listInfoId } from '../list-grouping'
 import {
   matchesNameTerms,
   normalizeCardName,
@@ -104,8 +109,8 @@ export type UseMoveSessionResult = {
 
   lists: Accessor<ListInfo[]>
   /** Currently selected list id (null when none / searching). */
-  viewedListId: Accessor<ListId | null>
-  selectList: (id: ListId | null) => void
+  viewedListId: Accessor<ListIdentityKey | null>
+  selectList: (id: ListIdentityKey | null) => void
   viewedList: Accessor<ListInfo | null>
   viewedData: Accessor<ViewedListData | null>
   viewedLoading: Accessor<boolean>
@@ -120,11 +125,11 @@ export type UseMoveSessionResult = {
   pendingCount: Accessor<number>
 
   /** Lists eligible as destinations for a card currently in `fromId` (dest filter + not self). */
-  destinationsFor: (fromId: ListId) => ListInfo[]
-  sourceEnabled: (id: ListId) => boolean
-  destEnabled: (id: ListId) => boolean
-  toggleSource: (id: ListId) => void
-  toggleDest: (id: ListId) => void
+  destinationsFor: (fromId: ListIdentityKey) => ListInfo[]
+  sourceEnabled: (id: ListIdentityKey) => boolean
+  destEnabled: (id: ListIdentityKey) => boolean
+  toggleSource: (id: ListIdentityKey) => void
+  toggleDest: (id: ListIdentityKey) => void
   setAllSources: (on: boolean) => void
   setAllDests: (on: boolean) => void
 
@@ -145,21 +150,23 @@ export type UseMoveSessionResult = {
 const SOURCES_KEY = 'ritual:admin:move:disabled-sources'
 const DESTS_KEY = 'ritual:admin:move:disabled-dests'
 
-function loadDisabled(key: string): Set<ListId> {
+function loadDisabled(key: string): Set<ListIdentityKey> {
   if (typeof localStorage === 'undefined') return new Set()
   try {
     const raw = localStorage.getItem(key)
     if (!raw) return new Set()
     const parsed: unknown = JSON.parse(raw)
     return new Set(
-      Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [],
+      Array.isArray(parsed)
+        ? parsed.filter((v): v is ListIdentityKey => typeof v === 'string' && isListIdentityKey(v))
+        : [],
     )
   } catch {
     return new Set()
   }
 }
 
-function persistDisabled(key: string, value: Set<ListId>): void {
+function persistDisabled(key: string, value: Set<ListIdentityKey>): void {
   if (typeof localStorage === 'undefined') return
   localStorage.setItem(key, JSON.stringify([...value]))
 }
@@ -209,10 +216,10 @@ export function useMoveSession(): UseMoveSessionResult {
   const [allCards, setAllCards] = createSignal<MovePhysicalCard[]>([])
   const [pending, setPending] = createSignal<PendingMove[]>([])
 
-  const [viewedListId, setViewedListId] = createSignal<ListId | null>(null)
+  const [viewedListId, setViewedListId] = createSignal<ListIdentityKey | null>(null)
   const [search, setSearchSignal] = createSignal('')
 
-  const [richCache, setRichCache] = createSignal<Record<ListId, RichListData>>({})
+  const [richCache, setRichCache] = createSignal<Record<ListIdentityKey, RichListData>>({})
   const [viewedLoading, setViewedLoading] = createSignal(false)
   // Bumped after a commit to force the viewed list to reload from disk even though
   // its id is unchanged (the cached data is now stale).
@@ -223,8 +230,12 @@ export function useMoveSession(): UseMoveSessionResult {
     symbolMap: {},
   })
 
-  const [disabledSources, setDisabledSources] = createSignal<Set<ListId>>(loadDisabled(SOURCES_KEY))
-  const [disabledDests, setDisabledDests] = createSignal<Set<ListId>>(loadDisabled(DESTS_KEY))
+  const [disabledSources, setDisabledSources] = createSignal<Set<ListIdentityKey>>(
+    loadDisabled(SOURCES_KEY),
+  )
+  const [disabledDests, setDisabledDests] = createSignal<Set<ListIdentityKey>>(
+    loadDisabled(DESTS_KEY),
+  )
 
   // Names already fetched via the per-card printings endpoint, so re-views don't refetch.
   const fetchedCardNames = new Set<string>()
@@ -257,7 +268,8 @@ export function useMoveSession(): UseMoveSessionResult {
 
   onMount(() => void reloadBulk())
 
-  const findList = (id: ListId): ListInfo | undefined => lists().find((l) => listInfoId(l) === id)
+  const findList = (id: ListIdentityKey): ListInfo | undefined =>
+    lists().find((l) => listIdentityKey(l) === id)
 
   const viewedList = createMemo(() => {
     const id = viewedListId()
@@ -266,14 +278,14 @@ export function useMoveSession(): UseMoveSessionResult {
 
   // Fetch the selected list's rich data lazily (once), plus any moved-in cards' data.
   const loadList = async (list: ListInfo): Promise<void> => {
-    const id = listInfoId(list)
+    const id = listIdentityKey(list)
     if (richCache()[id]) return
     setViewedLoading(true)
     try {
       const endpoint =
-        list.type === 'deck'
+        list.listType === 'deck'
           ? `/api/deck/${encodeURIComponent(list.slug)}`
-          : list.type === 'collection'
+          : list.listType === 'collection'
             ? `/api/collection/${encodeURIComponent(list.slug)}`
             : `/api/wanted/${encodeURIComponent(list.slug)}`
       const resp = await fetch(endpoint, { credentials: 'same-origin' })
@@ -282,7 +294,7 @@ export function useMoveSession(): UseMoveSessionResult {
         setError(apiMessage('admin.move.loadListFailed', { name: list.name }))
         return
       }
-      if (list.type === 'deck') {
+      if (list.listType === 'deck') {
         const d = json as DeckLoadResponse
         mergeCardData({ cards: d.cards, printings: d.printings, symbolMap: d.symbolMap })
         setRichCache((prev) => ({ ...prev, [id]: { type: 'deck', deck: d.deck } }))
@@ -293,7 +305,7 @@ export function useMoveSession(): UseMoveSessionResult {
         // Narrow per type so the stored RichListData arm is checked, not cast. The load
         // endpoints return the entry shape matching the requested list type.
         const entry: RichListData =
-          list.type === 'collection'
+          list.listType === 'collection'
             ? { type: 'collection', entries: e.entries as CollectionCardEntry[], sectionOrder }
             : { type: 'wanted', entries: e.entries as WantedListCardEntry[], sectionOrder }
         setRichCache((prev) => ({ ...prev, [id]: entry }))
@@ -339,7 +351,7 @@ export function useMoveSession(): UseMoveSessionResult {
       if (!list) return
       void (async () => {
         await loadList(list)
-        const incoming = pending().filter((m) => listInfoId(m.to) === id)
+        const incoming = pending().filter((m) => listIdentityKey(m.to) === id)
         await ensureCardData(incoming.map((m) => m.source.name))
       })()
     }),
@@ -384,7 +396,7 @@ export function useMoveSession(): UseMoveSessionResult {
     const keys = pendingKeys()
     const matches = allCards().filter(
       (c) =>
-        sourceEnabled(listId(c.listType, c.listSlug)) &&
+        sourceEnabled(entryListKey(c)) &&
         !keys.has(c.key) &&
         matchesNameTerms(normalizeCardName(c.name), terms),
     )
@@ -401,14 +413,14 @@ export function useMoveSession(): UseMoveSessionResult {
   )
 
   // ── Filters ────────────────────────────────────────────────────────────────
-  const sourceEnabled = (id: ListId) => !disabledSources().has(id)
-  const destEnabled = (id: ListId) => !disabledDests().has(id)
+  const sourceEnabled = (id: ListIdentityKey) => !disabledSources().has(id)
+  const destEnabled = (id: ListIdentityKey) => !disabledDests().has(id)
 
   const toggle = (
-    get: Accessor<Set<ListId>>,
-    setSig: (v: Set<ListId>) => void,
+    get: Accessor<Set<ListIdentityKey>>,
+    setSig: (v: Set<ListIdentityKey>) => void,
     storageKey: string,
-    id: ListId,
+    id: ListIdentityKey,
   ) => {
     const next = new Set(get())
     if (next.has(id)) next.delete(id)
@@ -416,33 +428,33 @@ export function useMoveSession(): UseMoveSessionResult {
     setSig(next)
     persistDisabled(storageKey, next)
   }
-  const toggleSource = (id: ListId) => toggle(disabledSources, setDisabledSources, SOURCES_KEY, id)
-  const toggleDest = (id: ListId) => toggle(disabledDests, setDisabledDests, DESTS_KEY, id)
+  const toggleSource = (id: ListIdentityKey) =>
+    toggle(disabledSources, setDisabledSources, SOURCES_KEY, id)
+  const toggleDest = (id: ListIdentityKey) => toggle(disabledDests, setDisabledDests, DESTS_KEY, id)
 
   const setAllSources = (onState: boolean) => {
-    const next = onState ? new Set<ListId>() : new Set(lists().map(listInfoId))
+    const next = onState ? new Set<ListIdentityKey>() : new Set(lists().map(listIdentityKey))
     setDisabledSources(next)
     persistDisabled(SOURCES_KEY, next)
   }
   const setAllDests = (onState: boolean) => {
-    const next = onState ? new Set<ListId>() : new Set(lists().map(listInfoId))
+    const next = onState ? new Set<ListIdentityKey>() : new Set(lists().map(listIdentityKey))
     setDisabledDests(next)
     persistDisabled(DESTS_KEY, next)
   }
 
-  const destinationsFor = (fromId: ListId): ListInfo[] =>
-    lists().filter((l) => listInfoId(l) !== fromId && destEnabled(listInfoId(l)))
+  const destinationsFor = (fromId: ListIdentityKey): ListInfo[] =>
+    lists().filter((l) => listIdentityKey(l) !== fromId && destEnabled(listIdentityKey(l)))
 
   // ── Moving ───────────────────────────────────────────────────────────────────
   const availableToMove = (sourceList: ListInfo, target: TileTarget): number => {
-    const sourceId = listInfoId(sourceList)
+    const sourceId = listIdentityKey(sourceList)
     const keys = pendingKeys()
     const native = allCards().filter(
-      (c) =>
-        listId(c.listType, c.listSlug) === sourceId && matchesTile(c, target) && !keys.has(c.key),
+      (c) => entryListKey(c) === sourceId && matchesTile(c, target) && !keys.has(c.key),
     ).length
     const chain = pending().filter(
-      (m) => listInfoId(m.to) === sourceId && pendingMatchesTile(m, target),
+      (m) => listIdentityKey(m.to) === sourceId && pendingMatchesTile(m, target),
     ).length
     return native + chain
   }
@@ -485,16 +497,17 @@ export function useMoveSession(): UseMoveSessionResult {
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          moves: moves.map((m) => ({
+          // Typed against the route's request, so a renamed field breaks the build.
+          moves: moves.map((m): MoveCommitItem => ({
             cardKey: m.cardKey,
-            toType: m.to.type,
+            toListType: m.to.listType,
             toSlug: m.to.slug,
             set: m.dest.set,
             collectorNumber: m.dest.collectorNumber,
             finish: m.dest.finish,
             condition: m.dest.condition,
           })),
-        }),
+        } satisfies MoveCommitRequest),
       })
       const json = (await resp.json()) as MoveCommitResponse | ApiErrorResponse
       if (!json.success) {
@@ -521,7 +534,7 @@ export function useMoveSession(): UseMoveSessionResult {
     }
   }
 
-  const selectList = (id: ListId | null) => {
+  const selectList = (id: ListIdentityKey | null) => {
     setViewedListId(id)
     if (id) setSearchSignal('')
   }

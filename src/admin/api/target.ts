@@ -1,8 +1,6 @@
-import { isListType, type ListType } from '../../list/list-type'
+import { isListType } from '../../list/list-type'
+import type { ListIdentity } from '../../list/list-identity'
 import { apiMessage, type ApiMessage } from '../../api/result'
-
-/** The validated `:type` / `:slug` path target of a `/api/<area>/:type/:slug` route. */
-export type ListTarget = { type: ListType; slug: string }
 
 /**
  * Whether a string is usable as a list slug: a single file basename, with no
@@ -21,7 +19,7 @@ export function isValidListSlug(slug: string): boolean {
  * history and price routes. Reports a refusal as the message explaining it, per
  * the project's parser convention; the caller owns the status and envelope.
  */
-export function parseListTarget(req: Request): ListTarget | ApiMessage {
+export function parseListTarget(req: Request): ListIdentity | ApiMessage {
   const parts = new URL(req.url).pathname.split('/')
   const rawType = parts[3]
   const rawSlug = parts[4]
@@ -29,7 +27,7 @@ export function parseListTarget(req: Request): ListTarget | ApiMessage {
   if (!rawSlug) return apiMessage('admin.api.target.slugRequired')
   const slug = decodeURIComponent(rawSlug)
   if (!isValidListSlug(slug)) return apiMessage('admin.api.target.slugInvalid')
-  return { type: rawType, slug }
+  return { listType: rawType, slug }
 }
 
 /**

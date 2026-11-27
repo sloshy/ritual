@@ -54,7 +54,7 @@ import type {
   DeckLoadSection,
   WantedFullLoadResult,
 } from '../../../src/admin/api/load-results'
-import type { ListInfo } from '../../../src/list/list-info'
+import type { ListInfo } from '../../../src/list/list-identity'
 import type { RitualConfig } from '../../../src/config/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/config/search-debounce'
 import { fulfillJson } from './fulfill'
@@ -1071,9 +1071,9 @@ const MOVE_GROWTH_PRINTINGS = ['tst', 'pln'].map((set) =>
 )
 
 const MOVE_LISTS: ListInfo[] = [
-  { type: 'deck', slug: 'move-deck', name: 'Move Deck' },
-  { type: 'collection', slug: 'move-binder', name: 'Move Binder' },
-  { type: 'wanted', slug: 'move-wishlist', name: 'Move Wishlist' },
+  { listType: 'deck', slug: 'move-deck', name: 'Move Deck' },
+  { listType: 'collection', slug: 'move-binder', name: 'Move Binder' },
+  { listType: 'wanted', slug: 'move-wishlist', name: 'Move Wishlist' },
 ]
 
 const MOVE_DATA = {
@@ -1215,7 +1215,7 @@ export async function mockMoveCardsApi(
 
 const HISTORY_LISTS = {
   success: true,
-  lists: [{ type: 'deck', slug: 'history-deck', name: 'History Deck' }],
+  lists: [{ listType: 'deck', slug: 'history-deck', name: 'History Deck' }],
 }
 
 const HISTORY_DETAIL = {

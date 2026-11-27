@@ -129,7 +129,7 @@ function summarizeConflictReasons(conflicts: readonly ImportConflict[]): string 
 /** Print per-list applied counts, skipped conflicts, and failures after an apply. */
 function printResults(result: BundleImportResult, quiet: boolean): void {
   for (const list of result.lists) {
-    const heading = `${LIST_TYPE_DISPLAY[list.kind].icon} ${list.name}`
+    const heading = `${LIST_TYPE_DISPLAY[list.listType].icon} ${list.name}`
     // A discarded note is data loss, like a skipped change: printed even under
     // `--quiet`, and even for a list whose later batch failed (the batches
     // before it landed). In a normal run it follows the list's applied line.

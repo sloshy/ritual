@@ -126,6 +126,7 @@ beforeEach(async () => {
   await seedCardCache(dir, SEED_CARDS)
   await writeFeedCache(dir)
   await writeCollectionFile(dir, 'binder', {
+    title: 'Trade Binder',
     entries: [
       { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
       { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
@@ -167,6 +168,13 @@ describe('sell CLI (Integration)', () => {
     const bolt = payload.entries.find((e) => e.name === 'Lightning Bolt')
     expect(bolt).toMatchObject({ status: 'not-buying', sellableQuantity: 0 })
 
+    // A list is named by its display title and identified by type + slug,
+    // on its row and on every entry, as a price report names it.
+    expect(payload.lists).toMatchObject([
+      { listType: 'collection', slug: 'binder', name: 'Trade Binder' },
+    ])
+    expect(nonfoil).toMatchObject({ listName: 'Trade Binder', listSlug: 'binder' })
+
     expect(payload.totals).toMatchObject({
       listCount: 1,
       cardCount: 4,
@@ -180,7 +188,7 @@ describe('sell CLI (Integration)', () => {
   test('renders a text report with the disclaimer and totals', async () => {
     const result = await runCli(['sell', '--refresh', 'never'], dir, OFFLINE_ENV)
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('[collection] binder')
+    expect(result.stdout).toContain('[collection] Trade Binder')
     expect(result.stdout).toContain('Total: $4.40 for 3 of 4 cards across 1 list')
     expect(result.stdout).toContain(sellDisclaimer())
   })

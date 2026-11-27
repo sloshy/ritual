@@ -58,7 +58,7 @@ test.describe('Move Cards page', () => {
     await expect.poll(() => committed).not.toBeNull()
     expect(committed!.moves).toHaveLength(1)
     expect(committed!.moves[0]!.cardKey).toBe(BINDER_CARD_KEY)
-    expect(committed!.moves[0]!.toType).toBe('deck')
+    expect(committed!.moves[0]!.toListType).toBe('deck')
     expect(committed!.moves[0]!.toSlug).toBe('move-deck')
 
     // After a successful commit the queue is cleared.
@@ -137,7 +137,7 @@ test.describe('Move Cards page', () => {
     ])
     for (const move of committed!.moves) {
       expect(move).toMatchObject({
-        toType: 'collection',
+        toListType: 'collection',
         toSlug: 'move-binder',
         set: 'pln',
         collectorNumber: '7',

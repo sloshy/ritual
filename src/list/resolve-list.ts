@@ -309,8 +309,8 @@ export function listTypeFromFlags(flags: ListTypeFlags): ListType | undefined | 
  *   the mechanism for any surface taking more than one list, where one whole-command
  *   flag could not scope a single argument.
  * - `'type-field'` — the request carries a structured, per-list type field (the
- *   admin `POST /api/export` body's `{ type?, name }` refs, and the MCP `listType`
- *   that maps onto them).
+ *   admin `POST /api/export` body's `{ listType?, name }` refs, which the MCP
+ *   export tool passes straight through).
  * - `'none'` — no type selector exists: the caller is pinned to one list type
  *   (`get-primer`, the sync engines, the CSV importer, `POST /api/import-changes`,
  *   all of which resolve with a known type).

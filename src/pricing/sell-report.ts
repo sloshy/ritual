@@ -74,6 +74,13 @@ import {
   type PriceWarning,
 } from './price-report'
 import type { ListLocation } from '../list/resolve-list'
+import {
+  entryLabelOf,
+  listIdentityKey,
+  listInfoOfEntry,
+  type ListEntryLabel,
+  type ListInfo,
+} from '../list/list-identity'
 import type { ScryfallCard } from '../scryfall/types'
 
 /**
@@ -88,11 +95,12 @@ export type SellListEntry = Omit<PriceListEntry, 'cardId'> & {
 }
 
 /**
- * One list's entries, ready for matching. A sell report names (and groups) its
- * lists by slug — the identifier the card tools resolve — never by a display
- * title two lists may share, so the input carries no display name at all.
+ * One list's entries, ready for matching, named like a price input: by its
+ * display title (`name`), and identified by its type and slug — the pair a
+ * sell report groups and finds its lists by, never the title two lists may
+ * share.
  */
-export type SellListInput = Omit<PriceListInput, 'entries' | 'name'> & { entries: SellListEntry[] }
+export type SellListInput = Omit<PriceListInput, 'entries'> & { entries: SellListEntry[] }
 
 /**
  * Which lines a sell report reads: every list of `type` (or exactly
@@ -100,7 +108,7 @@ export type SellListInput = Omit<PriceListInput, 'entries' | 'name'> & { entries
  * empty `tags` narrows nothing, as an empty tag filter does everywhere.
  */
 export type SellInputScope = {
-  type?: ListType
+  listType?: ListType
   locations?: ListLocation[]
   tags?: readonly CardTag[]
 }
@@ -127,10 +135,12 @@ export const SELL_NO_MATCH_REASONS = [
 ] as const
 export type SellNoMatchReason = (typeof SELL_NO_MATCH_REASONS)[number]
 
-/** The fields every sell entry carries, whatever its match outcome. */
-export type SellEntryBase = {
-  listType: ListType
-  listName: string
+/**
+ * The fields every sell entry carries, whatever its match outcome. Its list is
+ * `listName` (the display name, for showing) and `listType` + `listSlug` (the
+ * identity, for finding it).
+ */
+export type SellEntryBase = ListEntryLabel & {
   section: string
   name: string
   quantity: number
@@ -242,10 +252,8 @@ export type SellTotals = {
   noMatchCount: number
 }
 
-export type SellListSummary = SellTotals & {
-  type: ListType
-  name: string
-}
+/** A list's sell totals, named by its display title and identified by type + slug. */
+export type SellListSummary = SellTotals & ListInfo
 
 export type SellReportTotals = SellTotals & { listCount: number }
 
@@ -300,12 +308,12 @@ function ownedKey(name: string): string {
 export function countOwnedCopies(inputs: readonly PriceListInput[]): OwnedCopiesIndex {
   const owned = new Map<string, OwnedCopies>()
   for (const input of inputs) {
-    if (input.type === 'wanted') continue
+    if (input.listType === 'wanted') continue
     for (const entry of input.entries) {
       if (isProxy(entry.labels)) continue
       const key = ownedKey(entry.name)
       const counts = owned.get(key) ?? { collection: 0, deck: 0 }
-      counts[input.type] += entry.quantity
+      counts[input.listType] += entry.quantity
       owned.set(key, counts)
     }
   }
@@ -353,10 +361,10 @@ export type SellReportPayload = {
  * language, not labels or art) and offer CK a card that does not exist.
  */
 export async function loadSellListInputs(scope: SellInputScope): Promise<LoadedSellInputs> {
-  const { type, locations, tags } = scope
-  const { inputs, warnings } = await loadPriceListInputs(type, locations)
+  const { listType, locations, tags } = scope
+  const { inputs, warnings } = await loadPriceListInputs(listType, locations)
   return {
-    inputs: inputs.map(({ name: _name, ...input }): SellListInput => ({
+    inputs: inputs.map((input): SellListInput => ({
       ...input,
       entries: aggregateSellEntries(
         input.entries.filter(
@@ -564,9 +572,7 @@ function matchEntry(
   }
 
   const base: SellEntryBase = {
-    listType: input.type,
-    // The sell payload names a list by its slug (see `SellListInput`).
-    listName: input.slug,
+    ...entryLabelOf(input),
     section: entry.section,
     name: entry.name,
     quantity: entry.quantity,
@@ -642,21 +648,24 @@ export function sumSellEntries(entries: SellReportEntry[]): SellTotals {
 export function summarizeSellEntries(
   entries: SellReportEntry[],
 ): Pick<SellReport, 'lists' | 'totals'> {
-  type ListGroup = { type: ListType; name: string; entries: SellReportEntry[] }
+  type ListGroup = { list: ListInfo; entries: SellReportEntry[] }
+  // Grouped by identity (type + slug), never by name: two lists may share a
+  // display title, and each keeps its own row.
   const groups = new Map<string, ListGroup>()
   for (const entry of entries) {
-    const key = `${entry.listType}:${entry.listName}`
+    const list = listInfoOfEntry(entry)
+    const key = listIdentityKey(list)
     const group = groups.get(key)
     if (group) group.entries.push(entry)
-    else groups.set(key, { type: entry.listType, name: entry.listName, entries: [entry] })
+    else groups.set(key, { list, entries: [entry] })
   }
 
   // Canonical type order, first-seen order within a type.
   const lists: SellListSummary[] = []
   for (const type of LIST_TYPES) {
-    for (const group of groups.values()) {
-      if (group.type !== type) continue
-      lists.push({ type: group.type, name: group.name, ...sumSellEntries(group.entries) })
+    for (const { list, entries: listEntries } of groups.values()) {
+      if (list.listType !== type) continue
+      lists.push({ ...list, ...sumSellEntries(listEntries) })
     }
   }
   return {

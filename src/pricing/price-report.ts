@@ -63,14 +63,15 @@ import {
 import { sourceCurrency, type PriceSource } from './price-source'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import { comparePrintings, computeRepresentativePrints, getCardGames } from '../scryfall'
-import { parseListContent, type ParsedListContent } from '../list/list-content'
+import { parseListContent, parsedListInfo, type ParsedListContent } from '../list/list-content'
 import { matchesAllTerms } from '../card/term-match'
 import type { DeckData } from '../list/deck'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLanguage } from '../card/card-language'
 import { normalizedTags, type CardTag } from '../card/card-tags'
 import { rewriteBlockingMessages } from '../list/unreadable-content'
-import { listWarning, type ListIdentity, type ListWarning } from '../list/list-info'
+import { listWarning, type ListWarning } from '../list/list-info'
+import { entryLabelOf, type ListEntryLabel, type ListInfo } from '../list/list-identity'
 import type { SyncMessage } from '../sync/message'
 
 /**
@@ -145,12 +146,7 @@ export function isPricelessEntry(entry: PricelessEntryFields): boolean {
 }
 
 /** One list's entries, ready for pricing. */
-export type PriceListInput = {
-  type: ListType
-  /** The list's display name: its `# Title`, else its slug. */
-  name: string
-  /** The list's slug (file basename), carried onto its summary row and entries. */
-  slug: string
+export type PriceListInput = ListInfo & {
   entries: PriceListEntry[]
 }
 
@@ -206,13 +202,11 @@ export function isByRuleUnpricedReason(
   return reason !== undefined && (BY_RULE_UNPRICED_REASONS as readonly string[]).includes(reason)
 }
 
-/** A single priced card line in the report. */
-export type PricedEntry = {
-  listType: ListType
-  /** The list's display name. */
-  listName: string
-  /** The list's slug (file basename), which with `listType` identifies the list. */
-  listSlug: string
+/**
+ * A single priced card line in the report. Its list is `listName` (the display name, for showing) and
+ * `listType` + `listSlug` (the identity, for finding it).
+ */
+export type PricedEntry = ListEntryLabel & {
   section: string
   name: string
   quantity: number
@@ -255,13 +249,7 @@ export type PriceTotals = {
   estimatedCount: number
 }
 
-export type ListPriceSummary = PriceTotals & {
-  type: ListType
-  /** The list's display name — for showing, never for finding the row (see `slug`). */
-  name: string
-  /** The list's slug (file basename): with `type`, the key a caller finds its row by. */
-  slug: string
-}
+export type ListPriceSummary = PriceTotals & ListInfo
 
 /**
  * The store a report is priced at. Every store but Card Kingdom reads
@@ -291,25 +279,6 @@ export type PriceReport = {
   currency: PriceCurrency
   lists: ListPriceSummary[]
   entries: PricedEntry[]
-}
-
-/**
- * A list's row in a report, found by its identity — never by position or
- * display name (a deck and a collection may share both a name and a slug).
- */
-export function findListRow(
-  report: Pick<PriceReport, 'lists'>,
-  { listType, slug }: ListIdentity,
-): ListPriceSummary | undefined {
-  return report.lists.find((row) => row.type === listType && row.slug === slug)
-}
-
-/** A list's priced entries in a report, in file order, found by its identity. */
-export function entriesOfList(
-  report: Pick<PriceReport, 'entries'>,
-  { listType, slug }: ListIdentity,
-): PricedEntry[] {
-  return report.entries.filter((entry) => entry.listType === listType && entry.listSlug === slug)
 }
 
 export type BuildPriceReportOptions = {
@@ -463,55 +432,44 @@ function labelsOrUndefined(
  * truly has none.
  */
 export function priceListInput(parsed: ParsedListContent, art: CardArtMap): PriceListInput {
-  const { name, slug } = parsed
-  switch (parsed.type) {
+  return { ...parsedListInfo(parsed), entries: priceListEntries(parsed, art) }
+}
+
+/** A parsed list's lines as pricing entries, by its type's line shape. */
+function priceListEntries(parsed: ParsedListContent, art: CardArtMap): PriceListEntry[] {
+  switch (parsed.listType) {
     case 'deck':
-      return {
-        type: 'deck',
-        name,
-        slug,
-        entries: deckPriceEntries(parsed.parse.deck, parsed.frontMatter.labels, art),
-      }
+      return deckPriceEntries(parsed.parse.deck, parsed.frontMatter.labels, art)
     case 'collection': {
       const { entries, labels } = parsed.parse
-      return {
-        type: 'collection',
-        name,
-        slug,
-        entries: entries.map((entry): PriceListEntry => ({
-          name: entry.name,
-          quantity: entry.quantity,
-          set: entry.set.toLowerCase(),
-          collectorNumber: entry.collectorNumber,
-          finish: entry.finish,
-          condition: entry.condition,
-          language: entry.language,
-          labels: labelsOrUndefined(entry.labels, labels),
-          hasCustomArt: customArtFlag(art, entry.cardId),
-          cardId: entry.cardId,
-          tags: normalizedTags(entry.tags),
-          section: entry.section,
-        })),
-      }
+      return entries.map((entry): PriceListEntry => ({
+        name: entry.name,
+        quantity: entry.quantity,
+        set: entry.set.toLowerCase(),
+        collectorNumber: entry.collectorNumber,
+        finish: entry.finish,
+        condition: entry.condition,
+        language: entry.language,
+        labels: labelsOrUndefined(entry.labels, labels),
+        hasCustomArt: customArtFlag(art, entry.cardId),
+        cardId: entry.cardId,
+        tags: normalizedTags(entry.tags),
+        section: entry.section,
+      }))
     }
     case 'wanted':
-      return {
-        type: 'wanted',
-        name,
-        slug,
-        entries: parsed.parse.entries.map((entry): PriceListEntry => ({
-          name: entry.name,
-          quantity: entry.quantity,
-          set: entry.set?.toLowerCase(),
-          collectorNumber: entry.collectorNumber,
-          finish: entry.finish,
-          language: entry.language,
-          hasCustomArt: customArtFlag(art, entry.cardId),
-          cardId: entry.cardId,
-          tags: normalizedTags(entry.tags),
-          section: entry.section,
-        })),
-      }
+      return parsed.parse.entries.map((entry): PriceListEntry => ({
+        name: entry.name,
+        quantity: entry.quantity,
+        set: entry.set?.toLowerCase(),
+        collectorNumber: entry.collectorNumber,
+        finish: entry.finish,
+        language: entry.language,
+        hasCustomArt: customArtFlag(art, entry.cardId),
+        cardId: entry.cardId,
+        tags: normalizedTags(entry.tags),
+        section: entry.section,
+      }))
   }
 }
 
@@ -533,7 +491,7 @@ export async function loadPriceListInputs(
   for (const location of resolvedLocations) {
     const content = await fs.readFile(location.filePath, 'utf-8')
     const parsed = parseListContent(location.type, content, location.filePath)
-    const named = { listType: parsed.type, slug: parsed.slug, name: parsed.name }
+    const named = parsedListInfo(parsed)
     const warn = (cause: SyncMessage): void => {
       warnings.push(listWarning('domain.price.inList', named, cause))
     }
@@ -621,9 +579,7 @@ function priceEntry(
     exactPrinting ?? pricing.representative ?? pricing.cheapest?.card ?? pricing.printings[0]
 
   const base: PricedEntry = {
-    listType: input.type,
-    listName: input.name,
-    listSlug: input.slug,
+    ...entryLabelOf(input),
     section: entry.section,
     name: entry.name,
     quantity: entry.quantity,
@@ -683,10 +639,10 @@ function priceEntry(
   // else (deck entries, name-only wanted entries) means "any printing".
   let lowest: number
   let cheapestPick = pricing.cheapest
-  if (input.type === 'collection' || (input.type === 'wanted' && pinned && entry.finish)) {
+  if (input.listType === 'collection' || (input.listType === 'wanted' && pinned && entry.finish)) {
     lowest = price
     cheapestPick = null
-  } else if (input.type === 'wanted' && pinned && exactPrinting) {
+  } else if (input.listType === 'wanted' && pinned && exactPrinting) {
     // "This printing, any finish" — priced from the same store as everything
     // else, or `lowest` would mix a Scryfall figure into a Card Kingdom total.
     lowest = ck
@@ -784,9 +740,9 @@ export async function buildPriceReport(
     }
     entries.push(...listEntries)
     lists.push({
-      type: input.type,
-      name: input.name,
+      listType: input.listType,
       slug: input.slug,
+      name: input.name,
       ...sumPricedEntries(listEntries),
     })
   }
@@ -813,12 +769,12 @@ export type PriceEntryFilters = {
   set?: string
   /** Exact collector number match (case-insensitive). */
   collector?: string
-  type?: ListType
+  listType?: ListType
 }
 
 /** Whether any filter field is set (a blank filter matches everything). */
 export function hasActiveFilters(filters: PriceEntryFilters): boolean {
-  return Boolean(filters.name || filters.set || filters.collector || filters.type)
+  return Boolean(filters.name || filters.set || filters.collector || filters.listType)
 }
 
 export function filterPricedEntries(
@@ -828,7 +784,7 @@ export function filterPricedEntries(
   const set = filters.set?.toLowerCase()
   const collector = filters.collector?.toLowerCase()
   return entries.filter((entry) => {
-    if (filters.type && entry.listType !== filters.type) return false
+    if (filters.listType && entry.listType !== filters.listType) return false
     if (filters.name && !matchesAllTerms(entry.name, filters.name)) return false
     if (set && entry.set?.toLowerCase() !== set) return false
     if (collector && entry.collectorNumber?.toLowerCase() !== collector) return false

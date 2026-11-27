@@ -61,10 +61,10 @@ export async function handleHistoryLoad(req: Request): Promise<Response> {
     const target = parseListTarget(req)
     if (isApiMessage(target)) return apiError(target, 400)
 
-    const filePath = await resolveListFile(target.type, target.slug)
+    const filePath = await resolveListFile(target.listType, target.slug)
     if (!filePath)
       return apiError(
-        apiMessage('admin.api.list.notFound', { listType: target.type, slug: target.slug }),
+        apiMessage('admin.api.list.notFound', { listType: target.listType, slug: target.slug }),
         404,
       )
 
@@ -77,7 +77,7 @@ export async function handleHistoryLoad(req: Request): Promise<Response> {
     let defaultEvents: ChangeEvent[] = []
     let categoryWarnings: string[] | undefined
     try {
-      const defaults = await buildDefaultChangeEventsForList(target.type, filePath)
+      const defaults = await buildDefaultChangeEventsForList(target.listType, filePath)
       defaultEvents = defaults.events
       // An unreadable categories sidecar contributes no category events; the
       // client is told, because a rewrite built from these events discards the
@@ -188,13 +188,13 @@ export async function handleHistorySave(req: Request): Promise<Response> {
     const parsedBody = await readJsonObjectBody(req, MAX_UPLOAD_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const raw: RawSaveBody = parsedBody.body
-    const sets = parseSets(raw, target.type)
+    const sets = parseSets(raw, target.listType)
     if (isSyncMessage(sets)) return nestedRefusal(sets)
 
-    const filePath = await resolveListFile(target.type, target.slug)
+    const filePath = await resolveListFile(target.listType, target.slug)
     if (!filePath)
       return apiError(
-        apiMessage('admin.api.list.notFound', { listType: target.type, slug: target.slug }),
+        apiMessage('admin.api.list.notFound', { listType: target.listType, slug: target.slug }),
         404,
       )
 

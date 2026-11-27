@@ -258,8 +258,9 @@ With `--output json` (or `ndjson`), a successful add prints exactly one machine-
 
 ```json
 {
-  "type": "collection",
-  "list": "main",
+  "listType": "collection",
+  "slug": "main",
+  "name": "Main",
   "cardName": "Lightning Bolt",
   "set": "sta",
   "collectorNumber": "42",

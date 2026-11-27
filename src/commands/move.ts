@@ -2,7 +2,8 @@ import { Command } from 'commander'
 import type { Choice } from 'prompts'
 import { promptExitMenu, ask, suggestCardsWithMenu } from '../cli/prompts'
 import { listRefDisplay, listRefMessage } from '../changes/change-message'
-import type { ListEntry } from '../list/list-info'
+import { listInfoOf, type ListEntry } from '../list/list-info'
+import type { ListInfo } from '../list/list-identity'
 import type { MoveSessionConfig, VirtualCard } from '../list/move-commit'
 import type { PhysicalCard, DroppedNote } from '../list/move-staging'
 import { loadAllLists } from '../list/list-info'
@@ -61,7 +62,6 @@ import {
 import { parseSetCode } from '../card/set-codes'
 import { printingSuffix } from '../card/card-line'
 import { languageToken, type CardLanguage } from '../card/card-language'
-import type { ListType } from '../list/list-type'
 import { t } from '../i18n/t'
 import { formatUnitList } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
@@ -364,18 +364,12 @@ type MovedCardSummary = {
   cardId?: number
 }
 
-/** A list endpoint of the move, as reported in JSON output. */
-type MoveListRefOutput = {
-  type: ListType
-  name: string
-}
-
 /** JSON success payload for a scripted move. */
 type MoveSuccessOutput = {
   moved: number
   card: MovedCardSummary
-  from: MoveListRefOutput
-  to: MoveListRefOutput
+  from: ListInfo
+  to: ListInfo
   /** Notes discarded by deck quantity-merges at the destination. */
   droppedNotes: DroppedNote[]
 }
@@ -833,8 +827,8 @@ function emitMoveSuccess(
       language: card.language,
       cardId: card.cardId,
     },
-    from: { type: from.ref.type, name: from.ref.name },
-    to: { type: to.ref.type, name: to.ref.name },
+    from: listInfoOf(from),
+    to: listInfoOf(to),
     droppedNotes,
   }
   emitOutput(payload, scripting)

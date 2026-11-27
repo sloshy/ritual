@@ -79,8 +79,8 @@ ritual lists --deck --output json
 
 ```json
 [
-  { "type": "deck", "slug": "burn", "name": "Burn" },
-  { "type": "deck", "slug": "stax", "name": "Winota Stax" }
+  { "listType": "deck", "slug": "burn", "name": "Burn" },
+  { "listType": "deck", "slug": "stax", "name": "Winota Stax" }
 ]
 ```
 
@@ -198,7 +198,7 @@ ritual lists --summary --collection --source tcgplayer --output json
 }
 ```
 
-- Each row names its list as `listType` + `slug` (the identity other tools take) and `name` (its display title). This differs from plain `ritual lists --output json`, whose rows still spell the type as `type`.
+- Each row names its list as `listType` + `slug` (the identity other tools take) and `name` (its display title). Plain `ritual lists --output json` rows use the same `listType`, `slug` and `name`.
 - `counts` is the same shape the MCP `get_list` tool's summary view reports: lines and copies, overall and per section. A row also carries the list's default `labels`, `description`, cover `image` and deck `format` when it declares them.
 - `value` (on rows and totals) is present only when priced. Its fields are the [price report's totals](/commands/price/#non-interactive-output): `estimatedCount` marks an estimate, and `unpricedCount` counts copies with no price.
 - `typeTotals` (per-type totals, each with its `listType`) is present only when the selection spans more than one type.

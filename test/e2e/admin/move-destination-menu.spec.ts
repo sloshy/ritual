@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJson } from '../helpers/fulfill'
 import { mockMoveCardsApi } from '../helpers/mock-admin'
+import type { CardIndexResponse } from '../../../src/admin/api/card-index'
+import type { ListInfo } from '../../../src/list/list-identity'
 
 // 30 destination decks → a tall "Move To…" destination menu, so it exceeds the
 // space below the anchor. Regression guard for the shared anchored-menu positioning
@@ -9,8 +11,8 @@ import { mockMoveCardsApi } from '../helpers/mock-admin'
 // bottom of the screen instead of clamping/scrolling so every option stays reachable.
 // (The edit-mode card context menu no longer lists destinations inline — it opens a
 // centered picker — so the batch Move Cards menu is now the tall anchored surface.)
-const DEST_DECKS = Array.from({ length: 30 }, (_, i) => ({
-  type: 'deck' as const,
+const DEST_DECKS: ListInfo[] = Array.from({ length: 30 }, (_, i) => ({
+  listType: 'deck',
   slug: `dest-${i + 1}`,
   name: `Destination ${i + 1}`,
 }))
@@ -24,7 +26,7 @@ test('tall move-destination menu stays within the viewport', async ({ page }) =>
   // so this override has to come second to actually serve the 30-deck payload.
   await fulfillJson(page, '**/api/card-index', {
     success: true,
-    lists: [{ type: 'collection', slug: 'move-binder', name: 'Move Binder' }, ...DEST_DECKS],
+    lists: [{ listType: 'collection', slug: 'move-binder', name: 'Move Binder' }, ...DEST_DECKS],
     cards: [
       {
         key: 'collection:move-binder:1:0',
@@ -39,7 +41,8 @@ test('tall move-destination menu stays within the viewport', async ({ page }) =>
         copyIndex: 0,
       },
     ],
-  })
+    warnings: [],
+  } satisfies CardIndexResponse)
 
   await page.locator('.admin-nav-item:has-text("Move Cards")').click()
   await expect(page.locator('.section-heading')).toContainText('Move Cards')

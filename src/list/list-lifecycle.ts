@@ -49,6 +49,11 @@ export type CreateListResult = CreateListSuccess | ListLifecycleError
 
 export type RenameListSuccess = {
   newSlug: string
+  /**
+   * The name actually written as the list's title: the requested name folded
+   * to one line and trimmed — what every surface reports as the new `name`.
+   */
+  newName: string
   newFilePath: string
   /** The path the list occupied before the rename (equal to `newFilePath` in place). */
   oldFilePath: string
@@ -389,7 +394,14 @@ export async function renameList(
     if (wasRitualClean) touchedFiles.push(hashPath(filePath))
   }
 
-  return { newSlug, newFilePath, oldFilePath: filePath, oldName, touchedFiles }
+  return {
+    newSlug,
+    newName: trimmedName,
+    newFilePath,
+    oldFilePath: filePath,
+    oldName,
+    touchedFiles,
+  }
 }
 
 /**

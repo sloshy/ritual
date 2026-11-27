@@ -45,11 +45,11 @@ export const MovePendingDialog: Component<MovePendingDialogProps> = (props) => {
                 <span class="move-pending-card">{cardLabel(move)}</span>
                 <span class="move-pending-route">
                   <span class="move-pending-from">
-                    {LIST_TYPE_DISPLAY[move.from.type].icon} {move.from.name}
+                    {LIST_TYPE_DISPLAY[move.from.listType].icon} {move.from.name}
                   </span>
                   <span class="move-pending-arrow">→</span>
                   <span class="move-pending-to">
-                    {LIST_TYPE_DISPLAY[move.to.type].icon} {move.to.name}
+                    {LIST_TYPE_DISPLAY[move.to.listType].icon} {move.to.name}
                   </span>
                 </span>
                 <button

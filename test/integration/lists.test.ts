@@ -52,16 +52,16 @@ describe('lists CLI (Integration)', () => {
     })
   })
 
-  test('--output json emits {type, slug, name} rows', async () => {
+  test('--output json emits {listType, slug, name} rows', async () => {
     await withWorkspace(async (dir) => {
       await seedLists(dir)
       const result = await runCli(['lists', '--deck', '--output', 'json'], dir)
       expect(result.exitCode).toBe(0)
 
-      const rows = JSON.parse(result.stdout) as { type: string; slug: string; name: string }[]
+      const rows = JSON.parse(result.stdout) as { listType: string; slug: string; name: string }[]
       expect(rows).toEqual([
-        { type: 'deck', slug: 'burn', name: 'Burn' },
-        { type: 'deck', slug: 'stax', name: 'Winota Stax' },
+        { listType: 'deck', slug: 'burn', name: 'Burn' },
+        { listType: 'deck', slug: 'stax', name: 'Winota Stax' },
       ])
     })
   })

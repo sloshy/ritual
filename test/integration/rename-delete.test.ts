@@ -76,19 +76,19 @@ describe('rename CLI (Integration)', () => {
       expect(result.exitCode).toBe(0)
 
       const payload = JSON.parse(result.stdout) as {
-        type: string
-        oldSlug: string
-        newSlug: string
+        listType: string
+        slug: string
         name: string
+        oldSlug: string
         newFilePath: string
         oldFilePath: string
       }
       const filePath = path.join(dir, 'collections', 'main.md')
       expect(payload).toEqual({
-        type: 'collection',
-        oldSlug: 'main',
-        newSlug: 'main',
+        listType: 'collection',
+        slug: 'main',
         name: 'main',
+        oldSlug: 'main',
         newFilePath: filePath,
         oldFilePath: filePath,
       })
@@ -187,15 +187,17 @@ describe('delete CLI (Integration)', () => {
 
       const decksDirForPayload = path.join(dir, 'decks')
       const payload = JSON.parse(result.stdout) as {
-        type: string
+        listType: string
         slug: string
+        name: string
         deleted: boolean
         deletedFiles: string[]
         trashDir: string
       }
       expect(payload).toEqual({
-        type: 'deck',
+        listType: 'deck',
         slug: 'test',
+        name: 'Test Deck',
         deleted: true,
         trashDir: expect.any(String),
         deletedFiles: [

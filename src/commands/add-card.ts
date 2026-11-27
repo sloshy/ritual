@@ -51,7 +51,9 @@ import {
   parseSetFlag,
   tagsFlagParser,
   resolveListTypeFlag,
+  type CardCommandResultBase,
 } from '../cli/options'
+import type { ListInfo } from '../list/list-identity'
 import type { RefreshMode } from '../cache/refresh'
 import { appendChangelog } from '../changes/changelog-writer'
 import { createAddChange, type ConditionUpdate } from '../changes/change-event'
@@ -166,11 +168,13 @@ type AddCardTarget = {
   requestedName?: string
 }
 
+/** The list a payload names: its type, slug (file name) and display name. */
+function listTargetInfo(target: AddCardTarget): ListInfo {
+  return { listType: target.type, slug: target.name, name: target.displayName }
+}
+
 /** The JSON/NDJSON success payload. Set codes are lowercase (internal form). */
-type AddCardSuccess = {
-  type: ListType
-  list: string
-  cardName: string
+type AddCardSuccess = Omit<CardCommandResultBase, 'cardId'> & {
   set?: string
   collectorNumber?: string
   finish?: Finish
@@ -182,6 +186,7 @@ type AddCardSuccess = {
   /** The tags the new line carries, canonical; omitted when none. */
   tags?: CardTag[]
   quantity?: number
+  /** Always assigned: an add allocates the new line's id. */
   cardId: number
   /** Deck adds only: the section the card's line ended up in. */
   section?: string
@@ -691,8 +696,7 @@ async function addToDeck(
   const dryRun = options.dryRun ?? false
   emitSuccess(
     {
-      type: 'deck',
-      list: target.name,
+      ...listTargetInfo(target),
       cardName: selectedName,
       set: card.set,
       collectorNumber: card.collectorNumber,
@@ -779,8 +783,7 @@ async function addToCollection(
 
   emitSuccess(
     {
-      type: 'collection',
-      list: target.name,
+      ...listTargetInfo(target),
       cardName: selectedName,
       set: printing.set.toLowerCase(),
       collectorNumber: printing.collector_number,
@@ -902,8 +905,7 @@ async function addToWanted(
     }
     emitSuccess(
       {
-        type: 'wanted',
-        list: target.name,
+        ...listTargetInfo(target),
         cardName: selectedName,
         finish: options.finish,
         language,
@@ -961,8 +963,7 @@ async function addToWanted(
 
   emitSuccess(
     {
-      type: 'wanted',
-      list: target.name,
+      ...listTargetInfo(target),
       cardName: selectedName,
       set: printing.set.toLowerCase(),
       collectorNumber: printing.collector_number,

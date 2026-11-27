@@ -729,7 +729,7 @@ describe('cleanup CLI (Integration)', () => {
       }
       expect(report.warnings).toEqual([])
       expect(report.files).toHaveLength(1)
-      expect(report.files[0]).toMatchObject({ type: 'wanted', renamedTo: 'Binder.md' })
+      expect(report.files[0]).toMatchObject({ listType: 'wanted', renamedTo: 'Binder.md' })
     })
   })
 })

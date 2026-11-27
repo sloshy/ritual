@@ -1,3 +1,9 @@
+import {
+  findByListIdentity,
+  isListIdentityKey,
+  listIdentityKey,
+  type ListInfo,
+} from '../../../list/list-identity'
 import { type JSX, Show, Switch, Match, For, createSignal, createMemo, onCleanup } from 'solid-js'
 import { useApiText } from '../hooks/useApiAction'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
@@ -10,14 +16,13 @@ import type { CardContextInfo } from '../../../list-view/card-context'
 import { DeckPage } from '../../../site/DeckPage'
 import { CollectionPage } from '../../../site/CollectionPage'
 import { WantedListPage } from '../../../site/WantedListPage'
-import type { ListInfo } from '../../../list/list-info'
 import {
   type TileTarget,
   type MoveDestPrinting,
   type CardGroup,
   needsPrintingFor,
 } from '../move-overlay'
-import { listInfoId, groupListsByType } from '../list-grouping'
+import { groupListsByType } from '../list-grouping'
 import { listInfosToNamedRefs } from '../move-targets'
 import { moveStatusText, useMoveSession } from '../hooks/useMoveSession'
 import { StatusAlerts } from '../components/StatusAlerts'
@@ -91,8 +96,8 @@ export function MoveCards(): JSX.Element {
     t('admin.move.unsavedWarning', { count: session.pendingCount() }),
   )
 
-  const listNameOf = (type: ListInfo['type'], slug: string): string =>
-    session.lists().find((l) => l.type === type && l.slug === slug)?.name ?? slug
+  const listNameOf = (listType: ListInfo['listType'], slug: string): string =>
+    findByListIdentity(session.lists(), { listType, slug })?.name ?? slug
 
   // ── Move flow ────────────────────────────────────────────────────────────────
   const openMoveMenu = (sourceList: ListInfo, target: TileTarget, anchorRect: DOMRect) => {
@@ -113,7 +118,7 @@ export function MoveCards(): JSX.Element {
       condition: f.target.condition,
     }
     // A collection requires a specific printing; prompt for one when the card lacks it.
-    if (needsPrintingFor(dest.type, printing)) {
+    if (needsPrintingFor(dest.listType, printing)) {
       setFlow({ ...f, step: 'printing', dest })
       return
     }
@@ -163,7 +168,7 @@ export function MoveCards(): JSX.Element {
 
   const handleSearchMove = (group: CardGroup, rect: DOMRect) => {
     const source: ListInfo = {
-      type: group.listType,
+      listType: group.listType,
       slug: group.listSlug,
       name: listNameOf(group.listType, group.listSlug),
     }
@@ -181,7 +186,7 @@ export function MoveCards(): JSX.Element {
   // ── List selector ────────────────────────────────────────────────────────────
   const onSelectorChange = (e: Event) => {
     const value = (e.currentTarget as HTMLSelectElement).value
-    session.selectList(value ? value : null)
+    session.selectList(isListIdentityKey(value) ? value : null)
   }
 
   const listsByType = createMemo(() => groupListsByType(session.lists()))
@@ -244,7 +249,7 @@ export function MoveCards(): JSX.Element {
               {(group) => (
                 <optgroup label={tKey(group.labelKey)}>
                   <For each={group.lists}>
-                    {(list) => <option value={listInfoId(list)}>{list.name}</option>}
+                    {(list) => <option value={listIdentityKey(list)}>{list.name}</option>}
                   </For>
                 </optgroup>
               )}
@@ -408,7 +413,7 @@ export function MoveCards(): JSX.Element {
           <MoveDestinationMenu
             cardName={f().target.cardName}
             anchorRect={f().anchorRect}
-            destinations={session.destinationsFor(listInfoId(f().sourceList))}
+            destinations={session.destinationsFor(listIdentityKey(f().sourceList))}
             onSelect={chooseDest}
             onClose={cancelFlow}
           />

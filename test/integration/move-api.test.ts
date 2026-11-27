@@ -72,7 +72,7 @@ describe('move API', () => {
     const data = await loadData()
     const card = findCard(data, 'Lightning Bolt')
 
-    const result = await commit([{ cardKey: card.key, toType: 'collection', toSlug: 'dst' }])
+    const result = await commit([{ cardKey: card.key, toListType: 'collection', toSlug: 'dst' }])
     expect(result.success).toBe(true)
     expect(result.moved).toBe(1)
     expect(result.skipped).toBe(0)
@@ -97,7 +97,7 @@ describe('move API', () => {
     const result = await commit([
       {
         cardKey: card.key,
-        toType: 'collection',
+        toListType: 'collection',
         toSlug: 'binder',
         set: '2XM',
         collectorNumber: '270',
@@ -121,7 +121,7 @@ describe('move API', () => {
     await writeCollectionFile(tmpDir, 'dst', { title: 'Dest', entries: [] })
 
     const result = await commit([
-      { cardKey: 'collection:src:999:0', toType: 'collection', toSlug: 'dst' },
+      { cardKey: 'collection:src:999:0', toListType: 'collection', toSlug: 'dst' },
     ])
     expect(result.success).toBe(true)
     expect(result.moved).toBe(0)
@@ -145,7 +145,7 @@ describe('move API', () => {
 
     const data = await loadData()
     const card = findCard(data, 'Sol Ring')
-    const result = await commit([{ cardKey: card.key, toType: 'collection', toSlug: 'dst' }])
+    const result = await commit([{ cardKey: card.key, toListType: 'collection', toSlug: 'dst' }])
     expect(result.moved).toBe(1)
 
     const subject = execSync('git log -1 --pretty=%s', { cwd: tmpDir, encoding: 'utf-8' }).trim()
@@ -179,7 +179,7 @@ describe('move API', () => {
     const card = findCard(data, 'Duress')
 
     const result = await commit([
-      { cardKey: card.key, toType: 'deck', toSlug: 'my-deck', toSection: 'Sideboard' },
+      { cardKey: card.key, toListType: 'deck', toSlug: 'my-deck', toSection: 'Sideboard' },
     ])
     expect(result.moved).toBe(1)
     // No quantity-merge happened, so nothing was dropped.
@@ -212,7 +212,7 @@ describe('move API', () => {
     // The load endpoint returns both copies; pick the collection one as the source.
     const source = data.cards.find((c) => c.name === 'Sol Ring' && c.listType === 'collection')!
 
-    const result = await commit([{ cardKey: source.key, toType: 'deck', toSlug: 'my-deck' }])
+    const result = await commit([{ cardKey: source.key, toListType: 'deck', toSlug: 'my-deck' }])
     expect(result.moved).toBe(1)
     expect(result.droppedNotes).toEqual([{ cardName: 'Sol Ring', cardId: 3, note: 'from trade' }])
   })
@@ -229,7 +229,7 @@ describe('move API', () => {
         moves: [
           {
             cardKey: 'collection:binder:1:0',
-            toType: 'collection',
+            toListType: 'collection',
             toSlug: 'binder',
             toSection: 'Main',
           },
@@ -254,7 +254,7 @@ describe('move API', () => {
     const card = findCard(data, 'Sol Ring')
 
     const result = await commit([
-      { cardKey: card.key, toType: 'collection', toSlug: 'dst', language: 'ja' },
+      { cardKey: card.key, toListType: 'collection', toSlug: 'dst', language: 'ja' },
     ])
     expect(result.moved).toBe(1)
     expect(await fs.readFile(dstPath, 'utf-8')).toContain('Sol Ring (C21:240) [ja]')
@@ -273,7 +273,12 @@ describe('move API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         moves: [
-          { cardKey: 'collection:src:1:0', toType: 'collection', toSlug: 'dst', language: 'jp' },
+          {
+            cardKey: 'collection:src:1:0',
+            toListType: 'collection',
+            toSlug: 'dst',
+            language: 'jp',
+          },
         ],
       }),
     })
@@ -292,7 +297,7 @@ describe('move API', () => {
         moves: [
           {
             cardKey: 'collection:src:1:0',
-            toType: 'collection',
+            toListType: 'collection',
             toSlug: 'dst',
             set: 'lea',
             collectorNumber: '161\n- Black Lotus (LEA:232) &9',
@@ -321,8 +326,8 @@ describe('move API', () => {
     const req = new Request('http://localhost/api/move/commit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // cardKey must be a string and toType must be a valid list type.
-      body: JSON.stringify({ moves: [{ cardKey: 123, toType: 'bogus', toSlug: 'dst' }] }),
+      // cardKey must be a string and toListType must be a valid list type.
+      body: JSON.stringify({ moves: [{ cardKey: 123, toListType: 'bogus', toSlug: 'dst' }] }),
     })
     const resp = await handleMoveCommit(req)
     expect(resp.status).toBe(400)

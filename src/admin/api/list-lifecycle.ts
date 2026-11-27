@@ -1,4 +1,5 @@
 import { workspaceListTypeNoun, type ListType } from '../../list/list-type'
+import type { ListInfo } from '../../list/list-identity'
 import {
   createList,
   deleteList,
@@ -44,18 +45,25 @@ export interface ListCreateResponse extends ApiMessage {
   slug: string
 }
 
-/** `POST /api/{deck,collection,wanted}/:slug/rename` — where the list moved to. */
-export interface ListRenameResponse extends ApiMessage {
+/**
+ * `POST /api/{deck,collection,wanted}/:slug/rename` — the renamed list as it is
+ * now (`listType`, its new `slug`, its new title as `name`) and where it moved.
+ */
+export interface ListRenameResponse extends ApiMessage, ListInfo {
   success: true
-  newSlug: string
+  /** The slug the list was addressed by before the rename. */
+  oldSlug: string
   /** The list's path after the rename — a client should not have to rebuild it. */
   newFilePath: string
   /** Its path before, so a client holding the old path can follow the move. */
   oldFilePath: string
 }
 
-/** `DELETE /api/{deck,collection,wanted}/:slug` — the list is gone, its files in the trash. */
-export interface ListDeleteResponse extends ApiMessage, DeleteListSuccess {
+/**
+ * `DELETE /api/{deck,collection,wanted}/:slug` — the list that is gone (as it
+ * was named before the delete), and its files in the trash.
+ */
+export interface ListDeleteResponse extends ApiMessage, ListInfo, DeleteListSuccess {
   success: true
 }
 
@@ -121,20 +129,22 @@ export function handleListRename(req: Request, cfg: ListLifecycleConfig): Promis
     const target = await resolveTargetFile(parsedSlug.slug, cfg)
     if (!target.ok) return target.response
 
-    const trimmedName = newName.trim()
-    const result = await renameList(cfg.kind, target.filePath, trimmedName)
+    const result = await renameList(cfg.kind, target.filePath, newName)
     if (isListLifecycleError(result)) return lifecycleErrorResponse(result)
 
     await autoCommitAndPush(
       cfg.getDir(),
       result.touchedFiles,
-      `Rename ${workspaceListTypeNoun(cfg.kind)}: ${result.oldName} → ${trimmedName}`,
+      `Rename ${workspaceListTypeNoun(cfg.kind)}: ${result.oldName} → ${result.newName}`,
     )
 
     const resp: ListRenameResponse = {
       success: true,
-      ...apiMessage('admin.api.list.renamed', { listType: cfg.kind, name: trimmedName }),
-      newSlug: result.newSlug,
+      ...apiMessage('admin.api.list.renamed', { listType: cfg.kind, name: result.newName }),
+      listType: cfg.kind,
+      slug: result.newSlug,
+      name: result.newName,
+      oldSlug: parsedSlug.slug,
       newFilePath: result.newFilePath,
       oldFilePath: result.oldFilePath,
     }
@@ -180,6 +190,9 @@ export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promis
         name: displayName,
         trash: workspaceRelative(result.trashDir),
       }),
+      listType: cfg.kind,
+      slug: parsedSlug.slug,
+      name: displayName,
       deletedFiles: result.deletedFiles,
       trashDir: result.trashDir,
     }

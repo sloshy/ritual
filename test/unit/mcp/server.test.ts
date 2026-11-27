@@ -48,6 +48,7 @@ import {
 } from './harness'
 import { stubFetch } from '../../helpers/stub-fetch'
 import { writeCollectionFile, writeDeckFile } from '../../helpers/workspace'
+import type { DeleteListResult, RenameListResult } from '../../../src/mcp/tools/destructive-tools'
 
 // In registration order (read → write → destructive, as server.ts registers
 // them) — the catalogue test asserts ordered equality to pin `tools/list`
@@ -1903,14 +1904,20 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(parsed.cards).toBeUndefined()
   })
 
-  test('rename_list renames a list on disk and reports both file paths', async () => {
+  test('rename_list renames a list on disk and reports it as a list plus both file paths', async () => {
     const renamed = await callTool(client, 'rename_list', {
       listType: 'wanted',
       slug: 'wishlist',
       newName: 'Big Wants',
     })
     expect(renamed.isError).toBeFalsy()
-    const paths = toolData<{ newFilePath: string; oldFilePath: string }>(renamed)
+    const paths = toolData<RenameListResult>(renamed)
+    expect(paths).toMatchObject({
+      listType: 'wanted',
+      slug: 'Big Wants',
+      name: 'Big Wants',
+      oldSlug: 'wishlist',
+    })
     expect(paths.oldFilePath.endsWith('wishlist.md')).toBe(true)
     expect(paths.newFilePath.endsWith('Big Wants.md')).toBe(true)
 
@@ -1952,7 +1959,8 @@ describe('Ritual MCP server (in-memory transport)', () => {
       confirmName: 'Test Deck',
     })
     expect(right.isError).toBeFalsy()
-    const deleted = toolData<{ deletedFiles: string[] }>(right)
+    const deleted = toolData<DeleteListResult>(right)
+    expect(deleted).toMatchObject({ listType: 'deck', slug: 'test-deck' })
     expect(deleted.deletedFiles.some((f) => f.endsWith('test-deck.md'))).toBe(true)
 
     const lists = toolData<{

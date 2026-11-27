@@ -235,7 +235,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
   "failedCount": 0,
   "lists": [
     {
-      "kind": "deck",
+      "listType": "deck",
       "slug": "Winota Stax",
       "name": "Winota Stax",
       "applied": 1,
@@ -243,7 +243,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
       "droppedNotes": [{ "cardName": "Sol Ring", "cardId": 3, "note": "from trade" }]
     },
     {
-      "kind": "collection",
+      "listType": "collection",
       "slug": "binder",
       "name": "Binder",
       "applied": 1,
@@ -258,7 +258,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 
 **Conflicts.** Changes whose target card no longer exists, whose action cannot apply to that list (a commander change aimed at a collection), or which would set a foil/etched finish on a card that pins no printing are skipped and reported in that list's `conflicts` as `{ change, reason }`, where `reason` is `"target-not-found"`, `"not-applicable"`, or `"needs-printing"`.
 
-**Moves.** Each entry of `moves` is applied on its destination list as a `move-to`: that save adds the copy there, takes it out of the source list (by the source line id the move names, else by the exact printing, else by name for a printing-less source line), and writes both changelogs. A destination named only by a move is resolved by its slug, then by its name, and reported as a list of its own (`slug` is the file basename it resolved to). `lists[].applied` counts moves arriving in the list; a replacement printing written back to a move's source list is not counted.
+**Moves.** Each entry of `moves` is applied on its destination list as a `move-to`: that save adds the copy there, takes it out of the source list (by the source line id the move names, else by the exact printing, else by name for a printing-less source line), and writes both changelogs. A destination named only by a move is resolved by its slug, then by its name, and reported as a list of its own (`slug` is the file basename it resolved to). Each `lists[]` entry names its list by `listType`, `slug` and `name` (the bundle's own `kind` is input vocabulary only). `lists[].applied` counts moves arriving in the list; a replacement printing written back to a move's source list is not counted.
 
 **Dropped notes.** Each list's `droppedNotes` gathers its saves' own `droppedNotes` (see [Save a List](/admin/api/lists/#save-a-list)): a moved card that merged onto a deck line already holding a different note keeps the line's note. Each distinct note is listed once. Empty when none.
 
@@ -276,7 +276,7 @@ Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collecti
 
 ```json
 {
-  "lists": [{ "type": "deck", "name": "Winota Stax" }],
+  "lists": [{ "listType": "deck", "name": "Winota Stax" }],
   "cards": ["sol ring"],
   "filters": {
     "name": "sol",
@@ -298,7 +298,7 @@ Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collecti
 
 Selection:
 
-- `lists` names resolve like CLI list arguments; the optional `type` pins an ambiguous name.
+- `lists` names resolve like CLI list arguments; the optional `listType` pins an ambiguous name.
 - Each `cards` entry is whitespace-separated name terms. Every entry across all lists whose name matches all terms is added, deduplicated against the selected lists.
 - `filters.conditions` takes condition grades and/or `none` (cards with no condition marked), matching the CLI's `--condition`.
 - `filters.labels` takes label values (`sale`, `trade`, `keep`, `proxy`) and/or `none` (unlabeled), matched against each deck and collection card's effective labels like the CLI's `--labels`. Wanted entries carry no labels and never match.

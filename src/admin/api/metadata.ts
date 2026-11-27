@@ -378,22 +378,22 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
     const read = await readJsonObjectBody(req, MAX_METADATA_BODY_SIZE)
     if (!read.ok) return read.response
 
-    if (target.type !== 'deck') {
+    if (target.listType !== 'deck') {
       // One branch for both flat list types: they differ only in which keys
       // their vocabulary admits, which `parseFlatListMetadataBody` already knows.
-      const parsed = parseFlatListMetadataBody(read.body, target.type)
+      const parsed = parseFlatListMetadataBody(read.body, target.listType)
       if (isSyncMessage(parsed)) return nestedRefusal(parsed)
 
-      const filePath = await resolveListFile(target.type, target.slug)
+      const filePath = await resolveListFile(target.listType, target.slug)
       if (!filePath) {
         return apiError(
-          apiMessage('admin.api.list.notFound', { listType: target.type, slug: target.slug }),
+          apiMessage('admin.api.list.notFound', { listType: target.listType, slug: target.slug }),
           404,
         )
       }
 
       if (parsed.contentHash !== undefined) {
-        const validation = await validateContentHash(filePath, parsed.contentHash, target.type)
+        const validation = await validateContentHash(filePath, parsed.contentHash, target.listType)
         if (!validation.valid) return validation.response
       }
 
@@ -406,7 +406,7 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
       await autoCommitAndPush(
         getBaseDir(),
         write.writtenFiles,
-        `Update metadata for ${target.type} ${target.slug}`,
+        `Update metadata for ${target.listType} ${target.slug}`,
       )
 
       const response: MetadataResponse = {

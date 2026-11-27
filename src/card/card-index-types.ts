@@ -7,6 +7,7 @@
  * `card-index.ts` importing them from `move.ts` inverted that dependency.
  */
 
+import type { ListEntryOrigin } from '../list/list-identity'
 import type { Condition, Finish } from './finish-condition'
 import type { CardLanguage } from './card-language'
 import type { ListType } from '../list/list-type'
@@ -17,10 +18,8 @@ import type { ListType } from '../list/list-type'
  * ever seeing absolute server paths. Deck entries with quantity > 1 expand to one
  * card per copy (distinguished by `copyIndex`).
  */
-export type MovePhysicalCard = {
+export type MovePhysicalCard = ListEntryOrigin & {
   key: string
-  listType: ListType
-  listSlug: string
   name: string
   set?: string
   collectorNumber?: string

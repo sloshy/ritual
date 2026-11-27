@@ -7,7 +7,6 @@ import {
   formatEntryChoiceTitle,
   formatEntryDetailLines,
   formatListChoiceTitle,
-  listRowName,
   formatPriceLegend,
   formatPrintingPriceLines,
   formatSummaryHeaderLines,
@@ -18,6 +17,8 @@ import {
   type CardBrowserSelection,
   type PriceMainSelection,
 } from '../../src/commands/price-browser'
+import { listRowName } from '../../src/cli/list-row-name'
+import { listInfoOfEntry } from '../../src/list/list-identity'
 import { UNRANKED_EDHREC } from '../../src/card/card-printing'
 import { formatTotalsSegment } from '../../src/cli/price-format'
 import type { PriceTotals, PricedEntry } from '../../src/pricing/price-report'
@@ -286,25 +287,31 @@ describe('listRowName', () => {
 
 describe('formatEntryChoiceTitle', () => {
   test('marks representative printings with an asterisk', () => {
-    expect(formatEntryChoiceTitle(entry({ pinned: false }), 'usd', false)).toBe(
+    expect(formatEntryChoiceTitle(entry({ pinned: false }), 'usd')).toBe(
       'Sol Ring (C19:221)* — $2.00',
     )
-    expect(formatEntryChoiceTitle(entry(), 'usd', false)).toBe('Sol Ring (C19:221) — $2.00')
+    expect(formatEntryChoiceTitle(entry(), 'usd')).toBe('Sol Ring (C19:221) — $2.00')
   })
 
   test('shows quantity multiplier, line total, lowest, finish, and source', () => {
-    const title = formatEntryChoiceTitle(
-      entry({ quantity: 2, price: 3, lowest: 1, finish: 'foil' }),
-      'usd',
-      true,
-    )
+    const shown = entry({ quantity: 2, price: 3, lowest: 1, finish: 'foil' })
+    const title = formatEntryChoiceTitle(shown, 'usd', [listInfoOfEntry(shown)])
     expect(title).toStartWith('2x Sol Ring (C19:221) [foil] — $6.00 · lowest $2.00')
     expect(title).toEndWith('My Deck')
   })
 
+  test('a source title another shown list shares gains its slug', () => {
+    const shown = entry({ listSlug: 'deck-one' })
+    const sources = [
+      listInfoOfEntry(shown),
+      { listType: shown.listType, slug: 'deck-two', name: shown.listName },
+    ]
+    expect(formatEntryChoiceTitle(shown, 'usd', sources)).toEndWith('My Deck (deck-one)')
+  })
+
   test("leads a multi-copy row with the CLI language's quantity form", () => {
     withSyntheticLocale('en-XA', pseudoCatalog(), () => {
-      const title = formatEntryChoiceTitle(entry({ quantity: 2 }), 'usd', false)
+      const title = formatEntryChoiceTitle(entry({ quantity: 2 }), 'usd')
       const [before] = pseudoString('cli.row.quantity').split('{item}')
       expect(title).toStartWith(before!.replace('{count}', '2'))
     })
@@ -312,7 +319,7 @@ describe('formatEntryChoiceTitle', () => {
 
   test("words the lowest-price note in the CLI's language", () => {
     withSyntheticLocale('en-XA', pseudoCatalog(), () => {
-      const title = formatEntryChoiceTitle(entry({ price: 3, lowest: 1 }), 'usd', false)
+      const title = formatEntryChoiceTitle(entry({ price: 3, lowest: 1 }), 'usd')
       expect(title).toEndWith(
         ` · ${pseudoString('cli.price.rowLowest').replace('{price}', '$1.00')}`,
       )
@@ -320,24 +327,20 @@ describe('formatEntryChoiceTitle', () => {
   })
 
   test('renders unpriced entries as N/A', () => {
-    expect(formatEntryChoiceTitle(entry({ price: 0, lowest: 0 }), 'usd', false)).toBe(
+    expect(formatEntryChoiceTitle(entry({ price: 0, lowest: 0 }), 'usd')).toBe(
       'Sol Ring (C19:221) — N/A',
     )
   })
 
   test('marks a proxy instead of reporting a missing price', () => {
     expect(
-      formatEntryChoiceTitle(entry({ price: 0, lowest: 0, unpricedReason: 'proxy' }), 'usd', false),
+      formatEntryChoiceTitle(entry({ price: 0, lowest: 0, unpricedReason: 'proxy' }), 'usd'),
     ).toBe('Sol Ring (C19:221) — PROXY')
   })
 
   test('marks a custom-art card with its own marker', () => {
     expect(
-      formatEntryChoiceTitle(
-        entry({ price: 0, lowest: 0, unpricedReason: 'custom-art' }),
-        'usd',
-        false,
-      ),
+      formatEntryChoiceTitle(entry({ price: 0, lowest: 0, unpricedReason: 'custom-art' }), 'usd'),
     ).toBe('Sol Ring (C19:221) — CUSTOM')
   })
 })

@@ -4,12 +4,12 @@ import {
   isDiffBy,
   isListDiffEmpty,
   type DiffBy,
-  type DiffListRef,
   type DiffMatch,
   type DiffOnly,
   type DiffPrinting,
   type ListDiffResult,
 } from '../changes/list-diff'
+import type { ListInfo } from '../list/list-identity'
 import {
   isResolveListError,
   parseListArgument,
@@ -65,7 +65,7 @@ async function resolveSide(
 /** Labels for the two sides in text output; falls back to `type:slug` on a name collision. */
 type SideLabels = { a: string; b: string }
 
-function sideLabels(a: DiffListRef, b: DiffListRef): SideLabels {
+function sideLabels(a: ListInfo, b: ListInfo): SideLabels {
   if (a.name === b.name) {
     return { a: `${a.listType}:${a.slug}`, b: `${b.listType}:${b.slug}` }
   }
@@ -140,7 +140,7 @@ function formatMismatchLine(match: DiffMatch, by: DiffBy, labels: SideLabels): s
 }
 
 /** Render the human-readable diff: the three sections, or the identical-lists line. */
-export function renderTextDiff(a: DiffListRef, b: DiffListRef, result: ListDiffResult): string {
+export function renderTextDiff(a: ListInfo, b: ListInfo, result: ListDiffResult): string {
   if (isListDiffEmpty(result)) return t('cli.diff.identical', { by: result.by })
 
   const labels = sideLabels(a, b)

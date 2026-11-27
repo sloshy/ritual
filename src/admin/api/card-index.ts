@@ -1,8 +1,8 @@
 import { isListType, LIST_TYPES, type ListType } from '../../list/list-type'
-import { loadAllLists } from '../../list/list-info'
+import { listInfoOf, loadAllLists } from '../../list/list-info'
 import { loadPhysicalCards } from '../../list/move-commit'
 import { listSlug } from '../../list/list-file-name'
-import type { ListInfo } from '../../list/list-info'
+import type { ListInfo } from '../../list/list-identity'
 import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../card/term-match'
 import { moveCardKey, type MovePhysicalCard } from '../../card/card-index-types'
 import { isValidListSlug } from './target'
@@ -94,16 +94,10 @@ export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters
 async function loadCardIndex(): Promise<CardIndexResponse> {
   const lists = await loadAllLists()
   const { cards: physical, warnings } = await loadPhysicalCards(lists)
-  const slugByPath = new Map(lists.map((l) => [l.filePath, listSlug(l.filePath)]))
-
-  const listInfos: ListInfo[] = lists.map((l) => ({
-    type: l.ref.type,
-    slug: slugByPath.get(l.filePath)!,
-    name: l.ref.name,
-  }))
+  const listInfos = lists.map(listInfoOf)
 
   const cards: MovePhysicalCard[] = physical.map((pc) => {
-    const slug = slugByPath.get(pc.listEntry.filePath)!
+    const slug = listSlug(pc.listEntry.filePath)
     return {
       key: moveCardKey(pc.listEntry.ref.type, slug, pc.cardId, pc.name, pc.copyIndex),
       listType: pc.listEntry.ref.type,

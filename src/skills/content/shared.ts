@@ -242,7 +242,7 @@ export function priceIntro(options: PriceIntroOptions): string {
       `printing marks one the line does not pin, the cheapest-printing total reads ` +
       `\`Lowest possible $X\`, and a legend under the listing explains whichever ` +
       `of these it shows (\`--quiet\` drops it). Under \`--output json\` the ` +
-      `list's totals are \`list\` (\`type\`, \`slug\`, \`name\`, \`total\`, …) and ` +
+      `list's totals are \`list\` (\`listType\`, \`slug\`, \`name\`, \`total\`, …) and ` +
       `each \`warnings\` entry is a message object (\`message\`, \`messageKey\`, ` +
       `\`messageParams\`) naming its list as \`list: {listType, slug}\`; match on ` +
       `\`messageKey\`, never the prose. An ` +

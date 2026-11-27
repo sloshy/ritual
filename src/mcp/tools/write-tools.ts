@@ -1013,7 +1013,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         const body: SelectedMoveRequest = {
           moves: moves.map((m): SelectedMoveItem => ({
             ...toEntryTarget(m),
-            toType: m.toListType,
+            toListType: m.toListType,
             toSlug: m.toSlug,
             toSection: m.toSection,
             set: m.set,

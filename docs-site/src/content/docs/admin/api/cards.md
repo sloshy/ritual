@@ -264,7 +264,7 @@ Only `cards` is filtered. `lists` is always the full roster, because clients ren
 ```json
 {
   "success": true,
-  "lists": [{ "type": "collection", "slug": "binder", "name": "Binder" }],
+  "lists": [{ "listType": "collection", "slug": "binder", "name": "Binder" }],
   "cards": [
     {
       "key": "collection:binder:1:0",
@@ -307,7 +307,7 @@ Optional fields per move:
   "moves": [
     {
       "cardKey": "collection:binder:1:0",
-      "toType": "deck",
+      "toListType": "deck",
       "toSlug": "my-deck",
       "toSection": "Sideboard",
       "set": "2xm",
@@ -344,7 +344,7 @@ Optional fields per move:
 POST /api/move/selected
 ```
 
-Move a batch of selected cards across lists atomically. It backs the cross-list **Move all selected** action. Each item addresses its source card by list + identity (the same `cardId`/`copyIndex` scheme as [Remove Cards](#remove-cards)) and its destination by `toType` + `toSlug`. The optional printing fields, `language`, and `toSection` behave as in [Commit Moves](#commit-moves). Cards or destinations that can no longer be resolved, or whose destination is the list that already holds them, are skipped and reported. The optional [`validateCardNames`](/admin/api/lists/#validatecardnames) flag applies here too.
+Move a batch of selected cards across lists atomically. It backs the cross-list **Move all selected** action. Each item addresses its source card by list + identity (the same `cardId`/`copyIndex` scheme as [Remove Cards](#remove-cards)) and its destination by `toListType` + `toSlug`. The optional printing fields, `language`, and `toSection` behave as in [Commit Moves](#commit-moves). Cards or destinations that can no longer be resolved, or whose destination is the list that already holds them, are skipped and reported. The optional [`validateCardNames`](/admin/api/lists/#validatecardnames) flag applies here too.
 
 **Request Body:**
 
@@ -357,7 +357,7 @@ Move a batch of selected cards across lists atomically. It backs the cross-list 
       "name": "Sol Ring",
       "cardId": 1,
       "copyIndex": 0,
-      "toType": "collection",
+      "toListType": "collection",
       "toSlug": "binder",
       "set": "c21",
       "collectorNumber": "167"

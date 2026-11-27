@@ -1,7 +1,8 @@
 import { pricesRefreshedAt } from '../../pricing/price-runtime'
 import { CARD_LABELS } from '../../card/card-labels'
 import { DECK_FORMAT_KEYS } from '../../list/deck-format'
-import { loadListInfos, type ListInfo } from '../../list/list-info'
+import { loadListInfos } from '../../list/list-info'
+import type { ListInfo } from '../../list/list-identity'
 import { LIST_TYPES } from '../../list/list-type'
 import type { PriceSource } from '../../pricing/price-source'
 import {

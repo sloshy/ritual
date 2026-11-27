@@ -139,7 +139,7 @@ export function ImportChanges(): JSX.Element {
               {(list) => (
                 <div class="import-changes-result" data-error={list.error ? 'true' : undefined}>
                   <span class="import-changes-result-heading">
-                    {list.error ? '✗' : '✓'} {LIST_TYPE_DISPLAY[list.kind].icon} {list.name}
+                    {list.error ? '✗' : '✓'} {LIST_TYPE_DISPLAY[list.listType].icon} {list.name}
                   </span>
                   <Show
                     when={!list.error}

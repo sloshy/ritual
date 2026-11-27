@@ -1,23 +1,18 @@
 import { LIST_TYPES } from '../../list/list-type'
 import { parseEnumField } from '../../util/parse-enum'
-import { uniqueListIdentities, type ListIdentity } from '../../list/list-info'
+import { uniqueListIdentities, type ListIdentity } from '../../list/list-identity'
 import { apiMessage, isApiMessage, type ApiMessage } from '../../api/result'
 import { isValidListSlug } from './target'
 
 /**
- * One list reference as a query parameter value: `type:slug`. A list of them
- * travels as one repeated parameter (`list=deck:Burn&list=collection:binder`),
- * never comma-joined: a slug may hold a comma, but never a `:`.
- */
-export function formatListRefParam(ref: ListIdentity): string {
-  return `${ref.listType}:${ref.slug}`
-}
-
-/**
- * Parse one `type:slug` list reference from a query parameter. The type is
- * everything before the first `:` — a slug (a file basename) can never hold
- * one — and the slug everything after, so a slug's own spaces and commas
- * survive. Refused, as the message explaining it: an unknown type, an empty
+ * Parse one `type:slug` list reference from a query parameter — the spelling
+ * `listIdentityKey` (`list-identity.ts`) writes, so one format names a list in a query string
+ * and in a map key. A list of them travels as one repeated parameter
+ * (`list=deck:Burn&list=collection:binder`), never comma-joined: a slug may
+ * hold a comma. The type is
+ * everything before the first `:` — a list type never holds one — and the
+ * slug everything after, so a slug's own spaces, commas and colons (a
+ * hand-named file may carry one) survive. Refused, as the message explaining it: an unknown type, an empty
  * slug, or a slug carrying path separators.
  */
 export function parseListRefParam(raw: string): ListIdentity | ApiMessage {

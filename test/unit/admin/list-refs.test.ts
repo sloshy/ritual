@@ -1,11 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  formatListRefParam,
-  parseListRefParam,
-  parseListRefParams,
-} from '../../../src/admin/api/list-refs'
+import { parseListRefParam, parseListRefParams } from '../../../src/admin/api/list-refs'
 import { isApiMessage } from '../../../src/api/result'
-import type { ListIdentity } from '../../../src/list/list-info'
+import { listIdentityKey, type ListIdentity } from '../../../src/list/list-identity'
 
 describe('list reference query parameters', () => {
   test('a ref round-trips through a repeated parameter, spaces and commas kept', () => {
@@ -15,7 +11,7 @@ describe('list reference query parameters', () => {
       { listType: 'wanted', slug: 'needs' },
     ]
     const params = new URLSearchParams()
-    for (const ref of refs) params.append('list', formatListRefParam(ref))
+    for (const ref of refs) params.append('list', listIdentityKey(ref))
     const reparsed = new URLSearchParams(params.toString())
     expect(parseListRefParams(reparsed.getAll('list'))).toEqual(refs)
   })

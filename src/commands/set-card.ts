@@ -1,4 +1,5 @@
 import { Command, InvalidArgumentError } from 'commander'
+import { loadListInfo } from '../list/list-info'
 import type { Stats } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -731,8 +732,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   }
 
   const result: SetCardResult = {
-    type,
-    list: listSlug,
+    ...(await loadListInfo({ type, filePath })),
     cardName: target.name,
     cardId: target.cardId,
     applied: applied.map(toSyncMessage),

@@ -123,7 +123,7 @@ ritual remove-card "Main Binder" "Sol Ring" --card-id 5 --output json
   holds is an error) and \`--all-copies\` drops the whole line. Collection and wanted
   entries are one physical card each, so those flags do not apply there: remove
   copies one at a time, disambiguating with \`--card-id\`.
-- JSON output: \`{type, list, cardName, cardId, removed, remaining}\`.
+- JSON output: \`{listType, slug, name, cardName, cardId, removed, remaining}\`.
 
 ## Update a card in place
 
@@ -234,7 +234,7 @@ ritual categories remove "Winota Stax" --deck Ramp --dry-run
 
 - \`list\` is read-only: it prints the vocabulary in display order with per-category
   card counts, then one line per categorized card. Its JSON payload is
-  \`{type, list, order, cards: [{name, categories}], warnings}\`.
+  \`{listType, slug, name, order, cards: [{name, categories}], warnings}\`.
 - \`rename\` renames a category in the vocabulary **and** on every card carrying it;
   \`order\` sets the display order (names the list does not use yet are accepted, an
   empty value exits 2); \`remove\` drops the name from the vocabulary and from every
@@ -297,7 +297,7 @@ ritual move --card-id 7 --from "wanted:To Buy" --to deck:storm --output json
   the destination's default, and the destination writes the smallest token it needs. The
   art is re-filed under the destination line's new \`&N\`, unless the copy merged onto
   a line the destination already had. JSON output:
-  \`{moved, card, from, to, droppedNotes}\`, where \`droppedNotes\` lists any note discarded
+  \`{moved, card, from, to, droppedNotes}\` (\`from\`/\`to\` are \`{listType, slug, name}\`), where \`droppedNotes\` lists any note discarded
   by a quantity-merge onto an existing deck line whose note differs (also warned on
   stderr).
 

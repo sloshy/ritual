@@ -1,4 +1,5 @@
 import path from 'node:path'
+import type { ListInfo } from '../../list/list-identity'
 import type { ChangeEvent } from '../../changes/change-event'
 import type { DeckData } from '../../list/deck'
 import type { ListType } from '../../list/list-type'
@@ -65,16 +66,15 @@ const SYNTHETIC_ORIGIN = 'http://ritual-import'
  * changes plus every move arriving in it — aggregated across the batches the
  * timestamp order split them into.
  */
-export type ListImportOutcome = {
-  kind: ListType
-  /**
-   * The bundle's slug for the list, or the file basename it resolved to when
-   * the bundle only named the list as a move destination (no entry, no slug).
-   * Empty when neither is known — the list could not be resolved, or was
-   * named only as a move *source* and so never needed resolving.
-   */
-  slug: string
-  name: string
+/**
+ * The list is a {@link ListInfo} (the report vocabulary; the bundle file itself
+ * spells the type `kind`). Its `slug` is the bundle's slug for the list, or the
+ * file basename it resolved to when the bundle only named the list as a move
+ * destination (no entry, no slug); empty when neither is known — the list could
+ * not be resolved, or was named only as a move *source* and so never needed
+ * resolving.
+ */
+export type ListImportOutcome = ListInfo & {
   /**
    * Changes applied to the list (after dropping conflicts), moves included. A
    * list the bundle names only as a move source reports `0`: its copy leaves
@@ -437,7 +437,12 @@ async function applyBatch(progress: TargetProgress, batch: ImportBatch): Promise
   }
   if (result.slug === '') result.slug = resolved.data
 
-  const outcome = await applyByKind(result.kind, resolved.data, batch.changes, progress.retarget)
+  const outcome = await applyByKind(
+    result.listType,
+    resolved.data,
+    batch.changes,
+    progress.retarget,
+  )
   result.applied += outcome.error ? 0 : outcome.retargeted.length
   result.conflicts.push(...outcome.conflicts)
   result.droppedNotes = dedupeDroppedNotes([...result.droppedNotes, ...outcome.droppedNotes])
@@ -462,7 +467,7 @@ export async function applyChangeBundle(bundle: ChangeBundle): Promise<BundleImp
     ref: target,
     retarget: createRetargetState(),
     result: {
-      kind: target.kind,
+      listType: target.kind,
       slug: target.slug ?? '',
       name: target.name,
       applied: 0,

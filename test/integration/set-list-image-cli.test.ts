@@ -101,8 +101,9 @@ describe('set-list-image CLI (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     expect(JSON.parse(result.stdout)).toEqual({
-      type: 'deck',
-      list: 'burn',
+      listType: 'deck',
+      slug: 'burn',
+      name: 'Burn',
       mode: 'url',
       image: { url: 'https://example.test/burn.jpg' },
     })

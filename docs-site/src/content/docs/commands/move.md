@@ -96,8 +96,8 @@ ritual move --card-id 7 --from wanted:needs --to deck:storm --output json
 {
   "moved": 1,
   "card": { "name": "Demonic Tutor", "cardId": 7 },
-  "from": { "type": "wanted", "name": "needs" },
-  "to": { "type": "deck", "name": "Storm" },
+  "from": { "listType": "wanted", "slug": "needs", "name": "needs" },
+  "to": { "listType": "deck", "slug": "storm", "name": "Storm" },
   "droppedNotes": []
 }
 ```

@@ -427,11 +427,21 @@ describe('import-changes command (Integration)', () => {
       expect(report.lists).toHaveLength(2)
 
       const [deck, wanted] = report.lists
-      expect(deck).toMatchObject({ kind: 'deck', slug: 'test-deck', name: 'Test Deck', applied: 2 })
+      expect(deck).toMatchObject({
+        listType: 'deck',
+        slug: 'test-deck',
+        name: 'Test Deck',
+        applied: 2,
+      })
       expect(deck.conflicts).toHaveLength(1)
       expect(deck.conflicts[0].reason).toBe('target-not-found')
       expect(deck.conflicts[0].change.cardName).toBe('Not In Deck')
-      expect(wanted).toMatchObject({ kind: 'wanted', slug: 'wishlist', applied: 1, conflicts: [] })
+      expect(wanted).toMatchObject({
+        listType: 'wanted',
+        slug: 'wishlist',
+        applied: 1,
+        conflicts: [],
+      })
 
       // The apply really happened, same as text mode.
       const deckFile = await fs.readFile(path.join(dir, 'decks', 'test-deck.md'), 'utf-8')
@@ -476,7 +486,7 @@ describe('import-changes command (Integration)', () => {
       // would make this parse throw.
       const report = JSON.parse(result.stdout)
       expect(report).toMatchObject({ success: true })
-      expect(report.lists[0]).toMatchObject({ kind: 'deck', slug: 'test-deck', applied: 1 })
+      expect(report.lists[0]).toMatchObject({ listType: 'deck', slug: 'test-deck', applied: 1 })
     })
   }, 240_000)
 
@@ -887,7 +897,7 @@ describe('applyChangeBundle with moves', () => {
       bundleOf([], [{ ...SWAP_MOVES[1]!, note: 'from the binder', toCardId: 50 }]),
     )
     expect(result.failedCount).toBe(0)
-    const deckResult = result.lists.find((list) => list.kind === 'deck')
+    const deckResult = result.lists.find((list) => list.listType === 'deck')
     expect(deckResult?.droppedNotes).toEqual([
       { cardName: 'Sol Ring', cardId: 1, note: 'from the binder' },
     ])

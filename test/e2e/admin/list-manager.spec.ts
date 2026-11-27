@@ -2,7 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test'
 import { DECK_FORMAT_KEYS } from '../../../src/list/deck-format'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJson, fulfillJsonRoute } from '../helpers/fulfill'
-import type { ListDeleteResponse } from '../../../src/admin/api/list-lifecycle'
+import type { ListDeleteResponse, ListRenameResponse } from '../../../src/admin/api/list-lifecycle'
 
 type ListItem = { slug: string; name: string }
 
@@ -108,7 +108,19 @@ async function installManagerMocks(page: Page, state: ManagerState): Promise<voi
         return
       }
       state[key][idx] = { slug: trimmed, name: trimmed }
-      await fulfillJsonRoute(route, { success: true, message: 'renamed', newSlug: trimmed })
+      const listType = LIST_TYPE_OF[key]
+      await fulfillJsonRoute(route, {
+        success: true,
+        message: `Renamed ${listType} to '${trimmed}'`,
+        messageKey: 'admin.api.list.renamed',
+        messageParams: { listType, name: trimmed },
+        listType,
+        slug: trimmed,
+        name: trimmed,
+        oldSlug: slug,
+        newFilePath: `/workspace/${trimmed}.md`,
+        oldFilePath: `/workspace/${slug}.md`,
+      } satisfies ListRenameResponse)
       return
     }
     if (method === 'DELETE') {
@@ -124,6 +136,9 @@ async function installManagerMocks(page: Page, state: ManagerState): Promise<voi
         message: `Deleted ${listType} '${name}'; its files are in ${trash}`,
         messageKey: 'admin.api.list.deleted',
         messageParams: { listType, name, trash },
+        listType,
+        slug,
+        name,
         deletedFiles: [],
         trashDir: `/workspace/${trash}`,
       } satisfies ListDeleteResponse)

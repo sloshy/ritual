@@ -1,5 +1,6 @@
 import { Command, Option } from 'commander'
-import path from 'node:path'
+import { loadListInfo } from '../list/list-info'
+import type { ListInfo } from '../list/list-identity'
 import { ask } from '../cli/prompts'
 import { createSetNoteChange } from '../changes/change-event'
 import { applyTargetedChanges } from '../list/line-mutate'
@@ -114,12 +115,12 @@ async function runNote(input: RunInput, scripting: ScriptingOptions): Promise<vo
   const cardId = input.cardId !== undefined ? parseCardIdFlag(input.cardId) : undefined
 
   const { type, filePath } = await resolveListSelection(input.listName, input.type)
-  const listSlug = path.basename(filePath, '.md')
+  const list = await loadListInfo({ type, filePath })
 
   const target = await resolveTarget(type, filePath, { cardId, cardName: input.cardName })
 
   if (input.clear) {
-    await runClear(type, filePath, listSlug, target, scripting, input.dryRun)
+    await runClear(type, filePath, list, target, scripting, input.dryRun)
     return
   }
 
@@ -130,8 +131,7 @@ async function runNote(input: RunInput, scripting: ScriptingOptions): Promise<vo
   if (!input.dryRun) await persistNote(type, filePath, target, noteText)
 
   const result: NoteSetResult = {
-    type,
-    list: listSlug,
+    ...list,
     cardName: target.name,
     cardId: target.cardId,
     note: noteText,
@@ -151,7 +151,7 @@ async function runNote(input: RunInput, scripting: ScriptingOptions): Promise<vo
 async function runClear(
   type: ListType,
   filePath: string,
-  listSlug: string,
+  list: ListInfo,
   target: EntryRef,
   scripting: ScriptingOptions,
   dryRun: boolean,
@@ -161,8 +161,7 @@ async function runClear(
   // the `previousNote: null` field in the JSON output.
   if (target.note === undefined || target.note === '') {
     const noop: NoteClearResult = {
-      type,
-      list: listSlug,
+      ...list,
       cardName: target.name,
       cardId: target.cardId,
       cleared: false,
@@ -182,8 +181,7 @@ async function runClear(
   if (!dryRun) await persistNote(type, filePath, target, '')
 
   const result: NoteClearResult = {
-    type,
-    list: listSlug,
+    ...list,
     cardName: target.name,
     cardId: target.cardId,
     cleared: true,

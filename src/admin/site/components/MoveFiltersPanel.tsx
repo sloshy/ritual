@@ -1,15 +1,15 @@
+import { listIdentityKey, type ListIdentityKey, type ListInfo } from '../../../list/list-identity'
 import { type Component, For, Show, createMemo } from 'solid-js'
 import { LIST_TYPE_DISPLAY } from '../../../list/list-type'
-import type { ListInfo } from '../../../list/list-info'
-import { type ListId, listInfoId, groupListsByType } from '../list-grouping'
+import { groupListsByType } from '../list-grouping'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 
 interface MoveFiltersPanelProps {
   lists: ListInfo[]
-  sourceEnabled: (id: ListId) => boolean
-  destEnabled: (id: ListId) => boolean
-  toggleSource: (id: ListId) => void
-  toggleDest: (id: ListId) => void
+  sourceEnabled: (id: ListIdentityKey) => boolean
+  destEnabled: (id: ListIdentityKey) => boolean
+  toggleSource: (id: ListIdentityKey) => void
+  toggleDest: (id: ListIdentityKey) => void
   setAllSources: (on: boolean) => void
   setAllDests: (on: boolean) => void
 }
@@ -97,7 +97,7 @@ export const MoveFiltersPanel: Component<MoveFiltersPanelProps> = (props) => {
               </div>
               <For each={group.lists}>
                 {(list) => {
-                  const id = listInfoId(list)
+                  const id = listIdentityKey(list)
                   return (
                     <div class="move-filters-row" role="row">
                       <span class="move-filters-name" role="cell">

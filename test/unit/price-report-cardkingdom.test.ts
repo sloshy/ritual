@@ -30,7 +30,7 @@ const bolt = makeScryfallCard({
 })
 
 function collectionInput(entries: PriceListInput['entries']): PriceListInput {
-  return { type: 'collection', name: 'Binder', slug: 'binder', entries }
+  return { listType: 'collection', name: 'Binder', slug: 'binder', entries }
 }
 
 describe('buildPriceReport with Card Kingdom pricing', () => {
@@ -159,7 +159,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
     const { report } = await buildPriceReport(
       [
         {
-          type: 'deck',
+          listType: 'deck',
           name: 'Deck',
           slug: 'deck',
           entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
@@ -198,7 +198,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
     const { report } = await buildPriceReport(
       [
         {
-          type: 'deck',
+          listType: 'deck',
           name: 'Deck',
           slug: 'deck',
           entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
@@ -237,7 +237,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
     const { report } = await buildPriceReport(
       [
         {
-          type: 'deck',
+          listType: 'deck',
           name: 'Deck',
           slug: 'deck',
           entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
@@ -260,7 +260,7 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
     const { report } = await buildPriceReport(
       [
         {
-          type: 'wanted',
+          listType: 'wanted',
           name: 'Wants',
           slug: 'wants',
           entries: [

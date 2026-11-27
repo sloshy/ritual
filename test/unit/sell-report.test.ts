@@ -23,6 +23,7 @@ import {
   type SellReportEntry,
 } from '../../src/pricing/sell-report'
 import type { PriceListEntry } from '../../src/pricing/price-report'
+import type { ListType } from '../../src/list/list-type'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
 
@@ -154,8 +155,9 @@ function options(): BuildSellReportOptions {
 function input(entries: Partial<SellListEntry>[]): SellListInput[] {
   return [
     {
-      type: 'collection',
-      slug: 'Binder',
+      listType: 'collection',
+      name: 'Binder',
+      slug: 'binder',
       entries: entries.map((entry): SellListEntry => ({
         name: 'Arahbo',
         quantity: 1,
@@ -214,8 +216,9 @@ describe('buildSellReport matching', () => {
     // plus a second list's copy must not each get the full cap.
     const inputs: SellListInput[] = [
       {
-        type: 'collection',
-        slug: 'Binder',
+        listType: 'collection',
+        name: 'Binder',
+        slug: 'binder',
         entries: [
           {
             name: 'Arahbo',
@@ -237,8 +240,9 @@ describe('buildSellReport matching', () => {
         ],
       },
       {
-        type: 'collection',
-        slug: 'Shoebox',
+        listType: 'collection',
+        name: 'Shoebox',
+        slug: 'shoebox',
         entries: [
           {
             name: 'Arahbo',
@@ -255,6 +259,47 @@ describe('buildSellReport matching', () => {
     expect(report.entries.map((entry) => entry.sellableQuantity)).toEqual([1, 1, 0])
     expect(report.totals.sellableCount).toBe(2)
     expect(report.totals.totalValue).toBe(1.2)
+  })
+
+  test('each list keeps its own row, by type and slug, each entry naming its slug', async () => {
+    const entries: SellListEntry[] = [
+      {
+        name: 'Arahbo',
+        quantity: 1,
+        set: 'fdn',
+        collectorNumber: '294',
+        section: 'Main',
+        cardIds: [],
+      },
+    ]
+    const list = (listType: ListType, slug: string, name: string): SellListInput => ({
+      listType,
+      slug,
+      name,
+      entries,
+    })
+    // Two collections sharing a title, and a deck sharing a slug with one of
+    // them: neither half of the key alone tells these apart.
+    const inputs: SellListInput[] = [
+      list('collection', 'binder', 'Binder'),
+      list('collection', 'binder-two', 'Binder'),
+      list('deck', 'binder', 'Binder'),
+    ]
+    const report = await buildSellReport(inputs, options())
+    expect(report.entries.map((entry) => [entry.listType, entry.listSlug, entry.listName])).toEqual(
+      [
+        ['collection', 'binder', 'Binder'],
+        ['collection', 'binder-two', 'Binder'],
+        ['deck', 'binder', 'Binder'],
+      ],
+    )
+    // Canonical type order: the deck first.
+    expect(report.lists.map((row) => [row.listType, row.slug, row.name, row.cardCount])).toEqual([
+      ['deck', 'binder', 'Binder', 1],
+      ['collection', 'binder', 'Binder', 1],
+      ['collection', 'binder-two', 'Binder', 1],
+    ])
+    expect(report.totals.listCount).toBe(3)
   })
 
   test('a paused offer (qtyBuying 0) is not-buying and worth nothing', async () => {
@@ -335,8 +380,9 @@ describe('buildSellReport matching', () => {
     const report = await buildSellReport(
       [
         {
-          type: 'wanted',
-          slug: 'Wish',
+          listType: 'wanted',
+          name: 'Wish',
+          slug: 'wish',
           entries: [{ name: 'Paused', quantity: 1, section: 'Main', cardIds: [] }],
         },
       ],
@@ -526,8 +572,9 @@ describe('entry enrichment', () => {
       [
         ...input([{ set: 'fdn', collectorNumber: '2' }]),
         {
-          type: 'wanted',
-          slug: 'Wish',
+          listType: 'wanted',
+          name: 'Wish',
+          slug: 'wish',
           entries: [{ name: 'Paused', quantity: 1, section: 'Main', cardIds: [] }],
         },
       ],
@@ -583,7 +630,7 @@ describe('owned copies', () => {
   test('counts real copies by name across printings, collections apart from decks', () => {
     const owned = countOwnedCopies([
       {
-        type: 'collection',
+        listType: 'collection',
         name: 'Binder',
         slug: 'binder',
         entries: [
@@ -592,8 +639,8 @@ describe('owned copies', () => {
           line('Arahbo', 1, { labels: ['proxy'] }),
         ],
       },
-      { type: 'deck', name: 'Cats', slug: 'cats', entries: [line('Arahbo', 2)] },
-      { type: 'wanted', name: 'Wish', slug: 'wish', entries: [line('Arahbo', 4)] },
+      { listType: 'deck', name: 'Cats', slug: 'cats', entries: [line('Arahbo', 2)] },
+      { listType: 'wanted', name: 'Wish', slug: 'wish', entries: [line('Arahbo', 4)] },
     ])
     // The proxy and the wanted copies are not owned; case does not split names.
     expect(owned.get('arahbo')).toEqual({ collection: 2, deck: 2 })
@@ -696,7 +743,8 @@ describe('applySellFilters', () => {
     const view = applySellFilters(await report(), { sets: ['hbt'] })
     expect(view.entries).toHaveLength(1)
     expect(view.lists[0]).toMatchObject({
-      type: 'collection',
+      listType: 'collection',
+      slug: 'binder',
       name: 'Binder',
       cardCount: 1,
       sellableCount: 1,

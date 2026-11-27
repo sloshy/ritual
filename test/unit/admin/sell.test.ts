@@ -76,7 +76,7 @@ describe('admin sell handlers', () => {
   })
 
   test.each<[string, MessageKey]>([
-    ['?type=binder', 'errors.enum.invalid'],
+    ['?listType=binder', 'errors.enum.invalid'],
     ['?list=nonsense', 'admin.api.listRefInvalid'],
     ['?list=&list=%20', 'admin.api.sell.noRefs'],
     ['?min=abc', 'errors.number.notNonNegative'],
@@ -147,10 +147,12 @@ describe('admin sell handlers', () => {
   })
 
   test('lists override type, and the report scopes to exactly those lists', async () => {
-    const response = await report('?type=wanted&list=collection:shoebox')
+    const response = await report('?listType=wanted&list=collection:shoebox')
     expect(response.status).toBe(200)
     const body = (await response.json()) as SellReportResponse
-    expect(body.lists.map((list) => `${list.type}:${list.name}`)).toEqual(['collection:shoebox'])
+    expect(body.lists.map((list) => `${list.listType}:${list.slug}`)).toEqual([
+      'collection:shoebox',
+    ])
     expect(body.totals.totalValue).toBe(4)
   })
 

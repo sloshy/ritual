@@ -526,6 +526,10 @@ The report's own \`warnings\` (\`sell --output json\`, MCP \`get_sell_report\`) 
 list's parser could not read, which the report leaves out: message objects too, each naming
 its list as \`list: {listType, slug}\`.
 
+Each \`lists[]\` row and entry names its list by display title (\`name\` / \`listName\`) and
+identifies it by \`listType\` + \`slug\` / \`listSlug\`, as \`price\` does: match rows and
+entries by type and slug, never by name (two lists can share a title).
+
 Entries report \`status\` \`buying\` / \`not-buying\` (CK's buy quantity is 0) / \`no-match\`,
 with \`sellableQuantity = min(owned, CK's cap)\` and \`value\` covering only those copies.
 Beside CK's \`priceBuy\` (and their high-running \`priceRetail\`), a matched entry carries

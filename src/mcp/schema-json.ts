@@ -72,6 +72,8 @@ import {
   SELL_NO_MATCH_REASONS,
   type SellEntryBase,
   type SellEntryMatch,
+  type SellListSummary,
+  type SellTotals,
 } from '../pricing/sell-report'
 import { VALID_PRICE_SOURCES } from '../pricing/price-source'
 import { EXPORT_FORMATS } from '../export/presets'
@@ -111,6 +113,7 @@ import type { ListWarning } from '../list/list-info'
 import type { PriceWarning } from '../pricing/price-report'
 import type { ListsSummaryWarning } from '../summary/lists'
 import type { ListPricesResult, SummarizeListsResult } from './tools/read-tools'
+import type { DeleteListResult, RenameListResult } from './tools/destructive-tools'
 import {
   CARD_ART_REF,
   CARD_LABEL,
@@ -120,6 +123,7 @@ import {
   FINISH,
   LIST_CATEGORIES,
   LIST_IMAGE_REF,
+  LIST_INFO_PROPS,
   LIST_TYPE,
   PRINTING_IDENTITY_REQUIRED,
   arr,
@@ -185,8 +189,8 @@ const SYNC_MESSAGE: JsonSchemaType = obj(SYNC_MESSAGE_PROPS, ['message'])
 // ── Per-tool output schemas ───────────────────────────────────────────
 
 export const LIST_LISTS_OUTPUT: JsonSchemaType = withDefs(
-  obj({ lists: arr(ref('ListRef')) }, ['lists']),
-  'ListRef',
+  obj({ lists: arr(ref('ListInfo')) }, ['lists']),
+  'ListInfo',
 )
 
 export const GET_SYNC_STATUS_OUTPUT: JsonSchemaType = withDefs(
@@ -315,13 +319,13 @@ export const FIND_CARDS_OUTPUT: JsonSchemaType = withDefs(
   obj(
     {
       cards: arr(ref('PhysicalCard'), 'One entry per physical copy.'),
-      lists: arr(ref('ListRef'), 'Every list; only present when includeLists was set.'),
+      lists: arr(ref('ListInfo'), 'Every list; only present when includeLists was set.'),
       warnings: arr(str(), 'List files that could not be fully read.'),
     },
     ['cards', 'warnings'],
   ),
   'PhysicalCard',
-  'ListRef',
+  'ListInfo',
 )
 
 export const GET_CARD_DETAILS_OUTPUT: JsonSchemaType = withDefs(
@@ -491,7 +495,13 @@ const SELL_TOTALS_PROPS = {
   totalValue: num('Sum of buy price × sellable copies (USD).'),
   notBuyingCount: int('Copies whose matched product CK is not currently buying.'),
   noMatchCount: int('Copies with no CK product match at all.'),
-} as const satisfies Properties
+} as const satisfies Properties & Record<keyof SellTotals, unknown>
+
+/** One sell report `lists[]` row: the list, then its totals. */
+const SELL_LIST_SUMMARY_PROPS = {
+  ...LIST_INFO_PROPS,
+  ...SELL_TOTALS_PROPS,
+} as const satisfies Properties & Record<keyof SellListSummary, unknown>
 
 const SELL_TOTALS_REQUIRED = [
   'cardCount',
@@ -511,7 +521,8 @@ type SellEntryKey = keyof SellEntryBase | keyof SellEntryMatch | 'status' | 'noM
  */
 const SELL_ENTRY_PROPS = {
   listType: LIST_TYPE,
-  listName: str(),
+  listName: str('The list’s display name — for showing, never for finding its list.'),
+  listSlug: str('The list’s slug; with listType, the key that identifies its list.'),
   section: str(),
   name: str(),
   quantity: int('Copies the list holds (identical variants aggregated).'),
@@ -578,6 +589,7 @@ const SELL_ENTRY_PROPS = {
 const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(SELL_ENTRY_PROPS, [
   'listType',
   'listName',
+  'listSlug',
   'section',
   'name',
   'quantity',
@@ -603,11 +615,7 @@ export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = withDefs(
         minOwned: int('Minimum total owned copies the entries were filtered to.'),
       }),
       lists: arr(
-        obj({ type: LIST_TYPE, name: str(), ...SELL_TOTALS_PROPS }, [
-          'type',
-          'name',
-          ...SELL_TOTALS_REQUIRED,
-        ]),
+        obj(SELL_LIST_SUMMARY_PROPS, ['listType', 'slug', 'name', ...SELL_TOTALS_REQUIRED]),
       ),
       entries: arr(SELL_ENTRY_SCHEMA, 'Matched entries; filtered when filters are active.'),
       totals: obj({ ...SELL_TOTALS_PROPS, listCount: int() }, [
@@ -926,8 +934,8 @@ export const GET_DIAGNOSTICS_OUTPUT: JsonSchemaType = obj(
 export const DIFF_LISTS_OUTPUT: JsonSchemaType = withDefs(
   obj(
     {
-      a: ref('ListRef'),
-      b: ref('ListRef'),
+      a: ref('ListInfo'),
+      b: ref('ListInfo'),
       by: enumOf(DIFF_BY_MODES),
       matches: arr(ref('DiffMatch'), 'Identities present on both sides.'),
       onlyInA: arr(ref('DiffOnly')),
@@ -939,7 +947,7 @@ export const DIFF_LISTS_OUTPUT: JsonSchemaType = withDefs(
     },
     ['a', 'b', 'by', 'matches', 'onlyInA', 'onlyInB', 'warnings'],
   ),
-  'ListRef',
+  'ListInfo',
   'DiffMatch',
   'DiffOnly',
 )
@@ -1169,22 +1177,26 @@ export const REMOVE_SELECTED_CARDS_OUTPUT: JsonSchemaType = obj(
 export const RENAME_LIST_OUTPUT: JsonSchemaType = obj(
   {
     ...MESSAGE_PROPS,
-    newSlug: str('Address the list by this from now on.'),
+    ...LIST_INFO_PROPS,
+    slug: str('The list’s new slug: address the list by this from now on.'),
+    name: str('The list’s new display name.'),
+    oldSlug: str('The slug the list was addressed by before the rename.'),
     newFilePath: str('The list’s file path after the rename.'),
     oldFilePath: str('The path it occupied before the rename.'),
-  },
-  ['message', 'newSlug', 'newFilePath', 'oldFilePath'],
+  } satisfies Properties & Record<keyof RenameListResult, unknown>,
+  ['message', 'listType', 'slug', 'name', 'oldSlug', 'newFilePath', 'oldFilePath'],
 )
 
 export const DELETE_LIST_OUTPUT: JsonSchemaType = obj(
   {
     ...MESSAGE_PROPS,
+    ...LIST_INFO_PROPS,
     deletedFiles: arr(str(), 'Every file removed: the list plus whichever sidecars it had.'),
     trashDir: str(
       'Absolute path of the trash folder the files were moved into. Inside it each file keeps its workspace-relative path (one outside the workspace just its name); moving them back restores the list.',
     ),
-  },
-  ['message', 'deletedFiles', 'trashDir'],
+  } satisfies Properties & Record<keyof DeleteListResult, unknown>,
+  ['message', 'listType', 'slug', 'name', 'deletedFiles', 'trashDir'],
 )
 
 export const REWRITE_HISTORY_OUTPUT: JsonSchemaType = obj(

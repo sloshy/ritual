@@ -78,8 +78,9 @@ type CliErrorPayload = {
 }
 
 type AddCardPayload = {
-  type: string
-  list: string
+  listType: string
+  slug: string
+  name: string
   cardName: string
   set?: string
   collectorNumber?: string
@@ -195,8 +196,8 @@ describe('add-card CLI (Integration)', () => {
         dir,
       )
       expect(result.exitCode).toBe(0)
-      const payload = JSON.parse(result.stdout) as { type: string; list: string }
-      expect(payload.type).toBe('deck')
+      const payload = JSON.parse(result.stdout) as { listType: string; slug: string }
+      expect(payload.listType).toBe('deck')
     })
 
     test('a type prefix contradicting the type flag is a usage error, writing nothing', async () => {
@@ -271,7 +272,7 @@ describe('add-card CLI (Integration)', () => {
       )
       expect(result.exitCode).toBe(0)
       const json = JSON.parse(result.stdout) as AddCardPayload
-      expect(json.type).toBe('deck')
+      expect(json.listType).toBe('deck')
       expect(json.cardName).toBe('Sol Ring')
       expect(json.quantity).toBe(1)
       expect(json.cardId).toBe(2)
@@ -380,8 +381,8 @@ describe('add-card CLI (Integration)', () => {
       expect(result.exitCode).toBe(0)
       const json = JSON.parse(result.stdout) as AddCardPayload
       expect(json).toMatchObject({
-        type: 'collection',
-        list: 'main',
+        listType: 'collection',
+        slug: 'main',
         cardName: 'Lightning Bolt',
         set: 'sta',
         collectorNumber: '42',
@@ -572,7 +573,7 @@ describe('add-card CLI (Integration)', () => {
       expect(result.exitCode).toBe(0)
       const json = JSON.parse(result.stdout) as AddCardPayload
       expect(json).toMatchObject({
-        type: 'wanted',
+        listType: 'wanted',
         cardName: 'Sol Ring',
         finish: 'foil',
         cardId: 2,
@@ -696,7 +697,7 @@ describe('add-card CLI (Integration)', () => {
       )
       expect(result.exitCode).toBe(0)
       const json = JSON.parse(result.stdout) as AddCardPayload
-      expect(json.list).toBe('fresh')
+      expect(json.slug).toBe('fresh')
       expect(json.cardId).toBe(1)
       const content = await fs.readFile(path.join(dir, 'wanted', 'fresh.md'), 'utf-8')
       expect(content).toContain('- Sol Ring &1')

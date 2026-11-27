@@ -180,7 +180,7 @@ describe('a move route with validateCardNames', () => {
           name,
           cardId: name === 'Sol Ring' ? 1 : 2,
           copyIndex: 0,
-          toType: 'deck',
+          toListType: 'deck',
           toSlug: 'burn',
         },
       ],

@@ -1,4 +1,5 @@
 import type { Command } from 'commander'
+import type { ListInfo } from '../list/list-identity'
 import {
   applyCategoryChangesToRecord,
   categoriesSaveTouchesDisk,
@@ -38,7 +39,6 @@ import { runListTargetAction, type ListTarget } from './card-target'
 import { fail } from '../cli/action'
 import { emitCardResult, emitOutput, emitWarnings, type ScriptingOptions } from '../cli/output'
 import type { ListTypeFlags } from '../list/resolve-list'
-import type { ListType } from '../list/list-type'
 import { ExitCode, localizedCommandError, messageCommandError } from '../util/errors'
 import { t } from '../i18n/t'
 import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
@@ -71,9 +71,7 @@ export type CategoryCardEntry = {
 }
 
 /** JSON payload of `categories list`. */
-export type CategoriesListResult = {
-  type: ListType
-  list: string
+export type CategoriesListResult = ListInfo & {
   /**
    * The categories this list already uses — its declared `order` plus any
    * category only a card carries — in display order, with the configured
@@ -95,9 +93,7 @@ export type CategoriesListResult = {
 type CategoriesAction = 'rename' | 'order' | 'remove'
 
 /** JSON payload of a `categories rename` / `order` / `remove` run. */
-export type CategoriesWriteResult = {
-  type: ListType
-  list: string
+export type CategoriesWriteResult = ListInfo & {
   /** What the run did — the subcommand's own name. */
   action: CategoriesAction
   /** The vocabulary after the edit, in display order. */
@@ -206,18 +202,17 @@ async function writeCategoryEdit(
   const cardsChanged = diffCardCategories(record, next)
     .filter((event) => event.action === 'set-categories')
     .map((event) => event.cardName)
+  // What every outcome reports, whether it wrote, previewed, or found nothing to do.
+  const edit: Omit<CategoriesWriteResult, 'wouldWrite' | 'writtenFiles'> = {
+    ...target.info,
+    action,
+    order,
+    cardsChanged,
+  }
 
   if (dryRun) {
     const preview = await previewCategoriesSaveAction(target.filePath, next, defaultCategories)
-    return {
-      type: target.type,
-      list: target.list,
-      action,
-      order,
-      cardsChanged,
-      wouldWrite: categoriesSaveTouchesDisk(preview),
-      writtenFiles: [],
-    }
+    return { ...edit, wouldWrite: categoriesSaveTouchesDisk(preview), writtenFiles: [] }
   }
 
   // No `knownCardNames`: this command edits the vocabulary, not the card lines,
@@ -238,26 +233,10 @@ async function writeCategoryEdit(
   // the run did not make — and would make the real run disagree with its own
   // `--dry-run`, which `wouldWrite` exists to rule out.
   if (!wouldWrite && cardsChanged.length === 0) {
-    return {
-      type: target.type,
-      list: target.list,
-      action,
-      order,
-      cardsChanged,
-      wouldWrite,
-      writtenFiles: [...committed.writtenFiles],
-    }
+    return { ...edit, wouldWrite, writtenFiles: [...committed.writtenFiles] }
   }
   const changelogPath = await appendChangelog(target.filePath, target.list, events)
-  return {
-    type: target.type,
-    list: target.list,
-    action,
-    order,
-    cardsChanged,
-    wouldWrite,
-    writtenFiles: [...committed.writtenFiles, changelogPath],
-  }
+  return { ...edit, wouldWrite, writtenFiles: [...committed.writtenFiles, changelogPath] }
 }
 
 export function registerCategoriesCommand(program: Command): void {
@@ -290,8 +269,7 @@ function registerCategoriesListSubcommand(categories: Command): void {
       const entries = orderedCategoryEntries(loaded.categories)
       const order = resolveCategoryOrder(loaded.categories, await loadDefaultCategories())
       const result: CategoriesListResult = {
-        type: target.type,
-        list: target.list,
+        ...target.info,
         order,
         cards: entries.map((entry) => ({ name: entry.name, categories: [...entry.categories] })),
         warnings: read.complete

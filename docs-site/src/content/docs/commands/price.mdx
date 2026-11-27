@@ -139,7 +139,7 @@ Prices are for the whole line (quantity × one copy); 'lowest' is the line at it
 
 A non-interactive run with neither a list name nor a card filter has nothing to print, and exits `2` with a usage error pointing at `ritual lists --summary --source <store>`, which prints every list's totals (see [`lists`](/commands/lists/#summary)).
 
-Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per card). Every JSON result names its `source` (the store) and `currency` (that store's) and carries a `warnings` array. The single-list result's `list` holds the list's totals: `type`, `name` (its display title), `slug` (with `type`, what identifies it), `cardCount`, `total`, `lowestTotal`, `unpricedCount` and `estimatedCount`. Card listings include per-entry prices, lowest prices, and unpriced reasons, and each entry names its list as `listType`, `listName` and `listSlug`.
+Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per card). Every JSON result names its `source` (the store) and `currency` (that store's) and carries a `warnings` array. The single-list result's `list` holds the list's totals: `listType`, `name` (its display title), `slug` (with `listType`, what identifies it), `cardCount`, `total`, `lowestTotal`, `unpricedCount` and `estimatedCount`. Card listings include per-entry prices, lowest prices, and unpriced reasons, and each entry names its list as `listType`, `listName` and `listSlug`.
 
 ```bash
 ritual price "Red Binder" --output json

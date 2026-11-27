@@ -376,7 +376,7 @@ test.describe('admin language switch', () => {
     // failed list's reason is keyed, both straight from the route's own builders.
     await mockImportChangesApi(page, [
       {
-        kind: 'deck',
+        listType: 'deck',
         slug: 'my-deck',
         name: 'My Deck',
         applied: 2,
@@ -384,7 +384,7 @@ test.describe('admin language switch', () => {
         droppedNotes: [],
       },
       {
-        kind: 'collection',
+        listType: 'collection',
         slug: 'binder',
         name: 'Binder',
         applied: 0,

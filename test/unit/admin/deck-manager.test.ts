@@ -6,6 +6,7 @@ import {
   handleListDelete,
   handleListRename,
   type ListLifecycleConfig,
+  type ListRenameResponse,
 } from '../../../src/admin/api/list-lifecycle'
 import { resolveDeckFile } from '../../../src/admin/api/list-file'
 import { parseDeckFrontMatter, type DeckFrontMatter } from '../../../src/list/deck-file'
@@ -146,11 +147,16 @@ describe('deck-rename handler', () => {
   test('renames deck file and updates frontmatter', async () => {
     const req = makeRequest('POST', '/api/deck/old-deck/rename', { newName: 'New Deck Name' })
     const resp = await handleListRename(req, DECK_CFG)
-    const data = (await resp.json()) as { success: boolean; newSlug: string }
+    const data = (await resp.json()) as ListRenameResponse
 
     expect(resp.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(data.newSlug).toBe('New Deck Name')
+    expect(data).toMatchObject({
+      success: true,
+      listType: 'deck',
+      slug: 'New Deck Name',
+      name: 'New Deck Name',
+      oldSlug: 'old-deck',
+    })
 
     const newFileExists = await Bun.file(path.join(decksDir, 'New Deck Name.md')).exists()
     expect(newFileExists).toBe(true)

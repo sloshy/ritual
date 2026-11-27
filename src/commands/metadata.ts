@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import type { ListInfo } from '../list/list-identity'
 import { Command, Option } from 'commander'
 import {
   applyDeckMetadata,
@@ -66,26 +67,20 @@ type MetadataTypeFlags = ListTypeFlags & Partial<ScriptingOptions>
 type MetadataSetOptions = MetadataTypeFlags & { add?: boolean; remove?: boolean }
 
 /** JSON payload of a successful `metadata set`. */
-type MetadataSetResult = {
-  type: ListType
-  list: string
+type MetadataSetResult = ListInfo & {
   property: string
   /** The property's new stored value; null when the write cleared it. */
   value: unknown
 }
 
 /** JSON payload of a successful `metadata unset`. */
-type MetadataUnsetResult = {
-  type: ListType
-  list: string
+type MetadataUnsetResult = ListInfo & {
   property: string
   status: 'unset'
 }
 
 /** JSON payload of `metadata list`: the full front matter, unknown keys included. */
-type MetadataListResult = {
-  type: ListType
-  list: string
+type MetadataListResult = ListInfo & {
   frontMatter: Record<string, unknown>
 }
 
@@ -327,8 +322,7 @@ function emitSetResult(
     return
   }
   const result: MetadataSetResult = {
-    type: target.type,
-    list: target.list,
+    ...target.info,
     property,
     value,
   }
@@ -514,8 +508,7 @@ function registerListSubcommand(metadata: Command): void {
       // The JSON payload is the full mapping, unknown and non-settable keys
       // included — the same honest shape the admin metadata route returns.
       const result: MetadataListResult = {
-        type: target.type,
-        list: target.list,
+        ...target.info,
         frontMatter,
       }
       emitOutput(result, scripting)
@@ -580,8 +573,7 @@ function registerUnsetSubcommand(metadata: Command): void {
         return
       }
       const result: MetadataUnsetResult = {
-        type: target.type,
-        list: target.list,
+        ...target.info,
         property,
         status: 'unset',
       }

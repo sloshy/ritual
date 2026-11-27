@@ -1,3 +1,4 @@
+import type { ListsResponse } from '../../../src/admin/api/lists'
 import { test, expect, type Page, type Route } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
@@ -504,10 +505,10 @@ test.describe('Collection Editor — move to list keeps the copy’s labels and 
     await fulfillJson(page, '**/api/lists', {
       success: true,
       lists: [
-        { type: 'collection', slug: 'move-binder', name: 'Move Binder' },
-        { type: 'deck', slug: 'burn', name: 'Burn' },
+        { listType: 'collection', slug: 'move-binder', name: 'Move Binder' },
+        { listType: 'deck', slug: 'burn', name: 'Burn' },
       ],
-    })
+    } satisfies ListsResponse)
     const sol = (cardId: number, extra: Record<string, unknown>): Record<string, unknown> => ({
       name: 'Sol Ring',
       set: 'c21',

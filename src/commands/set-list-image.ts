@@ -1,4 +1,6 @@
 import { Command, Option } from 'commander'
+import { loadListInfo } from '../list/list-info'
+import type { ListInfo } from '../list/list-identity'
 import path from 'node:path'
 import {
   isListImageCardRef,
@@ -86,10 +88,7 @@ export type SetListImageInput = {
 }
 
 /** `--output json` payload of a successful run. */
-export type SetListImageResult = {
-  type: ListType
-  /** The list's slug — its file name without the extension. */
-  list: string
+export type SetListImageResult = ListInfo & {
   /** Which rule the list's cover now follows. */
   mode: ListImageMode
   /** The stored mapping, or null when the key was removed. */
@@ -268,8 +267,7 @@ export async function runSetListImage(
   }
   const result: SetListImageResult = {
     ...(input.dryRun ? { dryRun: true as const } : {}),
-    type,
-    list,
+    ...(await loadListInfo({ type, filePath })),
     mode: listImageMode(image),
     image: image === null ? null : serializeListImageRef(image),
   }

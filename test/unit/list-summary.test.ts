@@ -588,7 +588,12 @@ describe('summarizeLists — value', () => {
       { source: 'tcgplayer' },
       { refresh: 'never' },
     )
-    const { type: _type, name, slug: _slug, ...singleTotals } = single.built.report.lists[0]!
+    const {
+      listType: _listType,
+      name,
+      slug: _slug,
+      ...singleTotals
+    } = single.built.report.lists[0]!
     expect(name).toBe('Trade Binder')
     expect(rowOf(summary, 'collection', 'binder').value).toEqual(singleTotals)
     // Valued: Main 2 × $3 + Sideboard 1 × $5 = $11 against the binder's $8.

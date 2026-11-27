@@ -67,7 +67,7 @@ Remove a collection entry and capture the result as JSON:
 ritual remove-card --collection main "Mana Crypt" --output json
 ```
 
-The JSON output is `{ type, list, cardName, cardId, removed, remaining }`. `removed` is the number of copies taken off. `remaining` is what is left on the deck line: `0` once the line is gone, and always `0` for collections and wanted lists.
+The JSON output is `{ listType, slug, name, cardName, cardId, removed, remaining }`. `removed` is the number of copies taken off. `remaining` is what is left on the deck line: `0` once the line is gone, and always `0` for collections and wanted lists.
 
 ## Behavior
 

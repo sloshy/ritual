@@ -39,7 +39,7 @@ When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configure
   "currency": "usd",
   "lastRefreshedAt": 1752600000000,
   "list": {
-    "type": "deck",
+    "listType": "deck",
     "name": "My Deck",
     "slug": "my-deck",
     "cardCount": 100,
@@ -74,7 +74,7 @@ When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configure
 }
 ```
 
-`list.name` and `cards[].listName` are the list's display name (its `# Title`); `list.slug` and `cards[].listSlug`, with the type, identify it.
+`list.name` and `cards[].listName` are the list's display name (its `# Title`); `list.slug` and `cards[].listSlug`, with `list.listType` / `cards[].listType`, identify it.
 
 `unpricedCount` counts copies whose price the data could not supply, and only those. `estimatedCount` counts deck and wanted-list copies whose price is an estimate: the line pins no printing (priced at a representative one) or has no price. Any such copy makes `total` an estimate, which the CLI and sites render with a `~` prefix (`~$12.34`). Collections never estimate. Cards that carry no price [by rule](/custom-art/#custom-art-carries-no-price) (a `proxy` label, custom art, or both) are priced at `0` and counted in `cardCount`, but are left out of `unpricedCount`: they are not a gap in the price data.
 
@@ -124,19 +124,19 @@ Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) (l
 
 ### Parameters
 
-| Parameter  | Description                                                                                                                            | Required |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `type`     | Match every `deck`, `collection`, or `wanted` list (default: every collection)                                                         | No       |
-| `list`     | One list as `type:slug` (`collection:binder`), **repeated** for several; matches exactly these lists (overrides `type`); unknown → 404 | No       |
-| `tags`     | Comma-separated card tags (exact); scopes matching to lines carrying one, before CK's buy caps are shared out                          | No       |
-| `sets`     | Comma-separated set codes to filter to                                                                                                 | No       |
-| `min`      | Minimum per-copy offer (USD)                                                                                                           | No       |
-| `minOwned` | Minimum total owned copies (`ownedCopies.collection + ownedCopies.deck`, a whole number)                                               | No       |
-| `minRatio` | Minimum offer-to-market ratio (`offerRatio`, e.g. `0.8`); entries with no market price drop                                            | No       |
+| Parameter  | Description                                                                                                                                | Required |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `listType` | Match every `deck`, `collection`, or `wanted` list (default: every collection)                                                             | No       |
+| `list`     | One list as `type:slug` (`collection:binder`), **repeated** for several; matches exactly these lists (overrides `listType`); unknown → 404 | No       |
+| `tags`     | Comma-separated card tags (exact); scopes matching to lines carrying one, before CK's buy caps are shared out                              | No       |
+| `sets`     | Comma-separated set codes to filter to                                                                                                     | No       |
+| `min`      | Minimum per-copy offer (USD)                                                                                                               | No       |
+| `minOwned` | Minimum total owned copies (`ownedCopies.collection + ownedCopies.deck`, a whole number)                                                   | No       |
+| `minRatio` | Minimum offer-to-market ratio (`offerRatio`, e.g. `0.8`); entries with no market price drop                                                | No       |
 
 A blank parameter (`?min=`) reads as absent. A malformed one is a `400` carrying the parser's message: a tag that breaks the [tag shape rule](/list-format/#card-tags), a `min`/`minRatio` that is not a plain non-negative decimal (`1.5`, not `1e1` or `-1`), or a `minOwned` that is not a whole number (`Invalid minOwned '2.5' (expected a whole number)`, key `errors.number.notWholeNumber`). A numeric refusal names the parameter as it is spelled in the query string.
 
-Each `list` value is `type:slug`; the type is case-insensitive, and a list named twice is matched once. A value with no `type:`, an unknown type, an empty slug, or a slug holding a path separator is a `400` keyed `admin.api.listRefInvalid`; `list` given only blank values is a `400` too (`admin.api.sell.noRefs`), rather than silently widening the scope to every collection. An unknown `type` is a `400` keyed `errors.enum.invalid` (also case-insensitive).
+Each `list` value is `type:slug`; the type is case-insensitive, and a list named twice is matched once. A value with no `type:`, an unknown type, an empty slug, or a slug holding a path separator is a `400` keyed `admin.api.listRefInvalid`; `list` given only blank values is a `400` too (`admin.api.sell.noRefs`), rather than silently widening the scope to every collection. An unknown `listType` is a `400` keyed `errors.enum.invalid` (also case-insensitive).
 
 `warnings` lists lines a list's parser could not read, which the report leaves out. Each is a [message triple](/admin/api/#the-message-triple) naming its list as `list: { listType, slug }`, shaped like [Price List](#price-list)'s.
 
@@ -150,7 +150,8 @@ Each `list` value is `type:slug`; the type is case-insensitive, and a list named
   "filters": { "sets": ["fdn"], "minPrice": 0.5 },
   "lists": [
     {
-      "type": "collection",
+      "listType": "collection",
+      "slug": "red-binder",
       "name": "Red Binder",
       "cardCount": 45,
       "sellableCount": 12,
@@ -163,6 +164,7 @@ Each `list` value is `type:slug`; the type is case-insensitive, and a list named
     {
       "listType": "collection",
       "listName": "Red Binder",
+      "listSlug": "red-binder",
       "section": "Main",
       "name": "Arahbo, the First Fang",
       "quantity": 1,
@@ -205,6 +207,8 @@ Each `list` value is `type:slug`; the type is case-insensitive, and a list named
 }
 ```
 
+Each `lists[]` row and entry names its list by its display name (`name` / `listName`, its `# Title`) and identifies it by `listType` with `slug` / `listSlug`, as [Price List](#price-list) does. Two lists sharing a title keep separate rows; match rows and entries by type and slug, never by name.
+
 Entry fields:
 
 - `status` is `buying`, `not-buying` (the product exists but CK's buy quantity is 0), or `no-match` (with `noMatchReason`: `no-printings`, `printing-not-found`, or `not-on-buylist`).
@@ -220,7 +224,7 @@ Entry fields:
 GET /api/sell/cart
 ```
 
-The entries CK is buying, rendered in their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export): `card name, edition, foil, quantity`, no header row, CK's own listing titles with variant note, quantities capped at their buy limits. Takes the same `?type=`/`?list=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` parameters and `503` prerequisites as [Sell Report](#sell-report). Backs the CLI's `sell --output csv`.
+The entries CK is buying, rendered in their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export): `card name, edition, foil, quantity`, no header row, CK's own listing titles with variant note, quantities capped at their buy limits. Takes the same `?listType=`/`?list=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` parameters and `503` prerequisites as [Sell Report](#sell-report). Backs the CLI's `sell --output csv`.
 
 **Response:**
 

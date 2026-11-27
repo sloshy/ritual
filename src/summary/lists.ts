@@ -28,18 +28,17 @@ import { readFlatListMetadata, type FlatListFrontMatter } from '../list/flat-lis
 import {
   isExpectedListReadFailure,
   parseListContent,
+  parsedListInfo,
   type ParsedListContent,
 } from '../list/list-content'
 import { countDeck, countEntries, type ListCounts } from '../list/list-counts'
+import { listIdentityOf, listWarning, type ListWarning } from '../list/list-info'
 import {
   listIdentityKey,
-  listIdentityOf,
-  listWarning,
   uniqueListIdentities,
   type ListIdentity,
-  type ListWarning,
-  type NamedListIdentity,
-} from '../list/list-info'
+  type ListInfo,
+} from '../list/list-identity'
 import type { ListImageRef } from '../list/list-image'
 import { LIST_TYPES, type ListType } from '../list/list-type'
 import { listLocations, type ListLocation } from '../list/resolve-list'
@@ -184,12 +183,8 @@ export interface ListsSummaryOptions {
   limit?: number
 }
 
-/** One selected list. */
-export interface ListsSummaryRow {
-  listType: ListType
-  slug: string
-  /** The list's display name: its `# Title`, else its slug. */
-  name: string
+/** One selected list, named by its display title (its `# Title`, else its slug). */
+export interface ListsSummaryRow extends ListInfo {
   /**
    * Lines and copies, per section; a section with no lines is not listed
    * (as in `get_list`). For a deck given a `sections` selection, only the
@@ -422,14 +417,6 @@ export async function summarizeLists(
   return summary
 }
 
-/** A summary row found by its list's identity. */
-export function findSummaryRow(
-  rows: readonly ListsSummaryRow[],
-  { listType, slug }: ListIdentity,
-): ListsSummaryRow | undefined {
-  return rows.find((row) => row.listType === listType && row.slug === slug)
-}
-
 /** A summary's rows grouped by list type, in canonical type order. */
 export interface ListsSummaryTypeGroup {
   listType: ListType
@@ -542,7 +529,7 @@ async function readList(
     // A file that cannot be parsed at all (unreadable deck front matter) is left
     // out — and said so, rather than counted as empty. It has no title to go
     // by, so the warning names it by its slug.
-    const named: NamedListIdentity = { listType, slug, name: slug }
+    const named: ListInfo = { listType, slug, name: slug }
     return {
       ok: false,
       warning: listWarning('domain.list.summary.unreadable', named, errorMessage(error)),
@@ -555,12 +542,8 @@ async function readList(
 type RowRead = Pick<ReadList, 'row' | 'names'>
 
 function rowOf(content: ParsedListContent, sections: ReadonlySet<string> | undefined): RowRead {
-  const identity: NamedListIdentity = {
-    listType: content.type,
-    slug: content.slug,
-    name: content.name,
-  }
-  switch (content.type) {
+  const identity = parsedListInfo(content)
+  switch (content.listType) {
     case 'deck': {
       const { parse, frontMatter } = content
       const counted: DeckSection[] = parse.deck.sections.filter(
@@ -599,10 +582,7 @@ type FlatParse = {
 type FlatEntry = { section: string; quantity: number }
 
 /** A flat list's row: counts plus the front matter's description and cover. */
-function flatRow(
-  identity: Pick<ListsSummaryRow, 'listType' | 'slug' | 'name'>,
-  parse: FlatParse,
-): ListsSummaryRow {
+function flatRow(identity: ListInfo, parse: FlatParse): ListsSummaryRow {
   const row: ListsSummaryRow = {
     ...identity,
     counts: countEntries(

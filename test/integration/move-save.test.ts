@@ -754,7 +754,7 @@ describe('POST /api/move/selected', () => {
         name: 'Sol Ring',
         cardId: 1,
         copyIndex: 0,
-        toType: 'collection',
+        toListType: 'collection',
         toSlug: 'binder',
       },
     ])
@@ -783,7 +783,7 @@ describe('POST /api/move/selected', () => {
         name: 'Sol Ring',
         cardId: 1,
         copyIndex: 0,
-        toType: 'collection',
+        toListType: 'collection',
         toSlug: 'binder',
       },
     ])
@@ -807,7 +807,7 @@ describe('POST /api/move/selected', () => {
         name: 'Sol Ring',
         cardId: 1,
         copyIndex: 0,
-        toType: 'collection',
+        toListType: 'collection',
         toSlug: 'binder',
       },
     ])
@@ -829,7 +829,7 @@ describe('POST /api/move/selected', () => {
         name: 'Sol Ring',
         cardId: 1,
         copyIndex: 0,
-        toType: 'collection',
+        toListType: 'collection',
         toSlug: 'binder',
       },
     ])
@@ -846,7 +846,7 @@ describe('POST /api/move/selected', () => {
         name: 'Lightning Bolt',
         cardId: 1,
         copyIndex: 0,
-        toType: 'collection',
+        toListType: 'collection',
         toSlug: 'binder',
       },
     ])
@@ -863,7 +863,7 @@ describe('POST /api/move/selected', () => {
         name: 'Sol Ring',
         cardId: 1,
         copyIndex: 0,
-        toType: 'collection',
+        toListType: 'collection',
         toSlug: 'Binder',
       },
     ])
@@ -879,7 +879,7 @@ describe('POST /api/move/selected', () => {
         name: 'Ghost',
         cardId: 999,
         copyIndex: 0,
-        toType: 'collection',
+        toListType: 'collection',
         toSlug: 'binder',
       },
     ])
@@ -895,7 +895,7 @@ describe('POST /api/move/selected', () => {
         name: 'Lightning Bolt',
         cardId: 1,
         copyIndex: 0,
-        toType: 'deck',
+        toListType: 'deck',
         toSlug: 'my-deck',
         toSection: 'Sideboard',
       },
@@ -922,7 +922,7 @@ describe('POST /api/move/selected', () => {
             name: 'Sol Ring',
             cardId: 1,
             copyIndex: 0,
-            toType: 'collection',
+            toListType: 'collection',
             toSlug: 'binder',
             toSection: 'Main',
           },
@@ -945,7 +945,7 @@ describe('POST /api/move/selected', () => {
         name: 'Sol Ring',
         cardId: 1,
         copyIndex: 0,
-        toType: 'collection',
+        toListType: 'collection',
         toSlug: 'binder',
         language: 'ja',
       },
@@ -963,7 +963,7 @@ describe('POST /api/move/selected', () => {
         listSlug: 'binder',
         name: 'Sol Ring',
         cardId: 2,
-        toType: 'deck',
+        toListType: 'deck',
         toSlug: 'my-deck',
         language: 'en',
       },
@@ -988,7 +988,7 @@ describe('POST /api/move/selected', () => {
             name: 'Sol Ring',
             cardId: 1,
             copyIndex: 0,
-            toType: 'collection',
+            toListType: 'collection',
             toSlug: 'binder',
             language: 'klingon',
           },
@@ -1070,12 +1070,12 @@ describe('GET /api/lists', () => {
     const resp = await handleLists()
     const body = (await resp.json()) as {
       success: boolean
-      lists: { type: string; slug: string; name: string }[]
+      lists: { listType: string; slug: string; name: string }[]
     }
     expect(body.success).toBe(true)
-    expect(body.lists).toContainEqual({ type: 'deck', slug: 'my-deck', name: 'My Deck' })
-    expect(body.lists).toContainEqual({ type: 'collection', slug: 'binder', name: 'Binder' })
-    expect(body.lists).toContainEqual({ type: 'wanted', slug: 'wishlist', name: 'Wishlist' })
+    expect(body.lists).toContainEqual({ listType: 'deck', slug: 'my-deck', name: 'My Deck' })
+    expect(body.lists).toContainEqual({ listType: 'collection', slug: 'binder', name: 'Binder' })
+    expect(body.lists).toContainEqual({ listType: 'wanted', slug: 'wishlist', name: 'Wishlist' })
   })
 })
 

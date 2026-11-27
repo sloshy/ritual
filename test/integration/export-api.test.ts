@@ -52,7 +52,7 @@ describe('handleExport', () => {
       'Lightning Bolt': [{ ...makePrintingIn('lea', '161'), edhrec_rank: 57 }],
     })
     const { status, body } = await post({
-      lists: [{ type: 'collection', name: 'binder' }],
+      lists: [{ listType: 'collection', name: 'binder' }],
       columns: ['name', 'scryfallId', 'edhrecRank'],
     })
     expect(status).toBe(200)
@@ -89,7 +89,7 @@ describe('handleExport', () => {
     })
     // Under a foreign UI language: the warning reaches the client in English.
     const { status, body } = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
-      post({ lists: [{ type: 'deck', name: 'burn' }], format: 'text', dialect: 'moxfield' }),
+      post({ lists: [{ listType: 'deck', name: 'burn' }], format: 'text', dialect: 'moxfield' }),
     )
     expect(status).toBe(200)
     if (!('content' in body)) throw new Error('expected content mode')
@@ -136,18 +136,41 @@ describe('handleExport', () => {
   })
 
   test('content mode returns the rendered export inline', async () => {
-    const { status, body } = await post({ lists: [{ type: 'collection', name: 'binder' }] })
+    const { status, body } = await post({ lists: [{ listType: 'collection', name: 'binder' }] })
     expect(status).toBe(200)
     expect(body).toMatchObject({ success: true, mode: 'content', format: 'csv', entryCount: 2 })
     if (!('content' in body)) throw new Error('expected content mode')
     expect(body.content).toContain('Lightning Bolt')
   })
 
+  test('a list ref’s listType picks between a deck and a collection sharing a name', async () => {
+    await writeDeckFile(ws.dir, 'binder', {
+      name: 'Binder',
+      cards: [{ quantity: 1, name: 'Fireblast', set: 'vis', collectorNumber: '78' }],
+    })
+    const deck = await post({ lists: [{ listType: 'deck', name: 'binder' }] })
+    expect(deck.status).toBe(200)
+    expect(deck.body).toMatchObject({ success: true, entryCount: 1 })
+    const collection = await post({ lists: [{ listType: 'collection', name: 'binder' }] })
+    expect(collection.status).toBe(200)
+    expect(collection.body).toMatchObject({ success: true, entryCount: 2 })
+  })
+
+  test('an unknown listType on a list ref is refused with its key', async () => {
+    const { status, body } = await post({ lists: [{ listType: 'binder', name: 'binder' }] })
+    expect(status).toBe(400)
+    expect(body as unknown as SyncMessage).toMatchObject({
+      success: false,
+      messageKey: 'admin.api.export.listTypeInvalid',
+      messageParams: { value: 'binder' },
+    })
+  })
+
   // The CLI lowercases `--format` before validating; the route now shares that
   // rule through `parseEnumField`, so the same spelling works on both surfaces.
   test('an uppercase format is accepted, as it is on the CLI', async () => {
     const { status, body } = await post({
-      lists: [{ type: 'collection', name: 'binder' }],
+      lists: [{ listType: 'collection', name: 'binder' }],
       format: 'CSV',
     })
     expect(status).toBe(200)
@@ -156,7 +179,7 @@ describe('handleExport', () => {
 
   test('an uppercase filters.finish and set code are accepted and normalized', async () => {
     const { status, body } = await post({
-      lists: [{ type: 'collection', name: 'binder' }],
+      lists: [{ listType: 'collection', name: 'binder' }],
       filters: { finish: 'NonFoil', set: 'LEA' },
     })
     expect(status).toBe(200)
@@ -167,7 +190,7 @@ describe('handleExport', () => {
 
   test('filters.tags narrows to tagged entries and refuses a malformed tag or a non-array', async () => {
     const narrowed = await post({
-      lists: [{ type: 'collection', name: 'binder' }],
+      lists: [{ listType: 'collection', name: 'binder' }],
       filters: { tags: ['ramp'] },
       format: 'json',
     })
@@ -205,7 +228,7 @@ describe('handleExport', () => {
 
   test('a malformed set filter is a 400 rather than a filter matching nothing', async () => {
     const { status, body } = await post({
-      lists: [{ type: 'collection', name: 'binder' }],
+      lists: [{ listType: 'collection', name: 'binder' }],
       filters: { set: '../etc' },
     })
     expect(status).toBe(400)
@@ -215,7 +238,7 @@ describe('handleExport', () => {
 
   test('write mode lands a file under exports/ and reports its relative path', async () => {
     const { body } = await post({
-      lists: [{ type: 'collection', name: 'binder' }],
+      lists: [{ listType: 'collection', name: 'binder' }],
       write: true,
     })
     if (!('path' in body)) throw new Error(`expected file mode, got ${JSON.stringify(body)}`)
@@ -234,8 +257,8 @@ describe('handleExport', () => {
   })
 
   test('a second identical write never overwrites the first', async () => {
-    const first = await post({ lists: [{ type: 'collection', name: 'binder' }], write: true })
-    const second = await post({ lists: [{ type: 'collection', name: 'binder' }], write: true })
+    const first = await post({ lists: [{ listType: 'collection', name: 'binder' }], write: true })
+    const second = await post({ lists: [{ listType: 'collection', name: 'binder' }], write: true })
     if (!('path' in first.body) || !('path' in second.body)) throw new Error('expected file mode')
 
     expect(second.body.path).not.toBe(first.body.path)

@@ -2,7 +2,7 @@ import type { ListRef } from '../changes/change-event'
 import { listSlug } from './list-file-name'
 import { listLocations } from './resolve-list'
 import { listDisplayName } from './list-lifecycle'
-import type { ListType } from './list-type'
+import type { ListIdentity, ListInfo } from './list-identity'
 import type { ListLocation } from './resolve-list'
 import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
 import type { MessageKey } from '../i18n/messages/en'
@@ -14,59 +14,9 @@ export type ListEntry = {
   filePath: string
 }
 
-/**
- * Lightweight summary of a list (deck, collection, or wanted list): a slug (the
- * file basename, matching the admin load endpoints) plus a display name. Shared
- * by every surface that enumerates lists — the `lists` CLI command, the admin
- * API, and the admin site.
- */
-export type ListInfo = ListSlugRef & {
-  name: string
-}
-
-/**
- * A list's identity: its type and slug (the file basename). Two lists of
- * different types may share a slug, and two lists may share a display name,
- * so this pair — never a name — is what finds a list.
- */
-export type ListSlugRef = {
-  type: ListType
-  slug: string
-}
-
-/**
- * {@link ListSlugRef} in the vocabulary of the API, the MCP tools and new JSON
- * payloads, which spell the type `listType`: the identity a cross-list result
- * (a summary row, a price warning, a list reference in a query) names a list by.
- */
-export interface ListIdentity {
-  listType: ListType
-  slug: string
-}
-
 /** A located list's identity: its type and its file's basename. */
 export function listIdentityOf(location: Pick<ListLocation, 'type' | 'filePath'>): ListIdentity {
   return { listType: location.type, slug: listSlug(location.filePath) }
-}
-
-/** A list identity as one string (`type:slug`), for sets and maps keyed by list. */
-export function listIdentityKey({ listType, slug }: ListIdentity): string {
-  return `${listType}:${slug}`
-}
-
-/**
- * `refs` with every repeat of a list dropped, first mention kept — the rule a
- * selection by explicit lists follows, so naming a list twice never counts it
- * twice.
- */
-export function uniqueListIdentities<T extends ListIdentity>(refs: readonly T[]): T[] {
-  const seen = new Set<string>()
-  return refs.filter((ref) => {
-    const key = listIdentityKey(ref)
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
 }
 
 /**
@@ -91,19 +41,37 @@ export type ListWarningKey = {
     : never
 }[MessageKey]
 
-/** The list a warning is about: its identity and the name its sentence calls it by. */
-export type NamedListIdentity = ListIdentity & { name: string }
-
-/** A {@link ListWarning}: `cause` nested under `key`, beside the list's identity. */
-export function listWarning(
-  key: ListWarningKey,
-  list: NamedListIdentity,
-  cause: SyncMessage,
-): ListWarning {
+/**
+ * A {@link ListWarning}: `cause` nested under `key`, beside the list's identity.
+ * `list.name` is the name the sentence calls the list by.
+ */
+export function listWarning(key: ListWarningKey, list: ListInfo, cause: SyncMessage): ListWarning {
   return {
     ...syncMessage(key, { list: list.name, cause: nestSync(cause) }),
     list: { listType: list.listType, slug: list.slug },
   }
+}
+
+/**
+ * A located list's display name (a deck's front-matter `name`, a flat list's
+ * `# Title`), falling back to its file basename when the file is unreadable or
+ * names nothing — so a list is always named, never hidden.
+ */
+async function displayNameOf(location: Pick<ListLocation, 'type' | 'filePath'>): Promise<string> {
+  const fallback = listSlug(location.filePath)
+  try {
+    const name = await listDisplayName(location.type, location.filePath)
+    return name.length > 0 ? name : fallback
+  } catch {
+    return fallback
+  }
+}
+
+/** A located list as a {@link ListInfo}, its display name read from the file. */
+export async function loadListInfo(
+  location: Pick<ListLocation, 'type' | 'filePath'>,
+): Promise<ListInfo> {
+  return { ...listIdentityOf(location), name: await displayNameOf(location) }
 }
 
 /**
@@ -116,17 +84,18 @@ export async function loadAllLists(): Promise<ListEntry[]> {
   const locations = await listLocations()
   return Promise.all(
     locations.map(async (location): Promise<ListEntry> => ({
-      ref: {
-        type: location.type,
-        name: await listDisplayName(location.type, location.filePath).catch(() => location.name),
-      },
+      ref: { type: location.type, name: await displayNameOf(location) },
       filePath: location.filePath,
     })),
   )
 }
 
+/** A list on disk as a {@link ListInfo}: its type, its file's slug, its display name. */
+export function listInfoOf(entry: ListEntry): ListInfo {
+  return { listType: entry.ref.type, slug: listSlug(entry.filePath), name: entry.ref.name }
+}
+
 /** Enumerate every list across all three types as slug-keyed {@link ListInfo} summaries. */
 export async function loadListInfos(): Promise<ListInfo[]> {
-  const lists = await loadAllLists()
-  return lists.map((l) => ({ type: l.ref.type, slug: listSlug(l.filePath), name: l.ref.name }))
+  return (await loadAllLists()).map(listInfoOf)
 }

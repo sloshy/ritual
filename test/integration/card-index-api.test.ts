@@ -55,7 +55,7 @@ describe('handleCardIndex', () => {
   test('lists every list and every physical card across the three list types', async () => {
     const data = await index()
     expect(data.success).toBeTrue()
-    expect(data.lists.map((l) => `${l.type}:${l.slug}`).sort()).toEqual([
+    expect(data.lists.map((l) => `${l.listType}:${l.slug}`).sort()).toEqual([
       'collection:binder',
       'deck:my-deck',
       'wanted:wishlist',

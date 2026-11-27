@@ -1,10 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import { formatListsSummaryLines, formatListsTable } from '../../../src/commands/lists'
-import type { ListInfo } from '../../../src/list/list-info'
+import type { ListInfo } from '../../../src/list/list-identity'
 import type { PriceTotals } from '../../../src/pricing/price-report'
 import type { ListsSummaryPayload, ListsSummaryRow } from '../../../src/summary/lists'
 
-const info = (type: ListInfo['type'], name: string, slug = name): ListInfo => ({ type, slug, name })
+const info = (listType: ListInfo['listType'], name: string, slug = name): ListInfo => ({
+  listType,
+  slug,
+  name,
+})
 
 describe('formatListsTable', () => {
   test('heads the columns, and leaves out the file column when every file is named after its list', () => {

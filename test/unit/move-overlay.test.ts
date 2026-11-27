@@ -14,16 +14,15 @@ import {
   reconcilePendingMoves,
   type PendingMove,
 } from '../../src/admin/site/move-overlay'
-import { listId, listInfoId } from '../../src/admin/site/list-grouping'
 import type { MovePhysicalCard } from '../../src/admin/api/move'
-import type { ListInfo } from '../../src/list/list-info'
+import { listIdentityKey, type ListInfo } from '../../src/list/list-identity'
 import type { DeckData } from '../../src/list/deck'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
 import { makeCollectionEntry } from '../test-utils'
 
-const deckList: ListInfo = { type: 'deck', slug: 'my-deck', name: 'My Deck' }
-const collList: ListInfo = { type: 'collection', slug: 'binder', name: 'Binder' }
-const wantedList: ListInfo = { type: 'wanted', slug: 'wishlist', name: 'Wishlist' }
+const deckList: ListInfo = { listType: 'deck', slug: 'my-deck', name: 'My Deck' }
+const collList: ListInfo = { listType: 'collection', slug: 'binder', name: 'Binder' }
+const wantedList: ListInfo = { listType: 'wanted', slug: 'wishlist', name: 'Wishlist' }
 
 function physical(
   over: Partial<MovePhysicalCard> & Pick<MovePhysicalCard, 'name'>,
@@ -51,13 +50,6 @@ function move(
     ...over,
   }
 }
-
-describe('listId / listInfoId', () => {
-  test('compose type:slug', () => {
-    expect(listId('deck', 'foo')).toBe('deck:foo')
-    expect(listInfoId(collList)).toBe('collection:binder')
-  })
-})
 
 describe('change builders', () => {
   const m = move({
@@ -99,8 +91,8 @@ describe('movesFrom / movesTo', () => {
   const pending = [a, b]
 
   test('partitions by source and destination list', () => {
-    expect(movesFrom(pending, listInfoId(deckList))).toEqual([a])
-    expect(movesTo(pending, listInfoId(deckList))).toEqual([b])
+    expect(movesFrom(pending, listIdentityKey(deckList))).toEqual([a])
+    expect(movesTo(pending, listIdentityKey(deckList))).toEqual([b])
   })
 })
 
@@ -116,7 +108,7 @@ describe('overlayDeck', () => {
       to: collList,
       source: { name: 'Sol Ring', cardId: 5 },
     })
-    const result = overlayDeck(baseDeck(), [out], listInfoId(deckList))
+    const result = overlayDeck(baseDeck(), [out], listIdentityKey(deckList))
     expect(result.sections[0]!.cards[0]!.quantity).toBe(2)
   })
 
@@ -124,7 +116,7 @@ describe('overlayDeck', () => {
     const outs = [0, 1, 2].map((i) =>
       move({ id: `o${i}`, from: deckList, to: collList, source: { name: 'Sol Ring', cardId: 5 } }),
     )
-    const result = overlayDeck(baseDeck(), outs, listInfoId(deckList))
+    const result = overlayDeck(baseDeck(), outs, listIdentityKey(deckList))
     expect(result.sections[0]!.cards).toHaveLength(0)
   })
 
@@ -135,7 +127,7 @@ describe('overlayDeck', () => {
       source: { name: 'Lightning Bolt', set: 'old', collectorNumber: '1' },
       dest: { set: 'lea', collectorNumber: '161', finish: 'nonfoil' },
     })
-    const result = overlayDeck(baseDeck(), [incoming], listInfoId(deckList))
+    const result = overlayDeck(baseDeck(), [incoming], listIdentityKey(deckList))
     const added = result.sections.flatMap((s) => s.cards).find((c) => c.name === 'Lightning Bolt')
     expect(added).toBeDefined()
     // The added entry must carry the destination printing, not the source printing.
@@ -162,7 +154,7 @@ describe('overlayCollection', () => {
       to: deckList,
       source: { name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 },
     })
-    const result = overlayCollection(baseEntries(), [out], listInfoId(collList))
+    const result = overlayCollection(baseEntries(), [out], listIdentityKey(collList))
     expect(result.map((e) => e.name)).toEqual(['Brainstorm'])
   })
 
@@ -173,7 +165,7 @@ describe('overlayCollection', () => {
       source: { name: 'Counterspell' },
       dest: { set: 'mh3', collectorNumber: '50', finish: 'nonfoil', condition: 'NM' },
     })
-    const result = overlayCollection(baseEntries(), [incoming], listInfoId(collList))
+    const result = overlayCollection(baseEntries(), [incoming], listIdentityKey(collList))
     expect(result.map((e) => e.name)).toContain('Counterspell')
   })
 })
@@ -191,7 +183,7 @@ describe('overlayWanted', () => {
       to: wantedList,
       source: { name: 'Sol Ring' },
     })
-    const result = overlayWanted(baseEntries(), [out, incoming], listInfoId(wantedList))
+    const result = overlayWanted(baseEntries(), [out, incoming], listIdentityKey(wantedList))
     expect(result.map((e) => e.name)).toEqual(['Sol Ring'])
   })
 })

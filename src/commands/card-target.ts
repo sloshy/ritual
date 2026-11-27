@@ -10,6 +10,8 @@ import { cancelledError, listArgumentConflictError, runCommandAction } from '../
 import { listTypeLabel, resolveListTypeFlag, type ResolvedList } from '../cli/options'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import type { ListType } from '../list/list-type'
+import { loadListInfo } from '../list/list-info'
+import type { ListInfo } from '../list/list-identity'
 import { normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import {
   formatResolveListError,
@@ -113,11 +115,16 @@ export async function resolveListSelection(
   return { type: chosen.type, filePath: chosen.filePath }
 }
 
-/** A resolved list target: the list, its type, and its display slug. */
+/**
+ * A resolved list target: the list, its type, its slug (`list`, what the text
+ * output names it by), and `info` — the {@link ListInfo} its JSON result
+ * carries.
+ */
 export type ListTarget = {
   type: ListType
   filePath: string
   list: string
+  info: ListInfo
 }
 
 /**
@@ -137,6 +144,7 @@ export async function resolveListTarget(
     type: resolved.type,
     filePath: resolved.filePath,
     list: path.basename(resolved.filePath, '.md'),
+    info: await loadListInfo(resolved),
   }
 }
 

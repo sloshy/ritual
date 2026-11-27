@@ -42,7 +42,9 @@ type SuccessBody = {
   success: boolean
   message: string
   slug?: string
-  newSlug?: string
+  listType?: string
+  name?: string
+  oldSlug?: string
   newFilePath?: string
   oldFilePath?: string
   deletedFiles?: string[]
@@ -157,7 +159,12 @@ describe('list-lifecycle rename handler', () => {
 
     expect(resp.status).toBe(200)
     expect(data.success).toBe(true)
-    expect(data.newSlug).toBe('New Collection')
+    expect(data).toMatchObject({
+      listType: 'collection',
+      slug: 'New Collection',
+      name: 'New Collection',
+      oldSlug: 'old-collection',
+    })
     expect(data.oldFilePath).toBe(path.join(collectionsDir, 'old-collection.md'))
     expect(data.newFilePath).toBe(path.join(collectionsDir, 'New Collection.md'))
 
@@ -252,7 +259,12 @@ describe('list-lifecycle delete handler', () => {
     const data = (await resp.json()) as SuccessBody
 
     expect(resp.status).toBe(200)
-    expect(data.success).toBe(true)
+    expect(data).toMatchObject({
+      success: true,
+      listType: 'collection',
+      slug: 'My Collection',
+      name: 'My Collection',
+    })
     expect(data.deletedFiles).toEqual([path.join(collectionsDir, 'My Collection.md')])
     const exists = await Bun.file(path.join(collectionsDir, 'My Collection.md')).exists()
     expect(exists).toBe(false)

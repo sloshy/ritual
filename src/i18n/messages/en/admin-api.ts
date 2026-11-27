@@ -362,7 +362,7 @@ export const adminApiMessages = {
   'admin.api.export.cardsInvalid': 'cards must be an array of search-term strings.',
   'admin.api.export.listsNotArray': 'lists must be an array of {shape} objects.',
   'admin.api.export.listNameMissing': 'Each list needs a name.',
-  'admin.api.export.listTypeInvalid': "Invalid list type '{type}'.",
+  'admin.api.export.listTypeInvalid': "Invalid list type '{value}'.",
 
   // ── Change history ────────────────────────────────────────────────────
   'admin.api.history.setsRequired': 'sets array is required',

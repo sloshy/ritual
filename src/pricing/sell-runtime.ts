@@ -34,12 +34,12 @@ export type SellReportOptions = {
  * surfaces always match the same way.
  */
 export async function loadAndBuildSellReport(
-  type: ListType | undefined,
+  listType: ListType | undefined,
   locations: ListLocation[] | undefined,
   feed: LoadedCardKingdomFeed,
   options?: SellReportOptions,
 ): Promise<LoadedSellReport> {
-  const loaded = await loadSellListInputs({ type, locations, tags: options?.tags })
+  const loaded = await loadSellListInputs({ listType, locations, tags: options?.tags })
   const report = await buildSellReport(loaded.inputs, {
     lookup: priceLookupFor(options?.refresh),
     index: feed.index,

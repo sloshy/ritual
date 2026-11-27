@@ -1,6 +1,6 @@
 import { Command } from 'commander'
+import type { ListInfo } from '../list/list-identity'
 import { createList, isListLifecycleError } from '../list/list-lifecycle'
-import type { ListType } from '../list/list-type'
 import { parseListTypeArg } from '../list/list-type-arg'
 import { isMessageParseError } from '../sync/message'
 import { localizedCommandError, messageCommandError, ExitCode } from '../util/errors'
@@ -12,10 +12,7 @@ import { FLAG } from '../util/cli-tokens'
 
 type NewOptions = { format?: string } & Partial<ScriptingOptions>
 
-type NewListResult = {
-  type: ListType
-  slug: string
-  name: string
+type NewListResult = ListInfo & {
   filePath: string
 }
 
@@ -63,7 +60,7 @@ async function runNew(
   }
 
   const payload: NewListResult = {
-    type,
+    listType: type,
     slug: result.slug,
     name,
     filePath: result.filePath,

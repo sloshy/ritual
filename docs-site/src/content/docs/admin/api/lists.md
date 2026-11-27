@@ -21,7 +21,7 @@ Returns every list (deck, collection, wanted) as a slug-keyed summary. The singl
 ```json
 {
   "success": true,
-  "lists": [{ "type": "deck", "slug": "my-deck", "name": "My Deck" }]
+  "lists": [{ "listType": "deck", "slug": "my-deck", "name": "My Deck" }]
 }
 ```
 
@@ -163,13 +163,13 @@ Create a new deck file, named after the deck. See [List file names](/commands/ne
 
 Create, rename, and delete answer identically for decks, collections, and wanted lists:
 
-| Operation | Success body                                                    |
-| --------- | --------------------------------------------------------------- |
-| Create    | `{ success: true, message, slug }`                              |
-| Rename    | `{ success: true, message, newSlug, newFilePath, oldFilePath }` |
-| Delete    | `{ success: true, message, deletedFiles, trashDir }`            |
+| Operation | Success body                                                                          |
+| --------- | ------------------------------------------------------------------------------------- |
+| Create    | `{ success: true, message, slug }`                                                    |
+| Rename    | `{ success: true, message, listType, slug, name, oldSlug, newFilePath, oldFilePath }` |
+| Delete    | `{ success: true, message, listType, slug, name, deletedFiles, trashDir }`            |
 
-`newFilePath`/`oldFilePath` are the list's paths after and before the rename. `deletedFiles` is every path the delete removed: the list plus its sidecar files. They are moved, not erased: `trashDir` is the [trash folder](/commands/delete/#restoring-a-deleted-list) now holding them, where each keeps its workspace-relative path. All of these paths are absolute; `message` names the trash folder relative to the workspace.
+A rename names the list as it is now, the same `{ listType, slug, name }` every list reference uses (`slug` is the new one, `name` the new title), plus the `oldSlug` it was addressed by. A delete names the list it removed the same way, as it was before the delete. `newFilePath`/`oldFilePath` are the list's paths after and before the rename. `deletedFiles` is every path the delete removed: the list plus its sidecar files. They are moved, not erased: `trashDir` is the [trash folder](/commands/delete/#restoring-a-deleted-list) now holding them, where each keeps its workspace-relative path. All of these paths are absolute; `message` names the trash folder relative to the workspace.
 
 A refusal is the shared [error envelope](/admin/api/#error-responses) at one of these statuses:
 
@@ -201,7 +201,10 @@ Rename a deck. Rewrites the `# Title` heading and renames the `.md` together wit
 {
   "success": true,
   "message": "Renamed deck to 'New Deck Name'",
-  "newSlug": "New Deck Name",
+  "listType": "deck",
+  "slug": "New Deck Name",
+  "name": "New Deck Name",
+  "oldSlug": "My Commander Deck",
   "newFilePath": "/home/me/mtg/decks/New Deck Name.md",
   "oldFilePath": "/home/me/mtg/decks/My Commander Deck.md"
 }
@@ -231,6 +234,9 @@ Delete a deck and every sidecar it has. See [List lifecycle responses](#list-lif
 {
   "success": true,
   "message": "Deleted deck 'My Commander Deck'; its files are in .trash/2026-10-05T14-03-22Z-deck-My Commander Deck",
+  "listType": "deck",
+  "slug": "My Commander Deck",
+  "name": "My Commander Deck",
   "deletedFiles": [
     "/home/me/mtg/decks/My Commander Deck.md",
     "/home/me/mtg/decks/My Commander Deck.md.sha256"
@@ -592,7 +598,10 @@ Rename a collection. Replaces the first `# <Title>` line in the file and renames
 {
   "success": true,
   "message": "Renamed collection to 'Renamed Collection'",
-  "newSlug": "Renamed Collection",
+  "listType": "collection",
+  "slug": "Renamed Collection",
+  "name": "Renamed Collection",
+  "oldSlug": "My Collection",
   "newFilePath": "collections/Renamed Collection.md",
   "oldFilePath": "collections/My Collection.md"
 }
@@ -620,6 +629,9 @@ Delete a collection file and every sidecar it has. See [List lifecycle responses
 {
   "success": true,
   "message": "Deleted collection 'My Collection'; its files are in .trash/2026-10-05T14-03-22Z-collection-My Collection",
+  "listType": "collection",
+  "slug": "My Collection",
+  "name": "My Collection",
   "deletedFiles": [
     "/home/me/mtg/collections/My Collection.md",
     "/home/me/mtg/collections/My Collection.md.sha256"
@@ -724,7 +736,10 @@ Rename a wanted list. Replaces the first `# <Title>` line in the file and rename
 {
   "success": true,
   "message": "Renamed wanted list to 'Renamed Wishlist'",
-  "newSlug": "Renamed Wishlist",
+  "listType": "wanted",
+  "slug": "Renamed Wishlist",
+  "name": "Renamed Wishlist",
+  "oldSlug": "Holiday Wishlist",
   "newFilePath": "wanted/Renamed Wishlist.md",
   "oldFilePath": "wanted/Holiday Wishlist.md"
 }
@@ -752,6 +767,9 @@ Delete a wanted list file and every sidecar it has. See [List lifecycle response
 {
   "success": true,
   "message": "Deleted wanted list 'Holiday Wishlist'; its files are in .trash/2026-10-05T14-03-22Z-wanted-Holiday Wishlist",
+  "listType": "wanted",
+  "slug": "Holiday Wishlist",
+  "name": "Holiday Wishlist",
   "deletedFiles": [
     "/home/me/mtg/wanted/Holiday Wishlist.md",
     "/home/me/mtg/wanted/Holiday Wishlist.md.sha256"

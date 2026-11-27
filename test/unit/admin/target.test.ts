@@ -40,7 +40,7 @@ describe('parseSlugFromUrl', () => {
 describe('parseListTarget', () => {
   test('parses the type and slug of a /api/<area>/:type/:slug route', () => {
     expect(parseListTarget(get('/api/history/collection/binder'))).toEqual({
-      type: 'collection',
+      listType: 'collection',
       slug: 'binder',
     })
   })

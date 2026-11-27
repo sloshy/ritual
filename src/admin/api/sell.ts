@@ -88,7 +88,7 @@ async function parseListsParam(url: URL): Promise<ListLocation[] | undefined | R
 
 /** The scope/filter query contract shared by the report and cart endpoints. */
 type SellQuery = {
-  type: ListType | undefined
+  listType: ListType | undefined
   locations: ListLocation[] | undefined
   filters: SellEntryFilters
 }
@@ -112,12 +112,12 @@ function queryParam<T extends NotAMessage<T>>(
 }
 
 /**
- * Parse the shared `?type=`/`?list=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/
+ * Parse the shared `?listType=`/`?list=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/
  * `?minOwned=` params; a Response on refusal.
  */
 async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
-  const type = enumQueryParam(url.searchParams, 'type', LIST_TYPES)
-  if (isApiMessage(type)) return badRequest(type)
+  const listType = enumQueryParam(url.searchParams, 'listType', LIST_TYPES)
+  if (isApiMessage(listType)) return badRequest(listType)
   const locations = await parseListsParam(url)
   if (locations instanceof Response) return locations
   const minPrice = queryParam(url, 'min', parseMinPrice)
@@ -130,7 +130,7 @@ async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
   if (tags instanceof Response) return tags
   const rawSets = url.searchParams.get('sets')
   return {
-    type,
+    listType,
     locations,
     filters: {
       tags,
@@ -157,7 +157,7 @@ async function buildSellView(query: SellQuery): Promise<BuiltSellView | Response
   if (feed instanceof Response) return feed
 
   const { report, warnings } = await loadAndBuildSellReport(
-    query.locations ? undefined : (query.type ?? 'collection'),
+    query.locations ? undefined : (query.listType ?? 'collection'),
     query.locations,
     feed,
     // Cache-only lookup: a server handler must not fire per-card Scryfall
@@ -169,7 +169,7 @@ async function buildSellView(query: SellQuery): Promise<BuiltSellView | Response
 
 /**
  * GET /api/sell/report — every listed card matched against the cached Card
- * Kingdom buylist. Scope with `?type=` (default: collections) or
+ * Kingdom buylist. Scope with `?listType=` (default: collections) or
  * repeated `?list=type:slug`, narrowed before matching to lines carrying one of
  * `?tags=`; filter with `?sets=` (comma-separated codes), `?min=` (minimum
  * per-copy offer), `?minRatio=` (offer ÷ TCGplayer market) and `?minOwned=`
@@ -205,7 +205,7 @@ export async function handleSellReport(req: Request): Promise<Response> {
 /**
  * GET /api/sell/cart — the entries CK is buying, rendered as their header-less sell-cart
  * CSV import format (CK's own listing titles — variant note included — and
- * edition spellings, quantities capped at their buy limits), over the same `?type=`/`?list=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` scope
+ * edition spellings, quantities capped at their buy limits), over the same `?listType=`/`?list=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` scope
  * as the report. The capability behind the CLI's `sell --output csv`; carries
  * the title/card counts against CK's upload caps alongside the CSV itself.
  */

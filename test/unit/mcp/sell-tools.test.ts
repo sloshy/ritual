@@ -155,6 +155,34 @@ describe('sell MCP tools', () => {
     expect(data.totals.totalValue).toBe(4)
   })
 
+  test('get_sell_report scopes by listType and names lists by title and slug', async () => {
+    await seedSellFixture(session)
+    type Report = {
+      lists: { listType: string; slug: string; name: string }[]
+      entries: { listType: string; listSlug: string; listName: string }[]
+    }
+    // A wanted scope reaches the handler as `listType=` and finds nothing.
+    const wanted = toolData<Report>(
+      await client.callTool({ name: 'get_sell_report', arguments: { listType: 'wanted' } }),
+    )
+    expect(wanted.lists).toEqual([])
+
+    const data = toolData<Report>(
+      await client.callTool({ name: 'get_sell_report', arguments: { listType: 'collection' } }),
+    )
+    expect(data.lists).toHaveLength(1)
+    expect(data.lists[0]).toMatchObject({
+      listType: 'collection',
+      slug: 'shoebox',
+      name: 'Shoebox',
+    })
+    expect(data.entries[0]).toMatchObject({
+      listType: 'collection',
+      listSlug: 'shoebox',
+      listName: 'Shoebox',
+    })
+  })
+
   test('get_sell_cart renders the CK sell-cart CSV over the same scope', async () => {
     await seedSellFixture(session)
     const result = await client.callTool({ name: 'get_sell_cart', arguments: {} })

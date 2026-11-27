@@ -43,7 +43,7 @@ function lookupFor(printings: Record<string, ScryfallCard[]>): CardPrintingsLook
 }
 
 function input(overrides: Partial<PriceListInput> = {}): PriceListInput {
-  return { type: 'deck', name: 'My Deck', slug: 'my-deck', entries: [], ...overrides }
+  return { listType: 'deck', name: 'My Deck', slug: 'my-deck', entries: [], ...overrides }
 }
 
 async function priceSingle(
@@ -62,7 +62,7 @@ describe('buildPriceReport pricing rules', () => {
   test('pinned collection entry is priced at its exact printing and finish', async () => {
     const entry = await priceSingle(
       input({
-        type: 'collection',
+        listType: 'collection',
         name: 'Binder',
         entries: [
           {
@@ -139,7 +139,7 @@ describe('buildPriceReport pricing rules', () => {
   test('wanted entry pinned to a printing without finish takes that printing’s cheapest finish', async () => {
     const entry = await priceSingle(
       input({
-        type: 'wanted',
+        listType: 'wanted',
         name: 'Wanted',
         entries: [
           { name: 'Test Card', quantity: 1, set: 'bbb', collectorNumber: '7', section: 'Main' },
@@ -163,7 +163,7 @@ describe('buildPriceReport pricing rules', () => {
   test('fully-specified wanted entry has lowest equal to its own price', async () => {
     const entry = await priceSingle(
       input({
-        type: 'wanted',
+        listType: 'wanted',
         name: 'Wanted',
         entries: [
           {
@@ -190,7 +190,7 @@ describe('buildPriceReport pricing rules', () => {
   test('name-only wanted entry prices at the representative and takes the global cheapest as lowest', async () => {
     const entry = await priceSingle(
       input({
-        type: 'wanted',
+        listType: 'wanted',
         name: 'Wanted',
         entries: [{ name: 'Test Card', quantity: 1, section: 'Main' }],
       }),
@@ -273,7 +273,7 @@ describe('buildPriceReport pricing rules', () => {
       [
         input({ entries: [{ name: 'Shared Card', quantity: 1, section: 'Main' }] }),
         input({
-          type: 'collection',
+          listType: 'collection',
           name: 'Binder',
           entries: [
             { name: 'Shared Card', quantity: 1, set: 'aaa', collectorNumber: '1', section: 'Main' },
@@ -303,7 +303,7 @@ describe('buildPriceReport pricing rules', () => {
     }
     const bare = await priceSingle(
       input({
-        type: 'collection',
+        listType: 'collection',
         name: 'Binder',
         entries: [
           { name: 'Test Card', quantity: 1, set: 'bbb', collectorNumber: '7', section: 'Main' },
@@ -313,7 +313,7 @@ describe('buildPriceReport pricing rules', () => {
     )
     const japanese = await priceSingle(
       input({
-        type: 'collection',
+        listType: 'collection',
         name: 'Binder',
         entries: [
           {
@@ -411,7 +411,7 @@ describe('buildPriceReport pricing rules', () => {
   test('a non-proxy label leaves pricing untouched', async () => {
     const entry = await priceSingle(
       input({
-        type: 'collection',
+        listType: 'collection',
         name: 'Binder',
         entries: [
           {
@@ -446,7 +446,7 @@ describe('buildPriceReport aggregation', () => {
           ],
         }),
         input({
-          type: 'wanted',
+          listType: 'wanted',
           name: 'Wanted',
           entries: [{ name: 'Priced', quantity: 1, section: 'Main' }],
         }),
@@ -460,7 +460,7 @@ describe('buildPriceReport aggregation', () => {
     expect(deckSummary.unpricedCount).toBe(2)
 
     const totals = sumPricedEntries(report.entries)
-    expect(report.lists.map((list) => list.type)).toEqual(['deck', 'wanted'])
+    expect(report.lists.map((list) => list.listType)).toEqual(['deck', 'wanted'])
     expect(totals.total).toBe(8)
     expect(totals.unpricedCount).toBe(2)
   })
@@ -468,7 +468,7 @@ describe('buildPriceReport aggregation', () => {
     const { report } = await buildPriceReport(
       [
         input({
-          type: 'collection',
+          listType: 'collection',
           entries: [
             { name: 'Card', quantity: 2, set: 'aaa', collectorNumber: '1', section: 'Main' },
           ],
@@ -493,12 +493,12 @@ describe('buildPriceReport list identity', () => {
     // Same display name, different slugs and types: only the slug tells them apart.
     const { report } = await buildPriceReport(
       [
-        input({ type: 'deck', name: 'Shared Name', slug: 'deck-one', entries: [line] }),
-        input({ type: 'collection', name: 'Shared Name', slug: 'binder-two', entries: [line] }),
+        input({ listType: 'deck', name: 'Shared Name', slug: 'deck-one', entries: [line] }),
+        input({ listType: 'collection', name: 'Shared Name', slug: 'binder-two', entries: [line] }),
       ],
       { pricing: { source: 'tcgplayer' }, lookup: lookupFor({ 'Test Card': [makeCard()] }) },
     )
-    expect(report.lists.map((list) => [list.type, list.name, list.slug])).toEqual([
+    expect(report.lists.map((list) => [list.listType, list.name, list.slug])).toEqual([
       ['deck', 'Shared Name', 'deck-one'],
       ['collection', 'Shared Name', 'binder-two'],
     ])
@@ -716,7 +716,7 @@ describe('filterPricedEntries', () => {
   })
 
   test('type filter matches the source list type', () => {
-    expect(filterPricedEntries(entries, { type: 'collection' }).map((e) => e.name)).toEqual([
+    expect(filterPricedEntries(entries, { listType: 'collection' }).map((e) => e.name)).toEqual([
       'Séance',
     ])
   })

@@ -28,9 +28,9 @@ export function registerResources(server: McpServer): void {
         const data = (await callApi('GET', '/api/lists')) as ListsResponse
         return {
           resources: data.lists.map((entry) => ({
-            uri: `ritual://${entry.type}/${entry.slug}`,
+            uri: `ritual://${entry.listType}/${entry.slug}`,
             name: entry.name,
-            description: `${entry.type}: ${entry.name}`,
+            description: `${entry.listType}: ${entry.name}`,
             mimeType: 'application/json',
           })),
         }
@@ -45,7 +45,7 @@ export function registerResources(server: McpServer): void {
           return data.lists
             .filter(
               (entry) =>
-                (type === undefined || entry.type === type) && entry.slug.startsWith(value),
+                (type === undefined || entry.listType === type) && entry.slug.startsWith(value),
             )
             .map((entry) => entry.slug)
         },

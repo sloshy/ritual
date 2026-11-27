@@ -26,10 +26,10 @@ import type { OmitSuccess, UpdateConfigResult } from '../types'
 import { CSV_UPLOAD_THRESHOLD } from '../../collection-sync/csv'
 import { SYNC_CHANGE_FILTERS, SYNC_DIRECTIONS } from '../../sync/common'
 
-/** `rename_list` result: the slug the list moved to. */
+/** `rename_list` result: the renamed list as it is now (`listType`, `slug`, `name`), its `oldSlug`, and both paths. */
 export type RenameListResult = OmitSuccess<ListRenameResponse>
 
-/** `delete_list` result: the list is gone. */
+/** `delete_list` result: the list that is gone (`listType`, `slug`, `name`) and where its files went. */
 export type DeleteListResult = OmitSuccess<ListDeleteResponse>
 
 /** `rewrite_history` result: how many change sets were written. */

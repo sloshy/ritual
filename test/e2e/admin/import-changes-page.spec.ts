@@ -39,7 +39,7 @@ test.describe('Import Changes Page', () => {
       page,
       [
         {
-          kind: 'deck',
+          listType: 'deck',
           slug: 'my-deck',
           name: 'My Deck',
           applied: 2,
@@ -47,7 +47,7 @@ test.describe('Import Changes Page', () => {
           droppedNotes: [],
         },
         {
-          kind: 'collection',
+          listType: 'collection',
           slug: 'binder',
           name: 'Binder',
           applied: 1,
@@ -88,7 +88,7 @@ test.describe('Import Changes Page', () => {
       page,
       [
         {
-          kind: 'deck',
+          listType: 'deck',
           slug: 'my-deck',
           name: 'My Deck',
           applied: 2,
@@ -119,7 +119,7 @@ test.describe('Import Changes Page', () => {
   test('reports per-list conflicts, dropped notes and errors from the apply', async ({ page }) => {
     await mockImportChangesApi(page, [
       {
-        kind: 'deck',
+        listType: 'deck',
         slug: 'my-deck',
         name: 'My Deck',
         applied: 1,
@@ -132,7 +132,7 @@ test.describe('Import Changes Page', () => {
         droppedNotes: [{ cardName: 'Sol Ring', cardId: 3, note: 'from trade' }],
       },
       {
-        kind: 'collection',
+        listType: 'collection',
         slug: 'binder',
         name: 'Binder',
         applied: 0,

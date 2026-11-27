@@ -224,13 +224,13 @@ describe('new CLI (Integration)', () => {
       expect(result.exitCode).toBe(0)
 
       const payload = JSON.parse(result.stdout) as {
-        type: string
+        listType: string
         slug: string
         name: string
         filePath: string
       }
       expect(payload).toEqual({
-        type: 'deck',
+        listType: 'deck',
         slug: 'Json Deck',
         name: 'Json Deck',
         filePath: path.join(dir, 'decks', 'Json Deck.md'),

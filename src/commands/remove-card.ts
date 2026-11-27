@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { loadListInfo } from '../list/list-info'
 import path from 'node:path'
 import { createRemoveChange, printingOptionsFrom } from '../changes/change-event'
 import type { CardMutationChange } from '../list/list-mutate'
@@ -160,8 +161,7 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
   if (!input.dryRun) await applyTargetedChanges(type, filePath, target, changes)
 
   const result: RemoveCardResult = {
-    type,
-    list: listSlug,
+    ...(await loadListInfo({ type, filePath })),
     cardName: target.name,
     cardId: target.cardId,
     removed: copies,

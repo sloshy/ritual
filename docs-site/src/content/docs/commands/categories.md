@@ -129,8 +129,9 @@ Nothing in this command prunes. Pruning happens on the list's own save (an [edit
 
 ```json
 {
-  "type": "deck",
-  "list": "Winota Stax",
+  "listType": "deck",
+  "slug": "Winota Stax",
+  "name": "Winota Stax",
   "order": ["Ramp", "Draw", "Removal"],
   "cards": [{ "name": "Sol Ring", "categories": ["Ramp", "Artifacts"] }],
   "warnings": []
@@ -141,8 +142,9 @@ Nothing in this command prunes. Pruning happens on the list's own save (an [edit
 
 ```json
 {
-  "type": "deck",
-  "list": "Winota Stax",
+  "listType": "deck",
+  "slug": "Winota Stax",
+  "name": "Winota Stax",
   "action": "rename",
   "order": ["Ramp", "Card Draw", "Removal"],
   "cardsChanged": ["Rhystic Study"],

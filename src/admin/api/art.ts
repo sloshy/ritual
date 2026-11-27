@@ -164,19 +164,19 @@ export function handleArtSave(req: Request): Promise<Response> {
     const parsed = parseCardArtSaveBody(read.body)
     if (isSyncMessage(parsed)) return nestedRefusal(parsed)
 
-    const filePath = await resolveListFile(target.type, target.slug)
+    const filePath = await resolveListFile(target.listType, target.slug)
     if (!filePath) {
       return apiError(
-        apiMessage('admin.api.art.listNotFound', { listType: target.type, slug: target.slug }),
+        apiMessage('admin.api.art.listNotFound', { listType: target.listType, slug: target.slug }),
         404,
       )
     }
 
-    const cardIds = await listCardIds(target.type, filePath)
+    const cardIds = await listCardIds(target.listType, filePath)
     if (!cardIds.has(parsed.cardId)) {
       return badRequest(
         apiMessage('admin.api.art.cardNotInList', {
-          listType: target.type,
+          listType: target.listType,
           cardId: parsed.cardId,
           slug: target.slug,
         }),
@@ -206,9 +206,9 @@ export function handleArtSave(req: Request): Promise<Response> {
     // (git stages a deletion of a tracked file).
     if (written.action !== 'absent') {
       await autoCommitAndPush(
-        dirForType(target.type),
+        dirForType(target.listType),
         [written.path],
-        `Update custom art for ${workspaceListTypeNoun(target.type)} ${target.slug}`,
+        `Update custom art for ${workspaceListTypeNoun(target.listType)} ${target.slug}`,
       )
     }
 
