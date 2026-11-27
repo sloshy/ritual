@@ -128,6 +128,10 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Fixed
 
+- A deck whose front matter is not valid YAML is now reported as unreadable every time it is read
+  by a long-running process (`ritual admin`, `ritual mcp`, `serve --api`). Before, only the first
+  read failed and later ones saw empty front matter, so, for example, the deck-sync listing showed
+  a broken deck as "not linked to Archidekt" instead of unreadable.
 - **Security:** the admin login (`POST /api/login`) now counts each attempt before checking its
   password, so a burst of parallel wrong passwords gets no more checks than the rate limit allows;
   the extra requests get the usual "too many failed attempts" answer. Before, every request in a
