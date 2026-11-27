@@ -12,6 +12,7 @@ import {
   type ListLifecycleError,
 } from '../../list/list-lifecycle'
 import { apiHandler } from '../utils'
+import type { SyncMessage } from '../../sync/message'
 import { resolveListFileOrRefuse, type ListFileResult, type ResolveListFile } from './list-file'
 import { apiMessage, type ApiMessage } from '../../api/result'
 import { apiError, nestedRefusal, readJsonObjectBody } from '../../api/http'
@@ -57,6 +58,11 @@ export interface ListRenameResponse extends ApiMessage, ListInfo {
   newFilePath: string
   /** Its path before, so a client holding the old path can follow the move. */
   oldFilePath: string
+  /**
+   * What the rename could not finish though the list is renamed (the old file
+   * left beside the new one), as messages. Usually empty.
+   */
+  warnings: SyncMessage[]
 }
 
 /**
@@ -147,6 +153,7 @@ export function handleListRename(req: Request, cfg: ListLifecycleConfig): Promis
       oldSlug: parsedSlug.slug,
       newFilePath: result.newFilePath,
       oldFilePath: result.oldFilePath,
+      warnings: result.warnings,
     }
     return Response.json(resp)
   })

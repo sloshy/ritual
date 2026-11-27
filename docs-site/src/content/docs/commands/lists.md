@@ -61,7 +61,7 @@ collection   Main Binder  main
 wanted list  Needs        needs
 ```
 
-The text output is a table under a heading row. **Type** is the list type, worded in your [UI language](/localization/) (`--output json` always spells it `deck`, `collection` or `wanted`). **Name** is the display name, the list's `# Title` heading. **File** is the slug, the file name without `.md`, which is what other commands match a list name against (see [List Names](/list-resolution/)). The **File** column appears only when some list's file name differs from its name; when every file is named after its list (the usual case, since Ritual names files that way), the table has just **Type** and **Name**:
+The text output is a table under a heading row. **Type** is the list type, worded in your [UI language](/localization/) (`--output json` always spells it `deck`, `collection` or `wanted`). **Name** is the display name, the list's `# Title` heading. **File** is the slug, the file name without `.md`, which is what other commands match a list name against (see [List Names](/list-resolution/)). The **File** column appears only when some list's file name differs from its name. A title and its file name are [one name](/list-resolution/#a-lists-title-is-its-file-name), so the two differ only where the file name drops characters the title keeps (`Burn?` in `Burn.md`), in an older workspace, or after a hand edit ([`ritual cleanup`](/commands/cleanup/) renames such a file to its title). When every file is named after its list (the usual case), the table has just **Type** and **Name**:
 
 ```text
 Type        Name

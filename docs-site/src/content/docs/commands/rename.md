@@ -46,11 +46,13 @@ Rename a collection and capture the result as JSON:
 ritual rename --collection main "Trade Binder" --output json
 ```
 
-The JSON output is `{ listType, slug, name, oldSlug, newFilePath, oldFilePath }`, the same paths the text output prints.
+The JSON output is `{ listType, slug, name, oldSlug, newFilePath, oldFilePath, warnings }`, the same paths the text output prints. `warnings` is usually empty; it names the old file when the list was renamed but its old file could not be removed (a duplicate to delete by hand), which also prints on stderr.
 
 ## Behavior
 
-The new file name is derived from the new name by the same rules every surface uses (see [List file names](/commands/new/#list-file-names)), and the list's first `# Title` heading is rewritten. When the new name maps to the slug the list already has, the file is updated in place.
+The new file name is derived from the new name by the same rules every surface uses (see [List file names](/commands/new/#list-file-names)), and the list's first `# Title` heading is rewritten. A list's title and its file name are [one name](/list-resolution/#a-lists-title-is-its-file-name), so `rename` is how either changes: no two lists of a type share a title, and a name another list of the type already goes by is refused. When the new name maps to the slug the list already has, the file is updated in place.
+
+To fix a `# Title` heading edited by hand (so the title no longer names its file), run [`ritual cleanup`](/commands/cleanup/), which renames the file to match through this same rename.
 
 On a file move, the list's companion files move with it:
 

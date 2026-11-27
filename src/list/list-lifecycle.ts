@@ -15,23 +15,25 @@ import path from 'node:path'
 import { hashPath, isRitualClean, writeFileWithHash, writeListFile } from '../changes/content-hash'
 import { newDeckMarkdown } from './deck-file'
 import { invalidDeckFormatMessage, parseDeckFormat } from './deck-format'
-import { sanitizeListFileName, listSlug } from './list-file-name'
+import { findFoldedListFile, listFileSlug, listSlug, sanitizeListFileName } from './list-file-name'
 import {
   LIST_SIDECAR_KINDS,
   listSidecarPath,
   moveListSidecars,
   renameListThroughTemp,
+  type SidecarMove,
 } from './list-sidecars'
 import type { ListType } from './list-type'
 import { isPathWithinDir } from '../util/path-validation'
-import { dirForType, listLocations, normalizeListName } from './resolve-list'
+import { dirForType, listLocations, type ListLocation } from './resolve-list'
 import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-file'
 import { listDisplayNameFromContent } from './list-display-name'
 import { frontMatterBodyStart, markFencedLines } from './markdown-fence'
 import { titleHeading } from './heading'
 import { singleLineText } from '../util/single-line'
 import { moveToTrash } from '../util/safekeeping'
-import { syncMessage, type SyncMessage } from '../sync/message'
+import { errorParam, syncMessage, type SyncMessage } from '../sync/message'
+import { hasErrorCode } from '../util/errno'
 
 /**
  * Structured failure of a lifecycle operation. `message` is English plus its
@@ -41,8 +43,20 @@ import { syncMessage, type SyncMessage } from '../sync/message'
 export type ListLifecycleError =
   | { kind: 'invalid-name'; message: SyncMessage }
   | { kind: 'invalid-format'; message: SyncMessage }
-  | { kind: 'already-exists'; slug: string; message: SyncMessage }
+  | {
+      kind: 'already-exists'
+      slug: string
+      /** The file of the list already going by that name. */
+      existingFilePath: string
+      message: SyncMessage
+    }
   | { kind: 'not-found'; message: SyncMessage }
+  | {
+      kind: 'sidecar-in-the-way'
+      /** The companion file already at the destination, with no list of its own there. */
+      sidecarPath: string
+      message: SyncMessage
+    }
 
 export type CreateListSuccess = { slug: string; filePath: string; touchedFiles: string[] }
 export type CreateListResult = CreateListSuccess | ListLifecycleError
@@ -60,8 +74,34 @@ export type RenameListSuccess = {
   /** The display name the list had before the rename (for messages/commits). */
   oldName: string
   touchedFiles: string[]
+  /**
+   * What the rename could not finish, though the list is renamed: the old file
+   * left beside the new one (`domain.list.lifecycle.oldFileLeft`). Usually empty.
+   */
+  warnings: SyncMessage[]
 }
 export type RenameListResult = RenameListSuccess | ListLifecycleError
+
+/**
+ * A rename that failed part-way and could not put every file back: `cause` is
+ * what failed, `leftovers` the files still at the new name (or the partial new
+ * list file) that need moving back, or deleting, by hand.
+ */
+export class RenameRollbackError extends Error {
+  readonly leftovers: readonly string[]
+
+  constructor(cause: unknown, leftovers: readonly string[]) {
+    super(
+      syncMessage('domain.list.lifecycle.rollbackFailed', {
+        reason: errorParam(cause),
+        files: leftovers.map((file) => path.basename(file)).join(', '),
+      }).message,
+      { cause },
+    )
+    this.name = 'RenameRollbackError'
+    this.leftovers = leftovers
+  }
+}
 
 /** Seams a rename can be run with; production callers pass none. */
 export type RenameListOptions = {
@@ -94,6 +134,7 @@ const LIFECYCLE_ERROR_KINDS = {
   'invalid-format': true,
   'already-exists': true,
   'not-found': true,
+  'sidecar-in-the-way': true,
 } as const satisfies Record<ListLifecycleError['kind'], true>
 
 /**
@@ -120,7 +161,12 @@ export type ListLifecycleErrorStatus = { status: number; message: SyncMessage }
  * engine module stays HTTP-free — handlers wrap it in `Response.json`.
  */
 export function listLifecycleErrorStatus(error: ListLifecycleError): ListLifecycleErrorStatus {
-  const status = error.kind === 'already-exists' ? 409 : error.kind === 'not-found' ? 404 : 400
+  const status =
+    error.kind === 'already-exists' || error.kind === 'sidecar-in-the-way'
+      ? 409
+      : error.kind === 'not-found'
+        ? 404
+        : 400
   return { status, message: error.message }
 }
 
@@ -146,7 +192,9 @@ export function requireDeleteConfirmation(
  * editors, the importers and the admin API say the same thing.
  */
 export function unusableFileNameMessage(name: string): SyncMessage {
-  return syncMessage('domain.list.name.unusable', { name })
+  return sanitizeListFileName(name) === null
+    ? syncMessage('domain.list.name.unusable', { name })
+    : syncMessage('domain.list.name.reservedEnding', { name })
 }
 
 /** The refusal for a list of `type` that is not on disk, named by its file slug. */
@@ -182,7 +230,7 @@ export async function findCollidingList(
   exceptFilePath?: string,
   sameFile: SameFileCheck = statSameFile,
 ): Promise<CollidingList | null> {
-  const normalized = normalizeListName(name)
+  const others: ListLocation[] = []
   for (const location of await listLocations(type)) {
     // The exemption is by file identity, not by string: an admin caller's
     // `filePath` is built from the URL slug, whose casing need not match the
@@ -192,9 +240,13 @@ export async function findCollidingList(
       if (path.resolve(location.filePath) === path.resolve(exceptFilePath)) continue
       if (await sameFile(location.filePath, exceptFilePath)) continue
     }
-    if (normalizeListName(location.name) === normalized) return location
+    others.push(location)
   }
-  return null
+  const file = findFoldedListFile(
+    others.map((location) => path.basename(location.filePath)),
+    name,
+  )
+  return others.find((location) => path.basename(location.filePath) === file) ?? null
 }
 
 /**
@@ -227,11 +279,7 @@ export type CollidingList = { name: string; filePath: string }
  * every other {@link ListLifecycleError} message, so no surface has to punctuate
  * it at the call site.
  */
-function collisionError(
-  type: ListType,
-  slug: string,
-  existing: Pick<CollidingList, 'name'>,
-): ListLifecycleError {
+function collisionError(type: ListType, slug: string, existing: CollidingList): ListLifecycleError {
   const message =
     existing.name === slug
       ? syncMessage('domain.list.lifecycle.exists', { type, name: slug })
@@ -240,7 +288,7 @@ function collisionError(
           name: existing.name,
           query: slug,
         })
-  return { kind: 'already-exists', slug, message }
+  return { kind: 'already-exists', slug, existingFilePath: existing.filePath, message }
 }
 
 /**
@@ -269,7 +317,7 @@ export async function createList(
     content = `${titleHeading(trimmedName)}\n\n`
   }
 
-  const slug = sanitizeListFileName(trimmedName)
+  const slug = listFileSlug(trimmedName)
   if (slug === null) {
     return { kind: 'invalid-name', message: unusableFileNameMessage(trimmedName) }
   }
@@ -290,11 +338,81 @@ export async function createList(
   // A file the resolver never enumerates (e.g. a deck file it filters out) would
   // still be overwritten, so the byte-exact path check stays as a backstop.
   if (await Bun.file(filePath).exists()) {
-    return collisionError(type, slug, { name: slug })
+    return collisionError(type, slug, { name: slug, filePath })
   }
 
   await writeFileWithHash(filePath, content)
   return { slug, filePath, touchedFiles: [filePath, hashPath(filePath)] }
+}
+
+/** Where a rename would put a list, as {@link planListRename} settles it. */
+export type ListRenamePlan = {
+  newSlug: string
+  /** The requested name folded to one line and trimmed: the title the rename writes. */
+  newName: string
+  newFilePath: string
+  /**
+   * True when the destination is the list's own file — the same path, or the
+   * same file under another spelling (a case-only rename on a case-insensitive
+   * file system).
+   */
+  isSelfDestination: boolean
+}
+
+/**
+ * Every check {@link renameList} makes before it touches a file, without
+ * touching one: the name must make a file name, the list must exist, and no
+ * other list of the type may already go by the name (folded as names are
+ * matched) or hold the destination path. `ritual cleanup` previews its renames
+ * through this, so a dry run refuses exactly what the real run would.
+ */
+export async function planListRename(
+  type: ListType,
+  filePath: string,
+  newName: string,
+  options: RenameListOptions = {},
+): Promise<ListRenamePlan | ListLifecycleError> {
+  const trimmedName = singleLineText(newName).trim()
+  const newSlug = listFileSlug(trimmedName)
+  if (newSlug === null) {
+    return { kind: 'invalid-name', message: unusableFileNameMessage(trimmedName) }
+  }
+
+  if (!(await Bun.file(filePath).exists())) return notFoundError(type, filePath)
+
+  const newFilePath = path.join(path.dirname(filePath), `${newSlug}.md`)
+  const sameFile = options.isSameFile ?? statSameFile
+
+  // The destination path can name the source file itself (a case-only rename on
+  // a case-insensitive file system). That is a rename of this list, not a
+  // collision with another one, so it is exempt from every refusal below.
+  const isSelfDestination =
+    newFilePath === filePath || (await sameFile(filePath, newFilePath).catch(() => false))
+
+  if (!isSelfDestination) {
+    const collision = await listNameCollision(type, trimmedName, filePath, sameFile)
+    if (collision) return collision
+    if (await Bun.file(newFilePath).exists()) {
+      return collisionError(type, newSlug, { name: newSlug, filePath: newFilePath })
+    }
+    // A companion file left at the destination with no list beside it (an
+    // orphaned `Burn.changes.md`) would be overwritten by this list's own, or
+    // inherited by it — either way another list's history or art lost.
+    for (const kind of LIST_SIDECAR_KINDS) {
+      const sidecarPath = listSidecarPath[kind](newFilePath)
+      if (await Bun.file(sidecarPath).exists()) {
+        return {
+          kind: 'sidecar-in-the-way',
+          sidecarPath,
+          message: syncMessage('domain.list.lifecycle.sidecarInTheWay', {
+            file: path.basename(sidecarPath),
+            name: trimmedName,
+          }),
+        }
+      }
+    }
+  }
+  return { newSlug, newName: trimmedName, newFilePath, isSelfDestination }
 }
 
 /**
@@ -315,31 +433,9 @@ export async function renameList(
   newName: string,
   options: RenameListOptions = {},
 ): Promise<RenameListResult> {
-  const trimmedName = singleLineText(newName).trim()
-  const newSlug = sanitizeListFileName(trimmedName)
-  if (newSlug === null) {
-    return { kind: 'invalid-name', message: unusableFileNameMessage(trimmedName) }
-  }
-
-  if (!(await Bun.file(filePath).exists())) return notFoundError(type, filePath)
-
-  const dir = path.dirname(filePath)
-  const newFilePath = path.join(dir, `${newSlug}.md`)
-  const sameFile = options.isSameFile ?? statSameFile
-
-  // The destination path can name the source file itself (a case-only rename on
-  // a case-insensitive file system). That is a rename of this list, not a
-  // collision with another one, so it is exempt from every refusal below.
-  const isSelfDestination =
-    newFilePath === filePath || (await sameFile(filePath, newFilePath).catch(() => false))
-
-  if (!isSelfDestination) {
-    const collision = await listNameCollision(type, trimmedName, filePath, sameFile)
-    if (collision) return collision
-    if (await Bun.file(newFilePath).exists()) {
-      return collisionError(type, newSlug, { name: newSlug })
-    }
-  }
+  const plan = await planListRename(type, filePath, newName, options)
+  if (isListLifecycleError(plan)) return plan
+  const { newSlug, newName: trimmedName, newFilePath, isSelfDestination } = plan
 
   const existingContent = await fs.readFile(filePath, 'utf-8')
   const oldName = listDisplayNameFromContent(existingContent, filePath)
@@ -355,6 +451,7 @@ export async function renameList(
   // neither present nor tracked.
   const hadHash = await Bun.file(hashPath(filePath)).exists()
   const touchedFiles: string[] = []
+  const warnings: SyncMessage[] = []
   if (isSelfDestination && newFilePath !== filePath) {
     // Same file, different spelling: rename it (and every sidecar) through a
     // temporary name, since a direct rename would be a no-op on the file system
@@ -376,17 +473,50 @@ export async function renameList(
       touchedFiles.push(move.from, move.to)
     }
   } else if (newFilePath !== filePath) {
-    // Write the new file, then remove the old file and its hash sidecar.
-    await writeListFile(newFilePath, updatedContent, wasRitualClean)
+    // Companions first, then the new list file, then the old one goes — the
+    // commit-point order `moveListFileAndSidecars` keeps: an interruption leaves
+    // the list readable where it was with some companions parked at the new
+    // name, never a list at the new name whose changelog stayed behind.
+    const sidecarMoves: SidecarMove[] = []
+    try {
+      await moveListSidecars(filePath, newFilePath, sidecarMoves)
+      await writeListFile(newFilePath, updatedContent, wasRitualClean)
+    } catch (error) {
+      // Nothing at the destination was there before (the plan refused that),
+      // so anything there now is this rename's: undo it and leave the list
+      // whole where it was. What cannot be undone is named, never swallowed.
+      const leftovers: string[] = []
+      const undo = async (step: () => Promise<void>, leftover: string): Promise<void> => {
+        try {
+          await step()
+        } catch (undoError) {
+          if (!hasErrorCode(undoError, 'ENOENT')) leftovers.push(leftover)
+        }
+      }
+      await undo(() => fs.unlink(newFilePath), newFilePath)
+      await undo(() => fs.unlink(hashPath(newFilePath)), hashPath(newFilePath))
+      for (const move of [...sidecarMoves].reverse()) {
+        await undo(() => fs.rename(move.to, move.from), move.to)
+      }
+      throw leftovers.length === 0 ? error : new RenameRollbackError(error, leftovers)
+    }
     if (wasRitualClean) touchedFiles.push(hashPath(newFilePath))
-    await fs.unlink(filePath)
+    try {
+      await fs.unlink(filePath)
+    } catch (error) {
+      // The renamed list is whole at its new name; the old file could not be
+      // removed, so two files now hold the list. Said, not retried.
+      warnings.push(
+        syncMessage('domain.list.lifecycle.oldFileLeft', {
+          file: path.basename(filePath),
+          reason: errorParam(error),
+        }),
+      )
+    }
     await fs.unlink(hashPath(filePath)).catch(() => undefined)
     touchedFiles.push(filePath, newFilePath)
     if (hadHash) touchedFiles.push(hashPath(filePath))
-
-    for (const { from, to } of await moveListSidecars(filePath, newFilePath)) {
-      touchedFiles.push(from, to)
-    }
+    for (const { from, to } of sidecarMoves) touchedFiles.push(from, to)
   } else {
     // Same slug — just update the display name in the file.
     await writeListFile(filePath, updatedContent, wasRitualClean)
@@ -401,6 +531,7 @@ export async function renameList(
     oldFilePath: filePath,
     oldName,
     touchedFiles,
+    warnings,
   }
 }
 

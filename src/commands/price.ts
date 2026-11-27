@@ -25,7 +25,6 @@ import {
 import { isResolveListError, resolveList, type ListLocation } from '../list/resolve-list'
 import { listIdentityOf } from '../list/list-info'
 import { entriesOfList, findByListIdentity, type ListIdentity } from '../list/list-identity'
-import { listsOfEntries } from '../cli/list-row-name'
 import { listDisplayName } from '../list/list-lifecycle'
 import { getDefaultPriceSource } from '../config/ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
@@ -212,9 +211,8 @@ function emitCardSearch(
     return
   }
 
-  const sources = listsOfEntries(matches)
   for (const entry of matches) {
-    emitOutput(formatEntryChoiceTitle(entry, currency, sources), scriptingOptions)
+    emitOutput(formatEntryChoiceTitle(entry, currency, true), scriptingOptions)
   }
   emitOutput('', scriptingOptions)
   emitOutput(

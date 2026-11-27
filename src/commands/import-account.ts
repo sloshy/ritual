@@ -335,10 +335,10 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
               })
               continue
             }
-            const advisories = importCategoryAdvisories(
-              fetched.refusedCategories,
-              outcome.categoryError,
-            )
+            const advisories = [
+              ...outcome.advisories,
+              ...importCategoryAdvisories(fetched.refusedCategories, outcome.categoryError),
+            ]
             results.push({
               id: deck.id,
               name: deck.name,

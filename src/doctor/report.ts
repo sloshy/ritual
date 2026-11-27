@@ -18,6 +18,8 @@
 import type { CacheDirSource } from '../config/cache-location'
 import type { CacheStatusResult } from '../cache/status'
 import type { ListType } from '../list/list-type'
+import type { ListNameScan } from '../list/list-name-check'
+import { sanitizeListFileName } from '../list/list-file-name'
 import { UPDATE_CHECK_ELIGIBILITIES, type UpdateCheckEligibility } from '../update/notice'
 import { syncDuration, syncList, syncMessage, syncRef } from '../sync/message'
 import type { SyncMessage } from '../sync/message'
@@ -151,10 +153,19 @@ export type DoctorUpdateFacts = {
   available: boolean
 }
 
+/**
+ * Where a list's title and its file name part ways ({@link ListNameScan}): the
+ * two are one name, unique per list type, so a drifted title or a title two
+ * lists share is a workspace problem `ritual cleanup` reports and mostly fixes.
+ * `problem` says why the lists could not be enumerated, when they could not.
+ */
+export type DoctorListNameFacts = ListNameScan
+
 /** Everything the checks are judged from. */
 export type DoctorFacts = {
   ritual: DoctorRitualFacts
   workspace: DoctorWorkspaceFacts
+  listNames: DoctorListNameFacts
   config: DoctorConfigFacts
   migrations: DoctorMigrationFacts
   cache: DoctorCacheFacts
@@ -170,6 +181,7 @@ export type DoctorStatus = (typeof DOCTOR_STATUSES)[number]
 export const DOCTOR_CHECK_IDS = [
   'ritual',
   'workspace',
+  'listNames',
   'config',
   'migrations',
   'cache',
@@ -282,6 +294,74 @@ function workspaceCheck(facts: DoctorWorkspaceFacts, context: DoctorContext): Do
         'unit',
       ),
     }),
+  )
+}
+
+/**
+ * Whether every list's title still names its file and no two lists of a type
+ * share one: a warning, one detail line per list (or shared title), and the
+ * cleanup that renames each drifted file to its title.
+ */
+function listNamesCheck(facts: DoctorListNameFacts): DoctorCheck {
+  const { drifted, shared } = facts
+  if (facts.problem !== null) {
+    return check('listNames', 'warn', syncMessage('domain.doctor.listNames.unchecked'), null, [
+      facts.problem,
+    ])
+  }
+  if (drifted.length === 0 && shared.length === 0) {
+    return check('listNames', 'ok', syncMessage('domain.doctor.listNames.ok'))
+  }
+  const details: SyncMessage[] = [
+    ...drifted.map((list) =>
+      list.titleSlug === null
+        ? syncMessage(
+            // A title with usable characters that ends like a companion file
+            // (`Burn.Changes`) is a different fix from one with none (`???`).
+            sanitizeListFileName(list.name) === null
+              ? 'domain.doctor.listNames.unusable'
+              : 'domain.doctor.listNames.reservedEnding',
+            { type: list.listType, name: list.name, file: `${list.slug}.md` },
+          )
+        : syncMessage('domain.doctor.listNames.drifted', {
+            type: list.listType,
+            name: list.name,
+            file: `${list.slug}.md`,
+            expected: `${list.titleSlug}.md`,
+          }),
+    ),
+    ...shared.map((clash) =>
+      syncMessage('domain.doctor.listNames.shared', {
+        type: clash.listType,
+        name: clash.lists[0].name,
+        files: syncList(
+          clash.lists.map((list) => syncRef('domain.list.fileQuoted', { file: `${list.slug}.md` })),
+          'and',
+        ),
+      }),
+    ),
+  ]
+  return check(
+    'listNames',
+    'warn',
+    syncMessage('domain.doctor.listNames.problems', {
+      problems: syncList(
+        [
+          ...(drifted.length > 0
+            ? [syncRef('domain.doctor.listNames.driftedCount', { count: drifted.length })]
+            : []),
+          ...(shared.length > 0
+            ? [syncRef('domain.doctor.listNames.sharedCount', { count: shared.length })]
+            : []),
+        ],
+        'unit',
+      ),
+    }),
+    syncMessage('domain.doctor.listNames.hint', {
+      cleanup: commandLine(COMMAND.cleanup),
+      rename: commandLine(COMMAND.rename),
+    }),
+    details,
   )
 }
 
@@ -490,6 +570,7 @@ export function evaluateDoctorChecks(facts: DoctorFacts, context: DoctorContext)
   return [
     ritualCheck(facts.ritual),
     workspaceCheck(facts.workspace, context),
+    listNamesCheck(facts.listNames),
     configCheck(facts.config),
     migrationsCheck(facts.migrations),
     cacheCheck(facts.cache, context),

@@ -516,7 +516,11 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           name: z
             .string()
             .min(1)
-            .describe('New list name (create/overwrite) or an existing list (append).'),
+            .describe(
+              'New list name (create/overwrite) or an existing list (append). An overwrite ' +
+                'replaces the list this name folds onto (trade-binder replaces "Trade Binder") ' +
+                "and keeps that list's title, since a title and its file name are one name.",
+            ),
           mode: z
             .enum(['create', 'overwrite', 'append'])
             .optional()

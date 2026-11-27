@@ -22,6 +22,11 @@ const CACHE =
 
 const AGE = '{age} is a duration such as "3 hours" or "2 days".'
 
+const DETAIL = `${DOCTOR} This is one further line under a check's summary: a sentence fragment with no closing period.`
+
+const LIST_NAMES =
+  "A list's title (the heading inside its file) and its file name are the same name, and no two lists of one type may share a title."
+
 export const domainDoctorMeta = {
   'domain.doctor.ritual.summary': {
     description: `${SUMMARY} Which Ritual is running: {version} its version, {build} how it was built (domain.doctor.build.*), {install} how it runs (domain.doctor.install.*), {platform} and {arch} the operating system and processor names (for example "linux x64"), {bun} the version of Bun, the JavaScript runtime Ritual runs on. Never translate the versions or the platform names.`,
@@ -54,6 +59,36 @@ export const domainDoctorMeta = {
   },
   'domain.doctor.workspace.notFoundHint': {
     description: `${HINT} {flag} is the command-line option "--base-dir <path>" that points Ritual at another folder; never translate it. ${COMMAND}`,
+  },
+  'domain.doctor.listNames.ok': {
+    description: `${SUMMARY} ${LIST_NAMES} Everything is in order.`,
+  },
+  'domain.doctor.listNames.unchecked': {
+    description: `${SUMMARY} ${LIST_NAMES} The lists could not be read to check (for example a list folder that is a file); the reason follows on its own line.`,
+  },
+  'domain.doctor.listNames.problems': {
+    description: `${SUMMARY} ${LIST_NAMES} {problems} is the counts of what is wrong, joined with commas (domain.doctor.listNames.driftedCount, domain.doctor.listNames.sharedCount).`,
+  },
+  'domain.doctor.listNames.driftedCount': {
+    description: `Shown as part of {problems} in domain.doctor.listNames.problems. ${LIST_NAMES} Counts the lists whose title (edited by hand, or after the file was renamed) no longer matches their file name.`,
+  },
+  'domain.doctor.listNames.sharedCount': {
+    description: `Shown as part of {problems} in domain.doctor.listNames.problems. ${LIST_NAMES} Counts the titles that two or more lists of one type have in common (titles differing only in capitalization, accents or punctuation count as the same).`,
+  },
+  'domain.doctor.listNames.drifted': {
+    description: `${DETAIL} ${LIST_NAMES} One list whose title no longer matches its file name. {name} is the title; {file} the file the list is in; {expected} the file its title names. Never translate the file names.`,
+  },
+  'domain.doctor.listNames.unusable': {
+    description: `${DETAIL} ${LIST_NAMES} One list whose title has no character a file name can hold (for example "???"). {name} is the title; {file} the file the list is in. Never translate the file name.`,
+  },
+  'domain.doctor.listNames.reservedEnding': {
+    description: `${DETAIL} ${LIST_NAMES} One list whose title ends in ".changes" or ".primer", the endings of the companion files a list keeps (its change history, its primer), so no list file can be named after it and it needs a new title. {name} is the title; {file} the file the list is in. Never translate the file name, ".changes" or ".primer".`,
+  },
+  'domain.doctor.listNames.shared': {
+    description: `${DETAIL} ${LIST_NAMES} Two or more lists of one type with the same title. {files} is their file names, each quoted, joined with the locale's "and"; {name} is the title. Never translate the file names.`,
+  },
+  'domain.doctor.listNames.hint': {
+    description: `${HINT} ${LIST_NAMES} {cleanup} and {rename} are command lines the user types; never translate them. Keep the backticks.`,
   },
   'domain.doctor.config.absent': {
     description: `${SUMMARY} The workspace has no settings file, which is normal. ${FILE}`,

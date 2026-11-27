@@ -219,7 +219,9 @@ export function handleImportDeck(req: Request): Promise<Response> {
       // which is how a decklist pasted from Discord or GitHub arrives.
       const parsed = parseDeckText(content, fallbackName, undefined, IMPORT_TEXT_PARSE_OPTIONS)
       deckData = parsed.deck
-      sourceLabels = parsed.defaultLabels
+      // Ritual's own grammar speaks labels whether or not the text declares a
+      // default: a plain line is a real card (see `withLandedLabels`).
+      sourceLabels = parsed.defaultLabels ?? []
       // Skipped lines are content the import silently lost — the client must
       // be able to report them (the CLI's text path exits 1 on the same class).
       notices = parsed.notices
@@ -246,6 +248,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
     // A URL import's category notes join the advisories: news, not loss.
     const advisories: SyncMessage[] = [
       ...advisoryMessages({ notices }),
+      ...outcome.advisories,
       ...importCategoryAdvisories(refusedCategories, outcome.categoryError),
     ]
 

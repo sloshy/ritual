@@ -30,6 +30,49 @@ export const domainDoctorMessages = {
   'domain.doctor.workspace.notFoundHint':
     'Run Ritual from your workspace folder or pass {flag}; to start a workspace here, run `{command}`.',
 
+  'domain.doctor.listNames.ok':
+    "Every list's title names its file, and no two lists of a type share a title",
+  'domain.doctor.listNames.unchecked': 'Could not check the list titles against their file names',
+  'domain.doctor.listNames.problems': 'List titles and file names disagree: {problems}',
+  'domain.doctor.listNames.driftedCount': {
+    $plural: 'count',
+    one: '{count} title does not name its file',
+    other: '{count} titles do not name their files',
+  },
+  'domain.doctor.listNames.sharedCount': {
+    $plural: 'count',
+    one: '{count} title is shared by more than one list',
+    other: '{count} titles are shared by more than one list',
+  },
+  'domain.doctor.listNames.drifted': {
+    $select: 'type',
+    deck: "The deck '{name}' is in '{file}', but its title names '{expected}'",
+    collection: "The collection '{name}' is in '{file}', but its title names '{expected}'",
+    wanted: "The wanted list '{name}' is in '{file}', but its title names '{expected}'",
+  },
+  'domain.doctor.listNames.unusable': {
+    $select: 'type',
+    deck: "The deck in '{file}' is titled '{name}', which no file can be named after",
+    collection: "The collection in '{file}' is titled '{name}', which no file can be named after",
+    wanted: "The wanted list in '{file}' is titled '{name}', which no file can be named after",
+  },
+  'domain.doctor.listNames.reservedEnding': {
+    $select: 'type',
+    deck: "The deck in '{file}' is titled '{name}', which ends in a companion-file name (.changes, .primer); rename it",
+    collection:
+      "The collection in '{file}' is titled '{name}', which ends in a companion-file name (.changes, .primer); rename it",
+    wanted:
+      "The wanted list in '{file}' is titled '{name}', which ends in a companion-file name (.changes, .primer); rename it",
+  },
+  'domain.doctor.listNames.shared': {
+    $select: 'type',
+    deck: "The decks {files} share the title '{name}'",
+    collection: "The collections {files} share the title '{name}'",
+    wanted: "The wanted lists {files} share the title '{name}'",
+  },
+  'domain.doctor.listNames.hint':
+    'Run `{cleanup}` to rename each file to its title; use `{rename}` for a list cleanup cannot read, and to give one of each pair sharing a title a new title first.',
+
   'domain.doctor.config.absent': 'No {file}, so every setting has its default',
   'domain.doctor.config.valid': '{file} is valid',
   'domain.doctor.config.invalid': {

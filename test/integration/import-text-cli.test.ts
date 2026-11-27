@@ -77,6 +77,24 @@ describe('import text file skipped-line reporting (Integration)', () => {
   })
 })
 
+describe('import a text file over a proxy deck (Integration)', () => {
+  test('a file with no labels default keeps its plain lines real cards', async () => {
+    await withWorkspace(async (dir) => {
+      // The replaced deck declares every card a proxy; the imported file, in
+      // Ritual's own grammar, states its plain line is a real card.
+      const target = path.join(dir, 'decks', 'Burn.md')
+      await fs.writeFile(target, '---\nformat: modern\nlabels:\n  - proxy\n---\n\n# Burn\n')
+      const source = path.join(dir, 'burn.txt')
+      await fs.writeFile(source, '# Burn\n1 Sol Ring\n')
+
+      const result = await runCli(['import', source, '--type', 'deck', '--yes', '--no-input'], dir)
+
+      expect(result.exitCode).toBe(0)
+      expect(await fs.readFile(target, 'utf-8')).toContain('Sol Ring [no-proxy]')
+    })
+  })
+})
+
 /**
  * A quantity past three digits end to end: imported, written `x`-marked (a bare
  * four-digit run would read back as part of the card's name), and read back by

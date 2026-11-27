@@ -95,6 +95,100 @@ describe('workspace check', () => {
   })
 })
 
+describe('listNames check', () => {
+  test('every title naming its file, none shared, is fine', () => {
+    expect(verdict(checkOf('listNames'))).toEqual({
+      status: 'ok',
+      summary: 'domain.doctor.listNames.ok',
+      hint: null,
+    })
+  })
+
+  test('a drifted title and a shared one warn, one line each, with the cleanup fix', () => {
+    const c = checkOf('listNames', (f) => {
+      f.listNames = {
+        drifted: [
+          { listType: 'deck', slug: 'old', name: 'Burn', titleSlug: 'Burn' },
+          { listType: 'wanted', slug: 'odd', name: '???', titleSlug: null },
+          { listType: 'deck', slug: 'Burn.Changes', name: 'Burn.Changes', titleSlug: null },
+        ],
+        shared: [
+          {
+            listType: 'collection',
+            lists: [
+              { listType: 'collection', slug: 'Binder', name: 'Binder' },
+              { listType: 'collection', slug: 'binder-', name: 'binder-' },
+            ],
+          },
+        ],
+        problem: null,
+      }
+    })
+    expect(verdict(c)).toEqual({
+      status: 'warn',
+      summary: 'domain.doctor.listNames.problems',
+      hint: 'domain.doctor.listNames.hint',
+    })
+    expect(c.summary.message).toBe(
+      'List titles and file names disagree: 3 titles do not name their files, 1 title is shared by more than one list',
+    )
+    expect(c.details.map((detail) => detail.message)).toEqual([
+      "The deck 'Burn' is in 'old.md', but its title names 'Burn.md'",
+      "The wanted list in 'odd.md' is titled '???', which no file can be named after",
+      "The deck in 'Burn.Changes.md' is titled 'Burn.Changes', which ends in a companion-file name (.changes, .primer); rename it",
+      "The collections 'Binder.md' and 'binder-.md' share the title 'Binder'",
+    ])
+    expect(c.hint?.message).toContain('`ritual cleanup`')
+  })
+})
+
+describe('listNames check summary', () => {
+  const drift = { listType: 'deck', slug: 'old', name: 'Burn', titleSlug: 'Burn' } as const
+  const clash = {
+    listType: 'deck',
+    lists: [
+      { listType: 'deck', slug: 'Red', name: 'Red' },
+      { listType: 'deck', slug: 'red-', name: 'red-' },
+    ],
+  } as const
+
+  test.each<[string, FactsChange, string]>([
+    [
+      'drift alone counts only drift',
+      (f) => {
+        f.listNames = { drifted: [drift], shared: [], problem: null }
+      },
+      'List titles and file names disagree: 1 title does not name its file',
+    ],
+    [
+      'a shared title alone counts only that',
+      (f) => {
+        f.listNames = {
+          drifted: [],
+          shared: [{ ...clash, lists: [...clash.lists] }],
+          problem: null,
+        }
+      },
+      'List titles and file names disagree: 1 title is shared by more than one list',
+    ],
+  ])('%s', (_label, change, summary) => {
+    expect(checkOf('listNames', change).summary.message).toBe(summary)
+  })
+
+  test('lists that could not be read to check warn with the reason under it', () => {
+    const reason = syncText('ENOTDIR: decks')
+    const c = checkOf('listNames', (f) => {
+      f.listNames = { drifted: [], shared: [], problem: reason }
+    })
+    expect(verdict(c)).toEqual({
+      status: 'warn',
+      summary: 'domain.doctor.listNames.unchecked',
+      hint: null,
+    })
+    expect(c.details).toEqual([reason])
+  })
+})
+
 describe('config check', () => {
   test('a missing file is fine: every setting has its default', () => {
     const c = checkOf('config', (f) => {
@@ -373,7 +467,7 @@ describe('formatDoctorText', () => {
     const facts = healthy()
     facts.config = { state: 'invalid', problems: [PROBLEM, syncText('first line\nsecond line')] }
     const lines = formatDoctorText(buildDoctorReport(facts, CONTEXT)).split('\n')
-    expect(lines.slice(2, 7)).toEqual([
+    expect(lines.slice(3, 8)).toEqual([
       'fail  ritual.config.json has 2 invalid settings',
       `      - ${PROBLEM.message}`,
       '      - first line',

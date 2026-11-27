@@ -9,8 +9,10 @@ import type { ListType } from './list-type'
 
 /**
  * A list's identity: its type and slug (the file basename). Two lists of
- * different types may share a slug, and two lists may share a display name,
- * so this pair — never a name — is what finds a list.
+ * different types may share a slug (and a title), so this pair is what finds a
+ * list. Within a type a list's title and its file name are one name, unique
+ * per type (`list-name-check.ts`), but a hand edit can break that until
+ * `ritual cleanup` runs, so the slug, never the title, is the key.
  */
 export interface ListIdentity {
   listType: ListType
@@ -77,11 +79,6 @@ export function entryListKey({ listType, listSlug }: ListEntryOrigin): ListIdent
 /** The list label an entry of `list` carries. */
 export function entryLabelOf({ listType, slug, name }: ListInfo): ListEntryLabel {
   return { listType, listSlug: slug, listName: name }
-}
-
-/** The list an entry's label names. */
-export function listInfoOfEntry({ listType, listSlug, listName }: ListEntryLabel): ListInfo {
-  return { listType, slug: listSlug, name: listName }
 }
 
 /**

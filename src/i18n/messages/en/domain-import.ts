@@ -95,6 +95,10 @@ export const domainImportMessages = {
     "category {value} names a board — dropped from the categories, and the row's section is '{section}'",
 
   // ── Writing the imported list ─────────────────────────────────────────
+  'domain.import.replacedDeckUnreadable':
+    'The deck this import would replace has front matter that cannot be read ({reason}). Fix or remove it, then import again.',
+  'domain.import.titleKept':
+    "Kept the deck's title '{name}' (its file name); the source calls it '{sourceName}'. To use that name, run `{command}`.",
   'domain.import.fileExists':
     'File already exists: {path}. Use overwrite or append mode to change it.',
   'domain.import.nameTaken': '{reason} Use overwrite or append mode to change it.',

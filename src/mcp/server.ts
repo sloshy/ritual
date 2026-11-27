@@ -19,11 +19,13 @@ import { createTaskTools, sharedTaskRuntime, type TaskRuntime } from './tasks/ru
 const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, and wanted lists stored as markdown files.
 
 - Lists are addressed by listType ("deck" | "collection" | "wanted") + slug (the file basename
-  without ".md"). list_lists enumerates; get_list reads (start with view "summary" on an unfamiliar
-  list). Lists are also readable resources at ritual://{type}/{slug}. For counts or value across
-  several lists (copies in every collection, lists whose name contains a word, each deck's board
-  counts, the most valuable collections), call summarize_lists once rather than list_lists plus
-  a get_list per list; get_list_prices prices one list card by card.
+  without ".md"); a list's name (its "# Title") and its file name are one name, unique per
+  type (rename_list changes both). list_lists enumerates; get_list reads (start with view
+  "summary" on an unfamiliar list). Lists are also readable resources at ritual://{type}/{slug}.
+  For counts or value across several lists (copies in every collection, lists whose name
+  contains a word, each deck's board counts, the most valuable collections), call
+  summarize_lists once rather than list_lists plus a get_list per list; get_list_prices prices
+  one list card by card.
 - Card targeting is exact and case-sensitive; cardId (the &N id get_list shows) wins when present,
   so pair it only with a cardName from the same get_list snapshot (ids are recycled after removals).
 - Single-list edits are all-or-nothing; the cross-list batch tools and import_change_bundle skip

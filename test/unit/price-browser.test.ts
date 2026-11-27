@@ -17,8 +17,6 @@ import {
   type CardBrowserSelection,
   type PriceMainSelection,
 } from '../../src/commands/price-browser'
-import { listRowName } from '../../src/cli/list-row-name'
-import { listInfoOfEntry } from '../../src/list/list-identity'
 import { UNRANKED_EDHREC } from '../../src/card/card-printing'
 import { formatTotalsSegment } from '../../src/cli/price-format'
 import type { PriceTotals, PricedEntry } from '../../src/pricing/price-report'
@@ -273,18 +271,6 @@ describe('formatListChoiceTitle', () => {
   })
 })
 
-describe('listRowName', () => {
-  test('a title shared within a type gains its slug; across types it does not', () => {
-    const one = row({ name: 'Burn', slug: 'burn' })
-    const two = row({ name: 'Burn', slug: 'burn-2' })
-    const binder = row({ listType: 'collection', name: 'Burn', slug: 'burn' })
-    const rows = [one, two, binder]
-    expect(listRowName(one, rows)).toBe('Burn (burn)')
-    expect(listRowName(two, rows)).toBe('Burn (burn-2)')
-    expect(listRowName(binder, rows)).toBe('Burn')
-  })
-})
-
 describe('formatEntryChoiceTitle', () => {
   test('marks representative printings with an asterisk', () => {
     expect(formatEntryChoiceTitle(entry({ pinned: false }), 'usd')).toBe(
@@ -295,18 +281,9 @@ describe('formatEntryChoiceTitle', () => {
 
   test('shows quantity multiplier, line total, lowest, finish, and source', () => {
     const shown = entry({ quantity: 2, price: 3, lowest: 1, finish: 'foil' })
-    const title = formatEntryChoiceTitle(shown, 'usd', [listInfoOfEntry(shown)])
+    const title = formatEntryChoiceTitle(shown, 'usd', true)
     expect(title).toStartWith('2x Sol Ring (C19:221) [foil] — $6.00 · lowest $2.00')
     expect(title).toEndWith('My Deck')
-  })
-
-  test('a source title another shown list shares gains its slug', () => {
-    const shown = entry({ listSlug: 'deck-one' })
-    const sources = [
-      listInfoOfEntry(shown),
-      { listType: shown.listType, slug: 'deck-two', name: shown.listName },
-    ]
-    expect(formatEntryChoiceTitle(shown, 'usd', sources)).toEndWith('My Deck (deck-one)')
   })
 
   test("leads a multi-copy row with the CLI language's quantity form", () => {
@@ -563,7 +540,8 @@ describe('runPriceBrowser store switching', () => {
               source: 'tcgplayer',
               currency: 'usd',
               lists: [],
-              entries: [entry()],
+              // An entry naming its list differently: the heading reads the row.
+              entries: [entry({ listName: 'Entry Name' })],
             },
             printingsByName: new Map(),
           })
@@ -575,6 +553,31 @@ describe('runPriceBrowser store switching', () => {
     expect(builds).toBe(1)
     // The list's card screen is headed by its summary row's name.
     expect(lines.log.some((line) => line.startsWith('🎴 My Deck — '))).toBe(true)
+    expect(lines.log.some((line) => line.includes('Entry Name —'))).toBe(false)
+  })
+
+  test('a card screen for a list the summary has no row for is headed by its slug', async () => {
+    prompts.inject([
+      { kind: 'open', list: { listType: 'deck', slug: 'gone-deck' } } satisfies PriceMainSelection,
+      { kind: 'back' } satisfies CardBrowserSelection,
+      { kind: 'exit' } satisfies PriceMainSelection,
+    ])
+    const { lines } = await captureConsole(['log', 'error'], () =>
+      runPriceBrowser({
+        summary: listsSummary(),
+        source: 'tcgplayer',
+        lastRefreshedAt: null,
+        loadSummary: () => Promise.resolve(listsSummary()),
+        loadReport: () =>
+          Promise.resolve({
+            report: { source: 'tcgplayer', currency: 'usd', lists: [], entries: [] },
+            printingsByName: new Map(),
+          }),
+        refreshPrices: () => Promise.resolve(REFRESHED),
+        getLastRefreshedAt: () => Promise.resolve(null),
+      }),
+    )
+    expect(lines.log.some((line) => line.startsWith('🎴 gone-deck'))).toBe(true)
   })
 
   test('a card screen whose report cannot be read says why and keeps the session', async () => {

@@ -169,7 +169,7 @@ Create, rename, and delete answer identically for decks, collections, and wanted
 | Rename    | `{ success: true, message, listType, slug, name, oldSlug, newFilePath, oldFilePath }` |
 | Delete    | `{ success: true, message, listType, slug, name, deletedFiles, trashDir }`            |
 
-A rename names the list as it is now, the same `{ listType, slug, name }` every list reference uses (`slug` is the new one, `name` the new title), plus the `oldSlug` it was addressed by. A delete names the list it removed the same way, as it was before the delete. `newFilePath`/`oldFilePath` are the list's paths after and before the rename. `deletedFiles` is every path the delete removed: the list plus its sidecar files. They are moved, not erased: `trashDir` is the [trash folder](/commands/delete/#restoring-a-deleted-list) now holding them, where each keeps its workspace-relative path. All of these paths are absolute; `message` names the trash folder relative to the workspace.
+A rename names the list as it is now, the same `{ listType, slug, name }` every list reference uses (`slug` is the new one, `name` the new title), plus the `oldSlug` it was addressed by. A delete names the list it removed the same way, as it was before the delete. `newFilePath`/`oldFilePath` are the list's paths after and before the rename, and `warnings` (a rename only, usually empty) names an old file that could not be removed after the list was renamed. `deletedFiles` is every path the delete removed: the list plus its sidecar files. They are moved, not erased: `trashDir` is the [trash folder](/commands/delete/#restoring-a-deleted-list) now holding them, where each keeps its workspace-relative path. All of these paths are absolute; `message` names the trash folder relative to the workspace.
 
 A refusal is the shared [error envelope](/admin/api/#error-responses) at one of these statuses:
 
@@ -177,7 +177,7 @@ A refusal is the shared [error envelope](/admin/api/#error-responses) at one of 
 - `404` — a list that does not exist.
 - `409` — a target name already taken.
 
-`409` covers more than an identical file name. Create and rename refuse any name that [resolves](/list-resolution/#names-that-would-collide-are-refused-at-creation) to an existing list of the same type: `atraxa superfriends` is refused while `Atraxa Superfriends` exists, with `A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends' under list-name folding).` Renaming a list to another spelling of its own name (a capitalization or punctuation fix) is not a collision. It succeeds and moves the file and its sidecars, even on a case-insensitive file system.
+`409` covers more than an identical file name. Create and rename refuse any name that [resolves](/list-resolution/#names-that-would-collide-are-refused-at-creation) to an existing list of the same type: `atraxa superfriends` is refused while `Atraxa Superfriends` exists, with `A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends' under list-name folding).` So is a companion file (`<name>.changes.md`, `.art.json`, …) already on disk at the new name with no list of its own (`domain.list.lifecycle.sidecarInTheWay`). Renaming a list to another spelling of its own name (a capitalization or punctuation fix) is not a collision. It succeeds and moves the file and its sidecars, even on a case-insensitive file system.
 
 ## Rename Deck
 

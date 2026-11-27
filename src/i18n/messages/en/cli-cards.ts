@@ -588,8 +588,11 @@ export const cliCardsMessages = {
   // ── cleanup ───────────────────────────────────────────────────────────
   'cli.cleanup.couldNotRead': 'could not be read: {reason}',
   'cli.cleanup.skipped': 'skipped: fix the file and rerun cleanup',
-  'cli.cleanup.notRenamedOccupied': "not renamed to '{file}': another list already has that file",
-  'cli.cleanup.notRenamedCollision': "not renamed to '{file}': {reason}",
+  'cli.cleanup.renameTaken':
+    "not renamed to '{file}': '{name}' ('{otherFile}') already goes by this list's title; give one of the two a new title with `{command}`",
+  'cli.cleanup.renameFailed': "not renamed to '{file}': {reason}",
+  'cli.cleanup.sharedTitle':
+    "shares the title '{name}' with {others}; give all but one of them a new title with `{command}`",
   'cli.cleanup.notRewritten': 'not rewritten: fix the lines above and rerun cleanup',
   'cli.cleanup.categoriesNotPruned':
     'categories not pruned: the parse skipped lines, so a card still in the file could look gone',

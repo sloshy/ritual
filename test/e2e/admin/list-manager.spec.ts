@@ -120,6 +120,7 @@ async function installManagerMocks(page: Page, state: ManagerState): Promise<voi
         oldSlug: slug,
         newFilePath: `/workspace/${trimmed}.md`,
         oldFilePath: `/workspace/${slug}.md`,
+        warnings: [],
       } satisfies ListRenameResponse)
       return
     }

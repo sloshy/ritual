@@ -200,10 +200,10 @@ describe('import text file into flat lists (Integration)', () => {
     expect(art).not.toContain('mox.png')
   })
 
-  test('a list write the shared writer refuses is a usage error, not a crash', async () => {
-    // A `.changes.md` sidecar is never a list, so the conflict scan cannot see
-    // it — but a list named after it would land on the same path, which the
-    // writer refuses. That refusal carries the usage classification (exit 2).
+  test('a list named like a companion file is a usage error, never written', async () => {
+    // A `.changes.md` sidecar is never a list, so a list named after one would
+    // land on another list's changelog: the name is unusable, refused with the
+    // usage classification (exit 2) before anything is written.
     await fs.mkdir(path.join(tmpDir, 'wanted'), { recursive: true })
     await fs.writeFile(path.join(tmpDir, 'wanted', 'wants.changes.md'), '# log\n')
     const source = await writeSource('wants.txt', '# wants.changes\n1 Black Lotus\n')
@@ -211,10 +211,13 @@ describe('import text file into flat lists (Integration)', () => {
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
     await expect(saveFlatList(deckData, 'wanted')).rejects.toMatchObject({
-      message: expect.stringContaining('File already exists'),
+      message: expect.stringContaining("ends like a list's companion file"),
       code: 'usage_error',
       exitCode: ExitCode.UsageError,
     })
+    expect(await fs.readFile(path.join(tmpDir, 'wanted', 'wants.changes.md'), 'utf-8')).toBe(
+      '# log\n',
+    )
   })
 
   test.each<[string, ConflictResolution, string | RegExp]>([

@@ -7,17 +7,17 @@ describe('renamePrompt', () => {
   test.each<[string, SaveConflict, string]>([
     [
       'a deck asks for a filename',
-      { file: 'A.md', reason: 'id', listType: 'deck' },
+      { file: 'A.md', filePath: '/w/A.md', reason: 'id', listType: 'deck' },
       'new filename',
     ],
     [
       'a collection asks for a collection name',
-      { file: 'A.md', reason: 'name', listType: 'collection' },
+      { file: 'A.md', filePath: '/w/A.md', reason: 'name', listType: 'collection' },
       'collection name',
     ],
     [
       'a wanted list asks for a wanted list name',
-      { file: 'A.md', reason: 'name', listType: 'wanted' },
+      { file: 'A.md', filePath: '/w/A.md', reason: 'name', listType: 'wanted' },
       'wanted list name',
     ],
   ])('%s', (_label, conflict, expected) => {

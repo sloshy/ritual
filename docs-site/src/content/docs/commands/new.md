@@ -90,11 +90,11 @@ The first command that creates a `.sha256` file in a workspace (usually the firs
 
 A list's file is named as you name the list: `ritual new deck "Winota Stax"` writes `decks/Winota Stax.md`. Case, spaces, and punctuation are preserved. The name is not lowercased or hyphenated.
 
-Only characters file systems reject are removed: `/ \ : * ? " < > |`, the null byte, and leading, trailing, or repeated dots. So `Atraxa: Praetors' Voice` is stored as `decks/Atraxa Praetors' Voice.md`, while the `# Title` heading keeps the colon. A name with nothing usable left (`"???"`) is an error, and no file is written.
+Only characters file systems reject are removed: `/ \ : * ? " < > |`, the null byte, and leading, trailing, or repeated dots. So `Atraxa: Praetors' Voice` is stored as `decks/Atraxa Praetors' Voice.md`, while the `# Title` heading keeps the colon. A name with nothing usable left (`"???"`) is an error, and no file is written. So is a name that would end like a list's companion file (`Burn.changes`, `Notes.primer`, in any case), since `Burn.changes.md` is the changelog of `Burn.md`.
 
 A name is also how you address a list later, so `new` refuses a name that would [resolve](/list-resolution/#names-that-would-collide-are-refused-at-creation) to an existing list of the same type, not just one that lands on the same file name. Creating `atraxa superfriends` beside an existing `Atraxa Superfriends.md` is refused with `A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends' under list-name folding)`.
 
-Every surface that creates a list (the CLI, the editors, imports, and the admin site) names files this way.
+Every surface that creates a list (the CLI, the editors, imports, and the admin site) names files this way. A list's title and its file name are therefore [one name](/list-resolution/#a-lists-title-is-its-file-name), and no two lists of one type share a title.
 
 ## Deck format
 

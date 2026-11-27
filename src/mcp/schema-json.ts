@@ -58,12 +58,14 @@ import {
   type DoctorCheck,
   type DoctorConfigFacts,
   type DoctorListFolder,
+  type DoctorListNameFacts,
   type DoctorMigrationFacts,
   type DoctorReport,
   type DoctorRitualFacts,
   type DoctorUpdateFacts,
   type DoctorWorkspaceFacts,
 } from '../doctor/report'
+import type { ListTitleClash, ListTitleDrift } from '../list/list-name-check'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
 import { DIFF_BY_MODES } from '../changes/list-diff'
 import { BUYERS, CK_CSV_MAX_CARDS, CK_CSV_MAX_TITLES, SELL_MATCH_VIAS } from '../buylist'
@@ -616,9 +618,11 @@ export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = withDefs(
       }),
       lists: arr(
         obj(SELL_LIST_SUMMARY_PROPS, ['listType', 'slug', 'name', ...SELL_TOTALS_REQUIRED]),
+        'One row per list in scope, in type order: a list with nothing to sell, or whose ' +
+          'every entry the filters drop, keeps a row with zero totals.',
       ),
       entries: arr(SELL_ENTRY_SCHEMA, 'Matched entries; filtered when filters are active.'),
-      totals: obj({ ...SELL_TOTALS_PROPS, listCount: int() }, [
+      totals: obj({ ...SELL_TOTALS_PROPS, listCount: int('Lists in scope, sellable or not.') }, [
         ...SELL_TOTALS_REQUIRED,
         'listCount',
       ]),
@@ -857,6 +861,32 @@ const DOCTOR_WORKSPACE_PROPS = {
   ),
 } satisfies Record<keyof DoctorWorkspaceFacts, JsonSchemaType>
 
+/** One list whose title no longer names its file, in the `get_diagnostics` list-name facts. */
+const DOCTOR_TITLE_DRIFT_PROPS = {
+  ...LIST_INFO_PROPS,
+  titleSlug: nullableStr(
+    'The slug (file name without .md) the title names; null when no file can be named after it.',
+  ),
+} satisfies Record<keyof ListTitleDrift, JsonSchemaType>
+
+const DOCTOR_LIST_NAME_PROPS = {
+  drifted: arr(
+    obj(DOCTOR_TITLE_DRIFT_PROPS, ['listType', 'slug', 'name', 'titleSlug']),
+    'Lists whose title (name) names a different file than the one they are in (slug).',
+  ),
+  shared: arr(
+    obj(
+      {
+        listType: LIST_INFO_PROPS.listType,
+        lists: arr(obj(LIST_INFO_PROPS, ['listType', 'slug', 'name'])),
+      } satisfies Record<keyof ListTitleClash, JsonSchemaType>,
+      ['listType', 'lists'],
+    ),
+    'Titles two or more lists of one type share, folded as list names are matched.',
+  ),
+  problem: nullable(SYNC_MESSAGE, 'Why the lists could not be read to check; null when they were.'),
+} satisfies Record<keyof DoctorListNameFacts, JsonSchemaType>
+
 const DOCTOR_CONFIG_PROPS = {
   state: enumOf(CONFIG_STATES),
   problems: arr(
@@ -916,6 +946,7 @@ export const GET_DIAGNOSTICS_OUTPUT: JsonSchemaType = obj(
       'issuesUrl',
     ]),
     workspace: obj(DOCTOR_WORKSPACE_PROPS, ['baseDir', 'configFile', 'folders']),
+    listNames: obj(DOCTOR_LIST_NAME_PROPS, ['drifted', 'shared', 'problem']),
     config: obj(DOCTOR_CONFIG_PROPS, ['state', 'problems']),
     migrations: obj(DOCTOR_MIGRATION_PROPS, ['state', 'remedy', 'problem']),
     cache: obj(DOCTOR_CACHE_PROPS, [
@@ -1183,8 +1214,13 @@ export const RENAME_LIST_OUTPUT: JsonSchemaType = obj(
     oldSlug: str('The slug the list was addressed by before the rename.'),
     newFilePath: str('The list’s file path after the rename.'),
     oldFilePath: str('The path it occupied before the rename.'),
+    warnings: arr(
+      SYNC_MESSAGE,
+      'What the rename could not finish though the list is renamed (its old file left ' +
+        'beside the new one); usually empty.',
+    ),
   } satisfies Properties & Record<keyof RenameListResult, unknown>,
-  ['message', 'listType', 'slug', 'name', 'oldSlug', 'newFilePath', 'oldFilePath'],
+  ['message', 'listType', 'slug', 'name', 'oldSlug', 'newFilePath', 'oldFilePath', 'warnings'],
 )
 
 export const DELETE_LIST_OUTPUT: JsonSchemaType = obj(

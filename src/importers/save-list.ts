@@ -5,7 +5,8 @@
  */
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { listFileName } from '../list/list-file-name'
+import { findFoldedListFile, listFileName } from '../list/list-file-name'
+import { replacementTitle } from '../list/list-display-name'
 import { unusableFileNameMessage } from '../list/list-lifecycle'
 import { listDeckFiles, parseDeckText } from './text-file'
 import {
@@ -17,11 +18,12 @@ import {
 import type { DeckData } from '../list/deck'
 import { arrivalLabels, carriedLabels, type CardLabel } from '../card/card-labels'
 import { serializeDeckToMarkdown, type DeckFrontMatter } from '../list/deck-file'
+import { keptDeckFrontMatter } from './kept-front-matter'
 import { parseMoxfieldPrimer } from '../list/primer-parser'
 import { getLogger } from '../util/logger'
 import { writeFileWithHash } from '../changes/content-hash'
 import { isPathWithinDir } from '../util/path-validation'
-import { dirForType, listFilePath, normalizeListName } from '../list/resolve-list'
+import { dirForType, listFilePath } from '../list/resolve-list'
 import { findCollidingList } from '../list/list-lifecycle'
 import { reconcileListRefs } from '../list/list-refs'
 import { collectDeckCardIds } from '../card/card-id'
@@ -33,7 +35,7 @@ import {
   localizedCommandError,
   messageCommandError,
 } from '../util/errors'
-import type { SyncMessage } from '../sync/message'
+import { syncMessage, type SyncMessage } from '../sync/message'
 import { t } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
 import { foldCategoryCardName } from '../card/card-categories'
@@ -48,15 +50,16 @@ import { loadDefaultCategories } from '../config/ritual-config'
 import { deckCardNames, deckCardNameSet } from '../list/card-names'
 import { writeFileAtomic } from '../util/atomic-write'
 import { primerSidecarPath } from '../list/list-sidecars'
-import { FLAG } from '../util/cli-tokens'
+import { COMMAND, FLAG, commandLine, shellQuote } from '../util/cli-tokens'
 
 /**
  * An existing list an import would replace, and how it was matched. Only a
  * deck carries a `sourceId`, so an id match is a deck match by construction.
  */
+/** The existing list an import would replace: its file (basename and path) and why. */
 export type SaveConflict =
-  | { file: string; reason: 'id'; listType: 'deck' }
-  | { file: string; reason: 'name'; listType: ListType }
+  | { file: string; filePath: string; reason: 'id'; listType: 'deck' }
+  | { file: string; filePath: string; reason: 'name'; listType: ListType }
 
 export type ConflictResolution =
   { action: 'overwrite' } | { action: 'rename'; newName: string } | { action: 'cancel' }
@@ -127,6 +130,11 @@ type SaveTarget = { filePath: string; name: string; action: SaveListAction }
 type SavedList = {
   status: 'saved'
   writtenFiles: string[]
+  /**
+   * News about the save that is not a loss: a replaced deck that kept its own
+   * title over the source's (`domain.import.titleKept`). Always present.
+   */
+  advisories: SyncMessage[]
   /** English plus its key, like every engine message. */
   categoryError?: SyncMessage
 } & SaveTarget
@@ -193,17 +201,14 @@ type ConflictInput = {
  */
 async function resolveSaveConflict(input: ConflictInput): Promise<SaveTarget | null> {
   const { conflict, dir, options } = input
-  const overwrite = (): SaveTarget => {
-    const existing = path.basename(conflict.file, '.md')
-    // A fold collision (`trade binder` vs `Trade Binder.md`) must replace the
-    // existing file, not write a twin the writers would name from the import.
-    const keepsName = path.basename(input.pathFor(input.name) ?? '', '.md') === existing
-    return {
-      filePath: path.join(dir, conflict.file),
-      name: keepsName ? input.name : existing,
-      action: 'overwritten',
-    }
-  }
+  // A fold collision (`trade binder` vs `Trade Binder.md`) must replace the
+  // existing file, not write a twin the writers would name from the import. The
+  // title the replaced file keeps is the writer's to settle (`replacementTitle`).
+  const overwrite = (): SaveTarget => ({
+    filePath: conflict.filePath,
+    name: input.name,
+    action: 'overwritten',
+  })
 
   if (options.forceOverwrite || options.assumeYes) {
     if (!options.dryRun) getLogger().warn(t('cli.import.overwritingFile', { file: conflict.file }))
@@ -229,7 +234,32 @@ async function resolveSaveConflict(input: ConflictInput): Promise<SaveTarget | n
     throw unusableNameError(resolution.newName)
   }
   if (await Bun.file(filePath).exists()) throw importConflictError(path.basename(filePath))
+  // A typed-in name that folds onto another list would give the two one title.
+  const twin = await foldedTwin(dir, newName)
+  if (twin !== null) throw importConflictError(twin)
   return { filePath, name: newName, action: 'renamed' }
+}
+
+/**
+ * The list file in `dir` whose name folds onto `name`, if any. Read off the
+ * directory (`listDeckFiles` keeps every list file, whatever the type), since a
+ * deck import may write outside the configured decks folder.
+ */
+async function foldedTwin(dir: string, name: string): Promise<string | null> {
+  let files: string[]
+  try {
+    files = await listDeckFiles(dir)
+  } catch (error) {
+    if (hasErrorCode(error, 'ENOENT')) return null
+    throw error
+  }
+  return findFoldedListFile(files, name) ?? null
+}
+
+/** A file's content, or null when there is no such file. */
+async function readIfExists(filePath: string): Promise<string | null> {
+  const file = Bun.file(filePath)
+  return (await file.exists()) ? file.text() : null
 }
 
 /**
@@ -277,19 +307,19 @@ async function scanDeckConflict(
   }
   if (deckData.sourceId) {
     for (const file of existingFiles) {
-      if ((await readSourceId(path.join(decksDir, file))) === deckData.sourceId) {
-        return { file, reason: 'id', listType: 'deck' }
+      const filePath = path.join(decksDir, file)
+      if ((await readSourceId(filePath)) === deckData.sourceId) {
+        return { file, filePath, reason: 'id', listType: 'deck' }
       }
     }
   }
   // By the resolver's folding, not a byte-exact file name: importing `atraxa
   // superfriends` beside `Atraxa Superfriends.md` would otherwise create a pair
   // every name-resolving command reports as ambiguous, which `new` and `rename` refuse.
-  const normalized = normalizeListName(path.basename(fileName, '.md'))
-  const folded = existingFiles.find(
-    (f) => normalizeListName(path.basename(f, '.md')) === normalized,
-  )
-  return folded === undefined ? null : { file: folded, reason: 'name', listType: 'deck' }
+  const folded = findFoldedListFile(existingFiles, path.basename(fileName, '.md'))
+  return folded === undefined
+    ? null
+    : { file: folded, filePath: path.join(decksDir, folded), reason: 'name', listType: 'deck' }
 }
 
 /**
@@ -304,7 +334,12 @@ export async function scanNameConflict(
   const existing = await findCollidingList(listType, path.basename(filePath, '.md'))
   return existing === null
     ? null
-    : { file: path.basename(existing.filePath), reason: 'name', listType }
+    : {
+        file: path.basename(existing.filePath),
+        filePath: existing.filePath,
+        reason: 'name',
+        listType,
+      }
 }
 
 /** The `&N` ids a deck file holds, so an overwrite can retire what it replaces. */
@@ -342,20 +377,59 @@ export async function saveDeck(
   )
   if (target === null) return { status: 'cancelled' }
   const { filePath, action } = target
+  // An overwrite replaces the deck's cards, not what makes it this deck: the
+  // file keeps its name, so the deck keeps the title that names it
+  // (`replacementTitle`), and the front matter the user set on it survives.
+  const replaced = action === 'overwritten' ? await readIfExists(filePath) : null
+  const name =
+    action === 'overwritten' ? replacementTitle(target.name, filePath, replaced) : target.name
+  // A replaced deck whose front matter does not parse is refused: replacing it
+  // as if it had none would drop what the user set on it without a word.
+  const keptRead = keptDeckFrontMatter(replaced)
+  if (!keptRead.ok) throw messageCommandError('usage_error', ExitCode.UsageError, keptRead.message)
+  const kept = keptRead.frontMatter
+  const advisories: SyncMessage[] =
+    action === 'overwritten' && name !== deckData.name
+      ? [
+          // The source names the deck differently now (renamed there since it
+          // was imported): the local title stands, as a sync keeps it, and the
+          // user can adopt the source's name on purpose.
+          syncMessage('domain.import.titleKept', {
+            name,
+            sourceName: deckData.name,
+            command: commandLine(
+              COMMAND.rename,
+              shellQuote(`deck:${name}`),
+              shellQuote(deckData.name),
+            ),
+          }),
+        ]
+      : []
 
   // Written through the shared serializer, so an imported deck comes out with the
   // same front matter (including a canonical `format:`, resolved from the source
   // service or the deck's sections) and the same `&N` card ids as a deck saved by
   // any other surface.
+  // The replaced deck's front matter stands (`keptDeckFrontMatter`); what the
+  // source states — its link — wins where it states it, and the local
+  // description wins over the source's, as the local title does.
+  // Sync stamps describe the link they were made over: a source naming another
+  // deck than the one kept retires them, so a later sync judges divergence
+  // against no baseline rather than another deck's.
+  const relinked =
+    (deckData.sourceId !== undefined && deckData.sourceId !== kept.sourceId) ||
+    (deckData.sourceUrl !== undefined && deckData.sourceUrl !== kept.sourceUrl)
+  const { lastSynced: _lastSynced, sourceUpdatedAt: _sourceUpdatedAt, ...unstamped } = kept
   const frontMatter: DeckFrontMatter = {
+    ...(relinked ? unstamped : kept),
     format: deckData.format,
-    sourceId: deckData.sourceId,
-    sourceUrl: deckData.sourceUrl,
-    description: deckData.description,
-    tags: [],
+    ...(deckData.sourceId === undefined ? {} : { sourceId: deckData.sourceId }),
+    ...(deckData.sourceUrl === undefined ? {} : { sourceUrl: deckData.sourceUrl }),
+    description: kept.description ?? deckData.description,
+    tags: kept.tags ?? [],
   }
   const fileContent = serializeDeckToMarkdown(
-    withLandedLabels(deckData, resolvedOptions.sourceLabels),
+    { ...withLandedLabels(deckData, resolvedOptions.sourceLabels, kept.labels), name },
     frontMatter,
   )
 
@@ -366,9 +440,10 @@ export async function saveDeck(
   const outcome: SavedList = {
     status: 'saved',
     filePath,
-    name: deckData.name,
+    name,
     action,
     writtenFiles: [],
+    advisories,
   }
   const categories = resolvedOptions.categories
 
@@ -460,14 +535,17 @@ async function commitImportedDeckCategories(
 
 /**
  * The deck an import writes: each line's labels carried as the source states
- * them (its own token over `sourceLabels`) and landed in a fresh deck with no
- * default of its own — the rule every move follows (`arrivalLabels`). No list
- * states the copy's `proxy` fact beyond what the source says, so a plain line
- * from a plain file stays plain.
+ * them (its own token over `sourceLabels`) and landed against `destDefault`,
+ * the default an overwrite kept (none for a new deck) — the rule every move
+ * follows (`arrivalLabels`). `proxy` is a physical fact: a source that speaks
+ * labels (a Ritual list file, `sourceLabels` given) states it for every line,
+ * so a plain line stays a real card under a kept `proxy` default; a source that
+ * says nothing (a service) leaves its lines to that default.
  */
 function withLandedLabels(
   deckData: DeckData,
   sourceLabels: readonly CardLabel[] | undefined,
+  destDefault: readonly CardLabel[] | undefined,
 ): DeckData {
   return {
     ...deckData,
@@ -477,8 +555,8 @@ function withLandedLabels(
         const labels = arrivalLabels(
           'deck',
           carriedLabels(card.labels, sourceLabels),
-          undefined,
-          undefined,
+          destDefault,
+          sourceLabels === undefined ? undefined : 'deck',
         )
         const { labels: _old, ...rest } = card
         return labels === undefined ? rest : { ...rest, labels }
@@ -494,6 +572,7 @@ function withLandedLabels(
  */
 function flattenToEntries(
   deckData: DeckData,
+  listType: FlatListType,
   sourceLabels: readonly CardLabel[] | undefined,
 ): ImportCardEntry[] {
   const entries: ImportCardEntry[] = []
@@ -511,6 +590,8 @@ function flattenToEntries(
         tags: card.tags,
         note: card.note,
         section: section.name,
+        // A Ritual file states each line's `proxy` fact (see `landedEntries`).
+        ...(sourceLabels === undefined ? {} : { sourceType: listType }),
       })
     }
   }
@@ -530,7 +611,7 @@ export async function saveFlatList(
 ): Promise<SaveListOutcome> {
   const resolvedOptions = normalizeSaveListOptions(options)
   const label = listTypeNoun(listType)
-  const entries = flattenToEntries(deckData, resolvedOptions.sourceLabels)
+  const entries = flattenToEntries(deckData, listType, resolvedOptions.sourceLabels)
 
   // Collection lines always carry a printing; reject up front rather than
   // writing malformed `(:)` lines or silently dropping cards.
@@ -577,7 +658,14 @@ export async function saveFlatList(
         ? t('cli.import.dryRunOverwriteList', { label, path: target.filePath })
         : t('cli.import.dryRunSaveList', { label, path: target.filePath }),
     )
-    return { status: 'saved', filePath: target.filePath, name, action, writtenFiles: [] }
+    return {
+      status: 'saved',
+      filePath: target.filePath,
+      name,
+      action,
+      writtenFiles: [],
+      advisories: [],
+    }
   }
 
   // The settled path is handed down so an overwrite replaces the file the
@@ -589,8 +677,10 @@ export async function saveFlatList(
   return {
     status: 'saved',
     filePath: result.filePath,
-    name,
+    // The title the writer settled on (an overwrite keeps the replaced list's).
+    name: result.title ?? name,
     action,
     writtenFiles: result.writtenFiles,
+    advisories: [],
   }
 }

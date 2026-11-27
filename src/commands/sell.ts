@@ -36,8 +36,7 @@ import {
 } from '../pricing/sell-report'
 import { renderCartWarning } from '../buylist'
 import { loadAndBuildSellReport } from '../pricing/sell-runtime'
-import { entriesOfList, type ListInfo } from '../list/list-identity'
-import { listRowName } from '../cli/list-row-name'
+import { entriesOfList } from '../list/list-identity'
 import { parseSetCodesInput } from '../card/set-codes'
 import { formatCardTags, parseTagFilterInput, type CardTag } from '../card/card-tags'
 import { formatDuration } from '../util/duration'
@@ -163,16 +162,12 @@ export function formatUnsoldEntryLine(entry: SellReportEntry): string {
 }
 
 /** The one-line summary of a list's totals, shared by the block header and tests. */
-export function formatSellListTitle(
-  summary: SellListSummary,
-  lists: readonly ListInfo[] = [summary],
-): string {
+export function formatSellListTitle(summary: SellListSummary): string {
   const skipped = summary.notBuyingCount + summary.noMatchCount
   const tail = skipped > 0 ? t('cli.sell.listTitleSkipped', { count: skipped }) : ''
   return t('cli.sell.listTitle', {
     type: summary.listType,
-    // A title two reported lists share gains its slug, so the blocks differ.
-    name: listRowName(summary, lists),
+    name: summary.name,
     sellable: summary.sellableCount,
     total: summary.cardCount,
     value: formatPrice(summary.totalValue, 'usd'),
@@ -223,7 +218,9 @@ export function renderSellReportText(view: SellReportView, options: SellTextOpti
       .sort((a, b) => b.value - a.value || compareData(a.name, b.name))
     const unsold = listEntries.filter((entry) => entry.status !== 'buying')
 
-    lines.push('', formatSellListTitle(summary, view.lists))
+    lines.push('', formatSellListTitle(summary))
+    // A list in scope with nothing to quote keeps its block, saying so.
+    if (listEntries.length === 0) lines.push(t('cli.sell.listEmpty'))
     for (const entry of buying) lines.push(`  ${formatBuyingEntryLine(entry)}`)
     if (options.all) {
       for (const entry of unsold) lines.push(`  ${formatUnsoldEntryLine(entry)}`)

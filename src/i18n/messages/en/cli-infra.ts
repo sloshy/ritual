@@ -1075,7 +1075,6 @@ export const cliInfraMessages = {
   'cli.price.updatedAt': '{timestamp} ({age} ago)',
   'cli.price.headerTypeTotals': '{icon} {title} ({count}) — {totals}',
   'cli.price.headerGrandTotals': '💵 All lists ({count}) — {totals}',
-  'cli.price.listNameWithSlug': '{name} ({slug})',
   'cli.price.listRow': {
     $plural: 'count',
     one: '{icon} {name} — {totals} · {count} card',
@@ -1144,6 +1143,7 @@ export const cliInfraMessages = {
   'cli.sell.unsoldLine': '{name}{annotation} ×{quantity} — {label}',
   'cli.sell.listTitle': '[{type}] {name} — CK buys {sellable} of {total} cards · {value}{tail}',
   'cli.sell.listTitleSkipped': ' ({count} not bought)',
+  'cli.sell.listEmpty': '  (no cards to quote)',
   'cli.sell.header': 'Card Kingdom buylist{generated} · retrieved {age} ago',
   'cli.sell.headerGenerated': ' · generated {date}',
   'cli.sell.totals': 'Total: {value} for {sellable} of {total} cards across {counted}',

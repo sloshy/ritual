@@ -74,8 +74,25 @@ export const domainListFilesMeta = {
     description:
       'Refusal: a list name has no characters that can appear in a file name (it is made only of characters like ? * : / that file systems forbid), so no list file can be named after it. {name} is the name as typed.',
   },
+  'domain.list.name.reservedEnding': {
+    description:
+      'Refusal or report: a list name (or an existing list\u2019s title) ends in ".changes" or ".primer", the endings of the companion files a list keeps beside it (its change history and primer), so no list file can be named after it; the user must pick another name. {name} is the name. Never translate ".changes" or ".primer".',
+  },
   'domain.list.lifecycle.exists': {
     description: `${LIFECYCLE} A list of that type with that exact name already exists. {name} is the name.`,
+  },
+  'domain.list.fileQuoted': {
+    description:
+      "A list's file name quoted inside a sentence, as one item of a list of file names (\"'Burn.md' and 'burn.md'\"). {file} is the file name; never translate it. Only the quotation marks are yours to change.",
+  },
+  'domain.list.lifecycle.rollbackFailed': {
+    description: `${LIFECYCLE} A rename failed part-way and undoing it failed too, so some files were left at the new name. {reason} is the error that stopped the rename; {files} is the left-over file names, joined with commas (never translate them).`,
+  },
+  'domain.list.lifecycle.oldFileLeft': {
+    description: `${LIFECYCLE} A warning after a successful rename: the list is at its new name, but its old file could not be deleted, so the list now exists twice. {file} is the old file name (never translate it); {reason} is the system's error.`,
+  },
+  'domain.list.lifecycle.sidecarInTheWay': {
+    description: `${LIFECYCLE} A rename would land a list in a file name whose companion file (its change history, custom art, categories or primer, named after the list) is already on disk without a list of its own, so renaming would overwrite or adopt it. {name} is the requested name; {file} is the companion file's name, never translate it.`,
   },
   'domain.list.lifecycle.existsFolded': {
     description: `${LIFECYCLE} An existing list's name differs from the requested one only in capitalization, accents, spacing or punctuation, so the two could not be told apart when typed. {name} is the existing list's name; {query} is the name requested.`,

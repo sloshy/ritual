@@ -161,11 +161,13 @@ describe('sell MCP tools', () => {
       lists: { listType: string; slug: string; name: string }[]
       entries: { listType: string; listSlug: string; listName: string }[]
     }
-    // A wanted scope reaches the handler as `listType=` and finds nothing.
+    // A wanted scope reaches the handler as `listType=`: only the wanted list,
+    // which has nothing to sell, so it keeps a row with nothing in it.
     const wanted = toolData<Report>(
       await client.callTool({ name: 'get_sell_report', arguments: { listType: 'wanted' } }),
     )
-    expect(wanted.lists).toEqual([])
+    expect(wanted.lists.map((row) => [row.listType, row.slug])).toEqual([['wanted', 'wishlist']])
+    expect(wanted.entries).toEqual([])
 
     const data = toolData<Report>(
       await client.callTool({ name: 'get_sell_report', arguments: { listType: 'collection' } }),

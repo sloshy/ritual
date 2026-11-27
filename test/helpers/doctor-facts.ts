@@ -51,6 +51,7 @@ export function healthy(): DoctorFacts {
         wanted: folder('wanted', 0),
       },
     },
+    listNames: { drifted: [], shared: [], problem: null },
     config: { state: 'valid', problems: [] },
     migrations: { state: 'current', remedy: null, problem: null },
     cache: {

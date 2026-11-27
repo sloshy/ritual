@@ -63,13 +63,22 @@ export const domainListFilesMessages = {
   'domain.list.deckFormat.invalid': "Invalid deck format '{format}'. Valid formats: {formats}",
 
   // ── List names, create / rename / delete ──────────────────────────────
+  'domain.list.fileQuoted': "'{file}'",
   'domain.list.name.unusable': "'{name}' contains no characters usable in a file name.",
+  'domain.list.name.reservedEnding':
+    "'{name}' ends like a list's companion file (.changes, .primer), so no list file can be named after it. Rename it.",
   'domain.list.lifecycle.exists': {
     $select: 'type',
     deck: "A deck named '{name}' already exists.",
     collection: "A collection named '{name}' already exists.",
     wanted: "A wanted list named '{name}' already exists.",
   },
+  'domain.list.lifecycle.rollbackFailed':
+    'The rename failed ({reason}) and could not put back {files}: move them back beside the list, or delete them, by hand.',
+  'domain.list.lifecycle.oldFileLeft':
+    "Renamed, but the old file '{file}' could not be removed ({reason}): it is now a duplicate of the list. Delete it by hand.",
+  'domain.list.lifecycle.sidecarInTheWay':
+    "Cannot rename the list to '{name}': '{file}' is already there with no list of its own. It may be left from an interrupted rename of this list, or belong to a list deleted by hand; move it back beside its list, or delete it, then rename again.",
   'domain.list.lifecycle.existsFolded': {
     $select: 'type',
     deck: "A deck named '{name}' already exists (it matches '{query}' under list-name folding).",

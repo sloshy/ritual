@@ -663,6 +663,22 @@ describe('MCP output schemas, as authored', () => {
       }
       troubled.cache = { ...troubled.cache, server: '127.0.0.1:4000', status: null }
       troubled.update = { ...troubled.update, latest: '9.0.0', available: true }
+      troubled.listNames = {
+        drifted: [
+          { listType: 'deck', slug: 'old', name: 'Burn', titleSlug: 'Burn' },
+          { listType: 'wanted', slug: 'odd', name: '???', titleSlug: null },
+        ],
+        shared: [
+          {
+            listType: 'collection',
+            lists: [
+              { listType: 'collection', slug: 'Binder', name: 'Binder' },
+              { listType: 'collection', slug: 'binder-', name: 'binder-' },
+            ],
+          },
+        ],
+        problem: null,
+      }
       expect(await validates(GET_DIAGNOSTICS_OUTPUT, buildDoctorReport(troubled, CONTEXT))).toBe(
         true,
       )
@@ -679,6 +695,11 @@ describe('MCP output schemas, as authored', () => {
         problem: syncMessage('domain.config.fileNotObject'),
       }
       broken.update = { mode: 'docker', latest: null, checkedAt: null, available: false }
+      broken.listNames = {
+        drifted: [],
+        shared: [],
+        problem: syncMessage('domain.config.fileNotObject'),
+      }
       expect(await validates(GET_DIAGNOSTICS_OUTPUT, buildDoctorReport(broken, CONTEXT))).toBe(true)
       // And the healthy report, whose cache status is the get_cache_status payload.
       expect(await validates(GET_DIAGNOSTICS_OUTPUT, buildDoctorReport(healthy(), CONTEXT))).toBe(

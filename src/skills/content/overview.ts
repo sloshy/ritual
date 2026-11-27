@@ -133,8 +133,15 @@ not \`winota-stax.md\`). Only what file systems reject is cleaned up: the charac
 trailing dots are trimmed, and a name with nothing usable left is an error. Older
 lists may still have hyphenated file names; they resolve by name as normal, and their
 display name comes from the file's first \`# Title\` heading (every list type),
-falling back to the file name.
-\`ritual cleanup\` renames such files to match their list names in one pass. It also renames
+falling back to the file name. A list's title and its file name are **one name**, unique per
+list type: no two lists of a type share a title, so a title names a list as surely as its file
+name does. Change a title with \`ritual rename\` (which renames the file with it), never by
+editing the \`# Title\` heading by hand.
+\`ritual cleanup\` renames files whose names drifted from their titles (old hyphenated names,
+a hand-edited heading, a file renamed on disk) in one pass, through the same rename; a title
+another list already goes by, or two lists sharing a title, is reported (\`renameBlockedBy\` /
+\`sharesTitleWith\` in its JSON) for the user to settle with \`ritual rename\`, and fails
+\`--check\` and a real run (exit 1), as does a title no file can be named after. \`ritual doctor\` warns about all of these. Cleanup also renames
 card lines spelled with a repeated face (\`Steam Vents // Steam Vents\`, Scryfall's name for a
 reversible printing, which the card cache files under \`Steam Vents\`) to the card's own name,
 moving their category assignments along.
@@ -500,7 +507,8 @@ refusal) prints its message plus one line: **This looks like a bug in Ritual**,
 how to see details (\`RITUAL_DEBUG=1\`, which prints the full stack trace), and
 the issue tracker to report it at. Re-run with \`RITUAL_DEBUG=1\` to capture the
 trace, and run \`ritual doctor\` (read-only, offline) to see the setup: Ritual
-version and install, the workspace and its list counts, every invalid
+version and install, the workspace and its list counts, list titles that no longer name
+their files or that two lists share, every invalid
 \`ritual.config.json\` setting, pending workspace updates, and the card cache.
 Its text output is meant to be pasted into a bug report; offer to draft one, but
 let the user file it. A failure of the machine around Ritual (a permission
@@ -595,7 +603,7 @@ ritual metadata set <list> <prop> <value...>  # list front matter, same shape as
                                   #   sourceUrl/labels; collection labels
 ritual metadata get|list|unset <list> [prop]  # read or clear it (get exits 3 when unset)
 ritual cache status               # report cache size/freshness/source/location without refreshing
-ritual doctor                     # check the setup: build, workspace, config validity, pending
+ritual doctor                     # check the setup: build, workspace, list names, config validity, pending
                                   #   updates, card cache, last update check — each ok/warn/fail
                                   #   with a one-line fix; exit 1 when a check fails. Read-only and
                                   #   offline; --output json is the same report as MCP get_diagnostics

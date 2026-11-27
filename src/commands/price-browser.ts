@@ -42,14 +42,7 @@ import {
 import { comparePrintings } from '../scryfall'
 import { errorMessage, renderSyncMessage } from '../sync/message'
 import { isExpectedListReadFailure } from '../list/list-content'
-import {
-  entriesOfList,
-  findByListIdentity,
-  listInfoOfEntry,
-  type ListIdentity,
-  type ListInfo,
-} from '../list/list-identity'
-import { listRowName, listsOfEntries } from '../cli/list-row-name'
+import { entriesOfList, findByListIdentity, type ListIdentity } from '../list/list-identity'
 import {
   groupRowsByType,
   type ListsSummary,
@@ -225,14 +218,10 @@ export function formatSummaryHeaderLines(
 }
 
 /** One list's menu row: icon, name, totals, unpriced badge, card count. */
-export function formatListChoiceTitle(
-  row: ListsSummaryRow,
-  currency: PriceCurrency,
-  name: string = row.name,
-): string {
+export function formatListChoiceTitle(row: ListsSummaryRow, currency: PriceCurrency): string {
   return t('cli.price.listRow', {
     icon: LIST_TYPE_DISPLAY[row.listType].icon,
-    name,
+    name: row.name,
     totals: formatValueSegment(row.value, currency),
     count: row.counts.cardCount,
   })
@@ -242,7 +231,7 @@ export function formatListChoiceTitle(
 export function buildMainMenuChoices(summary: ListsSummary, currency: PriceCurrency): Choice[] {
   const listChoices = groupRowsByType(summary.lists).flatMap((group) =>
     group.rows.map((row): Choice => ({
-      title: formatListChoiceTitle(row, currency, listRowName(row, summary.lists)),
+      title: formatListChoiceTitle(row, currency),
       value: {
         kind: 'open',
         list: { listType: row.listType, slug: row.slug },
@@ -265,7 +254,7 @@ export function buildMainMenuChoices(summary: ListsSummary, currency: PriceCurre
 export function formatEntryChoiceTitle(
   entry: PricedEntry,
   currency: PriceCurrency,
-  sources?: readonly ListInfo[],
+  showSource = false,
 ): string {
   const printing =
     entry.set && entry.collectorNumber
@@ -276,11 +265,8 @@ export function formatEntryChoiceTitle(
   const lowest = hasLowerPrinting(entry)
     ? ` · ${t('cli.price.rowLowest', { price: formatPrice(entry.lowest * entry.quantity, currency) })}`
     : ''
-  // `sources`: the lists the shown rows come from, so a title two of them
-  // share gains its slug. Absent hides the column (a one-list view).
-  const source = sources
-    ? ` · ${LIST_TYPE_DISPLAY[entry.listType].icon} ${listRowName(listInfoOfEntry(entry), sources)}`
-    : ''
+  // The source column names the row's list; a one-list view hides it.
+  const source = showSource ? ` · ${LIST_TYPE_DISPLAY[entry.listType].icon} ${entry.listName}` : ''
   const item = `${entry.name}${printing}${finish} — ${price}${lowest}${source}`
   return quantityRow(entry.quantity, item)
 }
@@ -353,11 +339,10 @@ export function buildCardBrowserChoices(
     title: t('cli.price.menuBack'),
     value: { kind: 'back' } satisfies CardBrowserSelection,
   })
-  const sources = options.showSource ? listsOfEntries(visible) : undefined
   return [
     ...controls,
     ...visible.map((entry): Choice => ({
-      title: formatEntryChoiceTitle(entry, currency, sources),
+      title: formatEntryChoiceTitle(entry, currency, options.showSource),
       value: { kind: 'entry', entry } satisfies CardBrowserSelection,
     })),
   ]
@@ -690,7 +675,7 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
     const row = findByListIdentity(summary.lists, list)
     const icon = LIST_TYPE_DISPLAY[list.listType].icon
     await runCardBrowser(
-      `${icon} ${row ? listRowName(row, summary.lists) : list.slug}`,
+      `${icon} ${row?.name ?? list.slug}`,
       entriesOfList(built.report.entries, list),
       built.report.currency,
       built.printingsByName,

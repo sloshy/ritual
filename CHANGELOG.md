@@ -43,8 +43,8 @@ release changes a file format or a generated file, it ships the change as a
   `list.name` and `cards[].listName` in `ritual price --output json` (and `ndjson`), in
   [`GET /api/price/:type/:slug`](https://ritual.rpeters.dev/admin/api/prices/#price-list) and in
   the MCP `get_list_prices` tool. To identify a list, read the new `list.slug` /
-  `cards[].listSlug` (with the list type), which stay unique when two lists share a title; a
-  script that matched rows by file name must switch to the slug.
+  `cards[].listSlug` (with the list type), the key every tool takes; a script that matched rows
+  by file name must switch to the slug.
 - Price responses drop `mode` (`GET /api/price/:type/:slug`, MCP `get_list_prices`): there is
   only one body now. A client that branched on it can stop reading it.
 - Price and sell `warnings` are message objects instead of strings, each naming its list:
@@ -105,15 +105,45 @@ release changes a file format or a generated file, it ships the change as a
 - Sell reports name each list by its display title (its `# Title`), not its file name, and
   identify it by slug, the same as price reports: `lists[].name` and `entries[].listName` are
   the title, and the new `lists[].slug` and `entries[].listSlug` (with `listType`) are the key
-  to match on. Two lists sharing a title now keep separate rows instead of merging into one.
-  This covers `ritual sell --output json` (and `ndjson`), `GET /api/sell/report` and the MCP
-  `get_sell_report` tool. `ritual sell`'s text report heads each list with its title too, and
-  adds the slug when two reported lists of a type share a title, as `ritual price`'s card
-  search does in its source column. A script that matched sell rows or entries by file name
-  must switch to the slug. The sell cart (`GET /api/sell/cart`, `get_sell_cart`,
-  `sell --output csv`) names no lists and is unchanged.
+  to match on. `lists[]` now has a row for **every list in scope**, as a price report has one
+  per list it prices: a list with nothing to sell (every line a proxy or custom art, say), or
+  whose every entry `--tags`, `--sets`, `--min`, `--min-ratio` or `--min-owned` drops, keeps its
+  row with zero totals instead of vanishing, and `totals.listCount` counts every list in scope
+  rather than only the lists with entries. This covers `ritual sell --output json` (and
+  `ndjson`), `GET /api/sell/report` and the MCP `get_sell_report` tool. `ritual sell`'s text
+  report heads each list with its title too, and shows such a list's heading with
+  `(no cards to quote)` under it. A script that matched sell rows or entries by
+  file name must switch to the slug, and one that read a row's presence as "this list has
+  something to sell" must check its `cardCount` instead. The sell cart (`GET /api/sell/cart`,
+  `get_sell_cart`, `sell --output csv`) names no lists and is unchanged.
+- `ritual cleanup` words a rename it refuses as `cli.cleanup.renameTaken`, which names the list
+  that already goes by the title (`file`, `name`, `otherFile`, `command` params), in place of
+  `cli.cleanup.notRenamedOccupied` and `cli.cleanup.notRenamedCollision` (whose collision was
+  nested as `reason`); the refused list's result carries that list as `renameBlockedBy`
+  (`{ listType, slug, name }`). Lists of one type whose titles fold together are now reported
+  too (`cli.cleanup.sharedTitle`, `sharesTitleWith`), as is a title no file can be named after
+  (`titleUnusable: true`) and a rename that could not be made (`renameFailed: true`, with
+  `cli.cleanup.renameFailed` or the refusal as its warning). Each makes a real `ritual cleanup`
+  and `--check` exit `1`, since the workspace is not clean until the list gets a new title
+  (`ritual rename`) or the obstacle is moved. A rename another list frees later in the same
+  pass now goes through, and `--dry-run` models the whole pass, so it reports what the run
+  does. Each `files[]` result also carries the list's title
+  as `name`. A hook that matched the old keys, or relied on a run with such lists exiting `0`,
+  must follow.
 
 ### Added
+
+- **A list's title and its file name are one name**, unique per list type, and Ritual now says
+  so wherever it can drift. [`ritual doctor`](https://ritual.rpeters.dev/commands/doctor/#what-it-checks)
+  (and `GET /api/doctor`, MCP `get_diagnostics`) has a **list names** check that warns about a
+  list whose `# Title` no longer names its file (edited by hand, or the file renamed on disk)
+  and about a title two lists of a type share, one line each, with `listNames.drifted` and
+  `listNames.shared` in its JSON (and `listNames.problem` when the lists could not be read to
+  check). [`ritual cleanup`](https://ritual.rpeters.dev/commands/cleanup/)
+  renames each drifted file to its title through the same rename `ritual rename` makes, moving
+  every companion file, and reports, naming both lists, a title another list already goes by,
+  for you to settle with `ritual rename`. Run `ritual doctor` once to see whether your
+  workspace has any; most do not.
 
 - [`ritual lists --summary`](https://ritual.rpeters.dev/commands/lists/#summary) counts every
   list's entries (lines) and cards (copies) in one pass, with per-type and grand totals
@@ -171,6 +201,53 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Fixed
 
+- Importing a deck over an existing one no longer leaves the file titled differently from its
+  name. Replacing the deck that holds the same source id (the source renamed the deck since you
+  imported it), a deck whose name only folds onto the import's (`burn` over `Burn.md`), or
+  answering the conflict prompt with a new name, all wrote the import's own name as the
+  `# Title`; the file now keeps the title that names it (and a replaced file whose title had
+  already drifted from its name is retitled after its file name). When the source renamed the
+  deck since you imported it, the import adds an advisory naming the source's new name and the
+  `ritual rename` command that adopts it; the local title stands, as `deck-sync` keeps it. A
+  typed-in new name that folds onto another deck is refused like any other name conflict.
+- Importing over an existing deck (a URL or text import, or a CSV `overwrite`) keeps its front
+  matter, as a collection overwrite already did: every key but `format`, which the import
+  restates, including its cover `image`, `labels` default, `description`, `tags`, its sync link
+  and stamps, and any key you wrote by hand. Before, all of it was dropped. A source's
+  `sourceId` and `sourceUrl` replace the kept ones when it gives them; the deck's own
+  description wins over the source's, as its title does. The new lines land against the kept
+  `labels` default, except that `proxy` stays a physical fact: a line imported from text in
+  Ritual's own grammar (a file or pasted text, whether or not it declares a `labels:` default)
+  stays a real card under a `proxy` default, while a service or CSV, which says nothing about
+  labels, inherits it. When the source links the deck to another source deck than the one
+  kept, the kept `lastSynced` and `sourceUpdatedAt` stamps are dropped with the old link. A replaced deck whose front
+  matter is not valid YAML is now refused (`domain.import.replacedDeckUnreadable`), with the
+  file left as it was, instead of replaced without it.
+- `ritual rename` (and the admin rename routes, MCP `rename_list`, and `ritual cleanup`)
+  refuses a new name whose companion file (`<name>.changes.md`, `.art.json`,
+  `.categories.json`, `.primer.md`, `.sha256`) is already on disk with no list of its own,
+  instead of overwriting or adopting it. The refusal is a `409` keyed
+  `domain.list.lifecycle.sidecarInTheWay`, and names the file. A rename to a new file name
+  also moves the companion files before it writes the renamed list, and a failure part-way
+  moves them back and removes the partial new file, so an interruption leaves the list whole
+  where it was; a file that cannot be put back is named in the error. When the old file
+  cannot be removed after a successful rename, the rename now says so
+  (`domain.list.lifecycle.oldFileLeft`) instead of failing: `ritual rename` prints it and its
+  JSON, the admin rename routes and MCP `rename_list` carry it in a new `warnings` array.
+- A list name whose file name would end like a companion file (`Burn.changes`,
+  `X.Primer`, in any case) is refused by `new`, `rename`, the editors and the importers
+  (`domain.list.name.reservedEnding`), and `ritual cleanup` and `ritual doctor` report an
+  existing list titled that way as needing a new title. Before, Ritual wrote
+  `Burn.changes.md`, which every list reader skips as the changelog of `Burn.md`. Such a name
+  still finds an existing list of that name.
+- A list name that folds to nothing (`???`, `-`) no longer resolves to the only list of a type
+  (`add-card --deck ???` added to whichever deck you had); only a list whose file is spelled
+  exactly that way matches it.
+- A CSV import in `overwrite` mode over the admin API (`POST /api/import-csv`, MCP
+  `import_csv`) now replaces the list its name folds onto (`trade-binder` replaces
+  `Trade Binder.md`) and keeps that list's title, as `ritual import` already did. Before, it
+  wrote a second list beside it (or, on a case-insensitive file system, retitled the existing
+  one).
 - A deck whose front matter is not valid YAML is now reported as unreadable every time it is read
   by a long-running process (`ritual admin`, `ritual mcp`, `serve --api`). Before, only the first
   read failed and later ones saw empty front matter, so, for example, the deck-sync listing showed

@@ -1,9 +1,12 @@
 import { describe, test, expect } from 'bun:test'
 import {
+  findFoldedListFile,
   isUsableFileName,
   listFileName,
   sanitizeListFileName,
   sameListName,
+  titleNamesFile,
+  titleSlug,
 } from '../../src/list/list-file-name'
 
 describe('sanitizeListFileName', () => {
@@ -78,5 +81,52 @@ describe('sameListName', () => {
   test('an empty or unfoldable name never matches, not even itself', () => {
     expect(sameListName('', '')).toBe(false)
     expect(sameListName('???', '!!!')).toBe(false)
+  })
+})
+
+describe('titleSlug', () => {
+  test.each([
+    ['Burn?', 'Burn'],
+    ["Atraxa: Praetors' Voice", "Atraxa Praetors' Voice"],
+    ['???', null],
+    // A companion file's ending names no list file, in any case.
+    ['Burn.changes', null],
+    ['X.Changes', null],
+    ['Deck.PRIMER', null],
+  ])('%s names %p', (title, slug) => {
+    expect(titleSlug(title)).toBe(slug)
+  })
+})
+
+describe('titleNamesFile', () => {
+  test('a title names the file its sanitized form spells, and no other', () => {
+    expect(titleNamesFile('Burn?', 'Burn')).toBe(true)
+    expect(titleNamesFile('Burn', 'burn')).toBe(false)
+    expect(titleNamesFile('Burn', 'old')).toBe(false)
+  })
+
+  test('a title no file can be named after names none', () => {
+    expect(titleNamesFile('???', '')).toBe(false)
+  })
+
+  test('composed and decomposed spellings of one name are the same file', () => {
+    const composed = 'Caf\u00e9'
+    const decomposed = 'Cafe\u0301'
+    expect(titleNamesFile(composed, decomposed)).toBe(true)
+    expect(titleNamesFile(decomposed, composed)).toBe(true)
+  })
+})
+
+describe('findFoldedListFile', () => {
+  const files = ['Trade Binder.md', 'Burn.md']
+
+  test('finds the file a name folds onto', () => {
+    expect(findFoldedListFile(files, 'trade-binder')).toBe('Trade Binder.md')
+    expect(findFoldedListFile(files, 'BURN')).toBe('Burn.md')
+  })
+
+  test('a name folding onto nothing, or to nothing, matches no file', () => {
+    expect(findFoldedListFile(files, 'Red')).toBeUndefined()
+    expect(findFoldedListFile(['.md'], '???')).toBeUndefined()
   })
 })

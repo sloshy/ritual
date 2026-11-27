@@ -183,24 +183,23 @@ describe('sell text formatting', () => {
     expect(verbose).toContain(sellDisclaimer())
   })
 
-  test('two lists sharing a title get their own block, told apart by slug', () => {
-    const a: SellListSummary = { ...summary, slug: 'a' }
-    const b: SellListSummary = { ...summary, slug: 'b' }
-    const entries: SellReportEntry[] = [
-      entry({ name: 'From A', listSlug: 'a' }),
-      entry({ name: 'From B', listSlug: 'b' }),
-    ]
+  test('a list in scope with nothing to quote keeps its block, saying so', () => {
+    const empty: SellListSummary = {
+      ...summary,
+      slug: 'empty',
+      name: 'Empty',
+      cardCount: 0,
+      sellableCount: 0,
+      totalValue: 0,
+      notBuyingCount: 0,
+      noMatchCount: 0,
+    }
     const text = renderSellReportText(
-      { lists: [a, b], entries, totals: { ...totals, listCount: 2 } },
+      { lists: [summary, empty], entries: [entry()], totals: { ...totals, listCount: 2 } },
       { header: [], all: false, quiet: true },
     )
-    const blocks = text.split('\n\n')
-    const blockA = blocks.find((block) => block.includes('[collection] Binder (a)'))
-    const blockB = blocks.find((block) => block.includes('[collection] Binder (b)'))
-    expect(blockA).toContain('From A')
-    expect(blockA).not.toContain('From B')
-    expect(blockB).toContain('From B')
-    expect(blockB).not.toContain('From A')
+    const block = text.split('\n\n').find((part) => part.includes('[collection] Empty'))
+    expect(block).toBe('[collection] Empty — CK buys 0 of 0 cards · $0.00\n  (no cards to quote)')
   })
 
   test('--quiet drops only the disclaimer', () => {

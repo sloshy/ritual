@@ -77,8 +77,9 @@ import type { ListLocation } from '../list/resolve-list'
 import {
   entryLabelOf,
   listIdentityKey,
-  listInfoOfEntry,
+  entryListKey,
   type ListEntryLabel,
+  type ListIdentityKey,
   type ListInfo,
 } from '../list/list-identity'
 import type { ScryfallCard } from '../scryfall/types'
@@ -626,7 +627,7 @@ function matchEntry(
 }
 
 /** Sum totals over any set of sell entries. */
-export function sumSellEntries(entries: SellReportEntry[]): SellTotals {
+export function sumSellEntries(entries: readonly SellReportEntry[]): SellTotals {
   const totals: SellTotals = {
     cardCount: 0,
     sellableCount: 0,
@@ -644,33 +645,36 @@ export function sumSellEntries(entries: SellReportEntry[]): SellTotals {
   return totals
 }
 
-/** Recompute per-list summaries and grand totals from an entry set. */
+/**
+ * Recompute per-list summaries and grand totals for the lists in scope from an
+ * entry set. Every list in `lists` keeps a row, with zero totals when none of
+ * `entries` came from it (nothing sellable in it, or everything filtered away),
+ * as the price report keeps a row per list it priced; an entry whose list is
+ * not in `lists` is not counted. Rows are in canonical type order, then in
+ * `lists` order within a type, and grouped by identity (type + slug).
+ */
 export function summarizeSellEntries(
-  entries: SellReportEntry[],
+  lists: readonly ListInfo[],
+  entries: readonly SellReportEntry[],
 ): Pick<SellReport, 'lists' | 'totals'> {
-  type ListGroup = { list: ListInfo; entries: SellReportEntry[] }
-  // Grouped by identity (type + slug), never by name: two lists may share a
-  // display title, and each keeps its own row.
-  const groups = new Map<string, ListGroup>()
-  for (const entry of entries) {
-    const list = listInfoOfEntry(entry)
-    const key = listIdentityKey(list)
-    const group = groups.get(key)
-    if (group) group.entries.push(entry)
-    else groups.set(key, { list, entries: [entry] })
-  }
+  const byList = new Map<ListIdentityKey, SellReportEntry[]>()
+  for (const list of lists) byList.set(listIdentityKey(list), [])
+  for (const entry of entries) byList.get(entryListKey(entry))?.push(entry)
 
-  // Canonical type order, first-seen order within a type.
-  const lists: SellListSummary[] = []
+  const rows: SellListSummary[] = []
+  const seen = new Set<ListIdentityKey>()
   for (const type of LIST_TYPES) {
-    for (const { list, entries: listEntries } of groups.values()) {
-      if (list.listType !== type) continue
-      lists.push({ ...list, ...sumSellEntries(listEntries) })
+    for (const list of lists) {
+      const key = listIdentityKey(list)
+      if (list.listType !== type || seen.has(key)) continue
+      seen.add(key)
+      const { listType, slug, name } = list
+      rows.push({ listType, slug, name, ...sumSellEntries(byList.get(key) ?? []) })
     }
   }
   return {
-    lists,
-    totals: { listCount: lists.length, ...sumSellEntries(entries) },
+    lists: rows,
+    totals: { listCount: rows.length, ...sumSellEntries([...byList.values()].flat()) },
   }
 }
 
@@ -698,7 +702,7 @@ export async function buildSellReport(
     feedCreatedAt: options.feed.createdAt,
     feedRetrievedAt: options.feedRetrievedAt,
     entries,
-    ...summarizeSellEntries(entries),
+    ...summarizeSellEntries(inputs, entries),
   }
 }
 
@@ -821,7 +825,7 @@ export function applySellFilters(report: SellReport, filters: SellEntryFilters):
     return { lists: report.lists, entries: report.entries, totals: report.totals }
   }
   const entries = filterSellEntries(report.entries, filters)
-  return { entries, ...summarizeSellEntries(entries) }
+  return { entries, ...summarizeSellEntries(report.lists, entries) }
 }
 
 /**

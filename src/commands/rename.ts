@@ -5,10 +5,16 @@ import { isListLifecycleError, renameList } from '../list/list-lifecycle'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
 import { t } from '../i18n/t'
+import type { SyncMessage } from '../sync/message'
 import { addListTypeFlags, resolveListTypeFlag, addScriptingOptions } from '../cli/options'
 import { resolveListSelection } from './card-target'
 import { runCommandAction, lifecycleErrorToCommandError } from '../cli/action'
-import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import {
+  emitMessageWarnings,
+  emitOutput,
+  normalizeScriptingOptions,
+  type ScriptingOptions,
+} from '../cli/output'
 
 type RenameOptions = ListTypeFlags & Partial<ScriptingOptions>
 
@@ -19,6 +25,8 @@ type RenameResult = ListInfo & {
   newFilePath: string
   /** Where it lived before, so a script can follow the move without rebuilding it. */
   oldFilePath: string
+  /** What the rename could not finish though the list is renamed; usually empty. */
+  warnings: SyncMessage[]
 }
 
 export function registerRenameCommand(program: Command): void {
@@ -52,6 +60,9 @@ async function runRename(
 
   const result = await renameList(resolved.type, resolved.filePath, newName)
   if (isListLifecycleError(result)) throw lifecycleErrorToCommandError(result)
+  // The list is renamed; what could not be finished (an old file left behind)
+  // reaches stderr in every mode, and the JSON carries it too.
+  emitMessageWarnings(result.warnings, scripting)
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
@@ -75,6 +86,7 @@ async function runRename(
     oldSlug,
     newFilePath: result.newFilePath,
     oldFilePath: result.oldFilePath,
+    warnings: result.warnings,
   }
   emitOutput(payload, scripting)
 }

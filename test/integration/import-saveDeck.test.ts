@@ -130,13 +130,20 @@ describe('saveDeck (Integration)', () => {
       { action: 'rename', newName: 'Taken' },
       /Import conflict for 'Taken.md'/,
     ],
+    [
+      // Two lists of a type never share a title, folded as names are matched.
+      'rename onto a name that folds onto an existing deck',
+      { action: 'rename', newName: 'big-taken' },
+      /Import conflict for 'Big Taken.md'/,
+    ],
     ['rename with nothing usable', { action: 'rename', newName: '???' }, /no characters usable/],
   ])(
     'an injected resolver answering %s decides the conflict',
     async (_label, resolution, expected) => {
       await withTempDir(async (dir) => {
         await Bun.write(deckPath(dir, sampleDeck.name), '# existing')
-        await Bun.write(deckPath(dir, 'Taken'), '# taken')
+        await Bun.write(deckPath(dir, 'Taken'), '# Taken')
+        await Bun.write(deckPath(dir, 'Big Taken'), '# Big Taken')
         const resolveConflict = async (): Promise<ConflictResolution> => resolution
 
         if (expected instanceof RegExp) {
@@ -170,6 +177,91 @@ describe('saveDeck (Integration)', () => {
       expect(await readDeckName(conflictPath)).toBe('Integration Deck')
       expect((await parseDeckFrontMatter(conflictPath)).sourceId).toBe('source-123')
       expect(await Bun.file(conflictPath).text()).toContain('1 Sol Ring')
+    })
+  })
+
+  test('an overwrite of the deck holding the source id keeps the title naming its file', async () => {
+    await withTempDir(async (dir) => {
+      // The source renamed the deck since it was imported as `Burn`: the file
+      // stays `Burn.md`, so its title stays `Burn` — a title and its file name
+      // are one name.
+      const existing = deckPath(dir, 'Burn')
+      await Bun.write(
+        existing,
+        '---\nsourceId: source-123\ndescription: Mine\ntags:\n  - fast\n---\n\n# Burn\n',
+      )
+
+      const outcome = await saveDeck(sampleDeck, dir, { assumeYes: true })
+
+      expect(outcome).toMatchObject({ status: 'saved', action: 'overwritten', name: 'Burn' })
+      expect(await readDeckName(existing)).toBe('Burn')
+      // The source's new name is news, with the command that adopts it.
+      expect(outcome.status === 'saved' && outcome.advisories.map((a) => a.messageKey)).toEqual([
+        'domain.import.titleKept',
+      ])
+      // What the user set on the deck survives; what the source states wins.
+      const frontMatter = await parseDeckFrontMatter(existing)
+      expect(frontMatter).toMatchObject({
+        sourceId: 'source-123',
+        description: 'Mine',
+        tags: ['fast'],
+      })
+      expect(await Bun.file(existing).text()).toContain('1 Sol Ring')
+      expect(await Bun.file(deckPath(dir, sampleDeck.name)).exists()).toBeFalse()
+    })
+  })
+
+  test('a text import over a proxy deck keeps its plain lines real; a service import inherits', async () => {
+    await withTempDir(async (dir) => {
+      const deck: DeckData = {
+        name: 'Burn',
+        sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }],
+      }
+      const existing = deckPath(dir, 'Burn')
+      const proxyDeck = '---\nlabels:\n  - proxy\nmine: kept\n---\n\n# Burn\n'
+
+      // A Ritual file states every line's proxy fact (`sourceLabels` given).
+      await Bun.write(existing, proxyDeck)
+      await saveDeck(deck, dir, { assumeYes: true, sourceLabels: [] })
+      expect(await Bun.file(existing).text()).toContain('Sol Ring [no-proxy]')
+
+      // A service says nothing about labels: the kept default applies.
+      await Bun.write(existing, proxyDeck)
+      await saveDeck(deck, dir, { assumeYes: true })
+      const written = await Bun.file(existing).text()
+      expect(written).not.toContain('no-proxy')
+      // A key the user wrote by hand round-trips.
+      expect(written).toContain('mine: kept')
+    })
+  })
+
+  test('an overwrite of a deck whose front matter cannot be read is refused, writing nothing', async () => {
+    await withTempDir(async (dir) => {
+      const existing = deckPath(dir, sampleDeck.name)
+      const broken = '---\nname: [broken\n---\n\n# Integration Deck\n'
+      await Bun.write(existing, broken)
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+      await expect(saveDeck(sampleDeck, dir, { assumeYes: true })).rejects.toThrow('cannot be read')
+      expect(await Bun.file(existing).text()).toBe(broken)
+    })
+  })
+
+  test('a source naming another deck retires the kept sync stamps; the same source keeps them', async () => {
+    await withTempDir(async (dir) => {
+      const existing = deckPath(dir, sampleDeck.name)
+      const stamped = (sourceId: string): string =>
+        `---\nsourceId: ${sourceId}\nlastSynced: '2026-01-01T00:00:00.000Z'\nsourceUpdatedAt: '2026-01-01'\n---\n\n# Integration Deck\n`
+
+      await Bun.write(existing, stamped('other-deck'))
+      await saveDeck(sampleDeck, dir, { assumeYes: true })
+      const relinked = await parseDeckFrontMatter(existing)
+      expect(relinked.sourceId).toBe('source-123')
+      expect(relinked.lastSynced).toBeUndefined()
+      expect(relinked.sourceUpdatedAt).toBeUndefined()
+
+      await Bun.write(existing, stamped('source-123'))
+      await saveDeck(sampleDeck, dir, { assumeYes: true })
+      expect((await parseDeckFrontMatter(existing)).sourceUpdatedAt).toBe('2026-01-01')
     })
   })
 

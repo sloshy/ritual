@@ -12,6 +12,7 @@ Ritual searches the existing list files and applies these rules in order:
 1. **Byte-exact match.** A list whose file name equals the input character for character wins outright. Only a trailing `.md` and surrounding whitespace are removed first. Typing a name exactly always selects that one list.
 2. **Exact match under folding.** Case, diacritics, separators, and punctuation are ignored (see the table below). A list whose file name equals the input under those rules wins next.
 3. **Unique substring match.** If nothing matches exactly, a list whose name _contains_ the input (under the same folding) is accepted, but only if exactly one does.
+   A query that folds to nothing (`???`, `-`) skips tiers 2 and 3: only a byte-exact match finds it.
 4. **Otherwise it is an error.** No match is a "not found" error. More than one match at the winning tier is an "ambiguous" error.
 
 A "not found" error suggests the existing names closest to what you typed, so a typo points at the list you meant:
@@ -22,7 +23,13 @@ No collection named 'Trade Bindr' found. Did you mean 'Trade Binder'?
 
 A name is suggested when it is within about one edit (an inserted, deleted, changed, or swapped character) per four characters of the longer of the two names (after folding), and at least one edit. At most three names are suggested, closest first.
 
-Matching is against the **file name** without its `.md` extension, not the `# Title` heading or the front matter.
+Matching is against the **file name** without its `.md` extension, not the `# Title` heading or the front matter. The two are the same name (see below), so typing a list's title finds it.
+
+### A list's title is its file name
+
+A list's title (the `# Title` heading inside its file) and its file name are one name. The file is named from the title, keeping capitalization and punctuation and dropping only the characters a file name cannot hold, so `# Burn?` lives in `Burn.md`, and a list with no `# Title` reads its file name as its title. Since no two lists of a type may share a file name under folding (see [Names that would collide are refused at creation](#names-that-would-collide-are-refused-at-creation)), **no two lists of one type share a title**: a title identifies a list as surely as its file name does.
+
+Ritual keeps the two together: [`new`](/commands/new/) names the file from the title, [`rename`](/commands/rename/) changes both at once, and an import that replaces an existing list keeps that list's title. Only an edit made outside Ritual can pull them apart: a `# Title` heading changed by hand, or a file renamed on disk. [`ritual doctor`](/commands/doctor/#what-it-checks) reports a title that no longer names its file, and titles two lists of a type share; [`ritual cleanup`](/commands/cleanup/) renames each drifted file to its title, and reports for you to settle by hand any title another list already goes by.
 
 ### What folding ignores
 
@@ -40,7 +47,7 @@ Tiers 2 and 3 compare the query and each file name in a folded form. Exactly the
 
 The last two rows make a **display name round-trip**. A list created as `Atraxa: Praetors' Voice` is stored as `Atraxa Praetors' Voice.md`, because a colon cannot be in a file name, and the name you typed at creation still finds it. Resolution folds the query through the same function the [file namer](/commands/new/#list-file-names) uses, so the two never disagree.
 
-Two lists whose names differ only in folded characters (`Mono Red` and `mono-red`, or `AB.md` beside `A'B.md`) are ambiguous at tiers 2 and 3. Each is still reachable by tier 1: type its full name exactly as the file spells it. Ritual refuses to create the second name of such a pair, so one can exist only in an older workspace. [`rename`](/commands/rename/) moves one of them out of the way.
+Two lists whose names differ only in folded characters (`Mono Red` and `mono-red`, or `AB.md` beside `A'B.md`) are ambiguous at tiers 2 and 3. Each is still reachable by tier 1: type its full name exactly as the file spells it. Ritual refuses to create the second name of such a pair, so one can exist only in an older workspace or after a hand edit. [`rename`](/commands/rename/) moves one of them out of the way; `doctor` and `cleanup` report every such pair.
 
 ### Names that would collide are refused at creation
 

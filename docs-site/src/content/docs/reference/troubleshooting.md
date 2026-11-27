@@ -7,7 +7,7 @@ sidebar:
 
 ## First, run `ritual doctor`
 
-[`ritual doctor`](/commands/doctor/) checks your setup and says what to fix: which Ritual is running, the workspace, `ritual.config.json`, pending updates, the card cache, and the last update check. It is read-only. Run it in the workspace where the problem happens:
+[`ritual doctor`](/commands/doctor/) checks your setup and says what to fix: which Ritual is running, the workspace (including list titles that no longer match their file names), `ritual.config.json`, pending updates, the card cache, and the last update check. It is read-only. Run it in the workspace where the problem happens:
 
 ```bash
 ritual doctor

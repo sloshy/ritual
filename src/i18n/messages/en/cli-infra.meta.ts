@@ -2203,10 +2203,6 @@ export const cliInfraMeta = {
     description: 'One per-type totals row. {icon} is an emoji; {title} is a plural list-type name.',
   },
   'cli.price.headerGrandTotals': { description: 'The across-all-types totals row.' },
-  'cli.price.listNameWithSlug': {
-    description:
-      'A list’s name in the price browser when another list of the same type has the same name: {name} is the list’s title, {slug} its file name, which tells the two apart. Only the order and the brackets are yours to change.',
-  },
   'cli.price.listRow': {
     description:
       'One list’s row in the browser’s main menu. {icon} is an emoji, {name} the list name, {totals} the already-formatted price totals, {count} how many cards the list holds.',
@@ -2343,6 +2339,10 @@ export const cliInfraMeta = {
   },
   'cli.sell.listTitleSkipped': {
     description: 'Appended to the list header when some entries will not sell.',
+  },
+  'cli.sell.listEmpty': {
+    description:
+      "Shown under a list header when the list is in scope but has no cards to quote: nothing in it can be sold (proxies, custom art), or the report's filters dropped every card. Keep the two-space indentation.",
   },
   'cli.cardKingdom.cacheInvalid.notObject': {
     description: `${CK_CACHE_CONTEXT} The file is not a JSON object at all.`,

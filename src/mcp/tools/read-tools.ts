@@ -793,7 +793,8 @@ export function registerReadTools(server: McpServer): void {
         'matching, so CK’s buy caps go to those cards); filter with sets / minPrice / minRatio ' +
         '(offer ÷ TCGplayer market) / minOwned (total copies owned). Entries carry the cardIds ' +
         '(&N) of their lines for follow-up edits, ownedCopies, edhrecRank and ' +
-        'tcgplayerPrice / offerRatio. Strictly cache-backed: it errors ' +
+        'tcgplayerPrice / offerRatio; lists has a row per list in scope, zero when nothing in ' +
+        'it sells. Strictly cache-backed: it errors ' +
         'when the card cache is empty (run refresh_cache) or no buylist feed has been ' +
         'downloaded (run refresh_buylist). Requires sell mode or the cardkingdom price source: with ' +
         'site.sellMode off, no "cardkingdom" in priceSources, and no --sell-mode flag on this ' +
@@ -954,7 +955,11 @@ export function registerReadTools(server: McpServer): void {
         'Check the Ritual setup (what `ritual doctor` reports): the running build (version, ' +
         'release or development, binary/source/Docker install, platform, Bun version, and the ' +
         'issuesUrl bugs are reported at), the workspace (base directory, which list folders ' +
-        'exist, list counts), ritual.config.json (absent, valid, invalid with every refused ' +
+        'exist, list counts), list names (listNames: lists whose "# Title" no longer names ' +
+        "their file, and titles two lists of one type share — a list's title and file name " +
+        'are one name, unique per type; `ritual cleanup` renames drifted files; problem when the ' +
+        'lists could not be read), ' +
+        'ritual.config.json (absent, valid, invalid with every refused ' +
         'setting, or unreadable), pending workspace updates (what `ritual migrate --check` would ' +
         'find), the card cache (directory, the setting that chose it, the get_cache_status ' +
         'report), and the last update check. checks holds one verdict per area, each ok, warn or ' +

@@ -8,7 +8,8 @@ import type { ListType } from '../list/list-type'
 import type { DeckFormatKey } from '../list/deck-format'
 import type { CsvCardEntry } from './csv'
 import { parseDeckText } from './text-file'
-import { serializeDeckToMarkdown } from '../list/deck-file'
+import { serializeDeckToMarkdown, type DeckFrontMatter } from '../list/deck-file'
+import { keptDeckFrontMatter } from './kept-front-matter'
 import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
 import { parseWantedListFile, type WantedListEntry } from '../list/wanted-file'
 import { formatCollectionLine, formatWantedListLine } from '../card/card-line'
@@ -37,7 +38,12 @@ import {
 } from '../card/card-id'
 import { writeFileWithHash } from '../changes/content-hash'
 import { rewriteRefusal } from '../list/unreadable-content'
-import { listNameCollision, unusableFileNameMessage } from '../list/list-lifecycle'
+import {
+  findCollidingList,
+  listNameCollision,
+  unusableFileNameMessage,
+} from '../list/list-lifecycle'
+import { replacementTitle } from '../list/list-display-name'
 import { reconcileListRefs } from '../list/list-refs'
 import {
   createAddChange,
@@ -114,13 +120,22 @@ export type ImportCardEntry = CsvCardEntry & {
   note?: string
   labels?: LabelOverride
   tags?: CardTag[]
+  /**
+   * The list type whose grammar stated this line's labels, when the source is
+   * one that speaks labels (a Ritual list file): its `proxy` fact is then the
+   * source's, so a plain line stays a real card even against a `proxy` default.
+   * Absent for a source that says nothing about labels (a CSV, a service), whose
+   * lines take the destination's default.
+   */
+  sourceType?: ListType
 }
 
 /**
  * `entries` with each copy's carried labels landed in a list of `destType`
  * whose default is `destDefault` (`arrivalLabels`): what the written line's
- * token must be. An import's source is a file, not a list that states the
- * copy's `proxy` fact, so only what the line or its file says counts.
+ * token must be. `proxy` is a physical fact: a source that speaks labels
+ * (`sourceType`) states it for every line, so a plain line lands real; a source
+ * that says nothing leaves it to the destination's default.
  */
 function landedEntries(
   entries: readonly ImportCardEntry[],
@@ -128,8 +143,8 @@ function landedEntries(
   destDefault: readonly CardLabel[] | undefined,
 ): ImportCardEntry[] {
   return entries.map((entry) => {
-    const labels = arrivalLabels(destType, entry.labels, destDefault, undefined)
-    const { labels: _carried, ...rest } = entry
+    const labels = arrivalLabels(destType, entry.labels, destDefault, entry.sourceType)
+    const { labels: _carried, sourceType: _source, ...rest } = entry
     return labels === undefined ? rest : { ...rest, labels }
   })
 }
@@ -151,6 +166,12 @@ export type CsvImportTarget = {
 
 export type CsvImportSuccess = {
   filePath: string
+  /**
+   * The title a create or overwrite wrote the list under: the import's name, or
+   * the replaced list's own when the name does not name its file
+   * (`replacementTitle`). Absent for an append, which keeps the list's title.
+   */
+  title?: string
   /** Total copies imported (sum of row quantities). */
   cardCount: number
   mode: CsvImportMode
@@ -292,6 +313,7 @@ function buildDeckMarkdown(
   name: string,
   format: DeckFormatKey,
   entries: ImportCardEntry[],
+  kept: DeckFrontMatter,
 ): string {
   const sectionsByName = new Map<string, Card[]>()
   for (const entry of entries) {
@@ -305,9 +327,10 @@ function buildDeckMarkdown(
     // exactly as `appendToDeck` merges them into an existing one — real CSV
     // exports repeat a card across rows, and create/append must not disagree
     // about what the same file means. A different printing, or a `[proxy]`
-    // copy beside a real one, stays its own line. A fresh deck has no default.
+    // copy beside a real one, stays its own line. The deck's default is the
+    // one an overwrite kept, or none for a new deck.
     const existing = findDeckMergeLine([{ name: entry.section, cards }], entry.name, entry, {
-      listLabels: undefined,
+      listLabels: kept.labels,
     })?.card
     if (existing) {
       existing.quantity += entry.quantity
@@ -331,7 +354,7 @@ function buildDeckMarkdown(
     cards,
   }))
   const deck: DeckData = { name, format, sections }
-  return serializeDeckToMarkdown(deck, { format, tags: [] })
+  return serializeDeckToMarkdown(deck, { ...kept, format, tags: kept.tags ?? [] })
 }
 
 /** The list types that store flat per-copy bullet lines (everything but decks). */
@@ -432,6 +455,19 @@ function buildFlatListMarkdown(
   )
 }
 
+/**
+ * Where a create or overwrite lands when the caller named no file: the file the
+ * name makes — or, for an overwrite, the existing list the name folds onto
+ * (`trade binder` replaces `Trade Binder.md`), so it never writes a twin.
+ */
+async function defaultCreatePath(target: CsvImportTarget): Promise<string | null> {
+  if (target.mode === 'overwrite') {
+    const existing = await findCollidingList(target.listType, target.name)
+    if (existing !== null) return existing.filePath
+  }
+  return listFilePath(target.listType, target.name)
+}
+
 async function createList(
   target: CsvImportTarget,
   entries: ImportCardEntry[],
@@ -439,7 +475,7 @@ async function createList(
   sourceHadCategoriesColumn: boolean,
 ): Promise<CsvImportOutcome> {
   const targetDir = dirForType(target.listType)
-  const filePath = target.filePath ?? listFilePath(target.listType, target.name)
+  const filePath = target.filePath ?? (await defaultCreatePath(target))
   if (filePath === null) {
     return { error: unusableFileNameMessage(target.name) }
   }
@@ -465,15 +501,27 @@ async function createList(
       ? await fs.readFile(filePath, 'utf-8')
       : null
 
+  // The list keeps the name of the file it lands in: an overwrite of the file
+  // another spelling holds keeps that file's title (see `replacementTitle`).
+  const title =
+    target.mode === 'overwrite' ? replacementTitle(target.name, filePath, replaced) : target.name
+
   let content: string
   if (target.listType === 'deck') {
     if (target.format === undefined) {
       return { error: syncMessage('domain.import.deckNeedsFormat') }
     }
+    // As for a flat list below: an overwrite replaces the cards, and the
+    // replaced deck's front matter survives (all but `format`, restated here),
+    // its labels default landing the new lines. A replaced deck whose front
+    // matter does not parse is refused, not silently stripped.
+    const kept = keptDeckFrontMatter(replaced)
+    if (!kept.ok) return { error: kept.message }
     content = buildDeckMarkdown(
-      target.name,
+      title,
       target.format,
-      landedEntries(entries, 'deck', undefined),
+      landedEntries(entries, 'deck', kept.frontMatter.labels),
+      kept.frontMatter,
     )
   } else {
     // Overwrite replaces the card lines, not the list's metadata — an existing
@@ -486,7 +534,7 @@ async function createList(
     const destDefault = listDefaultLabels(target.listType, kept?.data)
     content = buildFlatListMarkdown(
       target.listType,
-      target.name,
+      title,
       landedEntries(entries, target.listType, destDefault),
     )
     if (kept !== undefined) content = withFrontMatter(kept, content)
@@ -495,6 +543,7 @@ async function createList(
   if (dryRun) {
     return {
       filePath,
+      title,
       cardCount: totalCards(entries),
       mode: target.mode,
       writtenFiles: [],
@@ -502,15 +551,14 @@ async function createList(
     }
   }
 
-  await fs.mkdir(targetDir, { recursive: true })
-  await writeFileWithHash(filePath, content)
   // The replaced lines' `&N` ids are retired: the new lines are numbered from
   // scratch, so custom art or a cover filed under an old id would otherwise
-  // reappear on whichever card takes the number next.
-  if (replaced !== null) {
-    const retired = existingCardIds(target.listType, replaced, target.name)
-    if (retired.length > 0) await reconcileListRefs(filePath, { removed: retired })
-  }
+  // reappear on whichever card takes the number next. Read before the write, as
+  // `saveDeck` does: once the file is replaced, its old ids are gone.
+  const retired = replaced === null ? [] : existingCardIds(target.listType, replaced, target.name)
+  await fs.mkdir(targetDir, { recursive: true })
+  await writeFileWithHash(filePath, content)
+  if (retired.length > 0) await reconcileListRefs(filePath, { removed: retired })
   const categories = await commitImportedCategories(
     filePath,
     entries,
@@ -519,6 +567,7 @@ async function createList(
   )
   return {
     filePath,
+    title,
     cardCount: totalCards(entries),
     mode: target.mode,
     ...importedCategoryFields(categories),

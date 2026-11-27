@@ -49,14 +49,19 @@ export type SidecarMove = { from: string; to: string }
  * stays valid and must travel with it, or the next `detect-changes` would read
  * the sidecar as a hand edit.
  */
-export async function moveListSidecars(oldPath: string, newPath: string): Promise<SidecarMove[]> {
+export async function moveListSidecars(
+  oldPath: string,
+  newPath: string,
+  moves: SidecarMove[] = [],
+): Promise<SidecarMove[]> {
   // Derived from the kinds table below rather than restated: this list is
   // exactly every kind except the list file's own `hash` (see above), so a new
   // sidecar kind is moved without touching this function.
   const candidates: readonly SidecarMove[] = LIST_SIDECAR_KINDS.filter(
     (kind) => kind !== 'hash',
   ).map((kind) => ({ from: listSidecarPath[kind](oldPath), to: listSidecarPath[kind](newPath) }))
-  const moves: SidecarMove[] = []
+  // Recorded as each one lands, into the caller's array when it passes one, so
+  // a failure part-way still tells the caller exactly what to move back.
   for (const move of candidates) {
     if (await Bun.file(move.from).exists()) {
       await fs.rename(move.from, move.to)

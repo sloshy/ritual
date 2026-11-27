@@ -6,7 +6,9 @@ import {
   deleteList,
   isListLifecycleError,
   listDisplayName,
+  listLifecycleErrorStatus,
   renameList,
+  RenameRollbackError,
   type CreateListSuccess,
   type DeleteListSuccess,
   type ListLifecycleError,
@@ -294,6 +296,112 @@ describe('list-lifecycle engine', () => {
         await renameList('collection', path.join(collectionsDir, 'A.md'), 'B'),
       )
       expect(error.kind).toBe('already-exists')
+    })
+
+    test('a rename that fails after moving a companion file moves it back', async () => {
+      const filePath = path.join(collectionsDir, 'Spares.md')
+      await fs.writeFile(filePath, '# Spares\n\n')
+      await fs.writeFile(listSidecarPath.changelog(filePath), 'history\n')
+      await fs.writeFile(listSidecarPath.art(filePath), '{}\n')
+      const before = await snapshotTree(collectionsDir)
+      const realRename = fs.rename
+      let calls = 0
+      // The first companion moves; the second one's move fails.
+      const spy = spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+        calls += 1
+        if (calls === 2) throw new Error('EIO: disk gone')
+        return realRename(from, to)
+      })
+      try {
+        // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+        await expect(renameList('collection', filePath, 'Binder')).rejects.toThrow('EIO')
+      } finally {
+        spy.mockRestore()
+      }
+      expect(await snapshotTree(collectionsDir)).toEqual(before)
+    })
+
+    test('a rollback that cannot move a file back names it, the original error as its cause', async () => {
+      const filePath = path.join(collectionsDir, 'Spares.md')
+      await fs.writeFile(filePath, '# Spares\n\n')
+      await fs.writeFile(listSidecarPath.changelog(filePath), 'history\n')
+      await fs.writeFile(listSidecarPath.art(filePath), '{}\n')
+      const realRename = fs.rename
+      let calls = 0
+      // The first companion moves, the second fails, and moving the first back fails too.
+      const spy = spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+        calls += 1
+        if (calls === 2) throw new Error('EIO: disk gone')
+        if (calls === 3) throw new Error('EIO: still gone')
+        return realRename(from, to)
+      })
+      let thrown: unknown
+      try {
+        await renameList('collection', filePath, 'Binder')
+      } catch (error) {
+        thrown = error
+      } finally {
+        spy.mockRestore()
+      }
+      expect(thrown).toBeInstanceOf(RenameRollbackError)
+      const rollback = thrown as RenameRollbackError
+      expect(rollback.leftovers.map((file) => path.basename(file))).toEqual(['Binder.changes.md'])
+      expect((rollback.cause as Error).message).toBe('EIO: disk gone')
+      expect(rollback.message).toContain('Binder.changes.md')
+    })
+
+    test('an old file that cannot be removed after the rename is a warning naming it', async () => {
+      const filePath = path.join(collectionsDir, 'Spares.md')
+      await fs.writeFile(filePath, '# Spares\n\n')
+      const realUnlink = fs.unlink
+      const spy = spyOn(fs, 'unlink').mockImplementation(async (target) => {
+        if (target === filePath) throw new Error('EBUSY: in use')
+        return realUnlink(target)
+      })
+      let result: RenameListSuccess
+      try {
+        result = unwrap<RenameListSuccess>(await renameList('collection', filePath, 'Binder'))
+      } finally {
+        spy.mockRestore()
+      }
+      expect(result.newFilePath).toBe(path.join(collectionsDir, 'Binder.md'))
+      expect(result.warnings.map((warning) => warning.messageKey)).toEqual([
+        'domain.list.lifecycle.oldFileLeft',
+      ])
+      expect(result.warnings[0]?.message).toContain("'Spares.md'")
+    })
+
+    test('a name ending like a companion file is refused as invalid', async () => {
+      const filePath = path.join(collectionsDir, 'Spares.md')
+      await fs.writeFile(filePath, '# Spares\n\n')
+      const error = unwrapError(await renameList('collection', filePath, 'Burn.Changes'))
+      expect(error.kind).toBe('invalid-name')
+      expect(error.message.messageKey).toBe('domain.list.name.reservedEnding')
+    })
+
+    test('refuses a rename onto a companion file another list left behind', async () => {
+      await fs.writeFile(path.join(collectionsDir, 'Spares.md'), '# Spares\n\n')
+      const orphan = path.join(collectionsDir, 'Burn.changes.md')
+      await fs.writeFile(orphan, 'history\n')
+
+      const error = unwrapError(
+        await renameList('collection', path.join(collectionsDir, 'Spares.md'), 'Burn'),
+      )
+      expect(error).toMatchObject({ kind: 'sidecar-in-the-way', sidecarPath: orphan })
+      expect(listLifecycleErrorStatus(error).status).toBe(409)
+      expect(await exists(path.join(collectionsDir, 'Spares.md'))).toBe(true)
+      expect(await fs.readFile(orphan, 'utf-8')).toBe('history\n')
+    })
+
+    test('a refusal names the file of the list already going by the name', async () => {
+      await fs.writeFile(path.join(collectionsDir, 'Trade Binder.md'), '# Trade Binder\n\n')
+      await fs.writeFile(path.join(collectionsDir, 'Spares.md'), '# Spares\n\n')
+      const error = unwrapError(
+        await renameList('collection', path.join(collectionsDir, 'Spares.md'), 'trade-binder'),
+      )
+      expect(error).toMatchObject({
+        existingFilePath: path.join(collectionsDir, 'Trade Binder.md'),
+      })
     })
 
     test('refuses a rename onto a name that folds onto another list', async () => {

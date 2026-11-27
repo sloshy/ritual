@@ -303,6 +303,70 @@ describe('admin import-csv handler (Integration)', () => {
     expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
   })
 
+  test('an overwrite lands on the list its name folds onto, keeping that list’s title', async () => {
+    // A list's title and its file name are one name: overwriting `trade-binder`
+    // replaces `Trade Binder.md` rather than writing a twin, and the file keeps
+    // the title that names it.
+    const filePath = path.join(testDir, 'collections', 'Trade Binder.md')
+    await fs.writeFile(filePath, '# Trade Binder\n\n## Main\n- Mox Ruby (LEA:265) &1\n')
+
+    const { status } = await importCsv({
+      listType: 'collection',
+      name: 'trade-binder',
+      mode: 'overwrite',
+      content: COLLECTION_CSV,
+      columns: COLLECTION_COLUMNS,
+    })
+    expect(status).toBe(200)
+    expect(await fs.readdir(path.join(testDir, 'collections'))).not.toContain('trade-binder.md')
+    const written = await fs.readFile(filePath, 'utf-8')
+    expect(written).toStartWith('# Trade Binder\n')
+    expect(written).toContain('Sol Ring (C19:221)')
+    expect(written).not.toContain('Mox Ruby')
+  })
+
+  test('a deck overwrite keeps what the user set on the replaced deck', async () => {
+    const filePath = path.join(testDir, 'decks', 'Burn.md')
+    await fs.writeFile(
+      filePath,
+      '---\nformat: modern\ndescription: Mine\nlabels:\n  - proxy\n---\n\n# Burn\n\n## Main\n- 1 Mox Ruby &1\n',
+    )
+
+    const { status } = await importCsv({
+      listType: 'deck',
+      name: 'Burn',
+      mode: 'overwrite',
+      format: 'legacy',
+      content: 'Name,Quantity\nLightning Bolt,4',
+      columns: 'name=1,quantity=2',
+    })
+    expect(status).toBe(200)
+    const written = await fs.readFile(filePath, 'utf-8')
+    expect(written).toContain('description: Mine')
+    expect(written).toContain('- proxy')
+    expect(written).toContain('format: legacy')
+    expect(written).toContain('Lightning Bolt')
+    expect(written).not.toContain('Mox Ruby')
+  })
+
+  test('a deck overwrite over unreadable front matter is refused, the file untouched', async () => {
+    const filePath = path.join(testDir, 'decks', 'Burn.md')
+    const broken = '---\nname: [broken\n---\n\n# Burn\n\n## Main\n- 1 Mox Ruby &1\n'
+    await fs.writeFile(filePath, broken)
+
+    const { status, error } = await importCsv({
+      listType: 'deck',
+      name: 'Burn',
+      mode: 'overwrite',
+      format: 'legacy',
+      content: 'Name,Quantity\nLightning Bolt,4',
+      columns: 'name=1,quantity=2',
+    })
+    expect(status).toBe(400)
+    expect(error.messageKey).toBe('domain.import.replacedDeckUnreadable')
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(broken)
+  })
+
   test('a partial import says so in its message, not only in failedCount', async () => {
     // `message` is what the admin banner shows and what an agent reads back, so
     // "Imported 1 card" alone reads as a clean run.

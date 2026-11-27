@@ -207,7 +207,7 @@ Each `list` value is `type:slug`; the type is case-insensitive, and a list named
 }
 ```
 
-Each `lists[]` row and entry names its list by its display name (`name` / `listName`, its `# Title`) and identifies it by `listType` with `slug` / `listSlug`, as [Price List](#price-list) does. Two lists sharing a title keep separate rows; match rows and entries by type and slug, never by name.
+Each `lists[]` row and entry names its list by its display name (`name` / `listName`, its `# Title`) and identifies it by `listType` with `slug` / `listSlug`, as [Price List](#price-list) does; match rows and entries by type and slug. `lists[]` has a row for every list in scope, in type order, with zero totals for a list with nothing to sell or whose every entry the filters drop, and `totals.listCount` counts them all.
 
 Entry fields:
 

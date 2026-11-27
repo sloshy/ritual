@@ -82,6 +82,7 @@ describe('rename CLI (Integration)', () => {
         oldSlug: string
         newFilePath: string
         oldFilePath: string
+        warnings: unknown[]
       }
       const filePath = path.join(dir, 'collections', 'main.md')
       expect(payload).toEqual({
@@ -91,6 +92,7 @@ describe('rename CLI (Integration)', () => {
         oldSlug: 'main',
         newFilePath: filePath,
         oldFilePath: filePath,
+        warnings: [],
       })
 
       const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')

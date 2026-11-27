@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../config/base-dir'
 import { isRitualClean, sameFileContent, writeListFile } from '../changes/content-hash'
-import { listFileName } from '../list/list-file-name'
+import { listSlug, titleNamesFile, titleSlug } from '../list/list-file-name'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
 import {
@@ -20,8 +20,19 @@ import {
 import type { DeckData } from '../list/deck'
 import { advisoryMessages, unreadableMessages } from '../list/unreadable-content'
 import { parseDeckText } from '../importers/text-file'
-import { listNameCollision, unusableFileNameMessage } from '../list/list-lifecycle'
-import { moveListFileAndSidecars, renameListThroughTemp } from '../list/list-sidecars'
+import {
+  isListLifecycleError,
+  planListRename,
+  renameList,
+  unusableFileNameMessage,
+  type ListLifecycleError,
+  type RenameListOptions,
+  type RenameListResult,
+} from '../list/list-lifecycle'
+import { listIdentityKey, type ListInfo } from '../list/list-identity'
+import { loadListInfo } from '../list/list-info'
+import { findListNameProblems, foldedTitleKey } from '../list/list-name-check'
+import { listDisplayNameFromContent } from '../list/list-display-name'
 import {
   applyCategoryChangesToRecord,
   categoriesSaveTouchesDisk,
@@ -55,12 +66,13 @@ import { compareData } from '../i18n/collate'
 import {
   errorMessage,
   errorParam,
-  nestSync,
   renderSyncMessage,
+  syncList,
   syncMessage,
+  syncRef,
   type SyncMessage,
 } from '../sync/message'
-import { FLAG } from '../util/cli-tokens'
+import { COMMAND, FLAG, commandLine } from '../util/cli-tokens'
 
 /**
  * The `ritual cleanup` command: one pass over every deck, collection, and wanted
@@ -75,8 +87,11 @@ import { FLAG } from '../util/cli-tokens'
  *    bullets on deck lines, canonical token order and spacing, uppercase set
  *    codes, a flat list's quantity prefixes expanded to one line per copy
  *    (every front-matter key stays);
- * 3. every file is named exactly as its list is named (its `# Title` H1),
- *    replacing file names left over from the old lower-kebab-case deck slugs;
+ * 3. every file is named exactly as its list is named (its `# Title` H1) —
+ *    a list's title and its file name are one name, unique per list type —
+ *    so a file whose title was edited by hand (or that was renamed on disk) is
+ *    renamed to match, through the rename engine; a title another list already
+ *    goes by, or two lists sharing one, is reported for the user to settle;
  * 4. every card line spelled with a repeated face (`Steam Vents // Steam Vents`,
  *    Scryfall's name for a reversible printing) is renamed to the card's folded
  *    name, the one the card cache files that printing under — and its category
@@ -104,6 +119,12 @@ export type CleanupOptions = {
    * case-insensitive-file-system path can be exercised on a case-sensitive one.
    */
   isSameFile?: SameFileCheck
+  /**
+   * The lists to clean, in pass order. Defaults to every list, in directory
+   * order; injectable so a test can pin the order renames are tried in. Lists
+   * left out still hold their names (the preview reads the real listing).
+   */
+  locations?: ListLocation[]
 }
 
 /** What cleanup did (or, under dry-run, would do) to one list file. */
@@ -111,8 +132,35 @@ export type CleanupResult = {
   listType: ListType
   /** The file's path when cleanup found it (before any rename). */
   filePath: string
+  /**
+   * The list's title (its `# Title`; its file name when it has none). Absent
+   * for a file cleanup could not read.
+   */
+  name?: string
   /** New file basename when the file was renamed to match the list's name. */
   renamedTo?: string
+  /**
+   * The list that already goes by this list's title, when that kept the file
+   * from being renamed to match it. One of the two needs a new title, by hand.
+   */
+  renameBlockedBy?: ListInfo
+  /**
+   * The other lists of this type whose titles fold to this one's (`Burn` and
+   * `burn`), when this list's file was not already blocked by one of them
+   * (`renameBlockedBy`). One of each needs a new title, by hand.
+   */
+  sharesTitleWith?: ListInfo[]
+  /**
+   * True when the list's title has no character a file name can hold
+   * (`# ???`), so no file can be named after it: give it a new title.
+   */
+  titleUnusable?: boolean
+  /**
+   * True when the rename to the title could not be made — a companion file
+   * already at the destination with no list of its own, or a file-system
+   * error. The warning says which.
+   */
+  renameFailed?: boolean
   /** Format stamped onto a deck that had none. */
   formatSet?: DeckFormatKey
   /** Whether the file's content changed when re-emitted in canonical form. */
@@ -172,8 +220,6 @@ export function hasCleanupActions(result: CleanupResult): boolean {
 
 /** A list file reduced to what the shared cleanup tail needs. */
 type ListDocument = {
-  /** The list's display name — what the file should be named after. */
-  displayName: string
   /** The file's content as it is on disk. */
   original: string
   /** The file re-emitted through the canonical serializer. */
@@ -281,7 +327,6 @@ async function resolveDeckDocument(
       // alone: re-emitting would stamp the section-inferred format the user
       // just declined to confirm (`serializeDeckToMarkdown` persists it).
       return {
-        displayName: deck.name,
         original,
         canonical: original,
         parseWarnings: warnings,
@@ -293,7 +338,6 @@ async function resolveDeckDocument(
     }
   }
   return {
-    displayName: deck.name,
     original,
     canonical: serializeDeckToMarkdown(deck, frontMatter),
     parseWarnings: warnings,
@@ -307,7 +351,6 @@ async function readCollectionDocument(location: ListLocation): Promise<ListDocum
   const file = await readCollectionFile(location.filePath)
   const foldedNames = foldCardLineNames(file.entries)
   return {
-    displayName: file.title,
     original: file.content,
     canonical: collectionToMarkdown(file.title, file.entries, file.sectionOrder, file.frontMatter),
     parseWarnings: file.warningMessages,
@@ -320,7 +363,6 @@ async function readWantedDocument(location: ListLocation): Promise<ListDocument>
   const file = await readWantedFile(location.filePath)
   const foldedNames = foldCardLineNames(file.entries)
   return {
-    displayName: file.title,
     original: file.content,
     canonical: wantedToMarkdown(file.title, file.entries, file.sectionOrder, file.frontMatter),
     parseWarnings: file.warningMessages,
@@ -328,6 +370,85 @@ async function readWantedDocument(location: ListLocation): Promise<ListDocument>
     foldedNames,
   }
 }
+
+/**
+ * Record a rename refusal on its file. A name another list already goes by
+ * needs a person to choose, so `renameBlockedBy` names that list (see
+ * {@link blockRename}); any other refusal (a companion file in the way) is the
+ * engine's own sentence, and fails the run like an error.
+ */
+function refuseRename(result: CleanupResult, refusal: ListLifecycleError): void {
+  result.renameFailed = true
+  result.warnings.push(refusal.message)
+}
+
+/** Record that `other` already goes by the title this list's file was to be renamed after. */
+function blockRename(result: CleanupResult, targetBase: string, other: ListInfo): void {
+  result.renameBlockedBy = other
+  result.warnings.push(
+    syncMessage('cli.cleanup.renameTaken', {
+      file: targetBase,
+      name: other.name,
+      otherFile: `${other.slug}.md`,
+      command: COMMAND_RENAME,
+    }),
+  )
+}
+
+/** Record a rename the file system refused: this file's failure, never the pass's. */
+function renameErrored(result: CleanupResult, intent: RenameIntent, error: unknown): void {
+  result.renameFailed = true
+  result.warnings.push(
+    syncMessage('cli.cleanup.renameFailed', { file: intent.targetBase, reason: errorParam(error) }),
+  )
+}
+
+/** Forget an earlier block before the rename is tried again. */
+function clearBlock(result: CleanupResult): void {
+  delete result.renameBlockedBy
+  result.warnings = result.warnings.filter(
+    (warning) => warning.messageKey !== 'cli.cleanup.renameTaken',
+  )
+}
+
+/**
+ * Rename one file after its title, on disk. Returns whether it moved. A name
+ * another list goes by blocks it (and may free up later in the pass); an I/O
+ * failure is this file's problem, reported on it, never an aborted pass.
+ */
+async function attemptRename(
+  result: CleanupResult,
+  location: ListLocation,
+  intent: RenameIntent,
+  renameOptions: RenameListOptions,
+): Promise<boolean> {
+  clearBlock(result)
+  let renamed: RenameListResult
+  try {
+    renamed = await renameList(location.type, location.filePath, intent.title, renameOptions)
+  } catch (error) {
+    renameErrored(result, intent, error)
+    return false
+  }
+  if (!isListLifecycleError(renamed)) {
+    result.renamedTo = intent.targetBase
+    result.warnings.push(...renamed.warnings)
+    return true
+  }
+  if (renamed.kind === 'already-exists') {
+    blockRename(
+      result,
+      intent.targetBase,
+      await loadListInfo({ type: location.type, filePath: renamed.existingFilePath }),
+    )
+  } else {
+    refuseRename(result, renamed)
+  }
+  return false
+}
+
+/** The command a clash of titles is settled with, as the warnings quote it. */
+const COMMAND_RENAME = commandLine(COMMAND.rename, '<list>', '"<new title>"')
 
 /** Record a file the cleanup could not read, and skip it. */
 function markUnreadable(result: CleanupResult, error: unknown): CleanupResult {
@@ -342,6 +463,33 @@ export async function cleanupList(
   location: ListLocation,
   options: CleanupOptions = {},
 ): Promise<CleanupResult> {
+  const cleaned = await cleanupFile(location, options)
+  if (options.dryRun) await settlePreviewedRenames([cleaned], await listLocations(location.type))
+  return cleaned.result
+}
+
+/** One file cleaned up, with the rename it still wants when it wants one. */
+type CleanedFile = {
+  result: CleanupResult
+  location: ListLocation
+  /** The rename the file's title asks for, when its file name drifted from it. */
+  intent?: RenameIntent
+  renameOptions: RenameListOptions
+}
+
+/** A file to be renamed after its title. */
+type RenameIntent = {
+  title: string
+  /** The file name (with `.md`) the title names. */
+  targetBase: string
+}
+
+/**
+ * Everything `cleanupList` does to one file. A real run renames it too; a dry
+ * run leaves the rename to {@link settlePreviewedRenames}, which needs every
+ * file's intent to model the pass.
+ */
+async function cleanupFile(location: ListLocation, options: CleanupOptions): Promise<CleanedFile> {
   const result: CleanupResult = {
     listType: location.type,
     filePath: location.filePath,
@@ -361,7 +509,7 @@ export async function cleanupList(
     try {
       parsed = await readDeckDocument(location)
     } catch (error) {
-      return markUnreadable(result, error)
+      return { result: markUnreadable(result, error), location, renameOptions: {} }
     }
     document = await resolveDeckDocument(parsed, options)
   } else {
@@ -371,49 +519,11 @@ export async function cleanupList(
           ? await readCollectionDocument(location)
           : await readWantedDocument(location)
     } catch (error) {
-      return markUnreadable(result, error)
+      return { result: markUnreadable(result, error), location, renameOptions: {} }
     }
   }
   if (document.formatSet) result.formatSet = document.formatSet
   if (document.missingFormat) result.missingFormat = true
-
-  // Where the file should live, given the list's display name.
-  const dir = path.dirname(location.filePath)
-  const currentBase = path.basename(location.filePath)
-  const targetBase = listFileName(document.displayName)
-  let targetPath = location.filePath
-  let sameFileTarget = false
-  const sameFile = options.isSameFile ?? statSameFile
-  if (targetBase === null) {
-    result.warnings.push(unusableFileNameMessage(document.displayName))
-  } else if (targetBase !== currentBase) {
-    const candidate = path.join(dir, targetBase)
-    // The destination can name this very file — which it does on a
-    // case-insensitive file system when the rename only changes casing. That is
-    // this list's own rename, not a conflict, but it needs the two-step move
-    // below, since a direct rename would be a no-op there.
-    sameFileTarget =
-      (await Bun.file(candidate).exists()) && (await sameFile(candidate, location.filePath))
-    const occupied = (await Bun.file(candidate).exists()) && !sameFileTarget
-    // Renaming onto a name that merely *folds* onto another list would leave the
-    // two mutually unaddressable — the same refusal `new` and `rename` give.
-    const collision = occupied
-      ? null
-      : await listNameCollision(location.type, document.displayName, location.filePath, sameFile)
-    if (occupied) {
-      result.warnings.push(syncMessage('cli.cleanup.notRenamedOccupied', { file: targetBase }))
-    } else if (collision) {
-      result.warnings.push(
-        syncMessage('cli.cleanup.notRenamedCollision', {
-          file: targetBase,
-          reason: nestSync(collision.message),
-        }),
-      )
-    } else {
-      targetPath = candidate
-      result.renamedTo = targetBase
-    }
-  }
 
   // Reported, never blocking: this is the surface that reads every list file,
   // and so the one place a collection or wanted list's advisories — a quantity
@@ -490,36 +600,59 @@ export async function cleanupList(
     result.warnings.push(errorMessage(error))
   }
 
-  if (options.dryRun) return result
-
-  if (targetPath !== location.filePath) {
-    // A rename-only cleanup does not rewrite content, so the still-valid hash
-    // sidecar travels with the file — the shared movers own that, and the whole
-    // sidecar set, so a future sidecar kind cannot be left behind here.
-    if (sameFileTarget) {
-      await renameListThroughTemp(location.filePath, targetPath)
-    } else {
-      await moveListFileAndSidecars(location.filePath, targetPath)
-    }
+  // A list's title and its file name are one name. The title is read the way
+  // every other surface reads it (`listDisplayNameFromContent`: the first
+  // column-zero `# Title`), from the content this run leaves on disk — the
+  // canonical re-emit when it happens, the file as it is otherwise — so the
+  // file is renamed after the title it will have, and the rename engine finds
+  // that very heading to rewrite rather than inserting a second one.
+  const finalContent = result.rewriteBlocked === true ? document.original : document.canonical
+  const title = listDisplayNameFromContent(finalContent, location.filePath)
+  result.name = title
+  const named = titleSlug(title)
+  let intent: RenameIntent | undefined
+  if (named === null) {
+    result.titleUnusable = true
+    result.warnings.push(unusableFileNameMessage(title))
+  } else if (!titleNamesFile(title, listSlug(location.filePath))) {
+    intent = { title, targetBase: `${named}.md` }
   }
+  const renameOptions: RenameListOptions = { isSameFile: options.isSameFile ?? statSameFile }
+
+  if (options.dryRun) {
+    // Settled by `settlePreviewedRenames`, which models the whole pass. Only a
+    // refusal the model cannot see (a companion file in the way) is final here.
+    const wanted = intent
+    if (wanted !== undefined) {
+      try {
+        const plan = await planListRename(location.type, location.filePath, title, renameOptions)
+        if (isListLifecycleError(plan) && plan.kind !== 'already-exists') {
+          refuseRename(result, plan)
+          intent = undefined
+        }
+      } catch (error) {
+        renameErrored(result, wanted, error)
+        intent = undefined
+      }
+    }
+    return { result, location, intent, renameOptions }
+  }
+
   if (result.rewritten) {
     // Refresh the `.sha256` only when it matched the file before cleanup ran.
     // Stamping a file that holds unrecorded hand edits would make detect-changes
     // skip it and drop the edits' changelog entries — cleanup canonicalizes
     // formatting, it does not get to declare someone else's edits recorded.
-    await writeListFile(
-      targetPath,
-      document.canonical,
-      await isRitualClean(targetPath, document.original),
-    )
+    const wasRitualClean = await isRitualClean(location.filePath, document.original)
+    await writeListFile(location.filePath, document.canonical, wasRitualClean)
   }
 
-  // The categories write, against `targetPath` — a rename may have happened
-  // since the preview above. The stamp gate lives inside `saveCardCategories`,
-  // so a hand-edited sidecar keeps its stale `.sha256` and `detect-changes`
-  // still records the edit, the same rule the list file's rewrite follows.
+  // The categories write, in place: a rename below carries the sidecar along.
+  // The stamp gate lives inside `saveCardCategories`, so a hand-edited sidecar
+  // keeps its stale `.sha256` and `detect-changes` still records the edit, the
+  // same rule the list file's rewrite follows.
   if (categoriesReadable) {
-    const committed = await commitCategoryChanges(targetPath, foldChanges, {
+    const committed = await commitCategoryChanges(location.filePath, foldChanges, {
       knownCardNames,
       defaultCategories,
       canonicalize: true,
@@ -530,16 +663,166 @@ export async function cleanupList(
       committed.action !== undefined && categoriesSaveTouchesDisk(committed.action)
     if (committed.error !== undefined) result.warnings.push(committed.error)
   }
-  return result
+
+  // The rename comes last, in place of the file as cleanup leaves it: the rename
+  // engine moves the file and its whole sidecar set, and keeps the `.sha256`
+  // only when it matches — the same rename `ritual rename` makes.
+  if (intent !== undefined) await attemptRename(result, location, intent, renameOptions)
+  return { result, location, intent, renameOptions }
 }
 
 /** Run cleanup across every deck, collection, and wanted list. */
 export async function cleanupAllLists(options: CleanupOptions = {}): Promise<CleanupResult[]> {
-  const results: CleanupResult[] = []
-  for (const location of await listLocations()) {
-    results.push(await cleanupList(location, options))
+  const cleaned: CleanedFile[] = []
+  const everyList = await listLocations()
+  for (const location of options.locations ?? everyList) {
+    cleaned.push(await cleanupFile(location, options))
   }
+  // The preview models the renames against every list on disk, not only the
+  // ones this pass cleans, as the real run's rename engine sees them.
+  if (options.dryRun) await settlePreviewedRenames(cleaned, everyList)
+  else await retryBlockedRenames(cleaned)
+  const results = cleaned.map((file) => file.result)
+  reportSharedTitles(results)
   return results
+}
+
+/**
+ * A rename blocked by a list that was itself renamed away later in the pass
+ * (`b.md` titled `Burn` waits on `Burn.md` titled `Red`, which moves to
+ * `Red.md`) can go through now: retry every blocked rename, in pass order,
+ * until a round moves nothing. A true cycle (two lists swapping names) never
+ * frees up, and stays reported for the user to break with `ritual rename`.
+ */
+async function retryBlockedRenames(cleaned: readonly CleanedFile[]): Promise<void> {
+  let progress = true
+  while (progress) {
+    progress = false
+    for (const file of cleaned) {
+      if (file.intent === undefined || file.result.renameBlockedBy === undefined) continue
+      if (await attemptRename(file.result, file.location, file.intent, file.renameOptions)) {
+        progress = true
+      }
+    }
+  }
+}
+
+/**
+ * The dry-run model of the pass's renames, so `--dry-run` and `--check` say
+ * exactly what the real run will do whatever order the files come in: every
+ * list holds its file name's fold (`foldedTitleKey`), each wanted rename is
+ * tried in pass order against the names held at that point — a rename frees
+ * the name it leaves — and the blocked ones are retried until a round moves
+ * nothing, as {@link retryBlockedRenames} does on disk.
+ */
+async function settlePreviewedRenames(
+  cleaned: readonly CleanedFile[],
+  others: readonly ListLocation[],
+): Promise<void> {
+  // A name is held by every list whose file name folds to it — two files that
+  // fold together (`Cafe.md`, `Café.md`) both hold it — including the lists
+  // this pass does not clean (`others`), whose files the real run's rename
+  // engine sees on disk just the same.
+  const holders = new Map<string, Set<NameHolder>>()
+  const held = new Map<CleanedFile, string>()
+  // A name that folds to nothing is held by no one and blocks no one, as the
+  // real run's collision check (`findCollidingList`) matches nothing for it.
+  const hold = (key: string | null, holder: NameHolder): void => {
+    if (key === null) return
+    const set = holders.get(key)
+    if (set) set.add(holder)
+    else holders.set(key, new Set([holder]))
+  }
+  const slugOf = (file: CleanedFile): string =>
+    listSlug(file.result.renamedTo ?? path.basename(file.result.filePath))
+  for (const file of cleaned) {
+    const key = foldedTitleKey(file.result.listType, slugOf(file))
+    hold(key, file)
+    if (key !== null) held.set(file, key)
+  }
+  const cleanedPaths = new Set(cleaned.map((file) => path.resolve(file.result.filePath)))
+  for (const location of others) {
+    if (cleanedPaths.has(path.resolve(location.filePath))) continue
+    hold(foldedTitleKey(location.type, location.name), await loadListInfo(location))
+  }
+  const infoOf = (holder: NameHolder): ListInfo =>
+    'result' in holder
+      ? {
+          listType: holder.result.listType,
+          slug: slugOf(holder),
+          name: holder.result.name ?? slugOf(holder),
+        }
+      : holder
+  const attempt = (file: CleanedFile, intent: RenameIntent): boolean => {
+    clearBlock(file.result)
+    const key = foldedTitleKey(file.result.listType, listSlug(intent.targetBase))
+    const blocker =
+      key === null ? undefined : [...(holders.get(key) ?? [])].find((holder) => holder !== file)
+    if (blocker !== undefined) {
+      blockRename(file.result, intent.targetBase, infoOf(blocker))
+      return false
+    }
+    const left = held.get(file)
+    if (left !== undefined) {
+      const set = holders.get(left)
+      set?.delete(file)
+      if (set?.size === 0) holders.delete(left)
+    }
+    hold(key, file)
+    if (key === null) held.delete(file)
+    else held.set(file, key)
+    file.result.renamedTo = intent.targetBase
+    return true
+  }
+  for (const file of cleaned) if (file.intent !== undefined) attempt(file, file.intent)
+  let progress = true
+  while (progress) {
+    progress = false
+    for (const file of cleaned) {
+      if (file.intent === undefined || file.result.renameBlockedBy === undefined) continue
+      if (attempt(file, file.intent)) progress = true
+    }
+  }
+}
+
+/** What holds a name in the preview: a file this pass cleans, or another list on disk. */
+type NameHolder = CleanedFile | ListInfo
+
+/** A cleanup result for a file that could be read, so its list has a title. */
+type NamedCleanupResult = CleanupResult & { name: string }
+
+/** The list a cleaned-up file holds, at the name it has (or, previewed, would have) now. */
+function cleanedListInfo(result: NamedCleanupResult): ListInfo {
+  const fileName = result.renamedTo ?? path.basename(result.filePath)
+  return { listType: result.listType, slug: listSlug(fileName), name: result.name }
+}
+
+/**
+ * Lists of one type whose titles fold together cannot both keep their title,
+ * and which one gives it up is the user's call: each is reported, naming the
+ * others — except a list already reported as blocked by one of them.
+ */
+function reportSharedTitles(results: CleanupResult[]): void {
+  const named = results.filter((result): result is NamedCleanupResult => result.name !== undefined)
+  const byKey = new Map(named.map((result) => [listIdentityKey(cleanedListInfo(result)), result]))
+  for (const clash of findListNameProblems(named.map(cleanedListInfo)).shared) {
+    for (const list of clash.lists) {
+      const result = byKey.get(listIdentityKey(list))
+      if (result === undefined || result.renameBlockedBy !== undefined) continue
+      const others = clash.lists.filter((other) => other.slug !== list.slug)
+      result.sharesTitleWith = others
+      result.warnings.push(
+        syncMessage('cli.cleanup.sharedTitle', {
+          name: list.name,
+          others: syncList(
+            others.map((other) => syncRef('domain.list.fileQuoted', { file: `${other.slug}.md` })),
+            'and',
+          ),
+          command: COMMAND_RENAME,
+        }),
+      )
+    }
+  }
 }
 
 type CleanupCommandOptions = {
@@ -741,6 +1024,15 @@ async function runCleanup(
   }
 
   const blocked = results.some((result) => result.rewriteBlocked)
+  // Lists whose titles clash need a person to pick new titles: the workspace is
+  // not clean until they do.
+  const nameClash = results.some(
+    (result) =>
+      result.renameBlockedBy !== undefined ||
+      result.sharesTitleWith !== undefined ||
+      result.titleUnusable === true ||
+      result.renameFailed === true,
+  )
   // A file cleanup could not read at all fails every mode, including --dry-run:
   // the workspace is not clean and no run of this command can make it so.
   const unreadable = results.some((result) => result.unreadable)
@@ -748,14 +1040,14 @@ async function runCleanup(
     // `--check` is for hooks/CI: fail when a real run would change any file,
     // or when a file cannot be brought to canonical form (blocked rewrite, or a
     // parse failure — the messages above say which).
-    if (results.some(wouldChangeFile) || blocked || unreadable) {
+    if (results.some(wouldChangeFile) || blocked || nameClash || unreadable) {
       process.exitCode = ExitCode.RuntimeError
     }
     return
   }
   // A real run that had to leave a file un-rewritten because its parse skipped
   // lines did not fully clean the workspace — surface that in the exit code.
-  if (unreadable || (!dryRun && blocked)) {
+  if (unreadable || (!dryRun && (blocked || nameClash))) {
     process.exitCode = ExitCode.RuntimeError
   }
 }

@@ -346,3 +346,13 @@ export function bareCommandLine(command: CommandPath, ...args: readonly string[]
 export function flagValue(flag: FlagToken, value: string): FlagToken {
   return `${flag} ${value}`
 }
+
+/**
+ * A value quoted for a POSIX shell when it needs it, so a command line Ritual
+ * prints can be pasted as is: bare when it holds only safe characters, else in
+ * single quotes with any `'` closed, escaped and reopened.
+ */
+export function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value)) return value
+  return `'${value.replaceAll("'", `'\\''`)}'`
+}

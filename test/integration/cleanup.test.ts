@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import type { ListLocation } from '../../src/list/resolve-list'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
@@ -187,10 +188,265 @@ describe('cleanup (Integration)', () => {
 
       const result = resultFor(results, 'trade binder.md')
       expect(result.renamedTo).toBeUndefined()
-      expect(warningText(result)).toContain('already exists')
+      expect(result.renameBlockedBy?.slug).toBe('Trade Binder')
       expect(await Bun.file(path.join(dir(), 'collections', 'trade binder.md')).exists()).toBeTrue()
     },
   )
+
+  test('lists whose titles fold together are each reported, naming the other, and left alone', async () => {
+    // Neither file drifted from its title, so there is nothing to rename — but
+    // the two titles are one name, and which list gives it up is the user's call.
+    const first = await writeCollectionFile(dir(), 'trade-binder', {
+      title: 'trade-binder',
+      entries: [],
+    })
+    const second = await writeCollectionFile(dir(), 'Trade Binder', {
+      title: 'Trade Binder',
+      entries: [],
+    })
+    const before = [await fs.readFile(first, 'utf-8'), await fs.readFile(second, 'utf-8')]
+
+    const results = await cleanupAllLists()
+
+    expect(resultFor(results, 'trade-binder.md').sharesTitleWith).toEqual([
+      { listType: 'collection', slug: 'Trade Binder', name: 'Trade Binder' },
+    ])
+    const other = resultFor(results, 'Trade Binder.md')
+    expect(other.sharesTitleWith).toEqual([
+      { listType: 'collection', slug: 'trade-binder', name: 'trade-binder' },
+    ])
+    expect(warningText(other)).toContain(
+      "shares the title 'Trade Binder' with 'trade-binder.md'; give all but one of them a new title",
+    )
+    expect([await fs.readFile(first, 'utf-8'), await fs.readFile(second, 'utf-8')]).toEqual(before)
+  })
+
+  test('two drifted lists titled alike: the first takes the name, the second is reported', async () => {
+    const write = (slug: string): Promise<string> =>
+      writeCollectionFile(dir(), slug, { title: 'Burn', entries: [] })
+    await write('a')
+    await write('b')
+
+    // The preview says what the run will do: one rename, one refusal.
+    const preview = await cleanupAllLists({ dryRun: true })
+    const results = await cleanupAllLists()
+
+    // Which takes the name follows the directory's order; the run agrees with
+    // its preview on which one it is.
+    const takerOf = (run: CleanupResult[]): CleanupResult => {
+      const taker = run.find((result) => result.renamedTo === 'Burn.md')
+      if (taker === undefined) throw new Error('no list took Burn.md')
+      return taker
+    }
+    const taker = path.basename(takerOf(preview).filePath)
+    const left = taker === 'a.md' ? 'b.md' : 'a.md'
+    for (const run of [preview, results]) {
+      expect(path.basename(takerOf(run).filePath)).toBe(taker)
+      const blocked = resultFor(run, left)
+      expect(blocked.renamedTo).toBeUndefined()
+      expect(blocked.renameBlockedBy).toEqual({
+        listType: 'collection',
+        slug: 'Burn',
+        name: 'Burn',
+      })
+      // The list that took the name is told it shares its title with the other.
+      expect(takerOf(run).sharesTitleWith).toEqual([
+        { listType: 'collection', slug: path.basename(left, '.md'), name: 'Burn' },
+      ])
+    }
+    const listed = await fs.readdir(path.join(dir(), 'collections'))
+    expect(listed).toContain('Burn.md')
+    expect(listed).toContain(left)
+    expect(listed).not.toContain(taker)
+  })
+
+  /** The collections at `slugs`, as pass-order locations for the `locations` seam. */
+  const collections = (...slugs: string[]): ListLocation[] =>
+    slugs.map((slug) => ({
+      type: 'collection',
+      name: slug,
+      filePath: path.join(dir(), 'collections', `${slug}.md`),
+    }))
+  const listed = async (): Promise<string[]> =>
+    (await fs.readdir(path.join(dir(), 'collections'))).filter((f) => f.endsWith('.md')).sort()
+
+  test.each([
+    ['the blocked list first', ['b', 'Burn']],
+    ['the vacating list first', ['Burn', 'b']],
+  ])('a name a list vacates later in the pass is taken after all: %s', async (_label, order) => {
+    // `Burn.md` is titled Red, so it moves to `Red.md`, freeing `Burn.md` for
+    // `b.md`, titled Burn — whichever of the two the pass reaches first.
+    await writeCollectionFile(dir(), 'Burn', { title: 'Red', entries: [] })
+    await writeCollectionFile(dir(), 'b', { title: 'Burn', entries: [] })
+    const locations = collections(...order)
+
+    const preview = await cleanupAllLists({ dryRun: true, locations })
+    const results = await cleanupAllLists({ locations })
+
+    for (const run of [preview, results]) {
+      expect(resultFor(run, 'Burn.md')).toMatchObject({ renamedTo: 'Red.md' })
+      const b = resultFor(run, 'b.md')
+      expect(b.renamedTo).toBe('Burn.md')
+      expect(b.renameBlockedBy).toBeUndefined()
+      expect(warningText(b)).not.toContain('not renamed')
+    }
+    expect(await listed()).toEqual(['Burn.md', 'Red.md'])
+  })
+
+  test('two lists swapping names stay put, each blocked by the other', async () => {
+    await writeCollectionFile(dir(), 'Red', { title: 'Blue', entries: [] })
+    await writeCollectionFile(dir(), 'Blue', { title: 'Red', entries: [] })
+    const locations = collections('Red', 'Blue')
+
+    const preview = await cleanupAllLists({ dryRun: true, locations })
+    const results = await cleanupAllLists({ locations })
+
+    for (const run of [preview, results]) {
+      expect(resultFor(run, 'Red.md').renameBlockedBy).toEqual({
+        listType: 'collection',
+        slug: 'Blue',
+        name: 'Red',
+      })
+      expect(resultFor(run, 'Blue.md').renameBlockedBy).toEqual({
+        listType: 'collection',
+        slug: 'Red',
+        name: 'Blue',
+      })
+    }
+    expect(await listed()).toEqual(['Blue.md', 'Red.md'])
+  })
+
+  test('an indented heading is renamed after once, never doubled', async () => {
+    // The deck parser reads `  # Foo` as the title; the re-emit writes it at
+    // column zero, and the file is named after the title it now has.
+    const filePath = path.join(dir(), 'decks', 'x.md')
+    await fs.writeFile(
+      filePath,
+      '---\nformat: modern\n---\n\n  # Foo\n\n## Main\n- 1 Sol Ring &1\n',
+    )
+
+    const results = await cleanupAllLists()
+
+    expect(resultFor(results, 'x.md').renamedTo).toBe('Foo.md')
+    const written = await fs.readFile(path.join(dir(), 'decks', 'Foo.md'), 'utf-8')
+    expect(written.match(/^# /gm)).toHaveLength(1)
+    expect(written).toContain('# Foo\n')
+    // A second pass finds nothing to do: no stray heading blocks a rewrite.
+    expect((await cleanupAllLists()).filter((r) => r.warnings.length > 0)).toEqual([])
+  })
+
+  test('a title no file can be named after fails the run, flagged', async () => {
+    await fs.writeFile(path.join(dir(), 'collections', 'Odd.md'), '# ???\n')
+    const result = resultFor(await cleanupAllLists(), 'Odd.md')
+    expect(result.titleUnusable).toBe(true)
+    expect(result.renamedTo).toBeUndefined()
+  })
+
+  test.each(['Burn.changes', 'X.Changes'])(
+    'a title ending like a companion file (%s) is unusable',
+    async (title) => {
+      await fs.writeFile(path.join(dir(), 'collections', 'odd.md'), `# ${title}\n`)
+      const result = resultFor(await cleanupAllLists(), 'odd.md')
+      expect(result.titleUnusable).toBe(true)
+      expect(result.renamedTo).toBeUndefined()
+      // Its own reason: the fix is a new title, not a usable character.
+      expect(result.warnings.map((warning) => warning.messageKey)).toContain(
+        'domain.list.name.reservedEnding',
+      )
+      expect(await listed()).toEqual(['odd.md'])
+    },
+  )
+
+  test('a name two folded files both hold stays taken after one of them moves', async () => {
+    // `Cafe.md` and `Café.md` are two files whose names fold together. Cafe
+    // moves away (titled Red); Café still holds the name, so `q.md` titled Cafe
+    // is blocked by it — in the preview exactly as on disk.
+    await writeCollectionFile(dir(), 'Cafe', { title: 'Red', entries: [] })
+    await writeCollectionFile(dir(), 'Caf\u00e9', { title: 'Caf\u00e9', entries: [] })
+    if ((await listed()).length < 2) return // a file system folding the two into one
+    await writeCollectionFile(dir(), 'q', { title: 'Cafe', entries: [] })
+    const locations = collections('Cafe', 'q', 'Caf\u00e9')
+
+    const preview = await cleanupAllLists({ dryRun: true, locations })
+    const results = await cleanupAllLists({ locations })
+
+    for (const run of [preview, results]) {
+      expect(resultFor(run, 'Cafe.md').renamedTo).toBe('Red.md')
+      const q = resultFor(run, 'q.md')
+      expect(q.renamedTo).toBeUndefined()
+      expect(q.renameBlockedBy?.name).toBe('Caf\u00e9')
+    }
+  })
+
+  test('a name that folds to nothing is held by no one: preview and run agree', async () => {
+    // `-` and `_` both fold to nothing, so `_.md` does not stand in the way of
+    // `x.md` (titled `-`) becoming `-.md` — on disk, or in the preview.
+    await writeCollectionFile(dir(), '_', { title: '_', entries: [] })
+    await writeCollectionFile(dir(), 'x', { title: '-', entries: [] })
+
+    const preview = await cleanupAllLists({ dryRun: true })
+    const results = await cleanupAllLists()
+
+    for (const run of [preview, results]) {
+      expect(resultFor(run, 'x.md').renamedTo).toBe('-.md')
+      expect(resultFor(run, 'x.md').renameBlockedBy).toBeUndefined()
+    }
+    expect(await listed()).toEqual(['-.md', '_.md'])
+  })
+
+  test('a preview of only some lists still sees the others holding their names', async () => {
+    await writeCollectionFile(dir(), 'Burn', { title: 'Burn', entries: [] })
+    await writeCollectionFile(dir(), 'b', { title: 'Burn', entries: [] })
+    const result = resultFor(
+      await cleanupAllLists({ dryRun: true, locations: collections('b') }),
+      'b.md',
+    )
+    expect(result.renameBlockedBy).toEqual({ listType: 'collection', slug: 'Burn', name: 'Burn' })
+  })
+
+  test('a companion file left at the destination is never clobbered', async () => {
+    await writeCollectionFile(dir(), 'b', { title: 'Burn', entries: [] })
+    const orphan = path.join(dir(), 'collections', 'Burn.changes.md')
+    await fs.writeFile(orphan, 'someone else’s history\n')
+
+    const result = resultFor(await cleanupAllLists(), 'b.md')
+
+    expect(result.renamedTo).toBeUndefined()
+    expect(result.renameFailed).toBe(true)
+    expect(warningText(result)).toContain("'Burn.changes.md' is already there")
+    expect(await fs.readFile(orphan, 'utf-8')).toBe('someone else’s history\n')
+  })
+
+  test('a rename that fails on the file system is that file’s failure, not the pass’s', async () => {
+    await writeCollectionFile(dir(), 'b', { title: 'Burn', entries: [] })
+    await writeCollectionFile(dir(), 'c', { title: 'Coal', entries: [] })
+    // The identity check the rename engine runs throws, as a dying disk would.
+    const isSameFile = (): Promise<boolean> => Promise.reject(new Error('EIO: disk gone'))
+
+    const results = await cleanupAllLists({ isSameFile, locations: collections('b', 'c') })
+
+    for (const file of ['b.md', 'c.md']) {
+      const result = resultFor(results, file)
+      expect(result.renameFailed).toBe(true)
+      expect(warningText(result)).toContain('EIO: disk gone')
+    }
+  })
+
+  test('a title folding onto another list by its separators is refused, naming it', async () => {
+    // `trade-binder` and `Trade Binder` are one name once hyphens fold to spaces
+    // — distinct files on any file system, so this runs on macOS too.
+    await writeCollectionFile(dir(), 'x', { title: 'trade-binder', entries: [] })
+    await writeCollectionFile(dir(), 'Trade Binder', { title: 'Trade Binder', entries: [] })
+
+    const result = resultFor(await cleanupAllLists(), 'x.md')
+
+    expect(result.renamedTo).toBeUndefined()
+    expect(result.renameBlockedBy).toEqual({
+      listType: 'collection',
+      slug: 'Trade Binder',
+      name: 'Trade Binder',
+    })
+  })
 
   test('prompts for a commander deck instead of silently inferring its format', async () => {
     const filePath = path.join(dir(), 'decks', 'Kenrith.md')
@@ -299,7 +555,21 @@ describe('cleanup (Integration)', () => {
 
     const result = resultFor(results, 'winota-stax.md')
     expect(result.renamedTo).toBeUndefined()
-    expect(warningText(result)).toContain('another list already has that file')
+    // Not guessed around: the warning names the list that already goes by the
+    // title, and the occupant is told it shares its title with this one.
+    expect(result.renameBlockedBy).toEqual({
+      listType: 'deck',
+      slug: 'Winota Stax',
+      name: 'Winota Stax',
+    })
+    expect(warningText(result)).toContain(
+      "not renamed to 'Winota Stax.md': 'Winota Stax' ('Winota Stax.md') already goes by",
+    )
+    const occupant = resultFor(results, 'Winota Stax.md')
+    expect(occupant.sharesTitleWith).toEqual([
+      { listType: 'deck', slug: 'winota-stax', name: 'Winota Stax' },
+    ])
+    expect(warningText(occupant)).toContain("shares the title 'Winota Stax' with 'winota-stax.md'")
     // Both files survive, the occupied one untouched.
     const keptPath = path.join(dir(), 'decks', 'winota-stax.md')
     expect(await Bun.file(keptPath).exists()).toBeTrue()
@@ -318,7 +588,7 @@ describe('cleanup (Integration)', () => {
       frontMatter: { format: 'commander' },
       cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
     })
-    const originalInode = (await fs.stat(filePath)).ino
+    const originalContent = await fs.readFile(filePath, 'utf-8')
 
     const result = await cleanupList(
       { type: 'deck', name: 'winota stax', filePath },
@@ -327,8 +597,10 @@ describe('cleanup (Integration)', () => {
 
     expect(result.renamedTo).toBe('Winota Stax.md')
     const newPath = path.join(dir(), 'decks', 'Winota Stax.md')
-    expect(await Bun.file(newPath).exists()).toBeTrue()
-    expect((await fs.stat(newPath)).ino).toBe(originalInode)
+    expect(await fs.readFile(newPath, 'utf-8')).toBe(originalContent)
+    const listed = await fs.readdir(path.join(dir(), 'decks'))
+    expect(listed).toContain('Winota Stax.md')
+    expect(listed).not.toContain('winota stax.md')
     expect(
       (await fs.readdir(path.join(dir(), 'decks'))).filter((f) => f.startsWith('.ritual-rename')),
     ).toEqual([])
@@ -356,7 +628,7 @@ describe('cleanup (Integration)', () => {
 
       const result = resultFor(results, 'jank.md')
       expect(result.renamedTo).toBeUndefined()
-      expect(warningText(result)).toContain('another list already has that file')
+      expect(result.renameBlockedBy?.slug).toBe('Jank')
       expect(await fs.readFile(lowerPath, 'utf-8')).toContain('Lightning Bolt')
       expect(await fs.readFile(occupiedPath, 'utf-8')).toBe(occupiedContent)
     },
@@ -573,6 +845,23 @@ describe('cleanup CLI (Integration)', () => {
       const [marker = ''] = pseudoString('cli.cleanup.checkLine').split('{line}')
       expect(pseudo.stdout).toContain(marker)
       expect(pseudo.stdout).not.toContain('[check]')
+    })
+  })
+
+  test('lists sharing a title fail --check and a real run, which renames nothing', async () => {
+    await withWorkspace(async (dir) => {
+      await writeWantedFile(dir, 'Binder', { title: 'Binder', entries: [] })
+      await writeWantedFile(dir, 'binder-', { title: 'binder-', entries: [] })
+
+      const check = await runCli(['cleanup', '--check'], dir)
+      expect(check.exitCode).toBe(1)
+      expect(check.stderr).toContain("shares the title 'Binder' with 'binder-.md'")
+
+      const files = ['Binder.md', 'binder-.md'].map((file) => path.join(dir, 'wanted', file))
+      const before = await Promise.all(files.map((file) => fs.readFile(file, 'utf-8')))
+      const run = await runCli(['cleanup'], dir)
+      expect(run.exitCode).toBe(1)
+      expect(await Promise.all(files.map((file) => fs.readFile(file, 'utf-8')))).toEqual(before)
     })
   })
 

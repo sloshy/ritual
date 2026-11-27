@@ -249,8 +249,21 @@ export function matchList(
     // pathological cross-type case — the same basename under two list types —
     // can be ambiguous here, since one directory cannot hold two identical names.
     { label: 'byte-exact', matches: (c) => c.name === cleaned },
-    { label: 'folded-exact', matches: (c) => normalizeListName(c.name) === normalized },
-    { label: 'folded-substring', matches: (c) => normalizeListName(c.name).includes(normalized) },
+    // A query that folds to nothing (`???`, `-`) names nothing to fold against:
+    // every name would contain it, so the one list of a type would answer any
+    // such query. Only the byte-exact tier can find it.
+    ...(normalized === ''
+      ? []
+      : [
+          {
+            label: 'folded-exact',
+            matches: (c: ListLocation) => normalizeListName(c.name) === normalized,
+          },
+          {
+            label: 'folded-substring',
+            matches: (c: ListLocation) => normalizeListName(c.name).includes(normalized),
+          },
+        ]),
   ]
 
   for (const tier of tiers) {

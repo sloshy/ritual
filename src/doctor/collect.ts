@@ -28,6 +28,7 @@ import { isRunningFromSource } from '../config/runtime'
 import { ISSUES_URL, isReleaseBuild, version } from '../config/version'
 import type { ListType } from '../list/list-type'
 import { dirForType, listLocations } from '../list/resolve-list'
+import { scanListNames } from '../list/list-name-check'
 import { errorMessage, syncMessage, syncMessageOf } from '../sync/message'
 import { currentInstallKind } from '../update/env'
 import { newerCachedRelease, updateCheckEligibility, updateChecksOptedOut } from '../update/notice'
@@ -201,13 +202,16 @@ async function updateFacts(install: InstallMethod): Promise<DoctorUpdateFacts> {
 export async function collectDoctorFacts(): Promise<DoctorFacts> {
   const ritual = ritualFacts()
   const config = await configFacts()
-  const [workspace, migrations, cache, update] = await Promise.all([
+  const [workspace, listNames, migrations, cache, update] = await Promise.all([
     workspaceFacts(config.state !== 'absent'),
+    // Never rejects: an unreadable file is named by its file name, and a
+    // workspace it cannot enumerate becomes the check's `problem`.
+    scanListNames(),
     migrationFacts(config),
     cacheFacts(),
     updateFacts(ritual.install),
   ])
-  return { ritual, workspace, config, migrations, cache, update }
+  return { ritual, workspace, listNames, config, migrations, cache, update }
 }
 
 /** The whole report, judged now. */

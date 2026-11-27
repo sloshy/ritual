@@ -171,6 +171,14 @@ export const domainImportMeta = {
   'domain.import.csv.categoryIsBoard': {
     description: `${CSV_CONTEXT} A clause inside "Line {line}: {notice} on …": a value of the row’s categories cell names a deck board (such as Sideboard), so it set the row’s section instead of being kept as a category. {value} is that value in double quotes; {section} is the section the row landed in (a deck board name, untranslated). Starts lowercase.`,
   },
+  'domain.import.replacedDeckUnreadable': {
+    description:
+      "An import was asked to replace an existing deck, but that deck's YAML front matter (the settings block at the top of its file) does not parse, so what the user set on it cannot be carried over; the import is refused. {reason} is the parser's error.",
+  },
+  'domain.import.titleKept': {
+    description:
+      "An import replaced an existing deck whose title differs from the name the source gives it now (the deck was renamed at the source since it was imported). A list's title and its file name are one name, so the deck keeps its own title. {name} is the kept title; {sourceName} the source's name; {command} the rename command line, never translate it, keep the backticks.",
+  },
   'domain.import.fileExists': {
     description:
       'An import was asked to create a new list file, but the file is already there. {path} is the file’s path. "overwrite" and "append" are the names of the other two import modes.',

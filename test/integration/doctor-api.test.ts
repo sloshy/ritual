@@ -67,4 +67,18 @@ describe('handleDoctor', () => {
     // The migration plan would refuse the same setting: that check stands aside.
     expect(body.migrations).toEqual({ state: 'unknown', remedy: null, problem: null })
   })
+
+  test('a list whose title drifted from its file is a warning naming both', async () => {
+    await fs.writeFile(path.join(workspace.dir, 'collections', 'old.md'), '# Burn\n')
+    const body = await doctor()
+    expect(body.ok).toBe(true)
+    expect(body.listNames.drifted).toEqual([
+      { listType: 'collection', slug: 'old', name: 'Burn', titleSlug: 'Burn' },
+    ])
+    const check = body.checks.find((c) => c.id === 'listNames')
+    expect(check?.status).toBe('warn')
+    expect(check?.details[0]?.message).toBe(
+      "The collection 'Burn' is in 'old.md', but its title names 'Burn.md'",
+    )
+  })
 })

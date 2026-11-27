@@ -65,7 +65,7 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 ```
 
 - `warnings` lists text lines the parser skipped: content that was not imported (always empty for URL imports). Like `advisories`, it is a list of message triples: the English `message`, plus `messageKey`/`messageParams`. A line the card-line grammar refused is keyed `domain.card.line.atLine` (`{ line, text }`), its diagnostic nested as `text` (`domain.card.line.*`). A warning whose card was imported, only without the labels it carried, has `"labelsDropped": true`; the others are lines that were skipped.
-- `advisories` lists notes on content that was read: a card name still carrying a printing token, a skipped MTG Arena `About` line, or an empty `## Maybeboard`/`## Tokens` header the write drops. On a URL import it carries notes about the source's [categories](/commands/import/#categories-from-a-url-import): names Ritual refused, or a categories file that could not be written.
+- `advisories` lists notes on content that was read: a card name still carrying a printing token, a skipped MTG Arena `About` line, or an empty `## Maybeboard`/`## Tokens` header the write drops. On a URL import it carries notes about the source's [categories](/commands/import/#categories-from-a-url-import): names Ritual refused, or a categories file that could not be written. An import that replaced a deck the source has since renamed adds `domain.import.titleKept`: the deck kept its own title, and the advisory names the source's name and the `ritual rename` command that adopts it.
 - When either array is non-empty, `message` notes the count, as a nested message per kind of note (see [the message triple](/admin/api/#the-message-triple)).
 
 A URL import from Archidekt or Moxfield also writes the deck's `<deck>.categories.json` (and its `.sha256`), replacing the file a replaced deck had; with git auto-commit enabled, the categories and primer files are committed with the deck.
@@ -108,15 +108,15 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
 }
 ```
 
-| Field       | Description                                                                                                                                                                                    | Required |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `listType`  | `deck`, `collection`, or `wanted`                                                                                                                                                              | Yes      |
-| `name`      | New list name (`create`/`overwrite`) or an existing list to append to (`append`)                                                                                                               | Yes      |
-| `mode`      | `create` (default — fails if the list exists), `overwrite`, or `append`                                                                                                                        | No       |
-| `format`    | Deck format; required when creating or overwriting a deck                                                                                                                                      | No       |
-| `content`   | Raw CSV text                                                                                                                                                                                   | Yes      |
-| `columns`   | 1-based column mapping spec, e.g. `name=1,set=2,collector-number=3`. Fields: `name`, `set`, `collector-number`, `condition`, `finish`, `language`, `tags`, `categories`, `section`, `quantity` | Yes      |
-| `hasHeader` | Whether the first row is a header row (default `true`)                                                                                                                                         | No       |
+| Field       | Description                                                                                                                                                                                                                              | Required |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `listType`  | `deck`, `collection`, or `wanted`                                                                                                                                                                                                        | Yes      |
+| `name`      | New list name (`create`/`overwrite`) or an existing list to append to (`append`). An `overwrite` replaces the list the name [folds onto](/list-resolution/#names-that-would-collide-are-refused-at-creation) and keeps that list's title | Yes      |
+| `mode`      | `create` (default — fails if the list exists, or one its name folds onto), `overwrite` (replaces the cards, keeping the list's title and its front matter), or `append`                                                                  | No       |
+| `format`    | Deck format; required when creating or overwriting a deck                                                                                                                                                                                | No       |
+| `content`   | Raw CSV text                                                                                                                                                                                                                             | Yes      |
+| `columns`   | 1-based column mapping spec, e.g. `name=1,set=2,collector-number=3`. Fields: `name`, `set`, `collector-number`, `condition`, `finish`, `language`, `tags`, `categories`, `section`, `quantity`                                           | Yes      |
+| `hasHeader` | Whether the first row is a header row (default `true`)                                                                                                                                                                                   | No       |
 
 `format`, when given, must be a canonical deck format key. See [Deck Format](/commands/new/#deck-format). An unrecognized value returns `400`.
 

@@ -159,6 +159,14 @@ To keep a deck's categories in step with Archidekt after the import, use [`deck-
 
 `-n, --dry-run` previews an import. The source is fetched or read, every card is resolved and validated, and the summary reports what would be written, but nothing on disk changes. A dry run also does not create the `decks/`, `collections/`, or `wanted/` directory it would have written into.
 
+### Replacing an existing list
+
+An overwrite replaces a list's cards, not what makes it that list. A list's title and its file name are [one name](/list-resolution/#a-lists-title-is-its-file-name), so the replaced list keeps its file name and the title that names it: importing `trade-binder` over `Trade Binder.md` writes `# Trade Binder`, and a list whose title had drifted from its file name (a hand edit) is retitled after its file name. Every replaced list keeps its front matter. A deck keeps every key but `format`, which the import restates: its cover `image`, `labels` default, `description`, `tags`, sync link and stamps, and any key you wrote yourself. A source's `sourceId` and `sourceUrl` replace the kept ones when it gives them; the deck's own description wins over the source's. A collection or wanted list keeps its whole front-matter block. A replaced deck whose front matter is not valid YAML is refused, and the file is left as it was.
+
+The imported lines land against the kept `labels` default, but `proxy` is a physical fact: a line from a Ritual list file, which states every line's labels, stays a real card under a `proxy` default (it is written `[no-proxy]`), while a line from a service or a CSV, which says nothing about labels, inherits the default.
+
+When a URL import replaces the deck holding the same source id and the source now calls it something else (it was renamed there), the deck keeps its own title, as [`deck-sync`](/commands/deck-sync/) does, and an advisory names the source's name and the [`ritual rename`](/commands/rename/) command that adopts it. A new name typed at the conflict prompt that folds onto another list of the type is refused like any other name conflict.
+
 A dry run that would replace an existing list says so: `[dry-run] Would overwrite deck: <path>` (or `... collection: <path>`) instead of `[dry-run] Would save deck to: <path>`, and the JSON output's `action` is `overwritten`.
 
 Warnings still surface and still affect the exit code. See [Partial Failures](#partial-failures).

@@ -30,6 +30,18 @@ describe('matchList', () => {
     })
   })
 
+  it.each(['???', '-', ' '])('a query folding to nothing (%p) never matches a list', (query) => {
+    expect(matchList([loc('deck', 'Burn')], query)).toMatchObject({ kind: 'not-found' })
+  })
+
+  it('a companion-file name is matched as typed, never resolved to the only list', () => {
+    expect(matchList([loc('deck', 'Burn')], 'Burn.changes')).toMatchObject({ kind: 'not-found' })
+    expect(matchList([loc('deck', 'Burn')], 'X.primer')).toMatchObject({ kind: 'not-found' })
+    // A legacy list that already has such a name is still found by it.
+    const legacy = loc('deck', 'Burn.Changes')
+    expect(matchList([legacy, loc('deck', 'Elves')], 'burn.changes')).toBe(legacy)
+  })
+
   it('matches a name case-insensitively', () => {
     const goblins = loc('deck', 'Goblins')
     expect(matchList([goblins, loc('deck', 'Elves')], 'goblins')).toBe(goblins)

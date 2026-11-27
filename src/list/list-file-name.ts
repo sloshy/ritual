@@ -38,7 +38,8 @@ export function stripFileNameIllegalChars(name: string): string {
  * Linux, leaving the rest of the name as entered.
  *
  * Returns **null** when nothing usable is left (a name of only illegal characters,
- * e.g. `"???"`), rather than an empty string: under `strictNullChecks` that forces
+ * e.g. `"???"`), rather than an empty string (a new file's name also refuses
+ * companion-file endings: {@link listFileSlug}): under `strictNullChecks` that forces
  * every caller to decide what to do about it instead of quietly naming a file
  * `.md`.
  */
@@ -54,14 +55,41 @@ export function sanitizeListFileName(name: string): string | null {
   return safeName === '' ? null : safeName
 }
 
-/** True when `name` still has usable characters once sanitized. */
+/** The companion-file endings a new list file name may not take, in any case. */
+const RESERVED_ENDING = /\.(?:changes|primer)$/i
+
+/**
+ * Whether a sanitized name ends like a list's companion file (`Burn.changes`
+ * → `Burn.changes.md`, the changelog of `Burn.md`), in any case. Such a name
+ * names no list file a new list may take: every enumerator skips the lowercase
+ * spelling (`isListMarkdownFile`), and on a case-insensitive file system any
+ * casing lands on the companion itself.
+ */
+export function hasReservedEnding(slug: string): boolean {
+  return RESERVED_ENDING.test(slug)
+}
+
+/**
+ * The slug a **new** file for a list named `name` takes: {@link
+ * sanitizeListFileName}, refused (null) when nothing usable is left or when it
+ * ends like a companion file ({@link hasReservedEnding}). Every surface that
+ * names a file — creation, rename, cleanup, imports — goes through this; name
+ * *resolution* folds through the plain sanitizer, so a query is never emptied
+ * by the reserved rule.
+ */
+export function listFileSlug(name: string): string | null {
+  const slug = sanitizeListFileName(name)
+  return slug === null || hasReservedEnding(slug) ? null : slug
+}
+
+/** True when a new list file can be named after `name` ({@link listFileSlug}). */
 export function isUsableFileName(name: string): boolean {
-  return sanitizeListFileName(name) !== null
+  return listFileSlug(name) !== null
 }
 
 /** A list's file name, including the `.md` extension. Null when `name` is unusable. */
 export function listFileName(name: string): string | null {
-  const safeName = sanitizeListFileName(name)
+  const safeName = listFileSlug(name)
   return safeName === null ? null : `${safeName}.md`
 }
 
@@ -140,4 +168,35 @@ export function sameListName(a: string, b: string): boolean {
 export function listSlug(filePath: string): string {
   const base = filePath.split(/[\\/]/).pop() ?? filePath
   return base.replace(/\.md$/, '')
+}
+
+/**
+ * The slug a title names: the file basename (without `.md`) a list titled
+ * `title` lives in, or null when no file can be named after it (`???`).
+ */
+export function titleSlug(title: string): string | null {
+  return listFileSlug(title)
+}
+
+/**
+ * Whether a list titled `title` belongs in the file `slug` — the one rule tying
+ * a list's title to its file (`Burn?` names `Burn`). Compared in Unicode NFC on
+ * both sides: a file system may hand back a name decomposed (macOS spells
+ * `Café.md` in NFD) while the heading inside it is composed, and that is the
+ * same name, not a drift.
+ */
+export function titleNamesFile(title: string, slug: string): boolean {
+  const named = titleSlug(title)
+  return named !== null && named.normalize('NFC') === slug.normalize('NFC')
+}
+
+/**
+ * The list file among `fileNames` (basenames, with `.md`) whose name folds onto
+ * `name` ({@link normalizeListName}), if any — the fold every create, rename
+ * and import refuses a name for. A name that folds to nothing matches nothing.
+ */
+export function findFoldedListFile(fileNames: readonly string[], name: string): string | undefined {
+  const folded = normalizeListName(name)
+  if (folded === '') return undefined
+  return fileNames.find((file) => normalizeListName(file.replace(/\.md$/, '')) === folded)
 }

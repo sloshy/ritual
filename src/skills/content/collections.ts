@@ -528,7 +528,8 @@ its list as \`list: {listType, slug}\`.
 
 Each \`lists[]\` row and entry names its list by display title (\`name\` / \`listName\`) and
 identifies it by \`listType\` + \`slug\` / \`listSlug\`, as \`price\` does: match rows and
-entries by type and slug, never by name (two lists can share a title).
+entries by type and slug. \`lists[]\` has a row for every list in scope, with zero totals
+when nothing in it sells or the filters drop it all (\`totals.listCount\` counts them all).
 
 Entries report \`status\` \`buying\` / \`not-buying\` (CK's buy quantity is 0) / \`no-match\`,
 with \`sellableQuantity = min(owned, CK's cap)\` and \`value\` covering only those copies.

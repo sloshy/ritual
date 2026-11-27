@@ -16,6 +16,7 @@ import {
   parseMinPrice,
   parseMinRatio,
   sumSellEntries,
+  summarizeSellEntries,
   type BuildSellReportOptions,
   type MatchedSellEntry,
   type SellListEntry,
@@ -152,6 +153,16 @@ function options(): BuildSellReportOptions {
   }
 }
 
+/** A list input of `listType` at `slug`, titled `name` (by default unlike its slug). */
+function listInput(
+  listType: ListType,
+  slug: string,
+  entries: SellListEntry[] = [],
+  name = `${slug} list`,
+): SellListInput {
+  return { listType, slug, name, entries }
+}
+
 function input(entries: Partial<SellListEntry>[]): SellListInput[] {
   return [
     {
@@ -261,6 +272,35 @@ describe('buildSellReport matching', () => {
     expect(report.totals.totalValue).toBe(1.2)
   })
 
+  test('a list in scope with nothing to sell keeps a zero row, in type then input order', async () => {
+    const [binder] = input([{ set: 'fdn', collectorNumber: '294' }])
+    const report = await buildSellReport(
+      [listInput('collection', 'empty'), binder!, listInput('deck', 'burn')],
+      options(),
+    )
+    expect(report.lists.map((row) => [row.listType, row.slug, row.cardCount])).toEqual([
+      ['deck', 'burn', 0],
+      ['collection', 'empty', 0],
+      ['collection', 'binder', 1],
+    ])
+    expect(report.totals).toMatchObject({ listCount: 3, cardCount: 1 })
+  })
+
+  test('an entry from a list out of scope is not counted; a list named twice is one row', async () => {
+    const report = await buildSellReport(input([{ set: 'fdn', collectorNumber: '294' }]), options())
+    const binder = listInput('collection', 'binder', [], 'Binder')
+    const other = listInput('deck', 'other')
+    const view = summarizeSellEntries(
+      [binder, other, binder],
+      [...report.entries, { ...report.entries[0]!, listType: 'wanted', listSlug: 'stray' }],
+    )
+    expect(view.lists.map((row) => [row.listType, row.slug, row.cardCount])).toEqual([
+      ['deck', 'other', 0],
+      ['collection', 'binder', 1],
+    ])
+    expect(view.totals).toMatchObject({ listCount: 2, cardCount: 1 })
+  })
+
   test('each list keeps its own row, by type and slug, each entry naming its slug', async () => {
     const entries: SellListEntry[] = [
       {
@@ -272,24 +312,20 @@ describe('buildSellReport matching', () => {
         cardIds: [],
       },
     ]
-    const list = (listType: ListType, slug: string, name: string): SellListInput => ({
-      listType,
-      slug,
-      name,
-      entries,
-    })
-    // Two collections sharing a title, and a deck sharing a slug with one of
+    const list = (listType: ListType, slug: string, name: string): SellListInput =>
+      listInput(listType, slug, entries, name)
+    // Two collections, and a deck sharing a slug and a title with one of
     // them: neither half of the key alone tells these apart.
     const inputs: SellListInput[] = [
       list('collection', 'binder', 'Binder'),
-      list('collection', 'binder-two', 'Binder'),
+      list('collection', 'binder-two', 'Binder Two'),
       list('deck', 'binder', 'Binder'),
     ]
     const report = await buildSellReport(inputs, options())
     expect(report.entries.map((entry) => [entry.listType, entry.listSlug, entry.listName])).toEqual(
       [
         ['collection', 'binder', 'Binder'],
-        ['collection', 'binder-two', 'Binder'],
+        ['collection', 'binder-two', 'Binder Two'],
         ['deck', 'binder', 'Binder'],
       ],
     )
@@ -297,7 +333,7 @@ describe('buildSellReport matching', () => {
     expect(report.lists.map((row) => [row.listType, row.slug, row.name, row.cardCount])).toEqual([
       ['deck', 'binder', 'Binder', 1],
       ['collection', 'binder', 'Binder', 1],
-      ['collection', 'binder-two', 'Binder', 1],
+      ['collection', 'binder-two', 'Binder Two', 1],
     ])
     expect(report.totals.listCount).toBe(3)
   })
@@ -774,6 +810,24 @@ describe('applySellFilters', () => {
     )
     const view = applySellFilters(built, { tags: ['CK Batch'] })
     expect(view.entries.map((entry) => entry.collectorNumber)).toEqual(['294'])
+  })
+
+  test('a list whose every entry is filtered away keeps a zero row', async () => {
+    const view = applySellFilters(await report(), { sets: ['nope'] })
+    expect(view.entries).toEqual([])
+    expect(view.lists).toEqual([
+      {
+        listType: 'collection',
+        slug: 'binder',
+        name: 'Binder',
+        cardCount: 0,
+        sellableCount: 0,
+        totalValue: 0,
+        notBuyingCount: 0,
+        noMatchCount: 0,
+      },
+    ])
+    expect(view.totals.listCount).toBe(1)
   })
 
   test('a blank filter returns the report’s own view', async () => {

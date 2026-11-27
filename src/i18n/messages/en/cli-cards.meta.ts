@@ -1017,12 +1017,17 @@ export const cliCardsMeta = {
   'cli.cleanup.skipped': {
     description: 'Per-file warning following the one above: nothing was changed for this file.',
   },
-  'cli.cleanup.notRenamedOccupied': {
-    description: 'Per-file warning: the target file name belongs to another list.',
-  },
-  'cli.cleanup.notRenamedCollision': {
+  'cli.cleanup.renameTaken': {
     description:
-      "Per-file warning: the target name would collide with another list. {reason} is the checker's sentence.",
+      "Per-file warning, a lowercase fragment after the file name. A list's title and its file name are the same name, so cleanup renames a file whose title changed; here another list of the same type already goes by that title (or holds that file), so the user must give one of the two a new title. {file} is the file name the title names; {name} and {otherFile} are the other list's title and file name. {command} is the rename command line; never translate it, keep the backticks.",
+  },
+  'cli.cleanup.renameFailed': {
+    description:
+      "Per-file warning, a lowercase fragment after the file name: renaming the file to match its title failed on the file system. {file} is the file name the title names, never translate it; {reason} is the system's error.",
+  },
+  'cli.cleanup.sharedTitle': {
+    description:
+      "Per-file warning, a lowercase fragment after the file name. Two lists of the same type may not share a title (titles that differ only in capitalization, accents or punctuation count as the same), and cleanup cannot choose which one gives it up. {name} is this list's title; {others} is the other lists' file names, each quoted (domain.list.fileQuoted), joined with the locale's \"and\". {command} is the rename command line; never translate it, keep the backticks.",
   },
   'cli.cleanup.notRewritten': {
     description:

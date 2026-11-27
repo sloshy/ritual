@@ -16,7 +16,7 @@ import {
   type SaveListOptions,
   type SaveListOutcome,
 } from '../importers/save-list'
-import { dirForType, listFilePath } from '../list/resolve-list'
+import { listFilePath } from '../list/resolve-list'
 import {
   deckStatesPrintings,
   fetchDeckFromUrl,
@@ -90,7 +90,7 @@ import {
   type PrefixedMessage,
   type SyncMessage,
 } from '../sync/message'
-import { COMMAND, commandLine, ENV_VAR, FLAG } from '../util/cli-tokens'
+import { COMMAND, commandLine, ENV_VAR, FLAG, shellQuote } from '../util/cli-tokens'
 
 type ImportCommandOptions = {
   type?: string
@@ -322,12 +322,6 @@ function reportAdvisories(advisories: readonly SyncMessage[]): void {
 }
 
 // ── CSV source flow ─────────────────────────────────────────────────
-
-/** Quote a value for the echoed scripting command when it needs it. */
-function shellQuote(value: string): string {
-  if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value)) return value
-  return `'${value.replaceAll("'", `'\\''`)}'`
-}
 
 /**
  * Build the non-interactive command equivalent to the wizard's answers, so the
@@ -580,7 +574,7 @@ async function runCsvImport(
   // `trade binder` replaces `Trade Binder.md` rather than writing a twin.
   const conflict = targetPath === null ? null : await scanNameConflict(listType, targetPath)
   /** The existing list's path when the name lands on one, else null (the create case). */
-  const existingPath = conflict === null ? null : path.join(dirForType(listType), conflict.file)
+  const existingPath = conflict === null ? null : conflict.filePath
   let mode: CsvImportMode
   if (flagMode !== undefined) {
     mode = flagMode
@@ -908,7 +902,10 @@ export function registerImportCommand(program: Command): void {
         // categories file that could not be written — is news, never loss.
         const advisories =
           outcome.status === 'saved'
-            ? importCategoryAdvisories(result.refusedCategories, outcome.categoryError)
+            ? [
+                ...outcome.advisories,
+                ...importCategoryAdvisories(result.refusedCategories, outcome.categoryError),
+              ]
             : []
         emitImportSummary(
           source,
@@ -948,15 +945,21 @@ export function registerImportCommand(program: Command): void {
         defaultLabels,
       } = await loadDeckFile(source, { ...IMPORT_TEXT_PARSE_OPTIONS, listType })
       const warnings = importParseWarnings(notices)
-      const advisories = advisoryMessages({ notices })
+      const parsedAdvisories = advisoryMessages({ notices })
 
       // The file's own default rides along, so each line's labels land as the
       // file states them (a move's rule) rather than as a bare token.
-      const textSaveOptions = { ...saveOptions, sourceLabels: defaultLabels }
+      // The file speaks labels even with no `labels:` default: a plain line is a
+      // real card, never one a replaced list's `proxy` default claims.
+      const textSaveOptions = { ...saveOptions, sourceLabels: defaultLabels ?? [] }
       const outcome =
         listType === 'deck'
           ? await saveDeck(deckData, getDecksDir(), textSaveOptions)
           : await saveFlatList(deckData, listType, textSaveOptions)
+      const advisories = [
+        ...parsedAdvisories,
+        ...(outcome.status === 'saved' ? outcome.advisories : []),
+      ]
       emitImportSummary(source, listType, outcome, saveOptions.dryRun === true, scripting, {
         warnings,
         advisories,
